@@ -80,3 +80,53 @@ git status --short --branch
 - Do not modify `composer.json`, `composer.lock`, `config/app.php`, `config/database.php`, `route/app.php`, `.env`, `.env.example`, or `app/common.php` without the required change request and confirmation.
 - Do not implement user management, workflow, frontend, or unrelated API modules.
 - Do not push remote branches unless explicitly requested.
+
+## Completed Plan: auth-agent Phase 2 - Login Token RBAC Skeleton
+
+Status: completed on 2026-05-28 after user continued and route change request was treated as confirmed.
+
+### Current Goal
+
+Implement the first auth-agent code slice:
+
+- Java-compatible B-side auth routes.
+- Account/password login endpoint skeleton.
+- Bearer Token generation, lookup, and revocation with `oa:auth:` cache key prefix.
+- Current-login-user endpoint.
+- RBAC payload assembly for roles, button codes, mobile button codes, permission codes, menu ids, and flat menu resources.
+- Auth middleware for later protected routes.
+
+### Involved Files
+
+- `route/app.php`
+- `app/controller/auth/AuthController.php`
+- `app/service/auth/AuthService.php`
+- `app/service/auth/TokenService.php`
+- `app/service/auth/RbacService.php`
+- `app/middleware/AuthMiddleware.php`
+- `app/support/ApiResponse.php`
+- `docs/tasks/auth-agent-phase2-notes.md`
+- `STATUS.md`
+
+### Risks
+
+- Existing Java password compatibility uses SM2 decrypt plus SM3 hash. This first slice isolates password verification but does not claim full SM2 frontend compatibility yet.
+- Redis credentials are not configured in this branch. Token state uses ThinkPHP Cache facade with Redis-compatible key names; final Redis store wiring remains a deployment/config task.
+- Database runtime depends on final merge with db-agent table/model documentation and a valid database connection.
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not modify database schema or seed data.
+- Do not implement user CRUD, organization management, workflow, frontend, SMS sending, or web push behavior.
+- Do not modify locked config files other than the confirmed `route/app.php`.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```
