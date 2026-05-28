@@ -1,0 +1,25 @@
+# Project-local Codex configuration for OA-ThinkPHP.
+# Keep this file free of API keys, passwords, tokens, and host-specific secrets.
+
+[project]
+name = "OA-ThinkPHP"
+root = "F:\\AI\\projects\\testJava\\OA-ThinkPHP"
+java_source = "F:\\AI\\projects\\testJava\\OA"
+
+[safety]
+java_source_readonly = true
+allow_business_migration = false
+allow_delete = false
+allow_secrets = false
+
+[permissions]
+default_sandbox = "workspace-write"
+network = "restricted"
+dangerous_operations = false
+
+[mcp]
+enabled = false
+
+[workflow]
+require_git_status_before_edit = true
+require_tests_before_commit = true
