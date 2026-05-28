@@ -171,3 +171,46 @@ Agent: auth-agent
 - Wait for confirmation on the login menu route ownership option.
 - If confirmed for auth-agent, implement only menu tree compatibility and avoid user profile/organization/workbench APIs.
 - If deferred to user-agent or merge-agent, keep auth-agent code as login, token, password, RBAC, and permission foundation.
+
+## 2026-05-28 17:13 +08:00
+
+Agent: auth-agent
+
+### Completed Content
+
+- Started multi-agent parallel work with user-agent, test-agent, and docs-agent in separate worktrees.
+- Implemented auth-owned compatibility for `GET /sys/userCenter/loginMenu`.
+- Added menu tree building from `SYS_USER_HAS_RESOURCE` and `SYS_ROLE_HAS_RESOURCE`.
+- Added parent menu/module inclusion and frontend-compatible `meta` fields for router loading.
+- Kept user center ownership narrow: no user profile, organization, position, workbench, process config, or message APIs were implemented.
+- Updated the public-file change request status for the single route addition.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/auth/UserCenterAuthController.php`
+- `app/service/auth/MenuService.php`
+- `docs/tasks/auth-agent-phase4-menu-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed and listed `sys/userCenter/loginMenu`.
+- `php think test`: not run because the current ThinkPHP console does not expose a `test` command.
+
+### Current Issues
+
+- Runtime DB verification still requires a configured OA database and cache store.
+- The rest of `/sys/userCenter/*` remains for user-agent.
+- If user-agent later implements a richer `loginMenu`, merge-agent must keep only one route and compare output compatibility.
+
+### Next Plan
+
+- Commit auth-agent Phase 4.
+- Wait for user-agent/test-agent/docs-agent reports.
+- Review parallel agent outputs before starting the next module slice.

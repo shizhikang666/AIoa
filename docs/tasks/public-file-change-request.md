@@ -80,4 +80,4 @@ This creates a module-boundary risk:
 
 ### Status
 
-Waiting for confirmation on which option should own `GET /sys/userCenter/loginMenu`.
+Applied during auth-agent Phase 4 after the user allowed the main agent to decide the next parallel plan. auth-agent added only `GET /sys/userCenter/loginMenu` and kept the rest of user center for user-agent.

@@ -178,33 +178,38 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 git status --short --branch
 ```
 
-## Pending Plan: auth-agent Phase 4 - Menu Route Boundary
+## Completed Plan: auth-agent Phase 4 - Login Menu Compatibility
 
-Status: blocked for implementation until `GET /sys/userCenter/loginMenu` ownership is confirmed.
+Status: completed on 2026-05-28 after the user allowed the main agent to decide the parallel plan.
 
 ### Current Goal
 
-Prepare the next auth-agent slice for authorized menu tree compatibility without crossing into user-agent ownership.
+Implement the next auth-agent slice for authorized menu tree compatibility without crossing into user-agent ownership:
+
+- Add `GET /sys/userCenter/loginMenu` compatibility route.
+- Build the authorized menu tree from user/role resource relations.
+- Keep the implementation limited to auth/RBAC menu data.
+- Avoid user profile, organization, position, workbench, and message APIs.
 
 ### Involved Files If Confirmed
 
 - `app/service/auth/RbacService.php`
-- possible `app/service/auth/MenuService.php`
-- possible auth-scoped menu controller
+- `app/service/auth/MenuService.php`
+- `app/controller/auth/UserCenterAuthController.php`
 - `docs/tasks/auth-agent-phase4-menu-compat.md`
 - `STATUS.md`
-
-If option 2 is confirmed, `route/app.php` would also need a public-file change for `GET /sys/userCenter/loginMenu`.
+- `route/app.php`
 
 ### Risk
 
-The Java/old frontend path for menu loading is `/sys/userCenter/loginMenu`. Although the data comes from RBAC menu permissions, the path belongs to user center. Implementing that route inside auth-agent could conflict with user-agent unless ownership is confirmed.
+The Java/old frontend path for menu loading is `/sys/userCenter/loginMenu`. Although the data comes from RBAC menu permissions, the path belongs to user center. auth-agent must implement only this menu compatibility route and leave the rest of user center to user-agent.
 
 ### Proposed Ownership Options
 
-- auth-agent writes menu tree service only; user-agent exposes the user-center route later.
-- auth-agent adds a compatibility route after explicit confirmation.
-- merge-agent adds the final compatibility route after auth-agent and user-agent are both merged.
+- Do not implement user center profile, organization, position, workbench, process config, or message APIs.
+- Do not modify Java source files.
+- Do not modify database schema or seed data.
+- Do not modify locked public files other than the confirmed `route/app.php` route addition.
 
 ### Test Commands
 
