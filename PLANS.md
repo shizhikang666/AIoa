@@ -20,7 +20,8 @@ This phase must not implement controller, service, route, auth, user, workflow, 
 
 Expected Java analysis inputs:
 
-- `F:\AI\projects\testJava\OA\snowy-web-app\src\main\resources\_sql\2026\oa2026.sql`
+- Primary SQL reference: `F:\AI\projects\testJava\OA\oa2026.sql`
+- Historical SQL snapshot for comparison: `F:\AI\projects\testJava\OA\snowy-web-app\src\main\resources\_sql\2026\oa2026.sql`
 - Java `biz` entity and mapper files under the Java OA project
 - Existing db-agent docs under `F:\AI\projects\testJava\OA-db\docs\database`
 
@@ -54,6 +55,8 @@ Candidate high-priority tables:
 - Java entity names may not map one-to-one to table names.
 - Some relations are stored in JSON or generic relation tables instead of SQL foreign keys.
 - Generating too many models in one commit could violate the small-step rule.
+- The updated root SQL may contain data needed for compatibility checks. Use it as read-only input only.
+- Online realtime data sync is a final-stage requirement and must not be implemented until the system is complete and a confirmed migration/sync plan exists.
 
 ### 5. Test Commands
 
@@ -83,6 +86,10 @@ git status --short --branch
 
 - Do not modify `composer.json`, `composer.lock`, `config/app.php`, `config/database.php`, `route/app.php`, `.env`, `.env.example`, or `app/common.php`.
 - Do not modify Java source files.
+- Do not modify `F:\AI\projects\testJava\OA\oa2026.sql`; it is read-only reference input.
 - Do not generate controllers, services, middleware, routes, API handlers, frontend code, or workflow runtime logic.
 - Do not push remote branches unless explicitly requested.
 
+## Final-Stage Reminder
+
+Before project completion, remind the user that production/online realtime data must be synced into the final ThinkPHP OA project. Details are tracked in `docs/tasks/final-data-sync-reminder.md`.
