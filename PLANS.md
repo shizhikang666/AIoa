@@ -130,3 +130,50 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git status --short --branch
 ```
+
+## Completed Plan: auth-agent Phase 3 - Password Compatibility
+
+Status: completed on 2026-05-28 after Phase 2 commit.
+
+### Current Goal
+
+Add the smallest safe password compatibility slice based on Java and `oa2026.sql` analysis:
+
+- Match Java's `CommonCryptogramUtil.doHashValue()` SM3 password storage format.
+- Verify that imported `sys_user.PASSWORD` values such as the default password hash can be checked from ThinkPHP.
+- Keep SM2 private-key decryption out of committed code and document the remaining compatibility boundary.
+- Fix safe-password verification so it checks the current user's password before opening the short-lived safe window.
+
+### Involved Files
+
+- `app/service/auth/AuthService.php`
+- `app/service/auth/PasswordService.php`
+- `app/service/auth/Sm3Hasher.php`
+- `docs/tasks/auth-agent-phase3-password-compat.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### Risks
+
+- Full old-frontend compatibility still needs an SM2 decrypt adapter or frontend-agent must adapt password submission. No SM2 private key may be committed.
+- Password handling must not allow direct pass-the-hash login.
+- Runtime login still depends on a configured database and cache store.
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not write SM2 private keys, API keys, passwords, or secrets.
+- Do not modify locked public config files.
+- Do not implement user CRUD, organization management, workflow, frontend, or unrelated API modules.
+
+### Test Commands
+
+```powershell
+php -r "require 'vendor/autoload.php'; echo app\\service\\auth\\Sm3Hasher::hash('abc');"
+php -r "require 'vendor/autoload.php'; echo app\\service\\auth\\Sm3Hasher::hash('123456');"
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```

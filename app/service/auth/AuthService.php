@@ -14,6 +14,7 @@ class AuthService
     public function __construct(
         private readonly TokenService $tokenService = new TokenService(),
         private readonly RbacService $rbacService = new RbacService(),
+        private readonly PasswordService $passwordService = new PasswordService(),
     ) {
     }
 
@@ -62,7 +63,11 @@ class AuthService
             throw new RuntimeException('account is disabled', 403);
         }
 
-        if (!$this->verifyPassword($password, (string)($user['PASSWORD'] ?? ''))) {
+        if ($this->passwordService->looksLikeSm2Ciphertext($password)) {
+            throw new RuntimeException('SM2 encrypted password requires compatibility adapter', 400);
+        }
+
+        if (!$this->passwordService->verify($password, (string)($user['PASSWORD'] ?? ''))) {
             throw new RuntimeException('account or password is incorrect', 401);
         }
 
@@ -79,15 +84,8 @@ class AuthService
 
     public function currentUser(Request $request): array
     {
-        $payload = $this->tokenService->getPayload($this->tokenService->bearerFromRequest($request));
-        if ($payload === null) {
-            throw new RuntimeException('unauthenticated', 401);
-        }
-
-        $user = Db::name('sys_user')->where('ID', $payload['user_id'])->find();
-        if (!is_array($user) || $user === []) {
-            throw new RuntimeException('login user not found', 401);
-        }
+        $payload = $this->currentPayload($request);
+        $user = $this->currentUserRecord($payload);
 
         unset($user['PASSWORD']);
 
@@ -105,10 +103,25 @@ class AuthService
 
     public function openSafe(array $input, Request $request): string
     {
-        $this->currentUser($request);
-        $mark = trim((string)($input['mark'] ?? 'password'));
+        $password = (string)($input['password'] ?? '');
+        if ($password === '') {
+            throw new RuntimeException('password is required', 400);
+        }
 
-        Cache::set('oa:auth:safe:' . $mark . ':' . $this->tokenService->bearerFromRequest($request), true, 120);
+        if ($this->passwordService->looksLikeSm2Ciphertext($password)) {
+            throw new RuntimeException('SM2 encrypted password requires compatibility adapter', 400);
+        }
+
+        $payload = $this->currentPayload($request);
+        $user = $this->currentUserRecord($payload);
+        if (!$this->passwordService->verify($password, (string)($user['PASSWORD'] ?? ''))) {
+            throw new RuntimeException('password is incorrect', 401);
+        }
+
+        $mark = trim((string)($input['mark'] ?? 'password'));
+        $token = $this->tokenService->bearerFromRequest($request);
+
+        Cache::set('oa:auth:safe:' . $mark . ':' . hash('sha256', (string)$token), true, 120);
 
         return 'verification passed';
     }
@@ -135,21 +148,24 @@ class AuthService
         }
     }
 
-    private function verifyPassword(string $inputPassword, string $storedPassword): bool
+    private function currentPayload(Request $request): array
     {
-        if ($storedPassword === '') {
-            return false;
+        $payload = $this->tokenService->getPayload($this->tokenService->bearerFromRequest($request));
+        if ($payload === null) {
+            throw new RuntimeException('unauthenticated', 401);
         }
 
-        if (hash_equals($storedPassword, $inputPassword)) {
-            return true;
+        return $payload;
+    }
+
+    private function currentUserRecord(array $payload): array
+    {
+        $user = Db::name('sys_user')->where('ID', $payload['user_id'])->find();
+        if (!is_array($user) || $user === []) {
+            throw new RuntimeException('login user not found', 401);
         }
 
-        if (password_get_info($storedPassword)['algo'] !== null && password_verify($inputPassword, $storedPassword)) {
-            return true;
-        }
-
-        return hash_equals($storedPassword, hash('sha256', $inputPassword));
+        return $user;
     }
 
     private function newId(): string
