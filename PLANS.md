@@ -94,13 +94,13 @@ git status --short --branch
 
 Before project completion, remind the user that production/online realtime data must be synced into the final ThinkPHP OA project. Details are tracked in `docs/tasks/final-data-sync-reminder.md`.
 
-## Next Plan Candidate: db-agent Phase 3 - Remaining Database Coverage
+## Completed Plan: db-agent Phase 3 - Sales Support Table Coverage
 
-Status: not started.
+Status: completed on 2026-05-28 after implementation and baseline checks.
 
 ### Current Goal
 
-Continue database coverage by analyzing lower-priority business/support tables that were intentionally deferred from Phase 2, then generate mapping docs and passive Models only where later agents clearly need them.
+Continue database coverage by analyzing sales project support tables that depend on the Phase 2 sales, customer, warehouse, and inventory foundations. Generate documentation and passive ThinkPHP Models only.
 
 ### Candidate Inputs
 
@@ -110,10 +110,75 @@ Continue database coverage by analyzing lower-priority business/support tables t
 
 ### Candidate Scope
 
-- Business support tables not covered in Phase 1 or Phase 2.
-- Relation/helper tables that connect business documents, users, workflow records, and files.
+- Product master and product relation tables needed by sales order items.
+- Sales project delivery, invoicing, reissue, follow-up, rating, field change, and return tables.
 - Documentation updates under `docs/database`.
-- Passive Model classes under `app/model` only when a table has a stable Java entity/table mapping.
+- Passive Model classes under `app/model` only.
+
+Candidate tables:
+
+- `biz_product`
+- `product_relation`
+- `biz_sale_project_invoice`
+- `biz_sale_project_invoice_item`
+- `biz_sale_project_invoicing`
+- `biz_sale_project_product_info`
+- `biz_sale_project_reissue_order`
+- `sale_project_product_item_relation`
+- `sale_project_follow_up`
+- `customer_follow_up`
+- `sale_project_rate`
+- `sales_project_field_change_log`
+- `return_order`
+- `return_order_item`
+- `delivery_record`
+
+### Risks
+
+- Java `ProductRelation` declares `PRODUCT_RELATION`, while the SQL dump contains `product_relation`; use the SQL physical table name for ThinkPHP.
+- Some Java fields are translation-only with `@TableField(exist = false)` and must not become database columns.
+- Follow-up, rating, and return tables reference users, organizations, customers, warehouses, and projects; only document those relations in this phase.
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not modify public locked files.
+- Do not implement controller, service, route, auth, user, workflow, or frontend logic.
+- Do not start production data synchronization.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem app\model -Filter *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```
+
+### Acceptance Criteria
+
+- Java source project remains read-only.
+- Only db-agent worktree is modified.
+- Added Models are passive database mapping classes only.
+- No public locked files are modified.
+- New docs identify field groups and relation notes for later agents.
+- Tests above pass.
+- Commit message includes `db-agent`.
+
+## Next Plan Candidate: db-agent Phase 4 - Finance And Collaboration Support Tables
+
+Status: not started.
+
+### Current Goal
+
+Continue database coverage for finance/settlement and collaboration support tables that were deferred from Phase 2 and Phase 3.
+
+### Candidate Scope
+
+- Finance and settlement: `biz_collection_receipt`, `biz_debit_note`, `settlement_account`, `settlement_account_statement`.
+- Collaboration around team projects: `biz_team_project_comment`, `biz_team_project_comment_reply`, `biz_team_project_task_comment`, `biz_team_project_task_category`, `biz_team_project_user`, `biz_team_project_task_user`.
+- Other support records only if the SQL table has a stable Java entity/table mapping.
 
 ### Forbidden Scope
 
