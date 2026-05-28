@@ -177,3 +177,41 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git status --short --branch
 ```
+
+## Pending Plan: auth-agent Phase 4 - Menu Route Boundary
+
+Status: blocked for implementation until `GET /sys/userCenter/loginMenu` ownership is confirmed.
+
+### Current Goal
+
+Prepare the next auth-agent slice for authorized menu tree compatibility without crossing into user-agent ownership.
+
+### Involved Files If Confirmed
+
+- `app/service/auth/RbacService.php`
+- possible `app/service/auth/MenuService.php`
+- possible auth-scoped menu controller
+- `docs/tasks/auth-agent-phase4-menu-compat.md`
+- `STATUS.md`
+
+If option 2 is confirmed, `route/app.php` would also need a public-file change for `GET /sys/userCenter/loginMenu`.
+
+### Risk
+
+The Java/old frontend path for menu loading is `/sys/userCenter/loginMenu`. Although the data comes from RBAC menu permissions, the path belongs to user center. Implementing that route inside auth-agent could conflict with user-agent unless ownership is confirmed.
+
+### Proposed Ownership Options
+
+- auth-agent writes menu tree service only; user-agent exposes the user-center route later.
+- auth-agent adds a compatibility route after explicit confirmation.
+- merge-agent adds the final compatibility route after auth-agent and user-agent are both merged.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```

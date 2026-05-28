@@ -135,3 +135,39 @@ Agent: auth-agent
 - Continue auth-agent with menu/tree permission shaping and endpoint response compatibility.
 - Keep Redis store wiring as a later public-file/config decision unless explicitly approved.
 - After auth-agent reaches a stable checkpoint, move to user-agent according to the staged order.
+
+## 2026-05-28 16:52 +08:00
+
+Agent: auth-agent
+
+### Completed Content
+
+- Analyzed the old frontend login flow after successful token creation.
+- Confirmed the frontend calls `GET /auth/b/getLoginUser`, then `GET /sys/userCenter/loginMenu`.
+- Confirmed Java builds the login menu from user/role resource relations and returns a tree for the frontend router.
+- Identified a module-boundary issue: menu permission data belongs to auth-agent, but the compatibility route path belongs to user center.
+- Updated the public-file change request with ownership options for `GET /sys/userCenter/loginMenu`.
+- Added a pending Phase 4 plan and did not modify route or business code.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- No code was changed in this boundary-planning step.
+- Previous Phase 3 checks remain passing in this clean worktree state.
+- `git status --short --branch`: will be checked before committing this planning update.
+
+### Current Issues
+
+- `GET /sys/userCenter/loginMenu` requires an ownership decision before implementation because it may overlap auth-agent and user-agent responsibilities.
+- Implementing the compatibility route requires modifying locked `route/app.php`.
+
+### Next Plan
+
+- Wait for confirmation on the login menu route ownership option.
+- If confirmed for auth-agent, implement only menu tree compatibility and avoid user profile/organization/workbench APIs.
+- If deferred to user-agent or merge-agent, keep auth-agent code as login, token, password, RBAC, and permission foundation.
