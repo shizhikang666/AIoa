@@ -282,3 +282,41 @@ Agent: db-agent
 
 - Commit db-agent Phase 5.
 - Run db-agent Phase 6 remaining support table audit, then decide whether to stop db-agent and begin auth-agent.
+
+## 2026-05-28 17:14 +08:00
+
+Agent: db-agent
+
+### Completed Content
+
+- Completed db-agent Phase 6 remaining support table audit.
+- Compared Java biz entities against generated ThinkPHP Models.
+- Documented remaining low-priority or shared tables that are not required for auth-agent startup.
+- Decided that db-agent can pause and hand over to auth-agent.
+- Kept this phase documentation-only, with no controller, service, route, workflow, auth, or frontend logic.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/database/remaining-table-audit.md`
+
+### Test Results
+
+- `Get-ChildItem app\model -Filter *.php | ForEach-Object { php -l $_.FullName }`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed.
+- `php think test`: not run because the current ThinkPHP console does not expose a `test` command.
+
+### Current Issues
+
+- Remaining unmapped low-priority tables include `biz_draft`, `biz_history_excel`, `biz_payroll`, `biz_user_vacation`, `BIZ_RELATION`, `DEV_FILE`, and `DEV_DICT`.
+- These do not block auth-agent startup and can be handled by later agents or a small db-agent follow-up if a concrete dependency appears.
+- Online realtime production data synchronization remains a final-stage requirement and must wait until the merged ThinkPHP OA project is complete and a confirmed sync plan exists.
+- `refactor/db` remains ahead of `origin/refactor/db`; no push has been performed.
+
+### Next Plan
+
+- Commit db-agent Phase 6 audit.
+- Start auth-agent next in `F:\AI\projects\testJava\OA-auth` after confirming branch/worktree status and syncing the latest db-agent foundation strategy into the handoff plan.

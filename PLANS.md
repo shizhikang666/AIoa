@@ -247,9 +247,9 @@ Get-ChildItem app\model -Filter *.php | ForEach-Object { php -l $_.FullName }
 git status --short --branch
 ```
 
-## Next Plan Candidate: db-agent Phase 6 - Remaining Support Tables Audit
+## Completed Plan: db-agent Phase 6 - Remaining Support Tables Audit
 
-Status: not started.
+Status: completed on 2026-05-28 after audit and baseline checks.
 
 ### Current Goal
 
@@ -267,3 +267,7 @@ Audit remaining Java entity to SQL table mappings and decide whether db-agent sh
 ### Decision Gate
 
 If the remaining tables are not required for auth-agent/user-agent/api-agent startup, stop db-agent and move to auth-agent according to the original staged order.
+
+### Decision
+
+db-agent can stop after Phase 6. Remaining low-priority support/shared tables do not block auth-agent startup. They can be handled later by the relevant module agent or by db-agent if a concrete dependency appears.
