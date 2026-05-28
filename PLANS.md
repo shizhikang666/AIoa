@@ -208,9 +208,9 @@ Get-ChildItem app\model -Filter *.php | ForEach-Object { php -l $_.FullName }
 git status --short --branch
 ```
 
-## Next Plan Candidate: db-agent Phase 5 - Team Collaboration Support Tables
+## Completed Plan: db-agent Phase 5 - Team Collaboration Support Tables
 
-Status: not started.
+Status: completed on 2026-05-28 after implementation and baseline checks.
 
 ### Current Goal
 
@@ -230,3 +230,40 @@ Add passive database coverage for team project comments, task comments, task cat
 - Do not modify Java source files.
 - Do not modify public locked files.
 - Do not implement team collaboration controller, service, route, workflow, or frontend behavior.
+
+### Risks
+
+- Several Java display fields are marked `@TableField(exist = false)` and must remain documentation-only.
+- `biz_team_project_task_comment` can represent both logs and comments through `CATEGORY`; behavior is out of db-agent scope.
+- Role and permission interpretation for team members belongs to later business agents.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem app\model -Filter *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```
+
+## Next Plan Candidate: db-agent Phase 6 - Remaining Support Tables Audit
+
+Status: not started.
+
+### Current Goal
+
+Audit remaining Java entity to SQL table mappings and decide whether db-agent should add more passive Models or stop and hand over to auth-agent.
+
+### Candidate Scope
+
+- `biz_draft`
+- `biz_history_excel`
+- `biz_payroll`
+- `biz_user_vacation`
+- `BIZ_RELATION`
+- Shared dev tables only if later agents require them directly.
+
+### Decision Gate
+
+If the remaining tables are not required for auth-agent/user-agent/api-agent startup, stop db-agent and move to auth-agent according to the original staged order.
