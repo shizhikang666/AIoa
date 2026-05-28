@@ -166,19 +166,30 @@ git status --short --branch
 - Tests above pass.
 - Commit message includes `db-agent`.
 
-## Next Plan Candidate: db-agent Phase 4 - Finance And Collaboration Support Tables
+## Completed Plan: db-agent Phase 4 - Finance Settlement Table Coverage
 
-Status: not started.
+Status: completed on 2026-05-28 after implementation and baseline checks.
 
 ### Current Goal
 
-Continue database coverage for finance/settlement and collaboration support tables that were deferred from Phase 2 and Phase 3.
+Continue database coverage for finance and settlement support tables that connect payment/expenditure records to settlement accounts and account statements.
 
 ### Candidate Scope
 
 - Finance and settlement: `biz_collection_receipt`, `biz_debit_note`, `settlement_account`, `settlement_account_statement`.
+- Documentation updates under `docs/database`.
+- Passive Model classes under `app/model` only.
+
+### Deferred Scope
+
 - Collaboration around team projects: `biz_team_project_comment`, `biz_team_project_comment_reply`, `biz_team_project_task_comment`, `biz_team_project_task_category`, `biz_team_project_user`, `biz_team_project_task_user`.
-- Other support records only if the SQL table has a stable Java entity/table mapping.
+- Other support records only if a later db-agent slice needs them.
+
+### Risks
+
+- `settlement_account.org` is lower-case in SQL and must remain unchanged.
+- `biz_collection_receipt` and `biz_debit_note` depend on payment/expenditure record ids already modeled in Phase 2.
+- Settlement account statements store process identifiers, but workflow behavior is out of scope for db-agent.
 
 ### Forbidden Scope
 
@@ -186,3 +197,36 @@ Continue database coverage for finance/settlement and collaboration support tabl
 - Do not modify public locked files.
 - Do not implement controller, service, route, auth, user, workflow, or frontend logic.
 - Do not start production data synchronization.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem app\model -Filter *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```
+
+## Next Plan Candidate: db-agent Phase 5 - Team Collaboration Support Tables
+
+Status: not started.
+
+### Current Goal
+
+Add passive database coverage for team project comments, task comments, task categories, and team/task user relation tables.
+
+### Candidate Scope
+
+- `biz_team_project_comment`
+- `biz_team_project_comment_reply`
+- `biz_team_project_task_comment`
+- `biz_team_project_task_category`
+- `biz_team_project_user`
+- `biz_team_project_task_user`
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not modify public locked files.
+- Do not implement team collaboration controller, service, route, workflow, or frontend behavior.
