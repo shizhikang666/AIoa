@@ -1,8 +1,8 @@
 # PLANS.md
 
-## Active Plan: db-agent Phase 2 - Business Table Model Plan
+## Completed Plan: db-agent Phase 2 - Business Table Model Plan
 
-Status: pending user confirmation before implementation.
+Status: completed on 2026-05-28 after implementation and baseline checks.
 
 ### 1. Current Goal
 
@@ -93,3 +93,31 @@ git status --short --branch
 ## Final-Stage Reminder
 
 Before project completion, remind the user that production/online realtime data must be synced into the final ThinkPHP OA project. Details are tracked in `docs/tasks/final-data-sync-reminder.md`.
+
+## Next Plan Candidate: db-agent Phase 3 - Remaining Database Coverage
+
+Status: not started.
+
+### Current Goal
+
+Continue database coverage by analyzing lower-priority business/support tables that were intentionally deferred from Phase 2, then generate mapping docs and passive Models only where later agents clearly need them.
+
+### Candidate Inputs
+
+- Primary SQL reference: `F:\AI\projects\testJava\OA\oa2026.sql`
+- Java entity and mapper files under `F:\AI\projects\testJava\OA`
+- Current db-agent Models under `F:\AI\projects\testJava\OA-db\app\model`
+
+### Candidate Scope
+
+- Business support tables not covered in Phase 1 or Phase 2.
+- Relation/helper tables that connect business documents, users, workflow records, and files.
+- Documentation updates under `docs/database`.
+- Passive Model classes under `app/model` only when a table has a stable Java entity/table mapping.
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not modify public locked files.
+- Do not implement controller, service, route, auth, user, workflow, or frontend logic.
+- Do not start production data synchronization.
