@@ -66,3 +66,48 @@ php think test
   - `.env.example`
   - `app/common.php`
 - Do not modify business Controller, Service, Model, route implementation, or database schema.
+
+## Active Plan: test-agent Phase 2 - Integration Test Matrix
+
+Status: in progress on 2026-05-29.
+
+### 1. Current Goal
+
+Document the merge-time integration test matrix for the currently prepared db/auth/user/workflow/api/frontend contracts.
+
+### 2. Modules In Scope
+
+- merge-time Composer checks
+- ThinkPHP console checks
+- route list checks
+- PHP lint checks
+- auth response contract checks
+- read-only user directory route checks
+- read-only workflow route checks
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/integration-test-matrix.md`
+
+### 4. Risks
+
+- Current test-agent branch does not contain module code until final merge, so this phase is a test matrix rather than executable route tests.
+- Runtime endpoint checks need database/cache configuration after merge.
+- Route registrations are still pending approval in `route/app.php`.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Integration test matrix is documented.
+- Baseline ThinkPHP checks still pass in test-agent worktree.
+- No locked public files or business code are modified.

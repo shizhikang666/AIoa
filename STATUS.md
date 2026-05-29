@@ -38,3 +38,34 @@
 
 - Commit the test-agent baseline plan.
 - After db/auth/user/workflow/api/frontend branches are merged, rerun Composer, ThinkPHP console, route list, and PHP lint checks after each merge.
+
+## 2026-05-29 - test-agent - Phase 2 Integration Test Matrix
+
+### Completed Content
+
+- Added integration test matrix for merge-agent validation.
+- Covered Composer, ThinkPHP console, route list, PHP lint, auth response shape, read-only user directory endpoints, and read-only workflow endpoints.
+- Kept this phase documentation-only and did not modify locked public files or business code.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/integration-test-matrix.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed, current routes are `think` and `hello/<name>`.
+- PHP lint for `app`, `config`, and `route`: passed with no syntax errors.
+
+### Current Issues
+
+- Endpoint runtime tests must wait until module branches are merged and routes are registered.
+- Database/cache-backed checks require configured OA database and Redis/cache.
+
+### Next Plan
+
+- Rerun baseline checks.
+- Commit test-agent Phase 2.
