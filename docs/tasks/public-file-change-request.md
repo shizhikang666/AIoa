@@ -360,3 +360,37 @@ The existing Vue user-center API calls workbench, unread message, and process co
 - `php think route:list` must list the added routes under `AuthMiddleware`.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Index Read-Only Compatibility Routes
+
+## Request
+
+Register protected read-only homepage routes in `route/app.php`.
+
+## Reason
+
+The existing Vue homepage and message panel call `/sys/index/*` endpoints after login for schedule list, message list/page/detail, and current user logs. These routes are needed for the first logged-in screen to render without enabling mutation behavior.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes under `sys/index`:
+
+- `GET /sys/index/schedule/list`
+- `GET /sys/index/message/list`
+- `GET /sys/index/message/page`
+- `GET /sys/index/message/detail`
+- `GET /sys/index/visLog/list`
+- `GET /sys/index/opLog/list`
+
+## Explicit Exclusions
+
+- No schedule add, schedule delete, all-message-mark-read, or SSE routes were added.
+- No message read status writes, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

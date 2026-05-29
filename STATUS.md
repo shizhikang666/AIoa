@@ -1402,3 +1402,50 @@ Agent: api-agent
 
 - Commit and push this read-only user-center compatibility slice.
 - Continue with the next small compatibility slice after reviewing old frontend API usage, likely index message/workbench shortcuts or safe user-center write endpoints with explicit validation.
+
+## 2026-05-29 - merge-agent - Index Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old Vue `indexApi.js` and Java `SysIndexController` / `SysIndexServiceImpl`.
+- Added read-only homepage schedule list, message list/page/detail, visit log list, and operation log list endpoints.
+- Reused the user-center message lookup path so message detail remains read-only and does not mark messages as read.
+- Deferred schedule add/delete, all-message-mark-read, and SSE routes.
+- Documented the route-file change and endpoint behavior.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/user/UserDirectoryService.php`
+- `app/service/sys/IndexService.php`
+- `app/controller/sys/IndexController.php`
+- `route/app.php`
+- `docs/api/index-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/sys/index/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /sys/index/schedule/list?scheduleDate=2026-05-29`
+  - `GET /sys/index/message/list`
+  - `GET /sys/index/message/page`
+  - `GET /sys/index/message/detail?id=missing`
+  - `GET /sys/index/visLog/list`
+  - `GET /sys/index/opLog/list`
+- `GET /sys/index/message/list` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, or SM2 public key in tracked project paths.
+
+### Current Issues
+
+- Current test superadmin message and schedule lists are empty in the imported SQL data.
+- SSE and message mark-read behavior remain deferred because they are not read-only.
+
+### Next Plan
+
+- Commit and push this index read-only compatibility slice.
+- Continue frontend compatibility by scanning remaining old API modules for read-only endpoints with high page-load impact.

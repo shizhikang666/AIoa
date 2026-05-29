@@ -41,6 +41,15 @@ Route::group('sys/userCenter', function () {
     Route::get('getAvatarById', 'sys.UserCenterController/getAvatarById');
 })->middleware(AuthMiddleware::class);
 
+Route::group('sys/index', function () {
+    Route::get('schedule/list', 'sys.IndexController/scheduleList');
+    Route::get('message/list', 'sys.IndexController/messageList');
+    Route::get('message/page', 'sys.IndexController/messagePage');
+    Route::get('message/detail', 'sys.IndexController/messageDetail');
+    Route::get('visLog/list', 'sys.IndexController/visLogList');
+    Route::get('opLog/list', 'sys.IndexController/opLogList');
+})->middleware(AuthMiddleware::class);
+
 Route::group('sys/org', function () {
     Route::get('page', 'sys.OrgController/page');
     Route::get('list', 'sys.OrgController/list');

@@ -1259,3 +1259,51 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No update profile, update workbench, process config edit, message mark-read, or other write routes are added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks pass.
+
+## Active Plan: merge-agent - Index Read-Only Compatibility
+
+Status: in progress on 2026-05-29.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only `/sys/index/*` endpoints for homepage schedule, message panel, and current user logs.
+
+### 2. Modules In Scope
+
+- homepage read-only API compatibility
+- schedule list lookup from `sys_relation`
+- message list/page/detail lookup from `dev_message` and `dev_relation`
+- current user visit/operation logs from `dev_log`
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/user/UserDirectoryService.php`
+- `app/service/sys/IndexService.php`
+- `app/controller/sys/IndexController.php`
+- `route/app.php`
+- `docs/api/index-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java message detail and all-message-mark-read can update read status; this phase must keep all index message endpoints read-only.
+- `route/app.php` is a locked public file, so the route change is documented as a merge-agent public file request.
+- SSE and schedule write endpoints are deferred to avoid adding long-running connections or mutations in this slice.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/sys/index/*` routes are added.
+- No schedule add/delete, all-message-mark-read, or SSE routes are added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

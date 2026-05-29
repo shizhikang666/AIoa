@@ -293,6 +293,34 @@ class UserDirectoryService
         ];
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function loginUnreadMessageList(string $userId, int $limit = 10): array
+    {
+        $limit = max(1, min(100, $limit));
+        $relations = array_filter(
+            $this->messageRelationsForUser($userId),
+            fn (array $relation): bool => $this->relationReadStatus($relation) === false
+        );
+        $messageIds = array_keys($relations);
+
+        if ($messageIds === []) {
+            return [];
+        }
+
+        $rows = $this->messageQuery($messageIds, [])
+            ->order('CREATE_TIME', 'desc')
+            ->limit($limit)
+            ->select()
+            ->toArray();
+
+        return array_map(fn (array $row): array => $this->messageRow(
+            $row,
+            $relations[(string)($row['ID'] ?? '')] ?? null
+        ), $rows);
+    }
+
     public function loginUnreadMessageDetail(string $userId, string $id): ?array
     {
         $ownRelation = Db::name('dev_relation')
