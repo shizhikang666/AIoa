@@ -78,3 +78,42 @@ Agent: api-agent
 - After route change approval, add thin controller adapters that delegate to user-agent services.
 - Keep actual domain behavior inside user-agent services.
 - Continue API mapping for workflow and business modules only after their service boundaries are stable.
+
+## 2026-05-29 10:45 +08:00
+
+Agent: api-agent
+
+### Completed Content
+
+- Added thin read-only Controller adapters for organization, position, user, and user-center directory endpoints.
+- Kept controllers as delegation only; user service behavior remains user-agent scope.
+- Did not modify `route/app.php`; route registration remains pending through the documented public file change request.
+- Documented controller dependencies on auth-agent response helper and user-agent services.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/BaseSysController.php`
+- `app/controller/sys/OrgController.php`
+- `app/controller/sys/PositionController.php`
+- `app/controller/sys/UserController.php`
+- `app/controller/sys/UserCenterController.php`
+- `docs/api/user-directory-controller-adapters.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed with only baseline routes in this branch.
+- PHP lint for `app`, `config`, and `route`: passed.
+
+### Current Issues
+
+- Runtime validation must wait for final merge because this branch does not yet contain auth-agent `ApiResponse` or user-agent services.
+- Route registration remains pending authorization because `route/app.php` is locked.
+
+### Next Plan
+
+- Wait for documented route authorization or merge-agent action before modifying `route/app.php`.
+- Continue API mapping for workflow read-only endpoints after workflow route request is prepared.

@@ -50,6 +50,47 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 git status --short --branch
 ```
 
+## Current Plan: api-agent Phase 3 - User Directory Controller Adapters
+
+Status: in progress on 2026-05-29.
+
+### Current Goal
+
+Add thin read-only Controller adapters for user, organization, position, and user-center directory endpoints without registering routes.
+
+### Involved Files
+
+- `app/controller/sys/BaseSysController.php`
+- `app/controller/sys/OrgController.php`
+- `app/controller/sys/PositionController.php`
+- `app/controller/sys/UserController.php`
+- `app/controller/sys/UserCenterController.php`
+- `docs/api/user-directory-controller-adapters.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### Risks
+
+- These adapters reference user-agent services and auth-agent `ApiResponse`; runtime validation must happen after final merge order brings db/auth/user before api.
+- `route/app.php` remains locked and is not modified in this phase.
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not modify `route/app.php`.
+- Do not implement user service logic inside controllers.
+- Do not implement write endpoints, grants, import/export, upload, or workflow endpoints.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```
+
 ## Current Plan: api-agent Phase 2 - User Directory Route Request
 
 Status: in progress on 2026-05-29.
