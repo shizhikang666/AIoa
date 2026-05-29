@@ -1228,3 +1228,41 @@ Agent: api-agent
 - Run Composer/ThinkPHP/PHP lint checks.
 - Run token-based HTTP smoke checks for the newly added endpoints.
 - Commit and push if checks pass.
+
+## 2026-05-29 - merge-agent - Protect System Directory Routes
+
+### Completed Content
+
+- Added `AuthMiddleware` to read-only system directory route groups:
+  - `sys/org`
+  - `sys/position`
+  - `sys/user`
+- Kept the change limited to route protection. No Controller, Service, Model, database, Java source, or write endpoint behavior was changed.
+- Documented the locked `route/app.php` change in the public file change request log.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime token/no-token smoke checks passed:
+  - `GET /sys/org/tree`: token `200`, no token `401`
+  - `GET /sys/position/page?pageSize=1`: token `200`, no token `401`
+  - `GET /sys/user/page?pageSize=1`: token `200`, no token `401`
+
+### Current Issues
+
+- Existing unauthenticated smoke checks for system directory routes must now send a bearer token.
+
+### Next Plan
+
+- Verify token requests return `200` and no-token requests return `401`.
+- Commit and push if checks pass.

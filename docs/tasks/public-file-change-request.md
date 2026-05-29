@@ -269,3 +269,28 @@ The existing Vue API modules call selector/list endpoints beyond the first user 
 
 - No add, edit, delete, disable, enable, import, export, upload, password, grant, approval, reject, cancel, or process-start routes were added.
 - No database schema, seed data, Java source, `.env`, or public config files were changed.
+
+---
+
+# Public File Change Request: Auth Middleware On System Directory Routes
+
+## Request
+
+Attach `AuthMiddleware` to the read-only system directory route groups:
+
+- `sys/org`
+- `sys/position`
+- `sys/user`
+
+## Reason
+
+The existing frontend uses these routes only after login, but leaving user, organization, and position directory data public is not appropriate for the OA system. These groups should behave like other token-owned routes.
+
+## Applied Change
+
+`merge-agent` attached `AuthMiddleware` to the three route groups. No route handlers, services, database fields, Java source, or write endpoints were changed.
+
+## Verification
+
+- Token requests to representative routes return `code=200`.
+- No-token requests to representative routes return `code=401`.

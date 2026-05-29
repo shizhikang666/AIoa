@@ -791,6 +791,37 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 
 Runtime smoke checks should use a bearer token and cover the newly added selector/list endpoints.
 
+## Current Plan: merge-agent Phase - Protect System Directory Routes
+
+Status: in progress on 2026-05-29.
+
+### Current Goal
+
+Attach `AuthMiddleware` to the read-only system directory route groups so organization, position, and user directory data is only available to authenticated requests.
+
+### Involved Files
+
+- `route/app.php`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+- `PLANS.md`
+
+### Risks
+
+- This changes unauthenticated access behavior for existing read-only system routes from public to `401`.
+- Old frontend requests should still pass because authenticated pages send the bearer token after login.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+Runtime smoke must verify token requests return `200` and no-token requests return `401` for `/sys/org/tree`, `/sys/position/page`, and `/sys/user/page`.
+
 Status: in progress on 2026-05-29.
 
 ### Current Goal

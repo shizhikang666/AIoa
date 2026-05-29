@@ -44,7 +44,7 @@ Route::group('sys/org', function () {
     Route::get('orgTreeSelector', 'sys.OrgController/treeSelector');
     Route::get('userSelector', 'sys.OrgController/userSelector');
     Route::get('detail', 'sys.OrgController/detail');
-});
+})->middleware(AuthMiddleware::class);
 
 Route::group('sys/position', function () {
     Route::get('page', 'sys.PositionController/page');
@@ -52,7 +52,7 @@ Route::group('sys/position', function () {
     Route::get('detail', 'sys.PositionController/detail');
     Route::get('orgTreeSelector', 'sys.PositionController/orgTreeSelector');
     Route::get('positionSelector', 'sys.PositionController/selector');
-});
+})->middleware(AuthMiddleware::class);
 
 Route::group('sys/user', function () {
     Route::get('page', 'sys.UserController/page');
@@ -61,7 +61,7 @@ Route::group('sys/user', function () {
     Route::get('positionSelector', 'sys.UserController/positionSelector');
     Route::get('roleSelector', 'sys.UserController/roleSelector');
     Route::get('userSelector', 'sys.UserController/userSelector');
-});
+})->middleware(AuthMiddleware::class);
 
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
