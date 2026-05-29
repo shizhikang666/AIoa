@@ -2633,3 +2633,52 @@ Agent: api-agent
 
 - Commit and push this debit-note read-only compatibility slice.
 - Continue with the next safe read-only business module.
+
+## 2026-05-29 - merge-agent - Biz File Relation Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `bizFileRelationApi.js`, Java `BizFileRelationController` / `BizFileRelationServiceImpl`, Java file-relation params, entity, mapper, `BizFile`, and the `biz_file_relation` / `dev_file` SQL tables.
+- Added protected read-only file-relation page, list, and detail compatibility endpoints.
+- Enriched file-relation rows with linked dev-file engine, bucket, name, suffix, size, object name, storage path, download path, thumbnail, and creator display fields.
+- Supported Java/old-frontend filters for object id, target id, category, file name, creator, create time range, search key, sorting, pagination, suffix, and tenant id.
+- Registered protected `/biz/bizfilerelation/*` read-only routes behind `AuthMiddleware`.
+- Kept file-relation add, edit, delete, and project-case delete behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/FileRelationService.php`
+- `app/controller/biz/FileRelationController.php`
+- `route/app.php`
+- `docs/api/biz-file-relation-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\FileRelationService.php`: passed.
+- `php -l app\controller\biz\FileRelationController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected file-relation read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/bizfilerelation/page`
+  - `GET /biz/bizfilerelation/list`
+  - `GET /biz/bizfilerelation/detail`
+- Runtime smoke confirmed file-relation page total `716`, sampled category `Process_reimbursement`, sampled list count `1`, sampled detail file name enrichment, and download-path enrichment.
+- `GET /biz/bizfilerelation/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- File-relation write flows mutate attachment links and can affect process/project attachment views. Those routes need a later write-endpoint design before implementation.
+- `dev_file` rows can contain large thumbnails; future frontend/API tuning may need a lightweight list mode if payload size becomes a problem.
+- The local MySQL/Redis helper script exists at `F:\project\socket\AI\testPhp\files\startServer1.bat`; the originally provided mysql subdirectory did not contain the script.
+
+### Next Plan
+
+- Commit and push this file-relation read-only compatibility slice.
+- Continue with the next safe read-only business module, likely sale-project or team-project attachment consumers.

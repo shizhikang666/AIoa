@@ -363,6 +363,40 @@ The existing Vue user-center API calls workbench, unread message, and process co
 
 ---
 
+# Public File Change Request: Biz File Relation Read-Only Routes
+
+## Request
+
+Register protected read-only file-relation routes in `route/app.php`.
+
+## Reason
+
+The existing Vue file-relation pages call `/biz/bizfilerelation/page`, `/biz/bizfilerelation/list`, and `/biz/bizfilerelation/detail` after login to load business attachment relations, linked file download metadata, and creator display data. These reads are needed by project, process, procurement, and reimbursement detail views while attachment link writes remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/bizfilerelation/page`
+- `GET /biz/bizfilerelation/list`
+- `GET /biz/bizfilerelation/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizfilerelation/add` route was added.
+- No `/biz/bizfilerelation/edit` route was added.
+- No `/biz/bizfilerelation/delete` route was added.
+- No `/biz/bizfilerelation/projectCase/del` route was added.
+- No attachment mutation, dev-file write, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Index Read-Only Compatibility Routes
 
 ## Request

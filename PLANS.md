@@ -2549,3 +2549,54 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No payment-record edit or account-switch route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Plan: merge-agent - Biz File Relation Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only file-relation endpoints for business attachment lists and detail lookups.
+
+### 2. Modules In Scope
+
+- file relation read-only API compatibility
+- `/biz/bizfilerelation/page`
+- `/biz/bizfilerelation/list`
+- `/biz/bizfilerelation/detail`
+- dev-file display enrichment
+- create-user display enrichment
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/FileRelationService.php`
+- `app/controller/biz/FileRelationController.php`
+- `route/app.php`
+- `docs/api/biz-file-relation-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java file-relation add/delete flows change attachment links and derive file names from `dev_file`, so write routes must remain deferred.
+- `biz_file_relation.FILE_NAME` is often empty in the imported SQL, so read responses should also expose the linked `dev_file.NAME`.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\FileRelationService.php
+php -l app\controller\biz\FileRelationController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/bizfilerelation/page`, `/biz/bizfilerelation/list`, and `/biz/bizfilerelation/detail` routes are added.
+- No file-relation add/edit/delete or project-case delete route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
