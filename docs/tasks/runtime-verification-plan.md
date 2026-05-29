@@ -129,6 +129,14 @@ Then verify:
 - ThinkPHP Redis probe returned `ok`.
 - HTTP smoke server: `http://127.0.0.1:8000`.
 - HTTP smoke checks returned `code=200` for captcha, organization tree, user page, task count/page, and process page.
+- Login smoke check with the user-provided super admin test account returned:
+  - `POST /auth/b/doLogin`: `code=200`
+  - `GET /auth/b/getLoginUser`: `code=200`
+  - `GET /sys/userCenter/loginMenu`: `code=200`
+  - `GET /auth/b/doLogout`: `code=200`
+  - Reusing the same token after logout: `code=401`
+
+The login password was not written to this document and must remain local/user-provided only.
 
 ## Stop Conditions
 

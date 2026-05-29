@@ -1084,3 +1084,38 @@ Agent: api-agent
 - Commit and push the non-secret runtime configuration/documentation update.
 - Keep `.env`, import wrapper, probe scripts, and logs local and ignored.
 - Continue with login/API compatibility only after a safe test account is confirmed.
+
+## 2026-05-29 - merge-agent - Auth Token Smoke Test
+
+### Completed Content
+
+- Used the user-provided `bizAdmin` test account for local auth smoke testing.
+- Confirmed the account exists in `sys_user`, is enabled, belongs to tenant `1`, and is not deleted.
+- Verified login returns a 64-character token.
+- Verified `GET /auth/b/getLoginUser` returns the current user and auth context.
+- Verified `GET /sys/userCenter/loginMenu` returns authorized top-level menus.
+- Verified `GET /auth/b/doLogout` revokes the token.
+- Verified reusing the same token after logout returns `401 unauthenticated`.
+
+### Modified Files
+
+- `docs/tasks/runtime-verification-plan.md`
+- `STATUS.md`
+
+### Test Results
+
+- `POST /auth/b/doLogin`: `code=200`.
+- `GET /auth/b/getLoginUser`: `code=200`, account `bizAdmin`, roles `1`, permissions `205`.
+- `GET /sys/userCenter/loginMenu`: `code=200`, top-level menus `2`.
+- `GET /auth/b/doLogout`: `code=200`.
+- `GET /auth/b/getLoginUser` after logout with the same token: `code=401`.
+
+### Current Issues
+
+- The user-provided login password was used only in local shell memory for the smoke test and was not written to tracked files.
+- Full frontend login compatibility still needs browser/frontend-agent verification.
+
+### Next Plan
+
+- Commit and push the non-sensitive auth smoke test record.
+- Continue with frontend/API compatibility checks against the running local backend.
