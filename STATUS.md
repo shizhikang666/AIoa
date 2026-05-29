@@ -2103,3 +2103,50 @@ Agent: api-agent
 
 - Commit and push this tenant read-only compatibility slice.
 - Continue with another safe read-only business or admin module after scanning old frontend calls.
+
+## 2026-05-29 - merge-agent - Biz Product Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `bizProductApi.js`, Java `BizProductController` / `BizProductServiceImpl`, Java product entity/result classes, `biz_product`, and `product_relation`.
+- Added protected read-only product master page, list, detail, and kit-product children endpoints.
+- Returned lower-camel product rows compatible with Java JSON serialization while preserving the physical SQL columns, including lower-case `status`.
+- Registered protected `/biz/bizproduct/*` read-only routes behind `AuthMiddleware`.
+- Kept product add, edit, delete, reconciliation edit, status edit, product relation writes, and data-change events deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/ProductService.php`
+- `app/controller/biz/ProductController.php`
+- `route/app.php`
+- `docs/api/biz-product-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\ProductService.php`: passed.
+- `php -l app\controller\biz\ProductController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected product read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/bizproduct/page`
+  - `GET /biz/bizproduct/list`
+  - `GET /biz/bizproduct/detail`
+  - `POST /biz/bizproduct/children`
+- Runtime smoke confirmed product page total `3322`, product list search returned `348` rows, and one kit product returned `4` child rows.
+- `GET /biz/bizproduct/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Java applies a richer login-user data-scope fallback than the current token payload. This slice applies tenant filtering and token data-scope org ids when present, but does not force the Java `CREATE_USER = loginId` fallback yet.
+- Product write endpoints need validation, permission, kit relation writes, audit, and data-change event behavior before they can be enabled.
+
+### Next Plan
+
+- Commit and push this product read-only compatibility slice.
+- Continue with another foundational read-only business master-data module, likely customer or supplier, before enabling any product write endpoint.

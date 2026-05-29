@@ -1996,3 +1996,51 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No tenant default system data generation is performed.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Biz Product Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only product master endpoints for product pages, selectors, details, and kit-product child lookup.
+
+### 2. Modules In Scope
+
+- product master read-only API compatibility
+- `biz_product` page/list/detail
+- `product_relation` kit-product child reads
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/ProductService.php`
+- `app/controller/biz/ProductController.php`
+- `route/app.php`
+- `docs/api/biz-product-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java product writes update kit-product relations and trigger data-change events; all writes must remain deferred.
+- Java data-scope logic is richer than the current token payload; this slice only applies tenant filtering and token data-scope org ids when present.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\ProductService.php
+php -l app\controller\biz\ProductController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/bizproduct/page`, `/biz/bizproduct/list`, `/biz/bizproduct/detail`, and `/biz/bizproduct/children` routes are added.
+- No product add/edit/delete/status/reconciliation mutation route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

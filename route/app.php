@@ -208,6 +208,13 @@ Route::group('tenants/tenant', function () {
     Route::get('detail', 'tenant.TenantsController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizproduct', function () {
+    Route::get('page', 'biz.ProductController/page');
+    Route::get('list', 'biz.ProductController/list');
+    Route::get('detail', 'biz.ProductController/detail');
+    Route::post('children', 'biz.ProductController/children');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

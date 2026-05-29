@@ -820,6 +820,42 @@ The existing Vue login flow and process configuration page call `/sys/sysConfig/
 
 ---
 
+# Public File Change Request: Biz Product Read-Only Routes
+
+## Request
+
+Register protected read-only product master routes in `route/app.php`.
+
+## Reason
+
+The existing Vue business pages call `/biz/bizproduct/page`, `/biz/bizproduct/list`, `/biz/bizproduct/detail`, and `/biz/bizproduct/children` after login to load product master data and kit-product child information. These reads are needed by sales, purchase, inventory, and product selector flows before write endpoints are enabled.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/bizproduct/page`
+- `GET /biz/bizproduct/list`
+- `GET /biz/bizproduct/detail`
+- `POST /biz/bizproduct/children`
+
+## Explicit Exclusions
+
+- No `/biz/bizproduct/add` route was added.
+- No `/biz/bizproduct/edit` route was added.
+- No `/biz/bizproduct/delete` route was added.
+- No `/biz/bizproduct/reconciliation/edit` route was added.
+- No `/biz/bizproduct/edit/status` route was added.
+- No product relation writes, cache events, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Gen Metadata Read-Only Routes
 
 ## Request
