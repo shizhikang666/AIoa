@@ -26,6 +26,12 @@ Route::group('auth/b', function () {
     Route::post('safe/password', 'auth.AuthController/openSafe');
 });
 
+Route::group('auth/session', function () {
+    Route::get('analysis', 'auth.SessionController/analysis');
+    Route::get('b/page', 'auth.SessionController/pageForB');
+    Route::get('c/page', 'auth.SessionController/pageForC');
+})->middleware(AuthMiddleware::class);
+
 Route::get('dev/config/sysBaseList', 'dev.ConfigController/sysBaseList');
 
 Route::group('sys/userCenter', function () {

@@ -397,6 +397,42 @@ The existing Vue homepage and message panel call `/sys/index/*` endpoints after 
 
 ---
 
+# Public File Change Request: Auth Session Current Token Read-Only Routes
+
+## Request
+
+Register protected read-only session monitor routes in `route/app.php`.
+
+## Reason
+
+The existing Vue session monitor page calls `/auth/session/analysis`, `/auth/session/b/page`, and `/auth/session/c/page` after login. These reads are needed for compatibility, while session exit and token exit behavior remain disabled.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /auth/session/analysis`
+- `GET /auth/session/b/page`
+- `GET /auth/session/c/page`
+
+## Explicit Exclusions
+
+- No `/auth/session/b/exit` route was added.
+- No `/auth/session/c/exit` route was added.
+- No `/auth/token/b/exit` route was added.
+- No `/auth/token/c/exit` route was added.
+- No token/session revocation behavior was added.
+- No token index write behavior was added to login.
+- No database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Dev Log Read-Only Routes
 
 ## Request

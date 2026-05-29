@@ -1895,3 +1895,54 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No `/gen/basic/tables`, `/gen/basic/tableColumns`, `/gen/basic/execGenZip`, `/gen/basic/execGenPro`, `/gen/basic/previewGen`, or generator write route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Auth Session Current Token Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only session monitor endpoints for the currently authenticated B-side token, without adding token/session exit behavior or a new global token index.
+
+### 2. Modules In Scope
+
+- auth session monitor reads
+- current bearer token session analysis
+- B-side session page for the current token
+- C-side session page as an empty compatibility response until client auth exists
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/auth/SessionMonitorService.php`
+- `app/controller/auth/SessionController.php`
+- `route/app.php`
+- `docs/api/auth-session-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- The current ThinkPHP token service stores token payloads by hashed token key and does not keep a searchable session index.
+- Java Sa-Token can enumerate all online sessions; this slice can only report the current request token without changing token write behavior.
+- Session and token exit routes are mutations and must remain deferred.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\auth\SessionMonitorService.php
+php -l app\controller\auth\SessionController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/auth/session/analysis`, `/auth/session/b/page`, and `/auth/session/c/page` routes are added.
+- No `/auth/session/b/exit`, `/auth/session/c/exit`, `/auth/token/b/exit`, or `/auth/token/c/exit` route is added.
+- Routes are protected by `AuthMiddleware`.
+- Token values are not written to docs or committed files.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

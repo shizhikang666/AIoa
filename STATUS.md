@@ -2010,3 +2010,51 @@ Agent: api-agent
 
 - Commit and push this generator metadata read-only compatibility slice.
 - Continue scanning old frontend calls for the next safe read-only group, while leaving generator write/execution routes disabled.
+
+## 2026-05-29 - merge-agent - Auth Session Current Token Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `auth/monitorApi.js` and Java `AuthSessionController` / `AuthSessionServiceImpl`.
+- Added protected read-only session monitor endpoints for analysis, B-side page, and C-side page.
+- Returned a current-token B-side session page row from the authenticated bearer token and `sys_user`.
+- Returned an empty C-side page because client auth is not implemented yet.
+- Kept all session exit and token exit routes deferred.
+- Did not add a global token index or change login token write behavior.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/auth/SessionMonitorService.php`
+- `app/controller/auth/SessionController.php`
+- `route/app.php`
+- `docs/api/auth-session-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\auth\SessionMonitorService.php`: passed.
+- `php -l app\controller\auth\SessionController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected session monitor routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /auth/session/analysis`
+  - `GET /auth/session/b/page`
+  - `GET /auth/session/c/page`
+- Runtime smoke confirmed analysis `currentSessionTotalCount=1`, B page `total=1`, and C page `total=0`.
+- `GET /auth/session/analysis` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- This slice cannot enumerate all online sessions because the current `TokenService` stores token payloads by hashed token key only and has no searchable index.
+- `tokenSignList.tokenValue` is masked intentionally because token exit routes are not implemented and full token disclosure is unnecessary for this read-only slice.
+- Full session management needs a later auth-agent token-index design.
+
+### Next Plan
+
+- Commit and push this auth session read-only compatibility slice.
+- Continue scanning old frontend calls for another safe read-only group before planning any mutation endpoints.
