@@ -2188,3 +2188,53 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No inventory add/delete/stock-changing route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Biz Delivery Record Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only warehouse delivery-record endpoints for product inventory history and export-list reads.
+
+### 2. Modules In Scope
+
+- warehouse delivery record read-only API compatibility
+- `/biz/warehouses/delivery/page`
+- `/biz/warehouses/delivery/exportOtherCompanyRecordsList`
+- `/biz/warehouses/delivery/detail` as frontend-wrapper compatibility
+- display-name enrichment for warehouse, product, and operator
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/DeliveryRecordService.php`
+- `app/controller/biz/DeliveryRecordController.php`
+- `route/app.php`
+- `docs/api/biz-delivery-record-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java delivery record add adjusts inventory and publishes data-change events, so the add route must remain deferred.
+- The old frontend export form sends a `completionTime` range while the Java param uses `deliveryStartTime` and `deliveryEndTime`; this slice supports both shapes without changing frontend code.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\DeliveryRecordService.php
+php -l app\controller\biz\DeliveryRecordController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/warehouses/delivery/page`, `/biz/warehouses/delivery/exportOtherCompanyRecordsList`, and `/biz/warehouses/delivery/detail` routes are added.
+- No `/biz/warehouses/delivery/add` mutation route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

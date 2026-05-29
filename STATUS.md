@@ -2293,3 +2293,52 @@ Agent: api-agent
 
 - Commit and push this inventory read-only compatibility slice.
 - Continue with the next safe read-only business module after scanning frontend usage, while leaving customer reads paused until the SM4 encrypted-field strategy is documented.
+
+## 2026-05-29 - merge-agent - Biz Delivery Record Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `deliveryRecordApi.js`, product inventory history view, inventory export view, Java `DeliveryRecordController` / `DeliveryRecordServiceImpl`, Java delivery record params/entity, and the `delivery_record` SQL table.
+- Added protected read-only warehouse delivery-record page, export-other-company-records list, and detail compatibility endpoints.
+- Enriched delivery records with `warehousesName`, `productName`, and `operatorName` display fields.
+- Supported frontend `completionTime` range and Java-style `deliveryStartTime` / `deliveryEndTime` filters for export reads.
+- Registered protected `/biz/warehouses/delivery/*` read-only routes behind `AuthMiddleware`.
+- Kept delivery record add, inventory stock changes, batch stock movement, and data-change event behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/DeliveryRecordService.php`
+- `app/controller/biz/DeliveryRecordController.php`
+- `route/app.php`
+- `docs/api/biz-delivery-record-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\DeliveryRecordService.php`: passed.
+- `php -l app\controller\biz\DeliveryRecordController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected delivery-record read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/warehouses/delivery/page`
+  - `GET /biz/warehouses/delivery/detail`
+  - `GET /biz/warehouses/delivery/exportOtherCompanyRecordsList`
+- Runtime smoke confirmed delivery page total `2582` and detail product display data.
+- Export smoke returned `code=200`; the sampled warehouse/product-org combination currently returned `0` rows, which is valid for the read-only query shape.
+- `GET /biz/warehouses/delivery/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- Java delivery record `add` mutates inventory and publishes data-change events, so it needs a later write-endpoint design with permission, audit, optimistic locking, and stock consistency checks.
+- Java controller does not expose a detail mapping in the analyzed source, but the old frontend API wrapper includes `deliveryRecordDetail`; this slice adds it as read-only compatibility.
+
+### Next Plan
+
+- Commit and push this delivery-record read-only compatibility slice.
+- Continue scanning business frontend calls for another safe read-only module, with customer reads still deferred until the SM4 encrypted-field strategy is documented.

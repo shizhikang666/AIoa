@@ -234,6 +234,12 @@ Route::group('biz/inventory', function () {
     Route::get('detail', 'biz.InventoryController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/warehouses/delivery', function () {
+    Route::get('page', 'biz.DeliveryRecordController/page');
+    Route::get('exportOtherCompanyRecordsList', 'biz.DeliveryRecordController/exportOtherCompanyRecordsList');
+    Route::get('detail', 'biz.DeliveryRecordController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');
