@@ -678,3 +678,42 @@ The existing Vue email and SMS management pages call `/dev/email/page`, `/dev/em
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Dev Job Read-Only Routes
+
+## Request
+
+Register protected read-only scheduled-job routes in `route/app.php`.
+
+## Reason
+
+The existing Vue scheduled-job management page calls `/dev/job/page`, `/dev/job/list`, `/dev/job/detail`, and `/dev/job/getActionClass` after login to load job records and action-class selector data. These routes are needed for compatibility while scheduler mutations and execution remain disabled.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /dev/job/page`
+- `GET /dev/job/list`
+- `GET /dev/job/detail`
+- `GET /dev/job/getActionClass`
+
+## Explicit Exclusions
+
+- No `/dev/job/add` route was added.
+- No `/dev/job/edit` route was added.
+- No `/dev/job/delete` route was added.
+- No `/dev/job/stopJob` route was added.
+- No `/dev/job/runJob` route was added.
+- No `/dev/job/runJobNow` route was added.
+- No scheduler is started, stopped, or mutated.
+- No job action class is executed.
+- No database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

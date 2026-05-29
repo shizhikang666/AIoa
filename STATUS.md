@@ -1829,3 +1829,48 @@ Agent: api-agent
 
 - Commit and push this email/SMS read-only compatibility slice.
 - Continue with another safe read-only support module before planning write endpoints.
+
+## 2026-05-29 - merge-agent - Dev Job Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed Java `DevJobController` / `DevJobServiceImpl`, frontend `jobApi.js`, job task classes, and the `dev_job` table from `oa2026.sql`.
+- Added protected read-only scheduled-job page, list, detail, and action-class lookup endpoints.
+- Registered protected `/dev/job/*` GET routes behind `AuthMiddleware`.
+- Kept job add, edit, delete, stop, run, and run-now behavior deferred because those operations mutate scheduler/database state or execute task classes.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/JobService.php`
+- `app/controller/dev/JobController.php`
+- `route/app.php`
+- `docs/api/dev-job-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\dev\JobService.php`: passed.
+- `php -l app\controller\dev\JobController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/dev/job/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /dev/job/page`
+  - `GET /dev/job/list`
+  - `GET /dev/job/detail`
+  - `GET /dev/job/getActionClass`
+- Protected `GET /dev/job/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Java job action classes cannot run inside ThinkPHP; a later scheduler design must replace Java `CommonTimerTaskRunner` classes with explicit PHP jobs or external orchestration.
+- `getActionClass` currently returns distinct stored active `ACTION_CLASS` values rather than scanning executable PHP job classes.
+
+### Next Plan
+
+- Commit and push this job read-only compatibility slice.
+- Continue with another safe read-only support module before planning scheduler or write endpoints.

@@ -1693,3 +1693,52 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No email/SMS send or delete routes are added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Dev Job Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only scheduled-job endpoints so the job management page can load current job records without enabling scheduler mutations.
+
+### 2. Modules In Scope
+
+- dev job page/list/detail
+- dev job action-class lookup as a read-only compatibility helper
+- Java `DevJobController` compatibility for GET routes only
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/JobService.php`
+- `app/controller/dev/JobController.php`
+- `route/app.php`
+- `docs/api/dev-job-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java add/edit/delete/run/stop routes mutate the scheduler and database; they must remain deferred.
+- `runJobNow` can execute arbitrary registered job classes and must not be exposed in this slice.
+- `getActionClass` in Java scans Spring beans; ThinkPHP cannot execute Java beans, so this slice returns stored action class names from `dev_job` as read-only compatibility data.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\dev\JobService.php
+php -l app\controller\dev\JobController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/dev/job/page`, `/dev/job/list`, `/dev/job/detail`, and `/dev/job/getActionClass` routes are added.
+- No job add/edit/delete/stop/run/run-now routes are added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
