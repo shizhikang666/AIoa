@@ -109,6 +109,23 @@ Route::group('sys/button', function () {
     Route::get('detail', 'sys.ButtonController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('mobile/module', function () {
+    Route::get('page', 'mobile.ModuleController/page');
+    Route::get('detail', 'mobile.ModuleController/detail');
+})->middleware(AuthMiddleware::class);
+
+Route::group('mobile/menu', function () {
+    Route::get('tree', 'mobile.MenuController/tree');
+    Route::get('detail', 'mobile.MenuController/detail');
+    Route::get('moduleSelector', 'mobile.MenuController/moduleSelector');
+    Route::get('menuTreeSelector', 'mobile.MenuController/menuTreeSelector');
+})->middleware(AuthMiddleware::class);
+
+Route::group('mobile/button', function () {
+    Route::get('page', 'mobile.ButtonController/page');
+    Route::get('detail', 'mobile.ButtonController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

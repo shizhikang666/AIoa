@@ -397,6 +397,44 @@ The existing Vue homepage and message panel call `/sys/index/*` endpoints after 
 
 ---
 
+# Public File Change Request: Mobile Resource Read-Only Routes
+
+## Request
+
+Register protected read-only mobile resource routes in `route/app.php`.
+
+## Reason
+
+The existing Vue mobile resource management pages call `/mobile/module/*`, `/mobile/menu/*`, and `/mobile/button/*` endpoints after login to load mobile modules, menu trees, and button lists. These routes are needed for compatibility while mutation behavior remains deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /mobile/module/page`
+- `GET /mobile/module/detail`
+- `GET /mobile/menu/tree`
+- `GET /mobile/menu/detail`
+- `GET /mobile/menu/moduleSelector`
+- `GET /mobile/menu/menuTreeSelector`
+- `GET /mobile/button/page`
+- `GET /mobile/button/detail`
+
+## Explicit Exclusions
+
+- No mobile module add, edit, or delete routes were added.
+- No mobile menu add, edit, delete, or change-module routes were added.
+- No mobile button add, edit, or delete routes were added.
+- No mobile role grant mutations, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: System Resource Read-Only Routes
 
 ## Request

@@ -1499,3 +1499,52 @@ Agent: api-agent
 
 - Commit and push this resource read-only compatibility slice.
 - Continue frontend compatibility scanning for the next high-impact read-only API group before considering safe write endpoints.
+
+## 2026-05-29 - merge-agent - Mobile Resource Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old Vue mobile resource API modules and Java `MobileModuleController`, `MobileMenuController`, and `MobileButtonController`.
+- Added read-only compatibility for mobile module page/detail, mobile menu tree/detail/selectors, and mobile button page/detail.
+- Registered protected `/mobile/module/*`, `/mobile/menu/*`, and `/mobile/button/*` GET routes behind `AuthMiddleware`.
+- Preserved Java mobile menu tree descending `SORT_CODE` behavior.
+- Kept mobile resource add, edit, delete, menu change-module, and grant mutations deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/mobile/MobileResourceService.php`
+- `app/controller/mobile/ModuleController.php`
+- `app/controller/mobile/MenuController.php`
+- `app/controller/mobile/ButtonController.php`
+- `route/app.php`
+- `docs/api/mobile-resource-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected mobile resource read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /mobile/module/page`
+  - `GET /mobile/module/detail`
+  - `GET /mobile/menu/tree`
+  - `GET /mobile/menu/moduleSelector`
+  - `GET /mobile/menu/menuTreeSelector`
+  - `GET /mobile/button/page`
+  - `GET /mobile/button/detail`
+- `GET /mobile/module/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Mobile resource write endpoints remain deferred because they mutate mobile menu permission state and must coordinate with role grant behavior.
+- Mobile grant result shaping may need a later dedicated endpoint if the old role grant UI needs the Java `mobileMenuTreeSelector` aggregate format.
+
+### Next Plan
+
+- Commit and push this mobile resource read-only compatibility slice.
+- Continue scanning development/support API modules, likely dev config/dict/message/log read-only endpoints next.

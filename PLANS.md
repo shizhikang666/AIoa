@@ -1356,3 +1356,52 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No module/menu/button add, edit, delete, change-module, or grant mutation routes are added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Active Plan: merge-agent - Mobile Resource Read-Only Compatibility
+
+Status: in progress on 2026-05-29.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only mobile resource endpoints for mobile modules, menus, and buttons.
+
+### 2. Modules In Scope
+
+- mobile resource read-only API compatibility
+- mobile module pagination/detail
+- mobile menu tree/detail/selectors
+- mobile button pagination/detail
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/mobile/MobileResourceService.php`
+- `app/controller/mobile/ModuleController.php`
+- `app/controller/mobile/MenuController.php`
+- `app/controller/mobile/ButtonController.php`
+- `route/app.php`
+- `docs/api/mobile-resource-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Mobile resource write routes clean role/mobile-menu grant relations, so they remain deferred.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+- Mobile menu tree ordering differs from system menu tree in Java; this slice preserves descending sort for `tree`.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/mobile/module/*`, `/mobile/menu/*`, and `/mobile/button/*` routes are added.
+- No mobile module/menu/button add, edit, delete, change-module, or grant mutation routes are added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
