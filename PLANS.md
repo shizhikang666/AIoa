@@ -271,3 +271,49 @@ If the remaining tables are not required for auth-agent/user-agent/api-agent sta
 ### Decision
 
 db-agent can stop after Phase 6. Remaining low-priority support/shared tables do not block auth-agent startup. They can be handled later by the relevant module agent or by db-agent if a concrete dependency appears.
+
+## Current Plan: db-agent Phase 7 - Workflow Engine Table Models
+
+Status: in progress on 2026-05-29.
+
+### Current Goal
+
+Add passive ThinkPHP Model coverage for Camunda-style workflow `act_*` tables required by workflow-agent read-only query services.
+
+### Candidate Scope
+
+- `act_ge_bytearray`
+- `act_re_deployment`
+- `act_re_procdef`
+- `act_ru_execution`
+- `act_ru_task`
+- `act_ru_variable`
+- `act_ru_identitylink`
+- `act_hi_procinst`
+- `act_hi_taskinst`
+- `act_hi_varinst`
+- `act_hi_actinst`
+- `act_hi_comment`
+- `act_hi_identitylink`
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not modify database schema or SQL seed data.
+- Do not implement workflow runtime, controllers, services, routes, or side effects.
+- Do not modify public locked files.
+
+### Risks
+
+- Camunda tables use `ID_` primary keys and underscore-suffixed columns, so model naming must preserve SQL compatibility.
+- These models are only passive table access foundations; workflow semantics belong to workflow-agent.
+
+### Test Commands
+
+```powershell
+Get-ChildItem app\model -Filter *.php | ForEach-Object { php -l $_.FullName }
+composer dump-autoload
+php think
+php think route:list
+git status --short --branch
+```

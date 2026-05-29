@@ -320,3 +320,54 @@ Agent: db-agent
 
 - Commit db-agent Phase 6 audit.
 - Start auth-agent next in `F:\AI\projects\testJava\OA-auth` after confirming branch/worktree status and syncing the latest db-agent foundation strategy into the handoff plan.
+
+## 2026-05-29 09:55 +08:00
+
+Agent: db-agent
+
+### Completed Content
+
+- Completed db-agent Phase 7 workflow engine table model coverage.
+- Used `F:\AI\projects\testJava\OA\oa2026.sql` as the primary read-only SQL reference.
+- Added passive ThinkPHP Models for Camunda-style `act_*` runtime, repository, and history tables.
+- Added `ActBaseModel` with `ID_` as the primary key for Camunda-compatible tables.
+- Documented workflow engine model coverage and final data sync implications.
+- Kept this phase database/model-only with no controller, service, route, workflow runtime, or side-effect logic.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/database/workflow-engine-models.md`
+- `app/model/ActBaseModel.php`
+- `app/model/ActGeBytearray.php`
+- `app/model/ActReDeployment.php`
+- `app/model/ActReProcdef.php`
+- `app/model/ActRuExecution.php`
+- `app/model/ActRuTask.php`
+- `app/model/ActRuVariable.php`
+- `app/model/ActRuIdentitylink.php`
+- `app/model/ActHiProcinst.php`
+- `app/model/ActHiTaskinst.php`
+- `app/model/ActHiVarinst.php`
+- `app/model/ActHiActinst.php`
+- `app/model/ActHiComment.php`
+- `app/model/ActHiIdentitylink.php`
+
+### Test Results
+
+- `Get-ChildItem app\model -Filter *.php | ForEach-Object { php -l $_.FullName }`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed.
+- `php think test`: not run because the current ThinkPHP console does not expose a `test` command.
+
+### Current Issues
+
+- These models are passive wrappers only; workflow runtime behavior remains workflow-agent scope.
+- Active process/task data must be included in the final online realtime data synchronization plan after project completion.
+
+### Next Plan
+
+- Commit db-agent Phase 7.
+- workflow-agent can later build read-only query services on these models after final merge order brings db-agent first.
