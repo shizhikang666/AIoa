@@ -751,6 +751,42 @@ The existing Vue login flow and process configuration page call `/sys/sysConfig/
 
 ---
 
+# Public File Change Request: Gen Metadata Read-Only Routes
+
+## Request
+
+Register protected read-only generator metadata routes in `route/app.php`.
+
+## Reason
+
+The existing Vue generator pages call `/gen/basic/page`, `/gen/basic/detail`, `/gen/basic/mobileModuleSelector`, `/gen/config/list`, and `/gen/config/detail` after login to load saved generator metadata and field configuration. These reads are needed for compatibility while code generation, schema scanning, and write endpoints remain disabled.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /gen/basic/page`
+- `GET /gen/basic/detail`
+- `GET /gen/basic/mobileModuleSelector`
+- `GET /gen/config/list`
+- `GET /gen/config/detail`
+
+## Explicit Exclusions
+
+- No `/gen/basic/add`, `/gen/basic/edit`, or `/gen/basic/delete` route was added.
+- No `/gen/config/edit`, `/gen/config/delete`, or `/gen/config/editBatch` route was added.
+- No `/gen/basic/tables` or `/gen/basic/tableColumns` route was added.
+- No `/gen/basic/execGenZip`, `/gen/basic/execGenPro`, or `/gen/basic/previewGen` route was added.
+- No database schema scanning, code generation, file writing, ZIP generation, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Dev Monitor Server Info Read-Only Route
 
 ## Request

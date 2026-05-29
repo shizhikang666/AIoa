@@ -186,6 +186,17 @@ Route::group('dev/message', function () {
     Route::get('detail', 'dev.MessageController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('gen/basic', function () {
+    Route::get('page', 'gen.BasicController/page');
+    Route::get('detail', 'gen.BasicController/detail');
+    Route::get('mobileModuleSelector', 'gen.BasicController/mobileModuleSelector');
+})->middleware(AuthMiddleware::class);
+
+Route::group('gen/config', function () {
+    Route::get('list', 'gen.ConfigController/list');
+    Route::get('detail', 'gen.ConfigController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

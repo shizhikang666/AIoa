@@ -1842,3 +1842,56 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No external system commands are executed.
 - Route is protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Gen Metadata Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only generator metadata endpoints for saved generator definitions and field configurations, without enabling code generation or database schema scanning.
+
+### 2. Modules In Scope
+
+- code-generator metadata reads
+- `gen_basic` page/detail
+- `gen_config` list/detail
+- mobile module selector passthrough for generator forms
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/gen/BasicService.php`
+- `app/service/gen/ConfigService.php`
+- `app/controller/gen/BasicController.php`
+- `app/controller/gen/ConfigController.php`
+- `route/app.php`
+- `docs/api/gen-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java generator execution can create files or modify the Java project; all execution and preview routes must remain deferred.
+- Table and column scanning exposes database schema information and should wait for a separate approval and allow-list design.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\gen\BasicService.php
+php -l app\service\gen\ConfigService.php
+php -l app\controller\gen\BasicController.php
+php -l app\controller\gen\ConfigController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/gen/basic/page`, `/gen/basic/detail`, `/gen/basic/mobileModuleSelector`, `/gen/config/list`, and `/gen/config/detail` routes are added.
+- No `/gen/basic/tables`, `/gen/basic/tableColumns`, `/gen/basic/execGenZip`, `/gen/basic/execGenPro`, `/gen/basic/previewGen`, or generator write route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

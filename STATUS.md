@@ -1959,3 +1959,54 @@ Agent: api-agent
 
 - Commit and push this monitor read-only compatibility slice.
 - Continue with the next safe read-only compatibility group, likely generator metadata reads, using the previously completed explorer findings.
+
+## 2026-05-29 - merge-agent - Gen Metadata Read-Only Compatibility
+
+### Completed Content
+
+- Used the earlier gen explorer findings to keep scope limited to safe metadata reads.
+- Analyzed Java `GenBasicController`, `GenConfigController`, `GenBasicServiceImpl`, `GenConfigServiceImpl`, frontend generator API files, and `gen_basic` / `gen_config` SQL tables.
+- Added protected read-only generator basic page/detail and mobile module selector endpoints.
+- Added protected read-only generator config list/detail endpoints.
+- Kept generator execution, code preview, table scanning, column scanning, and all write routes deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/gen/BasicService.php`
+- `app/service/gen/ConfigService.php`
+- `app/controller/gen/BasicController.php`
+- `app/controller/gen/ConfigController.php`
+- `route/app.php`
+- `docs/api/gen-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\gen\BasicService.php`: passed.
+- `php -l app\service\gen\ConfigService.php`: passed.
+- `php -l app\controller\gen\BasicController.php`: passed.
+- `php -l app\controller\gen\ConfigController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected generator read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /gen/basic/page`
+  - `GET /gen/basic/detail`
+  - `GET /gen/config/list`
+  - `GET /gen/basic/mobileModuleSelector`
+- `GET /gen/basic/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- The imported `gen_config` table currently has no rows for the existing `gen_basic` seed row, so runtime smoke covered `config/list` returning an empty list.
+- `/gen/basic/tables` and `/gen/basic/tableColumns` remain deferred because they expose schema metadata and need an allow-list design.
+- Generator preview and execution remain deferred because they can render or write generated code.
+
+### Next Plan
+
+- Commit and push this generator metadata read-only compatibility slice.
+- Continue scanning old frontend calls for the next safe read-only group, while leaving generator write/execution routes disabled.
