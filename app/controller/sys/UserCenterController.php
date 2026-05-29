@@ -48,4 +48,30 @@ class UserCenterController extends BaseSysController
     {
         return $this->guard(fn () => $this->userDirectoryService->getAvatarById($this->requiredString($request, 'id')));
     }
+
+    public function loginWorkbench(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->loginWorkbench($this->currentUserId($request)));
+    }
+
+    public function loginUnreadMessagePage(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->loginUnreadMessagePage(
+            $this->currentUserId($request),
+            $request->param()
+        ));
+    }
+
+    public function loginUnreadMessageDetail(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->loginUnreadMessageDetail(
+            $this->currentUserId($request),
+            $this->requiredString($request, 'id')
+        ));
+    }
+
+    public function processConfig(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->processConfig($this->currentUserId($request)));
+    }
 }

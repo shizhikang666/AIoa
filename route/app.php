@@ -30,6 +30,10 @@ Route::group('sys/userCenter', function () {
     Route::get('loginMenu', 'auth.UserCenterAuthController/loginMenu');
     Route::get('loginOrgTree', 'sys.UserCenterController/loginOrgTree');
     Route::get('loginPositionInfo', 'sys.UserCenterController/loginPositionInfo');
+    Route::get('loginWorkbench', 'sys.UserCenterController/loginWorkbench');
+    Route::get('loginUnreadMessagePage', 'sys.UserCenterController/loginUnreadMessagePage');
+    Route::get('loginUnreadMessageDetail', 'sys.UserCenterController/loginUnreadMessageDetail');
+    Route::post('process/config', 'sys.UserCenterController/processConfig');
     Route::post('getOrgListByIdList', 'sys.UserCenterController/getOrgListByIdList');
     Route::post('getUserListByIdList', 'sys.UserCenterController/getUserListByIdList');
     Route::post('getPositionListByIdList', 'sys.UserCenterController/getPositionListByIdList');

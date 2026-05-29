@@ -328,3 +328,35 @@ The existing Vue role management API calls several GET endpoints for role pagina
 
 - No role add, edit, delete, grant resource, grant mobile menu, grant permission, or grant user routes were added.
 - No relation writes, database schema changes, Java source changes, or frontend source changes were made.
+
+---
+
+# Public File Change Request: User Center Read-Only Compatibility Routes
+
+## Request
+
+Register protected read-only user-center compatibility routes in `route/app.php`.
+
+## Reason
+
+The existing Vue user-center API calls workbench, unread message, and process config endpoints after login. These are required for user-center tabs and workflow setup views to load while write behavior remains deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes under `sys/userCenter`:
+
+- `GET /sys/userCenter/loginWorkbench`
+- `GET /sys/userCenter/loginUnreadMessagePage`
+- `GET /sys/userCenter/loginUnreadMessageDetail`
+- `POST /sys/userCenter/process/config`
+
+## Explicit Exclusions
+
+- No update user info, update workbench, update password, update avatar, update signature, process config edit, or message mark-read routes were added.
+- No database schema, seed data, Java source, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes under `AuthMiddleware`.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

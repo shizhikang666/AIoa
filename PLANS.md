@@ -1212,3 +1212,50 @@ git status --short --branch
 - Autonomous execution rules include allowed actions, stop conditions, and a copyable user authorization statement.
 - Branch push/sync status is documented.
 - No business code or locked public files are modified.
+
+## Active Plan: merge-agent - User Center Read-Only Compatibility
+
+Status: in progress on 2026-05-29.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only user-center endpoints for login workbench, process config, and login user messages.
+
+### 2. Modules In Scope
+
+- user-center read-only API compatibility
+- system relation workbench lookup
+- user process config read lookup
+- dev message read lookup
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/user/UserDirectoryService.php`
+- `app/controller/sys/UserCenterController.php`
+- `route/app.php`
+- `docs/api/user-center-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java message detail marks messages as read, but this phase is read-only, so the ThinkPHP compatibility endpoint must not update `dev_relation`.
+- `route/app.php` is a locked public file; the route change is documented as a merge-agent public file request.
+- Process config defaults are derived from existing SQL process names when the user has no saved config.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only user-center endpoints are added.
+- No update profile, update workbench, process config edit, message mark-read, or other write routes are added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks pass.

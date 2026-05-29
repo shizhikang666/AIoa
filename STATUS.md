@@ -1358,3 +1358,47 @@ Agent: api-agent
 - Run baseline checks and plaintext login smoke.
 - Confirm no private key or password was committed.
 - Commit and push if checks pass.
+
+## 2026-05-29 - merge-agent - User Center Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed Java `SysUserCenterController`, `SysUserServiceImpl`, `SysUserProcessConfigServiceImpl`, and `DevMessageServiceImpl`.
+- Added read-only compatibility for login workbench, current user process config, login unread message page, and message detail lookup.
+- Kept Java message detail mark-read behavior deferred so this phase remains read-only.
+- Registered protected user-center routes and documented the locked route-file change.
+- Documented old-frontend compatibility behavior and deferred write endpoints.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/user/UserDirectoryService.php`
+- `app/controller/sys/UserCenterController.php`
+- `route/app.php`
+- `docs/api/user-center-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the new `/sys/userCenter/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned:
+  - `GET /sys/userCenter/loginWorkbench`: `code=200`
+  - `POST /sys/userCenter/process/config`: `code=200`, 9 default process config items for the current test user
+  - `GET /sys/userCenter/loginUnreadMessagePage`: `code=200`
+  - `GET /sys/userCenter/loginUnreadMessageDetail?id=missing`: `code=200`, `data=null`
+  - `GET /sys/userCenter/loginWorkbench` without a token: `code=401`
+- Secret scan found no committed database password, superadmin password, SM2 private key, or SM2 public key in tracked project paths.
+
+### Current Issues
+
+- The current test superadmin has no login message records in `dev_relation`, so an existing-message detail smoke still needs a user account with message relations.
+- Message detail is intentionally read-only and does not mark messages as read yet.
+
+### Next Plan
+
+- Commit and push this read-only user-center compatibility slice.
+- Continue with the next small compatibility slice after reviewing old frontend API usage, likely index message/workbench shortcuts or safe user-center write endpoints with explicit validation.

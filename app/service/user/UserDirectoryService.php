@@ -6,8 +6,12 @@ namespace app\service\user;
 
 use app\model\SysOrg;
 use app\model\SysPosition;
+use app\model\SysRelation;
 use app\model\SysRole;
 use app\model\SysUser;
+use app\model\SysUserProcessConfig;
+use RuntimeException;
+use think\facade\Db;
 
 /**
  * Read-only user directory queries compatible with Java SysUserService selectors.
@@ -15,6 +19,20 @@ use app\model\SysUser;
 class UserDirectoryService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const WORKBENCH_CATEGORY = 'SYS_USER_WORKBENCH_DATA';
+    private const DEFAULT_WORKBENCH_KEY = 'SNOWY_SYS_DEFAULT_WORKBENCH_DATA';
+    private const MESSAGE_TO_USER_CATEGORY = 'MSG_TO_USER';
+    private const DEFAULT_PROCESS_NAMES = [
+        'Process_reimbursement',
+        'Process_make_payment',
+        'Process_project_reissue_product',
+        'Process_sale_project_play',
+        'Process_payment',
+        'Process_sale_project_init',
+        'Process_sale_project_delivery',
+        'Process_procure',
+        'Process_ask_leave',
+    ];
 
     public function __construct(
         private readonly OrgService $orgService = new OrgService(),
@@ -183,6 +201,143 @@ class UserDirectoryService
         ];
     }
 
+    public function loginWorkbench(string $userId): string
+    {
+        if (!$this->detail($userId)) {
+            throw new RuntimeException('user not found', 404);
+        }
+
+        $relation = SysRelation::where('OBJECT_ID', $userId)
+            ->where('CATEGORY', self::WORKBENCH_CATEGORY)
+            ->find();
+
+        $workbench = $relation ? trim((string)$relation->getAttr('EXT_JSON')) : '';
+        if ($workbench !== '') {
+            return $workbench;
+        }
+
+        return $this->defaultWorkbenchData();
+    }
+
+    public function processConfig(string $userId): array
+    {
+        $row = SysUserProcessConfig::where('CREATE_USER', $userId)
+            ->where('DELETE_FLAG', self::NOT_DELETE)
+            ->order(['UPDATE_TIME' => 'desc', 'CREATE_TIME' => 'desc', 'ID' => 'desc'])
+            ->find();
+
+        if (!$row) {
+            $config = $this->defaultProcessConfig();
+            $configJson = json_encode(['config' => $config], JSON_UNESCAPED_UNICODE);
+
+            return [
+                'id' => null,
+                'configJson' => $configJson,
+                'deleteFlag' => self::NOT_DELETE,
+                'createUser' => $userId,
+                'config' => $config,
+            ];
+        }
+
+        $data = $row->toArray();
+        return [
+            'id' => $data['ID'] ?? null,
+            'configJson' => $data['CONFIG_JSON'] ?? null,
+            'deleteFlag' => $data['DELETE_FLAG'] ?? null,
+            'createTime' => $data['CREATE_TIME'] ?? null,
+            'createUser' => $data['CREATE_USER'] ?? null,
+            'updateTime' => $data['UPDATE_TIME'] ?? null,
+            'updateUser' => $data['UPDATE_USER'] ?? null,
+            'tenantId' => $data['TENANT_ID'] ?? null,
+            'version' => $data['VERSION'] ?? null,
+            'config' => $this->decodeProcessConfig((string)($data['CONFIG_JSON'] ?? '')),
+        ];
+    }
+
+    public function loginUnreadMessagePage(string $userId, array $filters = []): array
+    {
+        [$page, $limit] = $this->pagination($filters);
+        $relations = $this->messageRelationsForUser($userId);
+        $messageIds = array_keys($relations);
+
+        if ($messageIds === []) {
+            return [
+                'records' => [],
+                'total' => 0,
+                'page' => $page,
+                'limit' => $limit,
+            ];
+        }
+
+        $total = $this->messageQuery($messageIds, $filters)->count();
+        $rows = $this->messageQuery($messageIds, $filters)
+            ->order('CREATE_TIME', 'desc')
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+
+        $records = array_map(fn (array $row): array => $this->messageRow(
+            $row,
+            $relations[(string)($row['ID'] ?? '')] ?? null
+        ), $rows);
+
+        usort($records, static function (array $left, array $right): int {
+            return (int)($left['read'] ?? false) <=> (int)($right['read'] ?? false);
+        });
+
+        return [
+            'records' => $records,
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
+        ];
+    }
+
+    public function loginUnreadMessageDetail(string $userId, string $id): ?array
+    {
+        $ownRelation = Db::name('dev_relation')
+            ->where('OBJECT_ID', $id)
+            ->where('TARGET_ID', $userId)
+            ->where('CATEGORY', self::MESSAGE_TO_USER_CATEGORY)
+            ->find();
+
+        if (!$ownRelation) {
+            return null;
+        }
+
+        $message = Db::name('dev_message')
+            ->where('ID', $id)
+            ->where('DELETE_FLAG', self::NOT_DELETE)
+            ->find();
+
+        if (!$message) {
+            return null;
+        }
+
+        $receiveRelations = Db::name('dev_relation')
+            ->where('OBJECT_ID', $id)
+            ->where('CATEGORY', self::MESSAGE_TO_USER_CATEGORY)
+            ->select()
+            ->toArray();
+        $receiveUserIds = array_values(array_filter(array_map(static fn (array $relation): string => (string)($relation['TARGET_ID'] ?? ''), $receiveRelations)));
+        $userNames = $receiveUserIds === []
+            ? []
+            : SysUser::whereIn('ID', $receiveUserIds)->column('NAME', 'ID');
+
+        $detail = $this->messageRow($message, $ownRelation);
+        $detail['receiveInfoList'] = array_map(function (array $relation) use ($userNames): array {
+            $receiveUserId = (string)($relation['TARGET_ID'] ?? '');
+
+            return [
+                'receiveUserId' => $receiveUserId,
+                'receiveUserName' => $userNames[$receiveUserId] ?? 'unknown user',
+                'read' => $this->relationReadStatus($relation) ?? false,
+            ];
+        }, $receiveRelations);
+
+        return $detail;
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
@@ -325,5 +480,114 @@ class UserDirectoryService
         $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function defaultWorkbenchData(): string
+    {
+        $value = Db::name('dev_config')
+            ->where('CONFIG_KEY', self::DEFAULT_WORKBENCH_KEY)
+            ->where('DELETE_FLAG', self::NOT_DELETE)
+            ->value('CONFIG_VALUE');
+
+        $workbench = is_string($value) ? trim($value) : '';
+
+        return $workbench !== '' ? $workbench : '{"shortcut":[]}';
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function defaultProcessConfig(): array
+    {
+        return array_map(static fn (string $processName): array => [
+            'processName' => $processName,
+            'approveUserIdList' => [],
+            'copyUserIdList' => [],
+        ], self::DEFAULT_PROCESS_NAMES);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function decodeProcessConfig(string $configJson): array
+    {
+        $decoded = json_decode($configJson, true);
+        if (!is_array($decoded) || !isset($decoded['config']) || !is_array($decoded['config'])) {
+            return $this->defaultProcessConfig();
+        }
+
+        return $decoded['config'];
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function messageRelationsForUser(string $userId): array
+    {
+        $rows = Db::name('dev_relation')
+            ->where('TARGET_ID', $userId)
+            ->where('CATEGORY', self::MESSAGE_TO_USER_CATEGORY)
+            ->select()
+            ->toArray();
+
+        $relations = [];
+        foreach ($rows as $row) {
+            $messageId = (string)($row['OBJECT_ID'] ?? '');
+            if ($messageId !== '') {
+                $relations[$messageId] = $row;
+            }
+        }
+
+        return $relations;
+    }
+
+    /**
+     * @param array<int, string> $messageIds
+     */
+    private function messageQuery(array $messageIds, array $filters)
+    {
+        $query = Db::name('dev_message')
+            ->where('DELETE_FLAG', self::NOT_DELETE)
+            ->whereIn('ID', $messageIds);
+
+        if (!empty($filters['category'])) {
+            $query->where('CATEGORY', (string)$filters['category']);
+        }
+
+        if (!empty($filters['searchKey'])) {
+            $query->whereLike('SUBJECT', '%' . trim((string)$filters['searchKey']) . '%');
+        }
+
+        return $query;
+    }
+
+    private function messageRow(array $row, ?array $relation): array
+    {
+        return [
+            'id' => $row['ID'] ?? null,
+            'category' => $row['CATEGORY'] ?? null,
+            'subject' => $row['SUBJECT'] ?? null,
+            'content' => $row['CONTENT'] ?? null,
+            'extJson' => $row['EXT_JSON'] ?? null,
+            'read' => $this->relationReadStatus($relation) ?? false,
+            'createTime' => $row['CREATE_TIME'] ?? null,
+            'createUser' => $row['CREATE_USER'] ?? null,
+            'updateTime' => $row['UPDATE_TIME'] ?? null,
+            'updateUser' => $row['UPDATE_USER'] ?? null,
+        ];
+    }
+
+    private function relationReadStatus(?array $relation): ?bool
+    {
+        if (!$relation) {
+            return null;
+        }
+
+        $decoded = json_decode((string)($relation['EXT_JSON'] ?? '{}'), true);
+        if (!is_array($decoded) || !array_key_exists('read', $decoded)) {
+            return null;
+        }
+
+        return (bool)$decoded['read'];
     }
 }
