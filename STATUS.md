@@ -1780,3 +1780,52 @@ Agent: api-agent
 
 - Commit and push this file metadata read-only compatibility slice.
 - Continue with another safe read-only support module, likely email/SMS metadata pages, before planning write endpoints.
+
+## 2026-05-29 - merge-agent - Dev Email And Sms Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed Java `DevEmailController` / `DevEmailServiceImpl`, Java `DevSmsController` / `DevSmsServiceImpl`, frontend `emailApi.js` / `smsApi.js`, and the `dev_email` / `dev_sms` tables from `oa2026.sql`.
+- Added protected read-only email and SMS record page/detail endpoints.
+- Registered protected `/dev/email/*` and `/dev/sms/*` GET routes behind `AuthMiddleware`.
+- Kept email/SMS send and delete behavior deferred because those operations call external providers or mutate historical send records.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/EmailService.php`
+- `app/service/dev/SmsService.php`
+- `app/controller/dev/EmailController.php`
+- `app/controller/dev/SmsController.php`
+- `route/app.php`
+- `docs/api/dev-email-sms-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\dev\EmailService.php`: passed.
+- `php -l app\service\dev\SmsService.php`: passed.
+- `php -l app\controller\dev\EmailController.php`: passed.
+- `php -l app\controller\dev\SmsController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/dev/email/*` and `/dev/sms/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /dev/email/page`
+  - `GET /dev/email/detail`
+  - `GET /dev/sms/page`
+  - `GET /dev/sms/detail`
+- Protected `GET /dev/email/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Email/SMS send endpoints require provider credential handling, validation, rate limiting, permission checks, and audit logging before they can be safely enabled.
+- Delete endpoints remain deferred because they mutate historical send records.
+
+### Next Plan
+
+- Commit and push this email/SMS read-only compatibility slice.
+- Continue with another safe read-only support module before planning write endpoints.

@@ -147,6 +147,16 @@ Route::group('dev/file', function () {
     Route::get('detail', 'dev.FileController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('dev/email', function () {
+    Route::get('page', 'dev.EmailController/page');
+    Route::get('detail', 'dev.EmailController/detail');
+})->middleware(AuthMiddleware::class);
+
+Route::group('dev/sms', function () {
+    Route::get('page', 'dev.SmsController/page');
+    Route::get('detail', 'dev.SmsController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('dev/log', function () {
     Route::get('page', 'dev.LogController/page');
     Route::get('detail', 'dev.LogController/detail');

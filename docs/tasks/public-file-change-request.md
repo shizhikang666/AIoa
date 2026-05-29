@@ -643,3 +643,38 @@ The existing Vue system resource management pages call `/sys/module/*`, `/sys/me
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Dev Email And Sms Read-Only Routes
+
+## Request
+
+Register protected read-only email and SMS record routes in `route/app.php`.
+
+## Reason
+
+The existing Vue email and SMS management pages call `/dev/email/page`, `/dev/email/detail`, `/dev/sms/page`, and `/dev/sms/detail` after login to load historical send records. These routes are needed for compatibility while actual provider send and delete behavior remains deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /dev/email/page`
+- `GET /dev/email/detail`
+- `GET /dev/sms/page`
+- `GET /dev/sms/detail`
+
+## Explicit Exclusions
+
+- No email send routes were added.
+- No SMS send routes were added.
+- No email/SMS delete routes were added.
+- No local mail, cloud email, or SMS provider integration is called.
+- No database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

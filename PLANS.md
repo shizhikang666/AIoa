@@ -1640,3 +1640,56 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No file upload, delete, or download file-stream route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Dev Email And Sms Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only metadata/query endpoints for email and SMS send records.
+
+### 2. Modules In Scope
+
+- dev email record page/detail
+- dev SMS record page/detail
+- Java `DevEmailController` and `DevSmsController` compatibility for read-only routes only
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/EmailService.php`
+- `app/service/dev/SmsService.php`
+- `app/controller/dev/EmailController.php`
+- `app/controller/dev/SmsController.php`
+- `route/app.php`
+- `docs/api/dev-email-sms-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java send endpoints call local/cloud providers and write `dev_email` / `dev_sms`; they must remain deferred.
+- Delete endpoints remove historical send records and must remain deferred.
+- `CONTENT`, `RECEIPT_INFO`, `TEMPLATE_PARAM`, and phone/email fields may contain sensitive operational data, so routes must stay authenticated.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\dev\EmailService.php
+php -l app\service\dev\SmsService.php
+php -l app\controller\dev\EmailController.php
+php -l app\controller\dev\SmsController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/dev/email/page`, `/dev/email/detail`, `/dev/sms/page`, and `/dev/sms/detail` routes are added.
+- No email/SMS send or delete routes are added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
