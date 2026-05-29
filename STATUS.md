@@ -2342,3 +2342,54 @@ Agent: api-agent
 
 - Commit and push this delivery-record read-only compatibility slice.
 - Continue scanning business frontend calls for another safe read-only module, with customer reads still deferred until the SM4 encrypted-field strategy is documented.
+
+## 2026-05-29 - merge-agent - Biz Purchase Order Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `bizPurchaseOrderApi.js`, Java `BizPurchaseOrderController` / `BizPurchaseOrderServiceImpl`, Java purchase-order query/id/detail params, purchase-order item entity, and the SQL tables for purchase orders, order items, products, organizations, and expenditure records.
+- Added protected read-only purchase-order page, list, detail-list, and detail compatibility endpoints.
+- Decoded supplier display data from `EXT_JSON.supplier` and supported supplier-name filtering with JSON validity guards.
+- Enriched purchase-order items with product display fields from `biz_product`.
+- Returned Java-compatible detail wrapper data: `bizPurchaseOrder`, `bizPurchaseOrderItemList`, and `bizExpenditureRecordList`.
+- Registered protected `/biz/bizpurchaseorder/*` read-only routes behind `AuthMiddleware`.
+- Kept purchase-order add, edit, audit edit, delete, cancel, warehouse add, and warehouse one-add behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/PurchaseOrderService.php`
+- `app/controller/biz/PurchaseOrderController.php`
+- `route/app.php`
+- `docs/api/biz-purchase-order-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\PurchaseOrderService.php`: passed.
+- `php -l app\controller\biz\PurchaseOrderController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected purchase-order read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/bizpurchaseorder/page`
+  - `GET /biz/bizpurchaseorder/list`
+  - `GET /biz/bizpurchaseorder/detail/list`
+  - `GET /biz/bizpurchaseorder/detail`
+- Runtime smoke confirmed purchase-order page total `417`, detail-list count `1`, detail item count `1`, and related goods expenditure count `1` for the sampled order.
+- Supplier-name JSON filter smoke returned `code=200` and `61` rows for the sampled keyword.
+- `GET /biz/bizpurchaseorder/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- Java purchase-order write flows affect workflow/audit state, expenditure records, warehouse stock-in, inventory quantities, and optimistic-lock versions. Those routes need a later write-endpoint design before enabling them.
+- Customer-related reads remain deferred until the SM4 encrypted-field strategy is documented.
+
+### Next Plan
+
+- Commit and push this purchase-order read-only compatibility slice.
+- Continue scanning business frontend calls for another safe read-only module, likely settlement-account or sale-project reads depending on encrypted-field impact.

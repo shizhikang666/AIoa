@@ -1051,3 +1051,41 @@ The existing Vue inventory and product-detail pages call `/biz/warehouses/delive
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Purchase Order Read-Only Routes
+
+## Request
+
+Register protected read-only purchase-order routes in `route/app.php`.
+
+## Reason
+
+The existing Vue purchase-order pages call `/biz/bizpurchaseorder/page`, `/biz/bizpurchaseorder/detail/list`, `/biz/bizpurchaseorder/list`, and `/biz/bizpurchaseorder/detail` after login to load purchase orders, order items, supplier display data, and related goods expenditure records. These reads are needed for procurement compatibility while purchase writes, audit edits, cancellations, and warehouse stock-in behavior remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/bizpurchaseorder/page`
+- `GET /biz/bizpurchaseorder/detail/list`
+- `GET /biz/bizpurchaseorder/list`
+- `GET /biz/bizpurchaseorder/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizpurchaseorder/add` route was added.
+- No `/biz/bizpurchaseorder/edit` route was added.
+- No `/biz/bizpurchaseorder/audit/edit` route was added.
+- No `/biz/bizpurchaseorder/delete` route was added.
+- No `/biz/bizpurchaseorder/cancel` route was added.
+- No `/biz/bizpurchaseorder/warehouse/add` route was added.
+- No `/biz/bizpurchaseorder/warehouse/one/add` route was added.
+- No inventory stock movement, workflow mutation, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

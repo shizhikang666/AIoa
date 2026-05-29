@@ -2238,3 +2238,55 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No `/biz/warehouses/delivery/add` mutation route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Biz Purchase Order Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only purchase-order endpoints for procurement list/detail pages.
+
+### 2. Modules In Scope
+
+- purchase order read-only API compatibility
+- `/biz/bizpurchaseorder/page`
+- `/biz/bizpurchaseorder/detail/list`
+- `/biz/bizpurchaseorder/list`
+- `/biz/bizpurchaseorder/detail`
+- purchase-order item enrichment with product display fields
+- purchase-order detail wrapper with related goods expenditure records
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/PurchaseOrderService.php`
+- `app/controller/biz/PurchaseOrderController.php`
+- `route/app.php`
+- `docs/api/biz-purchase-order-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java purchase-order write operations can trigger audit, workflow, payment, warehouse stock-in, and inventory side effects, so add/edit/audit/cancel/warehouse routes must remain deferred.
+- Supplier display data in the imported SQL is primarily stored in `EXT_JSON.supplier`, so read filters must preserve JSON compatibility without changing the schema.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\PurchaseOrderService.php
+php -l app\controller\biz\PurchaseOrderController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/bizpurchaseorder/page`, `/biz/bizpurchaseorder/detail/list`, `/biz/bizpurchaseorder/list`, and `/biz/bizpurchaseorder/detail` routes are added.
+- No purchase-order mutation or warehouse stock-in route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
