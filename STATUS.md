@@ -987,3 +987,42 @@ Agent: api-agent
 
 - Commit docs-agent Phase 2.
 - Continue implementation only inside approved agent scopes.
+
+## 2026-05-29 - merge-agent - Runtime Verification Readiness
+
+### Completed Content
+
+- Checked merged `refactor/thinkphp-main` runtime prerequisites after final branch integration.
+- Confirmed PHP has `pdo_mysql`, `mysqli`, and `redis` extensions.
+- Confirmed `F:\AI\projects\testJava\OA\oa2026.sql` exists and remains read-only.
+- Confirmed no `.env` file exists in `F:\AI\projects\testJava\OA-ThinkPHP`.
+- Confirmed `mysql` and `redis-cli` are not available in the current PATH.
+- Confirmed Windows service `MySQL80` exists but is stopped.
+- Added Redis store support to `config/cache.php` while keeping the default cache driver as `file`.
+- Added `docs/tasks/runtime-verification-plan.md` for safe local database import and smoke testing.
+
+### Modified Files
+
+- `config/cache.php`
+- `docs/tasks/runtime-verification-plan.md`
+- `STATUS.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed, 28 routes listed.
+- PHP lint for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed, with Git line-ending normalization warnings only.
+
+### Current Issues
+
+- Runtime endpoint testing is blocked until a local `.env`, local MySQL database, and Redis runtime are configured.
+- The SQL import is a database-modifying action and must not be executed automatically without explicit confirmation.
+- Online realtime production data sync remains deferred until the project is complete and accepted.
+
+### Next Plan
+
+- Run non-destructive ThinkPHP checks after the Redis cache configuration update.
+- Commit and push the runtime readiness update if checks pass.
+- Wait for explicit confirmation before starting MySQL, creating a database, importing `oa2026.sql`, or writing `.env`.

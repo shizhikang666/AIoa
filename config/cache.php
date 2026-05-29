@@ -6,7 +6,7 @@
 
 return [
     // 默认缓存驱动
-    'default' => 'file',
+    'default' => env('CACHE_DRIVER', 'file'),
 
     // 缓存连接方式配置
     'stores'  => [
@@ -22,6 +22,19 @@ return [
             // 缓存标签前缀
             'tag_prefix' => 'tag:',
             // 序列化机制 例如 ['serialize', 'unserialize']
+            'serialize'  => [],
+        ],
+        'redis' => [
+            'type'       => 'Redis',
+            'host'       => env('REDIS_HOST', '127.0.0.1'),
+            'port'       => env('REDIS_PORT', 6379),
+            'password'   => env('REDIS_PASSWORD', ''),
+            'select'     => env('REDIS_DB', 0),
+            'timeout'    => env('REDIS_TIMEOUT', 0),
+            'expire'     => env('CACHE_EXPIRE', 0),
+            'persistent' => env('REDIS_PERSISTENT', false),
+            'prefix'     => env('CACHE_PREFIX', ''),
+            'tag_prefix' => 'tag:',
             'serialize'  => [],
         ],
         // 更多的缓存连接
