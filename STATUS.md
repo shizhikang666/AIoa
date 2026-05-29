@@ -2682,3 +2682,54 @@ Agent: api-agent
 
 - Commit and push this file-relation read-only compatibility slice.
 - Continue with the next safe read-only business module, likely sale-project or team-project attachment consumers.
+
+## 2026-05-29 - merge-agent - Biz Team Project Read-Only Foundation
+
+### Completed Content
+
+- Analyzed old frontend `bizTeamProjectApi.js`, `bizTeamProjectUserApi.js`, team-project list/detail views, Java `BizTeamProjectController` / `BizTeamProjectServiceImpl`, Java `BizTeamProjectUserController` / `BizTeamProjectUserServiceImpl`, role-permission enum, and the `biz_team_project` / `biz_team_project_user` SQL tables.
+- Added protected read-only project page and project detail compatibility endpoints.
+- Added protected read-only team-project-user page, list, and detail compatibility endpoints.
+- Preserved Java-style current-user membership filtering for project page/detail access.
+- Enriched project and member rows with creator, owner, organization, avatar, role name, and permission-code fields needed by the old frontend detail screen.
+- Kept project add, edit, delete, member add, member manage-add, member edit, and member delete flows deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/TeamProjectService.php`
+- `app/controller/biz/TeamProjectController.php`
+- `app/controller/biz/TeamProjectUserController.php`
+- `route/app.php`
+- `docs/api/biz-team-project-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\TeamProjectService.php`: passed.
+- `php -l app\controller\biz\TeamProjectController.php`: passed.
+- `php -l app\controller\biz\TeamProjectUserController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed after rerunning with approved escalation because the sandbox could not unlink `runtime\route_list.php`.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/bizteamproject/page`
+  - `GET /biz/bizteamproject/detail`
+  - `GET /biz/bizteamprojectuser/list`
+  - `GET /biz/bizteamprojectuser/page`
+  - `GET /biz/bizteamprojectuser/detail`
+- Runtime smoke confirmed project total `1`, sampled project id `1903996479133360129`, current user role `LEADER`, member list count `27`, member page total `27`, and non-empty permission-code output.
+- `GET /biz/bizteamproject/page` without a token returned business `code=401`.
+
+### Current Issues
+
+- Team project task category, task, comment, and attachment read APIs are still needed for a complete project detail page.
+- Team project write flows mutate project membership and project state; those routes remain deferred for a later transactional write design.
+- `php think route:list` may need elevated execution in this workspace when the sandbox blocks ThinkPHP route cache cleanup.
+
+### Next Plan
+
+- Commit and push this team-project read-only compatibility slice.
+- Continue with team project task/category/comment read-only endpoints before implementing write flows.

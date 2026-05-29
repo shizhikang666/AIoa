@@ -261,6 +261,17 @@ Route::group('biz/bizfilerelation', function () {
     Route::get('detail', 'biz.FileRelationController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizteamproject', function () {
+    Route::get('page', 'biz.TeamProjectController/page');
+    Route::get('detail', 'biz.TeamProjectController/detail');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/bizteamprojectuser', function () {
+    Route::get('page', 'biz.TeamProjectUserController/page');
+    Route::get('list', 'biz.TeamProjectUserController/list');
+    Route::get('detail', 'biz.TeamProjectUserController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/warehouses', function () {
     Route::get('page', 'biz.WarehousesController/page');
     Route::get('list', 'biz.WarehousesController/list');

@@ -2600,3 +2600,60 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No file-relation add/edit/delete or project-case delete route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Plan: merge-agent - Biz Team Project Read-Only Foundation
+
+Status: completed on 2026-05-29 after implementation, HTTP smoke, lint, route, and secret-scan checks.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only endpoints for team project cards, project details, and project member lists.
+
+### 2. Modules In Scope
+
+- team project read-only API compatibility
+- `/biz/bizteamproject/page`
+- `/biz/bizteamproject/detail`
+- `/biz/bizteamprojectuser/page`
+- `/biz/bizteamprojectuser/list`
+- `/biz/bizteamprojectuser/detail`
+- current-user membership filtering
+- user/avatar and role-permission enrichment
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/TeamProjectService.php`
+- `app/controller/biz/TeamProjectController.php`
+- `app/controller/biz/TeamProjectUserController.php`
+- `route/app.php`
+- `docs/api/biz-team-project-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java team-project detail requires the current login user to be a project member; ThinkPHP must preserve that membership gate.
+- The team project detail page immediately requests member lists, so project and member read APIs should land together.
+- Team project add/edit/delete and member mutations emit data-change events and role permissions, so write routes must remain deferred.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\TeamProjectService.php
+php -l app\controller\biz\TeamProjectController.php
+php -l app\controller\biz\TeamProjectUserController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only team-project and team-project-user routes are added.
+- No team project add/edit/delete route is added.
+- No team member add/manage/edit/delete route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

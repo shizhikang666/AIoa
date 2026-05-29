@@ -363,6 +363,45 @@ The existing Vue user-center API calls workbench, unread message, and process co
 
 ---
 
+# Public File Change Request: Biz Team Project Read-Only Routes
+
+## Request
+
+Register protected read-only team-project and team-project-user routes in `route/app.php`.
+
+## Reason
+
+The existing Vue team-project pages call `/biz/bizteamproject/page`, `/biz/bizteamproject/detail`, `/biz/bizteamprojectuser/page`, `/biz/bizteamprojectuser/list`, and `/biz/bizteamprojectuser/detail` after login to load project cards, project detail context, current project role permissions, and member avatars. These reads are needed for the team-project workspace while project and member mutations remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/bizteamproject/page`
+- `GET /biz/bizteamproject/detail`
+- `GET /biz/bizteamprojectuser/page`
+- `GET /biz/bizteamprojectuser/list`
+- `GET /biz/bizteamprojectuser/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizteamproject/add` route was added.
+- No `/biz/bizteamproject/edit` route was added.
+- No `/biz/bizteamproject/delete` route was added.
+- No `/biz/bizteamprojectuser/add` route was added.
+- No `/biz/bizteamprojectuser/manage/add` route was added.
+- No `/biz/bizteamprojectuser/edit` route was added.
+- No `/biz/bizteamprojectuser/delete` route was added.
+- No team project mutation, member mutation, role-permission write, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Biz File Relation Read-Only Routes
 
 ## Request
