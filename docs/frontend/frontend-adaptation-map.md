@@ -53,11 +53,12 @@ Current frontend behavior:
 Backend planning:
 
 - standard response is `code`, `message`, and `data`
+- auth-agent now also returns `msg` for Java frontend compatibility
 
 Compatibility decision needed:
 
-1. Backend returns both `message` and `msg` during migration.
-2. Or frontend response wrapper is adapted once the frontend enters editable scope.
+1. Keep backend dual fields `message` and `msg` during the transition.
+2. Later decide whether the editable frontend should switch to `message`.
 
 ## Menu And Permission Contract
 
@@ -85,3 +86,13 @@ These should be deferred until file, message, and realtime modules are planned.
 ## Read-Only Rule
 
 Do not edit `F:\AI\projects\testJava\OA\snowy-admin-web` directly. If frontend source must be changed later, first decide a managed editable frontend target path.
+
+## Prepared Backend Contracts
+
+The backend branches now have prepared contracts for:
+
+- login, token, current user, and login menu from auth-agent
+- user, organization, position, and user-center directory read APIs from user-agent and api-agent
+- workflow task/process read APIs from workflow-agent and api-agent
+
+See `docs/frontend/backend-contract-map.md` for the current endpoint list.
