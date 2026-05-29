@@ -2290,3 +2290,54 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No purchase-order mutation or warehouse stock-in route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Biz Settlement Account Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only settlement-account endpoints for account master data and account-name selectors.
+
+### 2. Modules In Scope
+
+- settlement account read-only API compatibility
+- `/biz/settlementaccount/page`
+- `/biz/settlementaccount/list`
+- `/biz/settlementaccount/detail`
+- `/biz/settlementaccount/queryName`
+- organization-name enrichment for the lower-case SQL `org` field
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/SettlementAccountService.php`
+- `app/controller/biz/SettlementAccountController.php`
+- `route/app.php`
+- `docs/api/biz-settlement-account-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java settlement-account write operations can mutate account balances, settlement statements, income records, expenditure records, and transfer state, so those routes must remain deferred.
+- The SQL table uses lower-case `org`; the ThinkPHP query must preserve that column name while still returning frontend-friendly `org` and `orgName`.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\SettlementAccountService.php
+php -l app\controller\biz\SettlementAccountController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/settlementaccount/page`, `/biz/settlementaccount/list`, `/biz/settlementaccount/detail`, and `/biz/settlementaccount/queryName` routes are added.
+- No settlement account add/edit/delete/status/expenses/payment/transfer route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

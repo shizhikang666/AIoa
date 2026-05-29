@@ -1089,3 +1089,41 @@ The existing Vue purchase-order pages call `/biz/bizpurchaseorder/page`, `/biz/b
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Settlement Account Read-Only Routes
+
+## Request
+
+Register protected read-only settlement-account routes in `route/app.php`.
+
+## Reason
+
+The existing Vue settlement-account pages call `/biz/settlementaccount/page`, `/biz/settlementaccount/list`, `/biz/settlementaccount/detail`, and `/biz/settlementaccount/queryName` after login to load account master data and account names. These reads are needed for procurement, payment, and settlement selectors while amount-changing behavior remains deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/settlementaccount/page`
+- `GET /biz/settlementaccount/list`
+- `GET /biz/settlementaccount/detail`
+- `GET /biz/settlementaccount/queryName`
+
+## Explicit Exclusions
+
+- No `/biz/settlementaccount/add` route was added.
+- No `/biz/settlementaccount/edit` route was added.
+- No `/biz/settlementaccount/delete` route was added.
+- No `/biz/settlementaccount/edit/status` route was added.
+- No `/biz/settlementaccount/expenses/add` route was added.
+- No `/biz/settlementaccount/payment/add` route was added.
+- No `/biz/settlementaccount/transfer/add` route was added.
+- No settlement amount mutation, statement write, income/expense record creation, transfer behavior, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

@@ -2393,3 +2393,52 @@ Agent: api-agent
 
 - Commit and push this purchase-order read-only compatibility slice.
 - Continue scanning business frontend calls for another safe read-only module, likely settlement-account or sale-project reads depending on encrypted-field impact.
+
+## 2026-05-29 - merge-agent - Biz Settlement Account Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `settlementAccountApi.js`, Java `SettlementAccountController` / `SettlementAccountServiceImpl`, Java settlement-account page/query params, entity, and the `settlement_account` SQL table.
+- Added protected read-only settlement-account page, enabled-list, detail, and queryName compatibility endpoints.
+- Preserved SQL lower-case `org` field and enriched rows with `orgName` from `sys_org`.
+- Supported Java/old-frontend filters for account name, account number, account status, org id, search key, sorting, and pagination.
+- Registered protected `/biz/settlementaccount/*` read-only routes behind `AuthMiddleware`.
+- Kept account add, edit, delete, status change, expense correction, income correction, and transfer behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/SettlementAccountService.php`
+- `app/controller/biz/SettlementAccountController.php`
+- `route/app.php`
+- `docs/api/biz-settlement-account-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\SettlementAccountService.php`: passed.
+- `php -l app\controller\biz\SettlementAccountController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected settlement-account read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/settlementaccount/page`
+  - `GET /biz/settlementaccount/list`
+  - `GET /biz/settlementaccount/detail`
+  - `GET /biz/settlementaccount/queryName`
+- Runtime smoke confirmed settlement-account page total `33`, enabled-list count `32`, detail name present, queryName present, and account-name filtered total `8`.
+- `GET /biz/settlementaccount/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- Settlement-account writes affect balances and related statement/payment/expenditure records. Those routes need a later write-endpoint design with transaction boundaries, optimistic locking, and audit behavior.
+- Customer-related reads remain deferred until the SM4 encrypted-field strategy is documented.
+
+### Next Plan
+
+- Commit and push this settlement-account read-only compatibility slice.
+- Continue scanning business frontend calls for another safe read-only module.
