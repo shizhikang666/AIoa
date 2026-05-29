@@ -2150,3 +2150,50 @@ Agent: api-agent
 
 - Commit and push this product read-only compatibility slice.
 - Continue with another foundational read-only business master-data module, likely customer or supplier, before enabling any product write endpoint.
+
+## 2026-05-29 - merge-agent - Biz Supplier Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `supplierApi.js`, Java `SupplierController` / `SupplierServiceImpl`, Java supplier entity/params/enums, and the `supplier` SQL table.
+- Added protected read-only supplier page, list, enabled name lookup, and detail endpoints.
+- Returned lower-camel supplier rows compatible with Java JSON serialization while preserving the physical SQL columns, including lower-case `org`.
+- Registered protected `/biz/supplier/*` read-only routes behind `AuthMiddleware`.
+- Kept supplier add, edit, delete, and write validation deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/SupplierService.php`
+- `app/controller/biz/SupplierController.php`
+- `route/app.php`
+- `docs/api/biz-supplier-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\SupplierService.php`: passed.
+- `php -l app\controller\biz\SupplierController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected supplier read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/supplier/page`
+  - `GET /biz/supplier/list`
+  - `GET /biz/supplier/list/query/name`
+  - `GET /biz/supplier/detail`
+- Runtime smoke confirmed supplier page total `186`, supplier list search returned `22` rows, and name lookup returned `1` row.
+- `GET /biz/supplier/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Java applies a richer login-user data-scope fallback than the current token payload. This slice applies tenant filtering and token data-scope org ids when present, but does not force the Java `CREATE_USER = loginId` fallback yet.
+- Supplier write endpoints need validation, permission, audit, and downstream purchase/settlement impact checks before they can be enabled.
+
+### Next Plan
+
+- Commit and push this supplier read-only compatibility slice.
+- Revisit customer read-only migration after a safe SM4 encrypted-field strategy is documented, or continue with another non-encrypted master-data module such as warehouse/inventory read-only APIs.

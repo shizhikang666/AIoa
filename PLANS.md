@@ -2044,3 +2044,51 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No product add/edit/delete/status/reconciliation mutation route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Biz Supplier Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only supplier master endpoints for supplier pages, selectors, name lookup, and details.
+
+### 2. Modules In Scope
+
+- supplier master read-only API compatibility
+- `supplier` page/list/detail
+- enabled supplier name lookup
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/SupplierService.php`
+- `app/controller/biz/SupplierController.php`
+- `route/app.php`
+- `docs/api/biz-supplier-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java supplier writes are used by purchase/settlement flows and must stay deferred.
+- Java data-scope logic is richer than the current token payload; this slice only applies tenant filtering and token data-scope org ids when present.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\SupplierService.php
+php -l app\controller\biz\SupplierController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/supplier/page`, `/biz/supplier/list`, `/biz/supplier/list/query/name`, and `/biz/supplier/detail` routes are added.
+- No supplier add/edit/delete mutation route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

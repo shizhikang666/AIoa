@@ -215,6 +215,13 @@ Route::group('biz/bizproduct', function () {
     Route::post('children', 'biz.ProductController/children');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/supplier', function () {
+    Route::get('page', 'biz.SupplierController/page');
+    Route::get('list', 'biz.SupplierController/list');
+    Route::get('list/query/name', 'biz.SupplierController/queryByName');
+    Route::get('detail', 'biz.SupplierController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

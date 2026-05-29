@@ -397,6 +397,40 @@ The existing Vue homepage and message panel call `/sys/index/*` endpoints after 
 
 ---
 
+# Public File Change Request: Biz Supplier Read-Only Routes
+
+## Request
+
+Register protected read-only supplier master routes in `route/app.php`.
+
+## Reason
+
+The existing Vue business pages call `/biz/supplier/page`, `/biz/supplier/list`, `/biz/supplier/list/query/name`, and `/biz/supplier/detail` after login to load supplier master data for procurement and settlement flows. These reads are safe to expose before supplier write behavior is implemented.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/supplier/page`
+- `GET /biz/supplier/list`
+- `GET /biz/supplier/list/query/name`
+- `GET /biz/supplier/detail`
+
+## Explicit Exclusions
+
+- No `/biz/supplier/add` route was added.
+- No `/biz/supplier/edit` route was added.
+- No `/biz/supplier/delete` route was added.
+- No supplier write validation, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Tenants Read-Only Routes
 
 ## Request
