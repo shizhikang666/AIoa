@@ -2540,3 +2540,48 @@ Agent: api-agent
 
 - Commit and push this expenditure-record read-only compatibility slice.
 - Continue with the next safe read-only settlement/business module.
+
+## 2026-05-29 - merge-agent - Biz Collection Receipt Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `bizCollectionReceiptApi.js`, Java `BizCollectionReceiptController` / `BizCollectionReceiptServiceImpl`, Java collection-receipt page params, entity, mapper, and the `biz_collection_receipt` SQL table.
+- Added protected read-only collection-receipt page, list, and detail compatibility endpoints.
+- Enriched collection-receipt rows with linked payment-record payer time, settlement category, payer/bank fields, settlement account name/number, and organization name.
+- Supported Java/old-frontend filters for play status, remark, account name, search key, sorting, pagination, payment record id, and tenant id.
+- Registered protected `/biz/bizcollectionreceipt/*` read-only routes behind `AuthMiddleware`.
+- Kept collection-receipt batch expenditure, mark success, add, edit, and delete behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/CollectionReceiptService.php`
+- `app/controller/biz/CollectionReceiptController.php`
+- `route/app.php`
+- `docs/api/biz-collection-receipt-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\CollectionReceiptService.php`: passed.
+- `php -l app\controller\biz\CollectionReceiptController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected collection-receipt read-only routes.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/bizcollectionreceipt/page`
+  - `GET /biz/bizcollectionreceipt/list`
+  - `GET /biz/bizcollectionreceipt/detail`
+- Runtime smoke confirmed collection-receipt page total `18`, `AlreadySettled` list count `16`, sampled detail account-name enrichment, and account-name filtered total `9`.
+- `GET /biz/bizcollectionreceipt/page` without a token returned business `code=401`.
+
+### Current Issues
+
+- Collection-receipt mark-success and batch-expenditure flows mutate settlement state and expenditure records. Those routes need a later transaction design before implementation.
+- Customer-related reads remain deferred until the SM4 encrypted-field strategy is documented.
+
+### Next Plan
+
+- Commit and push this collection-receipt read-only compatibility slice.
+- Continue with the next safe read-only business module, likely debit-note read endpoints.

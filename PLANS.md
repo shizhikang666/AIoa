@@ -1360,6 +1360,58 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
 
+## Completed Plan: merge-agent - Biz Collection Receipt Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only collection-receipt endpoints for received-on-behalf list views and optional detail lookup.
+
+### 2. Modules In Scope
+
+- collection receipt read-only API compatibility
+- `/biz/bizcollectionreceipt/page`
+- `/biz/bizcollectionreceipt/list`
+- `/biz/bizcollectionreceipt/detail`
+- payment-record display enrichment
+- settlement-account display enrichment
+- organization-name display enrichment through the linked payment record
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/CollectionReceiptService.php`
+- `app/controller/biz/CollectionReceiptController.php`
+- `route/app.php`
+- `docs/api/biz-collection-receipt-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java mark-success and batch-expenditure methods mutate settlement state and expenditure records, so they must remain deferred.
+- Java add/edit/delete/detail mappings are commented out in the analyzed controller, while the old frontend still has a detail wrapper; this slice exposes detail only as a read-only compatibility endpoint.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\CollectionReceiptService.php
+php -l app\controller\biz\CollectionReceiptController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/bizcollectionreceipt/page`, `/biz/bizcollectionreceipt/list`, and `/biz/bizcollectionreceipt/detail` routes are added.
+- No collection-receipt add/edit/delete/mark-success/batch-expenditure route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
 ## Active Plan: merge-agent - System Resource Read-Only Compatibility
 
 Status: in progress on 2026-05-29.

@@ -397,6 +397,41 @@ The existing Vue homepage and message panel call `/sys/index/*` endpoints after 
 
 ---
 
+# Public File Change Request: Biz Collection Receipt Read-Only Routes
+
+## Request
+
+Register protected read-only collection-receipt routes in `route/app.php`.
+
+## Reason
+
+The existing Vue collection-receipt pages call `/biz/bizcollectionreceipt/page`, `/biz/bizcollectionreceipt/list`, and `/biz/bizcollectionreceipt/detail` after login to load received-on-behalf records and related settlement-account display fields. These reads are needed for finance views while mark-success, batch-expenditure, add, edit, and delete behavior remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/bizcollectionreceipt/page`
+- `GET /biz/bizcollectionreceipt/list`
+- `GET /biz/bizcollectionreceipt/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizcollectionreceipt/batchExpenditure/edit` route was added.
+- No `/biz/bizcollectionreceipt/mark/success/edit` route was added.
+- No `/biz/bizcollectionreceipt/add` route was added.
+- No `/biz/bizcollectionreceipt/edit` route was added.
+- No `/biz/bizcollectionreceipt/delete` route was added.
+- No collection-receipt mutation, expenditure correction, settlement-state mutation, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Biz Supplier Read-Only Routes
 
 ## Request
