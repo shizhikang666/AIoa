@@ -465,6 +465,38 @@ The existing Vue app calls `/dev/dict/tree` after login to cache dictionary data
 
 ---
 
+# Public File Change Request: Dev Message Read-Only Routes
+
+## Request
+
+Register protected read-only station-message routes in `route/app.php`.
+
+## Reason
+
+The existing Vue message pages call `/dev/message/page` and `/dev/message/detail` to load station-message data and receiver read status after login. These reads are needed for compatibility, while send, delete, and read-state mutation behavior must remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /dev/message/page`
+- `GET /dev/message/detail`
+
+## Explicit Exclusions
+
+- No `/dev/message/send` route was added.
+- No `/dev/message/delete` route was added.
+- Message detail does not mark the message as read.
+- No SSE push, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Mobile Resource Read-Only Routes
 
 ## Request

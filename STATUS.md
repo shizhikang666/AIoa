@@ -1640,3 +1640,48 @@ Agent: api-agent
 
 - Commit and push this log read-only compatibility slice.
 - Continue with dev message read-only endpoints or carefully scoped config reads after reviewing sensitive value exposure.
+
+## 2026-05-29 - merge-agent - Dev Message Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed Java `DevMessageController` / `DevMessageServiceImpl` and the `dev_message` / `dev_relation` tables.
+- Added read-only station-message page and detail compatibility endpoints.
+- Registered protected `/dev/message/*` GET routes behind `AuthMiddleware`.
+- Added receiver read-status shaping through `receiveInfoList` without mutating `dev_relation`.
+- Kept message send, delete, SSE push, and Java detail read-state update behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/MessageService.php`
+- `app/controller/dev/MessageController.php`
+- `route/app.php`
+- `docs/api/dev-message-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\dev\MessageService.php`: passed.
+- `php -l app\controller\dev\MessageController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/dev/message/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /dev/message/page`
+  - `GET /dev/message/detail`
+- `GET /dev/message/detail` returned `receiveInfoList` when a message row existed.
+- `GET /dev/message/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Message send/delete remain deferred because they mutate `dev_message` and `dev_relation`.
+- Java detail marks unread messages as read and sends SSE notifications; this PHP slice intentionally stays read-only and does not reproduce that side effect yet.
+
+### Next Plan
+
+- Commit and push this message read-only compatibility slice.
+- Continue with carefully scoped development support APIs, likely config reads after reviewing sensitive value exposure.

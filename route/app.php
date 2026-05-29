@@ -142,6 +142,11 @@ Route::group('dev/log', function () {
     Route::get('op/pieChartData', 'dev.LogController/opPieChartData');
 })->middleware(AuthMiddleware::class);
 
+Route::group('dev/message', function () {
+    Route::get('page', 'dev.MessageController/page');
+    Route::get('detail', 'dev.MessageController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

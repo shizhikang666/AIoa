@@ -1498,3 +1498,49 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No log delete/clear route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Dev Message Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only station-message endpoints for message management pages.
+
+### 2. Modules In Scope
+
+- dev message read-only API compatibility
+- message page/detail
+- receive user read-status list
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/MessageService.php`
+- `app/controller/dev/MessageController.php`
+- `route/app.php`
+- `docs/api/dev-message-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java detail marks the current user's message as read, but this slice must stay read-only and must not update `dev_relation`.
+- Message send/delete are mutations and remain deferred.
+- Message content may include business details, so routes must stay authenticated.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/dev/message/page` and `/dev/message/detail` routes are added.
+- No message send/delete/SSE/read-status mutation routes are added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
