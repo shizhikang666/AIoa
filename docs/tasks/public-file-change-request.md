@@ -954,3 +954,36 @@ The existing Vue monitor page calls `/dev/monitor/serverInfo` after login to loa
 - `php think route:list` must list the added route.
 - Token requests should return `code=200`.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Warehouses Read-Only Routes
+
+## Request
+
+Register protected read-only warehouse master routes in `route/app.php`.
+
+## Reason
+
+The existing Vue business pages call `/biz/warehouses/page`, `/biz/warehouses/list`, and `/biz/warehouses/detail` after login to load warehouse master data for purchase, sales, and inventory flows. These reads are needed for compatibility while warehouse write behavior remains deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/warehouses/page`
+- `GET /biz/warehouses/list`
+- `GET /biz/warehouses/detail`
+
+## Explicit Exclusions
+
+- No `/biz/warehouses/add` route was added.
+- No `/biz/warehouses/edit` route was added.
+- No `/biz/warehouses/delete` route was added.
+- No warehouse write validation, stock mutation, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

@@ -2197,3 +2197,51 @@ Agent: api-agent
 
 - Commit and push this supplier read-only compatibility slice.
 - Revisit customer read-only migration after a safe SM4 encrypted-field strategy is documented, or continue with another non-encrypted master-data module such as warehouse/inventory read-only APIs.
+
+## 2026-05-29 - merge-agent - Biz Warehouses Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `warehousesApi.js`, Java `WarehousesController` / `WarehousesServiceImpl`, Java warehouse entity and page params, and the `warehouses` SQL table.
+- Added protected read-only warehouse page, list, and detail endpoints.
+- Returned lower-camel warehouse rows compatible with Java JSON serialization while preserving physical SQL columns such as `SORT_CODE`, `USER`, and `ORG`.
+- Resolved warehouse owner display name from `sys_user.NAME` and organization display name from `sys_org.NAME`.
+- Registered protected `/biz/warehouses/*` read-only routes behind `AuthMiddleware`.
+- Kept warehouse add, edit, delete, stock movement, and downstream inventory effects deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/WarehousesService.php`
+- `app/controller/biz/WarehousesController.php`
+- `route/app.php`
+- `docs/api/biz-warehouses-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\WarehousesService.php`: passed.
+- `php -l app\controller\biz\WarehousesController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected warehouse read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/warehouses/page`
+  - `GET /biz/warehouses/list`
+  - `GET /biz/warehouses/detail`
+- Runtime smoke confirmed warehouse page total `4` for tenant `1`.
+- `GET /biz/warehouses/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- Java page reads apply richer login-user data scope through the warehouse owner user. This slice applies tenant filtering and token data-scope org ids when present, but does not force the Java `USER = loginId` fallback yet.
+- Warehouse write endpoints need validation, permission checks, audit behavior, and inventory/purchase/sales impact checks before they can be enabled.
+
+### Next Plan
+
+- Commit and push this warehouse read-only compatibility slice.
+- Continue with inventory read-only compatibility, because it depends on product and warehouse foundations and should remain separate from stock-changing write routes.

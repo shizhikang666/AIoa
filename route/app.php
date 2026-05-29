@@ -222,6 +222,12 @@ Route::group('biz/supplier', function () {
     Route::get('detail', 'biz.SupplierController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/warehouses', function () {
+    Route::get('page', 'biz.WarehousesController/page');
+    Route::get('list', 'biz.WarehousesController/list');
+    Route::get('detail', 'biz.WarehousesController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

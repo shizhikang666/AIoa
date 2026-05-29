@@ -2092,3 +2092,51 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No supplier add/edit/delete mutation route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Biz Warehouses Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only warehouse endpoints for warehouse pages, selectors, and details.
+
+### 2. Modules In Scope
+
+- warehouse master read-only API compatibility
+- `warehouses` page/list/detail
+- owner and organization display-name lookup
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/WarehousesService.php`
+- `app/controller/biz/WarehousesController.php`
+- `route/app.php`
+- `docs/api/biz-warehouses-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java warehouse reads use login-user data scope through the warehouse owner user; the current ThinkPHP token has a simplified payload, so this slice applies tenant filtering and optional token data-scope org ids only when present.
+- Inventory, purchase, and sale flows depend on warehouse ids, so write endpoints must remain deferred until validation and downstream effects are implemented.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\WarehousesService.php
+php -l app\controller\biz\WarehousesController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/warehouses/page`, `/biz/warehouses/list`, and `/biz/warehouses/detail` routes are added.
+- No warehouse add/edit/delete mutation route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
