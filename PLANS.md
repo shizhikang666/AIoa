@@ -2341,3 +2341,55 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No settlement account add/edit/delete/status/expenses/payment/transfer route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Biz Payment Record Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only payment-record endpoints for income/payment list and detail views.
+
+### 2. Modules In Scope
+
+- payment record read-only API compatibility
+- `/biz/bizpaymentrecord/page`
+- `/biz/bizpaymentrecord/listdetails`
+- `/biz/bizpaymentrecord/list`
+- `/biz/bizpaymentrecord/detail`
+- settlement-account display enrichment
+- organization-name display enrichment
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/PaymentRecordService.php`
+- `app/controller/biz/PaymentRecordController.php`
+- `route/app.php`
+- `docs/api/biz-payment-record-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java payment-record edits can update settlement statements and switch account balances, so edit routes must remain deferred.
+- The old frontend exposes a detail wrapper even though the analyzed Java controller only exposes page/listdetails/list; this slice adds detail as read-only compatibility only.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\PaymentRecordService.php
+php -l app\controller\biz\PaymentRecordController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/bizpaymentrecord/page`, `/biz/bizpaymentrecord/listdetails`, `/biz/bizpaymentrecord/list`, and `/biz/bizpaymentrecord/detail` routes are added.
+- No payment-record edit or account-switch route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

@@ -2442,3 +2442,52 @@ Agent: api-agent
 
 - Commit and push this settlement-account read-only compatibility slice.
 - Continue scanning business frontend calls for another safe read-only module.
+
+## 2026-05-29 - merge-agent - Biz Payment Record Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `bizPaymentRecordApi.js`, Java `BizPaymentRecordController` / `BizPaymentRecordServiceImpl`, Java payment-record page/query params, entity, and the `biz_payment_record` SQL table.
+- Added protected read-only payment-record page, listdetails, list, and detail compatibility endpoints.
+- Enriched payment-record rows with settlement account name/number from `settlement_account` and `orgName` from `sys_org`.
+- Supported Java/old-frontend filters for object id, object ids, target id, serial id, process id, settlement category, payer time, create time, amount, account name, org id, search key, sorting, and pagination.
+- Registered protected `/biz/bizpaymentrecord/*` read-only routes behind `AuthMiddleware`.
+- Kept payment-record edit and account-switch behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/PaymentRecordService.php`
+- `app/controller/biz/PaymentRecordController.php`
+- `route/app.php`
+- `docs/api/biz-payment-record-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\PaymentRecordService.php`: passed.
+- `php -l app\controller\biz\PaymentRecordController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected payment-record read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/bizpaymentrecord/page`
+  - `GET /biz/bizpaymentrecord/listdetails`
+  - `GET /biz/bizpaymentrecord/list`
+  - `GET /biz/bizpaymentrecord/detail`
+- Runtime smoke confirmed payment-record page total `535`, sampled listdetails count `44`, sampled list count `44`, detail account-name enrichment, and account-name filtered total `101`.
+- `GET /biz/bizpaymentrecord/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- Payment-record write flows affect settlement-account balances and settlement statements. Those routes need a later write-endpoint design with transactions, optimistic locking, audit behavior, and data-change events.
+- Customer-related reads remain deferred until the SM4 encrypted-field strategy is documented.
+
+### Next Plan
+
+- Commit and push this payment-record read-only compatibility slice.
+- Continue with the next safe read-only settlement/business module.

@@ -229,6 +229,13 @@ Route::group('biz/settlementaccount', function () {
     Route::get('queryName', 'biz.SettlementAccountController/queryName');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizpaymentrecord', function () {
+    Route::get('page', 'biz.PaymentRecordController/page');
+    Route::get('listdetails', 'biz.PaymentRecordController/listDetails');
+    Route::get('list', 'biz.PaymentRecordController/list');
+    Route::get('detail', 'biz.PaymentRecordController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/warehouses', function () {
     Route::get('page', 'biz.WarehousesController/page');
     Route::get('list', 'biz.WarehousesController/list');

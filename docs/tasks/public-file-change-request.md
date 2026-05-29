@@ -1127,3 +1127,36 @@ The existing Vue settlement-account pages call `/biz/settlementaccount/page`, `/
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Payment Record Read-Only Routes
+
+## Request
+
+Register protected read-only payment-record routes in `route/app.php`.
+
+## Reason
+
+The existing Vue payment-record pages call `/biz/bizpaymentrecord/page`, `/biz/bizpaymentrecord/listdetails`, `/biz/bizpaymentrecord/list`, and `/biz/bizpaymentrecord/detail` after login to load income/payment records, settlement account display fields, and organization context. These reads are needed for settlement and project payment views while record correction and account-switch behavior remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/bizpaymentrecord/page`
+- `GET /biz/bizpaymentrecord/listdetails`
+- `GET /biz/bizpaymentrecord/list`
+- `GET /biz/bizpaymentrecord/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizpaymentrecord/edit` route was added.
+- No `/biz/bizpaymentrecord/edit/account` route was added.
+- No payment-record mutation, settlement-account transfer, statement edit, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
