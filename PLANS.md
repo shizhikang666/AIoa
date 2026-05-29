@@ -1946,3 +1946,53 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - Routes are protected by `AuthMiddleware`.
 - Token values are not written to docs or committed files.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Tenants Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only tenant page and detail endpoints so the tenant management page can load imported tenant data without enabling tenant creation, edit, deletion, or default-data generation.
+
+### 2. Modules In Scope
+
+- tenant table read-only API compatibility
+- `/tenants/tenant/page`
+- `/tenants/tenant/detail`
+- `tenants` table mixed-case physical columns
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/tenant/TenantsService.php`
+- `app/controller/tenant/TenantsController.php`
+- `route/app.php`
+- `docs/api/tenants-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java tenant add/edit/delete routes mutate tenant data and can generate default users, roles, and permissions.
+- The SQL table uses mixed-case physical columns `Tenant_ID` and `Tenant_Name`; ThinkPHP queries must preserve those names.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\tenant\TenantsService.php
+php -l app\controller\tenant\TenantsController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/tenants/tenant/page` and `/tenants/tenant/detail` routes are added.
+- No `/tenants/tenant/add`, `/tenants/tenant/edit`, or `/tenants/tenant/delete` route is added.
+- No tenant default system data generation is performed.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

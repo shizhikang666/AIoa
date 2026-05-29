@@ -2058,3 +2058,48 @@ Agent: api-agent
 
 - Commit and push this auth session read-only compatibility slice.
 - Continue scanning old frontend calls for another safe read-only group before planning any mutation endpoints.
+
+## 2026-05-29 - merge-agent - Tenants Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `tenant/tenantsApi.js`, Java `TenantsController`, `TenantsServiceImpl`, and the `tenants` SQL table.
+- Added protected read-only tenant page and detail endpoints.
+- Preserved mixed-case physical column access for `Tenant_ID` and `Tenant_Name`.
+- Returned Java-style camelCase tenant rows.
+- Kept tenant add, edit, delete, default system data generation, and tenant cache/event mutation deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/tenant/TenantsService.php`
+- `app/controller/tenant/TenantsController.php`
+- `route/app.php`
+- `docs/api/tenants-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\tenant\TenantsService.php`: passed.
+- `php -l app\controller\tenant\TenantsController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected tenant read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /tenants/tenant/page`
+  - `GET /tenants/tenant/detail`
+- Runtime smoke confirmed tenant page `total=5` and detail lookup returned tenant id `0`.
+- `GET /tenants/tenant/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Tenant add/edit/delete remain deferred because they mutate tenant data and can trigger default user, role, resource, and permission generation.
+- Any later tenant write support must include system-tenant protection and safe-password verification.
+
+### Next Plan
+
+- Commit and push this tenant read-only compatibility slice.
+- Continue with another safe read-only business or admin module after scanning old frontend calls.

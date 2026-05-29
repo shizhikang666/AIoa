@@ -203,6 +203,11 @@ Route::group('gen/config', function () {
     Route::get('detail', 'gen.ConfigController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('tenants/tenant', function () {
+    Route::get('page', 'tenant.TenantsController/page');
+    Route::get('detail', 'tenant.TenantsController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

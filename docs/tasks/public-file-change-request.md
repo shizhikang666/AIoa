@@ -397,6 +397,39 @@ The existing Vue homepage and message panel call `/sys/index/*` endpoints after 
 
 ---
 
+# Public File Change Request: Tenants Read-Only Routes
+
+## Request
+
+Register protected read-only tenant routes in `route/app.php`.
+
+## Reason
+
+The existing Vue tenant management page calls `/tenants/tenant/page` and `/tenants/tenant/detail` after login. These reads are needed for compatibility while tenant creation, edit, deletion, and default-data generation remain disabled.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /tenants/tenant/page`
+- `GET /tenants/tenant/detail`
+
+## Explicit Exclusions
+
+- No `/tenants/tenant/add` route was added.
+- No `/tenants/tenant/edit` route was added.
+- No `/tenants/tenant/delete` route was added.
+- No default user, role, resource, or permission generation was added.
+- No tenant cache/event mutation, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Auth Session Current Token Read-Only Routes
 
 ## Request
