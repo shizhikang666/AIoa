@@ -49,3 +49,47 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git status --short --branch
 ```
+
+## Current Plan: api-agent Phase 2 - User Directory Route Request
+
+Status: in progress on 2026-05-29.
+
+### Current Goal
+
+Prepare the route and controller integration request for read-only user, organization, and position APIs. Do not edit `route/app.php` in this phase.
+
+### Involved Modules
+
+- api-agent worktree: `F:\AI\projects\testJava\OA-api`
+- user-agent service dependency after merge: `OrgService`, `PositionService`, `UserDirectoryService`
+- auth-agent dependency after merge: auth middleware and response helper conventions
+- final integration branch: `refactor/thinkphp-main`
+
+### Involved Files
+
+- `docs/api/user-directory-route-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### Risks
+
+- `route/app.php` is locked and cannot be modified without confirmation.
+- API controller implementation should wait until user-agent services are merged before api-agent.
+- Response helper should align with auth-agent's API response conventions to avoid duplicate helpers.
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not edit `route/app.php`.
+- Do not implement controllers in this phase.
+- Do not implement user, auth, workflow, or database service logic.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```
