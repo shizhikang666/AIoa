@@ -1874,3 +1874,45 @@ Agent: api-agent
 
 - Commit and push this job read-only compatibility slice.
 - Continue with another safe read-only support module before planning scheduler or write endpoints.
+
+## 2026-05-29 - merge-agent - Sys Config Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed Java `SysConfigController` / `SysConfigServiceImpl`, frontend `sysConfigApi.js`, login-flow usage, process config page usage, and the `sys_config` table from `oa2026.sql`.
+- Added protected read-only `/sys/sysConfig/detail` compatibility endpoint.
+- Decoded `CONFIG_JSON` into the old frontend's expected `processConfigMap` shape.
+- Kept system config edit and generate-default behavior deferred because they mutate `sys_config` and tenant cache.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/sys/SysConfigService.php`
+- `app/controller/sys/SysConfigController.php`
+- `route/app.php`
+- `docs/api/sys-config-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\sys\SysConfigService.php`: passed.
+- `php -l app\controller\sys\SysConfigController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/sys/sysConfig/detail` read-only route.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for `GET /sys/sysConfig/detail`.
+- Runtime HTTP smoke confirmed `processConfigMap` contains 11 process config keys.
+- Protected `GET /sys/sysConfig/detail` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Missing or invalid config returns an in-memory default object and does not generate a database row.
+- System config writes need workflow process validation and cache invalidation rules before they are enabled.
+
+### Next Plan
+
+- Commit and push this sys config read-only compatibility slice.
+- Continue with `/dev/monitor/serverInfo` read-only compatibility, using explorer findings, while keeping `networkInfo` deferred.

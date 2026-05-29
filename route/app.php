@@ -52,6 +52,10 @@ Route::group('sys/index', function () {
     Route::get('opLog/list', 'sys.IndexController/opLogList');
 })->middleware(AuthMiddleware::class);
 
+Route::group('sys/sysConfig', function () {
+    Route::get('detail', 'sys.SysConfigController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('sys/org', function () {
     Route::get('page', 'sys.OrgController/page');
     Route::get('list', 'sys.OrgController/list');

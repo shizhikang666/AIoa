@@ -717,3 +717,34 @@ The existing Vue scheduled-job management page calls `/dev/job/page`, `/dev/job/
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sys Config Read-Only Route
+
+## Request
+
+Register protected read-only system configuration detail route in `route/app.php`.
+
+## Reason
+
+The existing Vue login flow and process configuration page call `/sys/sysConfig/detail` after login to load workflow process settings. This read is needed for frontend compatibility, while edits and default generation remain disabled.
+
+## Applied Change
+
+`merge-agent` registered the following protected route:
+
+- `GET /sys/sysConfig/detail`
+
+## Explicit Exclusions
+
+- No `/sys/sysConfig/edit` route was added.
+- No `/sys/sysConfig/generateConfig` route was added.
+- Missing config returns an in-memory default object and does not write to `sys_config`.
+- No cache mutation, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return `code=200`.
+- Requests without token should return `code=401`.

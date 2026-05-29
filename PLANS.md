@@ -1742,3 +1742,53 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No job add/edit/delete/stop/run/run-now routes are added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Sys Config Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only system configuration detail endpoint for workflow process settings loaded after login.
+
+### 2. Modules In Scope
+
+- system configuration detail read
+- `sys_config.CONFIG_JSON` decode
+- Java `SysConfigController.detail` compatibility
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/sys/SysConfigService.php`
+- `app/controller/sys/SysConfigController.php`
+- `route/app.php`
+- `docs/api/sys-config-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java `detail` can generate a default config when missing; this slice must stay read-only and must not insert or update `sys_config`.
+- Java `edit` writes workflow process configuration and updates tenant cache; it must remain deferred.
+- Java `generateConfig` is a GET endpoint but mutates data; it must remain deferred.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\sys\SysConfigService.php
+php -l app\controller\sys\SysConfigController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `GET /sys/sysConfig/detail` is added.
+- No `/sys/sysConfig/edit` or `/sys/sysConfig/generateConfig` route is added.
+- Route is protected by `AuthMiddleware`.
+- Missing or invalid config returns a runtime default object without writing to the database.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
