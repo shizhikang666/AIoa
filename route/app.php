@@ -15,3 +15,16 @@ Route::get('think', function () {
 });
 
 Route::get('hello/:name', 'index/hello');
+
+Route::group('auth/b', function () {
+    Route::get('getPicCaptcha', 'auth.AuthController/getPicCaptcha');
+    Route::post('doLogin', 'auth.AuthController/doLogin');
+    Route::post('doLoginByPhone', 'auth.AuthController/doLoginByPhone');
+    Route::get('doLogout', 'auth.AuthController/doLogout');
+    Route::get('getLoginUser', 'auth.AuthController/getLoginUser');
+    Route::post('safe/password', 'auth.AuthController/openSafe');
+});
+
+Route::group('sys/userCenter', function () {
+    Route::get('loginMenu', 'auth.UserCenterAuthController/loginMenu');
+});
