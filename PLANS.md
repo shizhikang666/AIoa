@@ -1451,3 +1451,50 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No dictionary add, edit, delete, or cache mutation endpoints are added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Active Plan: merge-agent - Dev Log Read-Only Compatibility
+
+Status: in progress on 2026-05-29.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only log endpoints for visit and operation log pages and their chart panels.
+
+### 2. Modules In Scope
+
+- dev log read-only API compatibility
+- log page/detail
+- visit log line/pie chart data
+- operation log bar/pie chart data
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/LogService.php`
+- `app/controller/dev/LogController.php`
+- `route/app.php`
+- `docs/api/dev-log-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Log detail may contain request/response payloads from historical Java operations, so routes must stay authenticated.
+- Log delete is destructive and must remain deferred.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/dev/log/page`, `/dev/log/detail`, and chart data routes are added.
+- No log delete/clear route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

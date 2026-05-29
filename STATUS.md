@@ -1593,3 +1593,50 @@ Agent: api-agent
 
 - Commit and push this dictionary read-only compatibility slice.
 - Continue with dev config/log/message read-only endpoints, keeping sensitive config value exposure under review.
+
+## 2026-05-29 - merge-agent - Dev Log Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old Vue log API usage and Java `DevLogController` / `DevLogServiceImpl`.
+- Added read-only log page, detail, visit chart, and operation chart endpoints.
+- Registered protected `/dev/log/*` GET routes behind `AuthMiddleware`.
+- Kept log page responses lightweight by omitting large fields from page rows, matching Java behavior.
+- Kept destructive `/dev/log/delete` behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/LogService.php`
+- `app/controller/dev/LogController.php`
+- `route/app.php`
+- `docs/api/dev-log-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/dev/log/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /dev/log/page`
+  - `GET /dev/log/detail`
+  - `GET /dev/log/vis/lineChartData`
+  - `GET /dev/log/vis/pieChartData`
+  - `GET /dev/log/op/barChartData`
+  - `GET /dev/log/op/pieChartData`
+- Page rows omit large log fields while detail returns the full row.
+- `GET /dev/log/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Log delete/clear is intentionally not implemented.
+- Log detail can expose historical request/response payloads to authorized users, so it must stay behind authenticated admin routes.
+
+### Next Plan
+
+- Commit and push this log read-only compatibility slice.
+- Continue with dev message read-only endpoints or carefully scoped config reads after reviewing sensitive value exposure.

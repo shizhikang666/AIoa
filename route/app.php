@@ -133,6 +133,15 @@ Route::group('dev/dict', function () {
     Route::get('detail', 'dev.DictController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('dev/log', function () {
+    Route::get('page', 'dev.LogController/page');
+    Route::get('detail', 'dev.LogController/detail');
+    Route::get('vis/lineChartData', 'dev.LogController/visLineChartData');
+    Route::get('vis/pieChartData', 'dev.LogController/visPieChartData');
+    Route::get('op/barChartData', 'dev.LogController/opBarChartData');
+    Route::get('op/pieChartData', 'dev.LogController/opPieChartData');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

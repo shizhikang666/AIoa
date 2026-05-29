@@ -397,6 +397,41 @@ The existing Vue homepage and message panel call `/sys/index/*` endpoints after 
 
 ---
 
+# Public File Change Request: Dev Log Read-Only Routes
+
+## Request
+
+Register protected read-only log routes in `route/app.php`.
+
+## Reason
+
+The existing Vue development log pages call `/dev/log/*` endpoints after login for visit logs, operation logs, details, and chart panels. These reads are useful for runtime verification while destructive log clearing remains disabled.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /dev/log/page`
+- `GET /dev/log/detail`
+- `GET /dev/log/vis/lineChartData`
+- `GET /dev/log/vis/pieChartData`
+- `GET /dev/log/op/barChartData`
+- `GET /dev/log/op/pieChartData`
+
+## Explicit Exclusions
+
+- No `/dev/log/delete` route was added.
+- No log clear/delete mutation was implemented.
+- No database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Dev Dict Read-Only Routes
 
 ## Request
