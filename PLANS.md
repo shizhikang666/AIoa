@@ -1405,3 +1405,49 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No mobile module/menu/button add, edit, delete, change-module, or grant mutation routes are added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Active Plan: merge-agent - Dev Dict Read-Only Compatibility
+
+Status: in progress on 2026-05-29.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only dictionary endpoints because the Vue app loads `/dev/dict/tree` after login and many forms depend on cached dictionary data.
+
+### 2. Modules In Scope
+
+- dev dictionary read-only API compatibility
+- dictionary page/list/tree/detail
+- current tenant dictionary visibility for `FRM` plus current tenant rows
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/DictService.php`
+- `app/controller/dev/DictController.php`
+- `route/app.php`
+- `docs/api/dev-dict-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Dictionary writes refresh Java translation cache and can affect many forms, so add/edit/delete remain deferred.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+- Tree payload must expose frontend-friendly `name`, `dictLabel`, and `dictValue` fields.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/dev/dict/page`, `/dev/dict/list`, `/dev/dict/tree`, and `/dev/dict/detail` routes are added.
+- No dictionary add, edit, delete, or cache mutation endpoints are added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

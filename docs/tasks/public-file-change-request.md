@@ -397,6 +397,39 @@ The existing Vue homepage and message panel call `/sys/index/*` endpoints after 
 
 ---
 
+# Public File Change Request: Dev Dict Read-Only Routes
+
+## Request
+
+Register protected read-only dictionary routes in `route/app.php`.
+
+## Reason
+
+The existing Vue app calls `/dev/dict/tree` after login to cache dictionary data, and many forms depend on that cached tree for select options and display translation. The dictionary management page also needs page/list/detail reads.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /dev/dict/page`
+- `GET /dev/dict/list`
+- `GET /dev/dict/tree`
+- `GET /dev/dict/detail`
+
+## Explicit Exclusions
+
+- No dictionary add, edit, or delete routes were added.
+- No dictionary translation cache mutation endpoint was added.
+- No database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Mobile Resource Read-Only Routes
 
 ## Request

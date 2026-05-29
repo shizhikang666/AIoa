@@ -1548,3 +1548,48 @@ Agent: api-agent
 
 - Commit and push this mobile resource read-only compatibility slice.
 - Continue scanning development/support API modules, likely dev config/dict/message/log read-only endpoints next.
+
+## 2026-05-29 - merge-agent - Dev Dict Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old Vue dictionary API usage and Java `DevDictController` / `DevDictServiceImpl`.
+- Added read-only dictionary page, list, tree, and detail endpoints.
+- Registered protected `/dev/dict/*` GET routes behind `AuthMiddleware`.
+- Shaped dictionary tree nodes with `name`, `dictLabel`, and `dictValue` so the old frontend `DICT_TYPE_TREE_DATA` cache can drive select options.
+- Kept dictionary add, edit, delete, and translation cache mutation behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/DictService.php`
+- `app/controller/dev/DictController.php`
+- `route/app.php`
+- `docs/api/dev-dict-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/dev/dict/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /dev/dict/tree`
+  - `GET /dev/dict/page`
+  - `GET /dev/dict/list`
+  - `GET /dev/dict/detail`
+- `GET /dev/dict/tree` returned nodes with `name` and `dictValue`.
+- `GET /dev/dict/tree` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Dictionary mutation and translation cache refresh behavior remain deferred.
+- Business dictionary tenant administration rules need a later write-endpoint plan before add/edit/delete are enabled.
+
+### Next Plan
+
+- Commit and push this dictionary read-only compatibility slice.
+- Continue with dev config/log/message read-only endpoints, keeping sensitive config value exposure under review.

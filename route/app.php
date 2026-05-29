@@ -126,6 +126,13 @@ Route::group('mobile/button', function () {
     Route::get('detail', 'mobile.ButtonController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('dev/dict', function () {
+    Route::get('page', 'dev.DictController/page');
+    Route::get('list', 'dev.DictController/list');
+    Route::get('tree', 'dev.DictController/tree');
+    Route::get('detail', 'dev.DictController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');
