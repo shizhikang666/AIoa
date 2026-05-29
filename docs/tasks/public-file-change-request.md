@@ -987,3 +987,35 @@ The existing Vue business pages call `/biz/warehouses/page`, `/biz/warehouses/li
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Inventory Read-Only Routes
+
+## Request
+
+Register protected read-only warehouse inventory routes in `route/app.php`.
+
+## Reason
+
+The existing Vue inventory page calls `/biz/inventory/page`, `/biz/inventory/list`, and `/biz/inventory/detail` after login to load warehouse inventory rows and product display fields. These reads are needed for compatibility while stock-changing behavior remains deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/inventory/page`
+- `GET /biz/inventory/list`
+- `GET /biz/inventory/detail`
+
+## Explicit Exclusions
+
+- No `/biz/inventory/add` route was added.
+- No `/biz/inventory/delete` route was added.
+- No stock in/out, batch stock update, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

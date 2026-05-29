@@ -2140,3 +2140,51 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No warehouse add/edit/delete mutation route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Biz Inventory Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only inventory endpoints for warehouse inventory page, export-list reads, and detail lookup.
+
+### 2. Modules In Scope
+
+- warehouse inventory read-only API compatibility
+- `inventory` page/list/detail
+- joined enabled `biz_product` display fields
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/InventoryService.php`
+- `app/controller/biz/InventoryController.php`
+- `route/app.php`
+- `docs/api/biz-inventory-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java `page` and `list` require a warehouse id and validate that the warehouse exists before reading inventory.
+- Inventory write operations can change stock quantities and trigger data-change events, so add/out/in/batch behavior must remain deferred.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\InventoryService.php
+php -l app\controller\biz\InventoryController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/inventory/page`, `/biz/inventory/list`, and `/biz/inventory/detail` routes are added.
+- No inventory add/delete/stock-changing route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

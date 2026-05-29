@@ -2245,3 +2245,51 @@ Agent: api-agent
 
 - Commit and push this warehouse read-only compatibility slice.
 - Continue with inventory read-only compatibility, because it depends on product and warehouse foundations and should remain separate from stock-changing write routes.
+
+## 2026-05-29 - merge-agent - Biz Inventory Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `inventoryApi.js`, `views/biz/inventory/index.vue`, Java `InventoryController` / `InventoryServiceImpl`, Java `ProductInventory`, and the `inventory` SQL table.
+- Added protected read-only inventory page, list, and detail endpoints.
+- Implemented Java-compatible warehouse validation for page/list reads that require `warehousesId`.
+- Joined enabled `biz_product` records to return product display fields used by the old inventory page.
+- Registered protected `/biz/inventory/*` read-only routes behind `AuthMiddleware`.
+- Kept inventory add, delete, stock in/out, batch stock movement, and data-change event behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/InventoryService.php`
+- `app/controller/biz/InventoryController.php`
+- `route/app.php`
+- `docs/api/biz-inventory-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\InventoryService.php`: passed.
+- `php -l app\controller\biz\InventoryController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected inventory read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/inventory/page`
+  - `GET /biz/inventory/list`
+  - `GET /biz/inventory/detail`
+- Runtime smoke selected the first tenant `1` warehouse, confirmed inventory page total `261`, list rows `261`, and detail product display data.
+- `GET /biz/inventory/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- Java stock-changing operations publish warehouse inventory data-change events. The ThinkPHP replacement for those events still needs a later write-endpoint design.
+- Inventory writes need permission checks, validation, audit behavior, optimistic-lock handling, and downstream purchase/sales workflow impact checks before they can be enabled.
+
+### Next Plan
+
+- Commit and push this inventory read-only compatibility slice.
+- Continue with the next safe read-only business module after scanning frontend usage, while leaving customer reads paused until the SM4 encrypted-field strategy is documented.
