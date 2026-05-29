@@ -91,6 +91,46 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 git status --short --branch
 ```
 
+## Current Plan: api-agent Phase 4 - Workflow Read-Only Controller Adapters
+
+Status: in progress on 2026-05-29.
+
+### Current Goal
+
+Add thin read-only Controller adapters for workflow task/process query endpoints without registering routes.
+
+### Involved Files
+
+- `app/controller/biz/BaseWorkflowController.php`
+- `app/controller/biz/TaskController.php`
+- `app/controller/biz/ProcessController.php`
+- `docs/api/workflow-readonly-controller-adapters.md`
+- `docs/tasks/public-file-change-request.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### Risks
+
+- These adapters reference workflow-agent services and auth-agent `ApiResponse`; runtime validation must happen after final merge order brings db/auth/workflow before api.
+- `route/app.php` remains locked and is not modified in this phase.
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not modify `route/app.php`.
+- Do not implement workflow service logic inside controllers.
+- Do not implement approve, reject, cancel, process start, delegate side effects, SSE, upload, or business mutations.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```
+
 ## Current Plan: api-agent Phase 2 - User Directory Route Request
 
 Status: in progress on 2026-05-29.

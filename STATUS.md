@@ -117,3 +117,42 @@ Agent: api-agent
 
 - Wait for documented route authorization or merge-agent action before modifying `route/app.php`.
 - Continue API mapping for workflow read-only endpoints after workflow route request is prepared.
+
+## 2026-05-29 11:20 +08:00
+
+Agent: api-agent
+
+### Completed Content
+
+- Added thin read-only Controller adapters for workflow task and process query endpoints.
+- Added a public file change request section for workflow read-only route registration.
+- Kept controllers as delegation only; workflow behavior remains workflow-agent scope.
+- Did not modify `route/app.php`.
+- Explicitly excluded approve, reject, cancel, process start, delegate side effects, SSE, and file operations.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/BaseWorkflowController.php`
+- `app/controller/biz/TaskController.php`
+- `app/controller/biz/ProcessController.php`
+- `docs/api/workflow-readonly-controller-adapters.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed with only baseline routes in this branch.
+- PHP lint for `app`, `config`, and `route`: passed.
+
+### Current Issues
+
+- Runtime validation must wait for final merge because this branch does not yet contain auth-agent `ApiResponse` or workflow-agent services.
+- Workflow route registration remains pending authorization because `route/app.php` is locked.
+
+### Next Plan
+
+- Continue with frontend-agent contract notes for newly prepared user/workflow endpoints.
+- Leave actual route registration to documented approval or merge-agent.

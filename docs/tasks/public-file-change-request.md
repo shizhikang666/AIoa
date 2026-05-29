@@ -70,3 +70,50 @@ Route::group('sys/userCenter', function () {
 ## Approval Status
 
 Pending user or merge-agent confirmation.
+
+---
+
+# Public File Change Request: Workflow Read-Only Routes
+
+## Request
+
+Register read-only workflow task/process routes in `route/app.php`.
+
+## Reason
+
+workflow-agent has added read-only query services for pending tasks, history tasks, started processes, process detail, and variable normalization. api-agent has prepared thin controller adapters that delegate to those services.
+
+## Proposed Route Groups
+
+Do not execute this change until approved.
+
+```php
+Route::group('biz/task', function () {
+    Route::get('count', 'biz.TaskController/count');
+    Route::get('list', 'biz.TaskController/list');
+    Route::get('page', 'biz.TaskController/page');
+    Route::get('history/page', 'biz.TaskController/historyPage');
+});
+
+Route::group('biz/process', function () {
+    Route::get('page', 'biz.ProcessController/page');
+    Route::get('detail', 'biz.ProcessController/detail');
+    Route::post('variable', 'biz.ProcessController/variable');
+});
+```
+
+## Files That Would Be Modified Later
+
+- `route/app.php`
+
+## Explicit Exclusions
+
+- Do not register `/biz/task/approve`.
+- Do not register `/biz/task/reject`.
+- Do not register `/biz/process/cancel`.
+- Do not register `/biz/process/*/start`.
+- Do not add workflow mutation routes in this batch.
+
+## Approval Status
+
+Pending user or merge-agent confirmation.
