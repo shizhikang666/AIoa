@@ -55,3 +55,41 @@ php think route:list
 - Do not modify business code.
 - Do not modify locked public files.
 - Do not push to remote in this phase.
+
+## Active Plan: docs-agent Phase 2 - Autonomous Execution Rules
+
+Status: in progress.
+
+Date: 2026-05-29
+
+## Current Goal
+
+Document how the main control Agent can keep moving autonomously while preserving safety boundaries for a long-running multi-agent refactor.
+
+## Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/autonomous-execution-rules.md`
+- `docs/tasks/parallel-agent-status.md`
+
+## Risks
+
+- Over-broad authorization could allow unsafe edits to Java source, production data, locked config files, or database schema.
+- Under-specified authorization will keep causing avoidable pauses for safe recurring commands.
+- Merge and route registration still need explicit scope rules because they touch integration behavior.
+
+## Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+git status --short --branch
+```
+
+## Acceptance Criteria
+
+- Autonomous execution rules include allowed actions, stop conditions, and a copyable user authorization statement.
+- Branch push/sync status is documented.
+- No business code or locked public files are modified.
