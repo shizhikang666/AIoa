@@ -214,3 +214,35 @@ Agent: auth-agent
 - Commit auth-agent Phase 4.
 - Wait for user-agent/test-agent/docs-agent reports.
 - Review parallel agent outputs before starting the next module slice.
+
+## 2026-05-29 10:25 +08:00
+
+Agent: auth-agent
+
+### Completed Content
+
+- Added frontend-compatible `msg` field to unified API responses.
+- Preserved the existing `message` field and response shape.
+- Kept the change limited to response compatibility with no auth/token/RBAC behavior changes.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/support/ApiResponse.php`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed and listed auth/login/menu routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+
+### Current Issues
+
+- Old frontend and new backend docs now both have a response message field, but later frontend-agent should decide whether to keep dual fields permanently or remove `msg` after frontend migration.
+
+### Next Plan
+
+- Run baseline checks.
+- Commit auth-agent Phase 5.

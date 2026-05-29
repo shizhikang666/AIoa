@@ -11,6 +11,7 @@ class ApiResponse
         return json([
             'code' => $code,
             'message' => $message,
+            'msg' => $message,
             'data' => $data,
         ]);
     }
@@ -20,6 +21,7 @@ class ApiResponse
         return json([
             'code' => $code,
             'message' => $message,
+            'msg' => $message,
             'data' => $data,
         ]);
     }

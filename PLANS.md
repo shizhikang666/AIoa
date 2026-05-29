@@ -220,3 +220,38 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git status --short --branch
 ```
+
+## Current Plan: auth-agent Phase 5 - Frontend Response Compatibility
+
+Status: in progress on 2026-05-29.
+
+### Current Goal
+
+Add Java frontend-compatible `msg` response field while preserving the ThinkPHP target `message` field.
+
+### Involved Files
+
+- `app/support/ApiResponse.php`
+- `PLANS.md`
+- `STATUS.md`
+
+### Risk
+
+The old Vue frontend reads `data.msg` in the request interceptor, while project docs standardize on `message`. Returning both avoids breaking frontend behavior without changing service logic.
+
+### Forbidden Scope
+
+- Do not modify Java source files.
+- Do not modify route or config files.
+- Do not implement frontend code in auth-agent.
+- Do not change token, RBAC, menu, or password behavior.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```
