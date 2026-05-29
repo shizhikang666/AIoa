@@ -1171,3 +1171,60 @@ Agent: api-agent
 
 - Commit and push this route middleware compatibility fix.
 - Continue frontend-agent verification for old frontend request/response assumptions.
+
+## 2026-05-29 - merge-agent - Frontend Read-Only Selector Compatibility
+
+### Completed Content
+
+- Compared old Vue frontend system API modules with current ThinkPHP routes.
+- Added missing read-only selector/list aliases for user, organization, position, role selector, and user-center list-by-id helpers.
+- Kept the change limited to compatibility endpoints and did not implement write, import/export, upload, grant, or workflow mutation behavior.
+- Removed password hashes from user directory responses.
+- Documented the locked `route/app.php` change as a public file change request.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/user/UserDirectoryService.php`
+- `app/service/user/OrgService.php`
+- `app/service/user/PositionService.php`
+- `app/controller/sys/UserController.php`
+- `app/controller/sys/OrgController.php`
+- `app/controller/sys/PositionController.php`
+- `app/controller/sys/UserCenterController.php`
+- `route/app.php`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the new read-only selector/list routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- HTTP smoke checks with a valid bearer token returned `code=200` for:
+  - `GET /sys/user/orgTreeSelector`
+  - `GET /sys/user/positionSelector`
+  - `GET /sys/user/roleSelector`
+  - `GET /sys/user/userSelector`
+  - `GET /sys/org/page`
+  - `GET /sys/org/list`
+  - `GET /sys/org/userSelector`
+  - `GET /sys/position/list`
+  - `GET /sys/position/orgTreeSelector`
+  - `POST /sys/userCenter/getOrgListByIdList`
+  - `POST /sys/userCenter/getRoleListByIdList`
+  - `GET /sys/userCenter/getAvatarById`
+- `GET /sys/user/page?pageSize=1` omits the `PASSWORD` field.
+
+### Current Issues
+
+- Full browser-based frontend verification is still pending.
+- Write endpoints, grants, uploads, imports, exports, process config, user-center workbench/message, and workflow mutations remain deferred.
+
+### Next Plan
+
+- Run Composer/ThinkPHP/PHP lint checks.
+- Run token-based HTTP smoke checks for the newly added endpoints.
+- Commit and push if checks pass.

@@ -28,6 +28,24 @@ class OrgService
             ->toArray();
     }
 
+    public function page(array $filters = []): array
+    {
+        [$page, $limit] = $this->pagination($filters);
+        $total = $this->baseQuery($filters)->count();
+        $records = $this->baseQuery($filters)
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+
+        return [
+            'records' => $records,
+            'total' => $total,
+            'page' => $page,
+            'limit' => $limit,
+        ];
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
@@ -67,6 +85,10 @@ class OrgService
             $query->whereLike('NAME', '%' . trim((string)$filters['name']) . '%');
         }
 
+        if (!empty($filters['searchKey'])) {
+            $query->whereLike('NAME', '%' . trim((string)$filters['searchKey']) . '%');
+        }
+
         if (!empty($filters['category'])) {
             $query->where('CATEGORY', (string)$filters['category']);
         }
@@ -76,5 +98,13 @@ class OrgService
         }
 
         return $query;
+    }
+
+    private function pagination(array $filters): array
+    {
+        $page = max(1, (int)($filters['page'] ?? $filters['current'] ?? 1));
+        $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
+
+        return [$page, $limit];
     }
 }

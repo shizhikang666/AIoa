@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace app\service\user;
 
+use app\model\SysOrg;
 use app\model\SysPosition;
+use app\model\SysRole;
 use app\model\SysUser;
 
 /**
@@ -31,7 +33,7 @@ class UserDirectoryService
             ->toArray();
 
         return [
-            'records' => $records,
+            'records' => array_map(fn (array $row): array => $this->sanitizeUserRow($row), $records),
             'total' => $total,
             'page' => $page,
             'limit' => $limit,
@@ -42,7 +44,7 @@ class UserDirectoryService
     {
         $row = $this->baseQuery(['id' => $id])->find();
 
-        return $row ? $row->toArray() : null;
+        return $row ? $this->sanitizeUserRow($row->toArray()) : null;
     }
 
     /**
@@ -56,7 +58,27 @@ class UserDirectoryService
             return [];
         }
 
-        return SysUser::where('DELETE_FLAG', self::NOT_DELETE)
+        $rows = SysUser::where('DELETE_FLAG', self::NOT_DELETE)
+            ->whereIn('ID', $ids)
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->select()
+            ->toArray();
+
+        return array_map(fn (array $row): array => $this->sanitizeUserRow($row), $rows);
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<int, array<string, mixed>>
+     */
+    public function getOrgListByIdList(array $ids): array
+    {
+        $ids = $this->normalizeIds($ids);
+        if ($ids === []) {
+            return [];
+        }
+
+        return SysOrg::where('DELETE_FLAG', self::NOT_DELETE)
             ->whereIn('ID', $ids)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->select()
@@ -79,6 +101,86 @@ class UserDirectoryService
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->select()
             ->toArray();
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<int, array<string, mixed>>
+     */
+    public function getRoleListByIdList(array $ids): array
+    {
+        $ids = $this->normalizeIds($ids);
+        if ($ids === []) {
+            return [];
+        }
+
+        return SysRole::where('DELETE_FLAG', self::NOT_DELETE)
+            ->whereIn('ID', $ids)
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->select()
+            ->toArray();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function userSelector(array $filters = []): array
+    {
+        [$page, $limit] = $this->pagination($filters);
+        $rows = $this->baseQuery($filters)
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+
+        return array_map(static function (array $row): array {
+            return [
+                'id' => $row['ID'] ?? null,
+                'value' => $row['ID'] ?? null,
+                'label' => $row['NAME'] ?? $row['ACCOUNT'] ?? null,
+                'title' => $row['NAME'] ?? $row['ACCOUNT'] ?? null,
+                'name' => $row['NAME'] ?? null,
+                'account' => $row['ACCOUNT'] ?? null,
+                'orgId' => $row['ORG_ID'] ?? null,
+                'positionId' => $row['POSITION_ID'] ?? null,
+            ];
+        }, $rows);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function roleSelector(array $filters = []): array
+    {
+        [$page, $limit] = $this->pagination($filters);
+        $rows = $this->roleQuery($filters)
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+
+        return array_map(static function (array $row): array {
+            return [
+                'id' => $row['ID'] ?? null,
+                'value' => $row['ID'] ?? null,
+                'label' => $row['NAME'] ?? $row['CODE'] ?? null,
+                'title' => $row['NAME'] ?? $row['CODE'] ?? null,
+                'name' => $row['NAME'] ?? null,
+                'code' => $row['CODE'] ?? null,
+                'category' => $row['CATEGORY'] ?? null,
+                'orgId' => $row['ORG_ID'] ?? null,
+            ];
+        }, $rows);
+    }
+
+    public function getAvatarById(string $id): array
+    {
+        $user = $this->detail($id);
+
+        return [
+            'id' => $id,
+            'avatar' => $user['AVATAR'] ?? null,
+        ];
     }
 
     /**
@@ -137,6 +239,10 @@ class UserDirectoryService
             $query->whereLike('NAME', '%' . trim((string)$filters['name']) . '%');
         }
 
+        if (!empty($filters['searchKey'])) {
+            $query->whereLike('NAME', '%' . trim((string)$filters['searchKey']) . '%');
+        }
+
         if (!empty($filters['phone'])) {
             $query->whereLike('PHONE', '%' . trim((string)$filters['phone']) . '%');
         }
@@ -158,6 +264,48 @@ class UserDirectoryService
         }
 
         return $query;
+    }
+
+    private function roleQuery(array $filters)
+    {
+        $query = SysRole::where('DELETE_FLAG', self::NOT_DELETE);
+
+        if (!empty($filters['id'])) {
+            $query->where('ID', (string)$filters['id']);
+        }
+
+        if (!empty($filters['name'])) {
+            $query->whereLike('NAME', '%' . trim((string)$filters['name']) . '%');
+        }
+
+        if (!empty($filters['searchKey'])) {
+            $query->whereLike('NAME', '%' . trim((string)$filters['searchKey']) . '%');
+        }
+
+        if (!empty($filters['code'])) {
+            $query->whereLike('CODE', '%' . trim((string)$filters['code']) . '%');
+        }
+
+        if (!empty($filters['orgId'])) {
+            $query->where('ORG_ID', (string)$filters['orgId']);
+        }
+
+        if (!empty($filters['category'])) {
+            $query->where('CATEGORY', (string)$filters['category']);
+        }
+
+        if (!empty($filters['tenantId'])) {
+            $query->where('TENANT_ID', (string)$filters['tenantId']);
+        }
+
+        return $query;
+    }
+
+    private function sanitizeUserRow(array $row): array
+    {
+        unset($row['PASSWORD']);
+
+        return $row;
     }
 
     /**

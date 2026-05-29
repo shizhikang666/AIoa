@@ -752,6 +752,45 @@ git status --short --branch
 ## Current Plan: user-agent Phase 2 - Read-Only Directory Services
 ## Current Plan: api-agent Phase 3 - User Directory Controller Adapters
 
+## Current Plan: merge-agent Phase - Frontend Read-Only Selector Compatibility
+
+Status: in progress on 2026-05-29.
+
+### Current Goal
+
+Close the next frontend compatibility gap after runtime auth smoke tests by adding only low-risk read-only selector and list aliases used by the existing Vue API modules.
+
+### Involved Files
+
+- `app/service/user/UserDirectoryService.php`
+- `app/service/user/OrgService.php`
+- `app/service/user/PositionService.php`
+- `app/controller/sys/UserController.php`
+- `app/controller/sys/OrgController.php`
+- `app/controller/sys/PositionController.php`
+- `app/controller/sys/UserCenterController.php`
+- `route/app.php`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### Risks
+
+- `route/app.php` is a locked public file, so the route additions must stay documented and limited to read-only frontend compatibility endpoints.
+- User, organization, position, and role selectors overlap user-agent and auth-agent ownership. This phase must only expose already available read-only data and must not add grants, writes, imports, exports, uploads, or workflow mutations.
+- User read APIs must not leak password hashes.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+Runtime smoke checks should use a bearer token and cover the newly added selector/list endpoints.
+
 Status: in progress on 2026-05-29.
 
 ### Current Goal

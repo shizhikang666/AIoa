@@ -81,6 +81,10 @@ class PositionService
             $query->whereLike('NAME', '%' . trim((string)$filters['name']) . '%');
         }
 
+        if (!empty($filters['searchKey'])) {
+            $query->whereLike('NAME', '%' . trim((string)$filters['searchKey']) . '%');
+        }
+
         if (!empty($filters['category'])) {
             $query->where('CATEGORY', (string)$filters['category']);
         }

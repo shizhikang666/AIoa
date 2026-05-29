@@ -30,25 +30,37 @@ Route::group('sys/userCenter', function () {
     Route::get('loginMenu', 'auth.UserCenterAuthController/loginMenu');
     Route::get('loginOrgTree', 'sys.UserCenterController/loginOrgTree');
     Route::get('loginPositionInfo', 'sys.UserCenterController/loginPositionInfo');
+    Route::post('getOrgListByIdList', 'sys.UserCenterController/getOrgListByIdList');
     Route::post('getUserListByIdList', 'sys.UserCenterController/getUserListByIdList');
     Route::post('getPositionListByIdList', 'sys.UserCenterController/getPositionListByIdList');
+    Route::post('getRoleListByIdList', 'sys.UserCenterController/getRoleListByIdList');
+    Route::get('getAvatarById', 'sys.UserCenterController/getAvatarById');
 })->middleware(AuthMiddleware::class);
 
 Route::group('sys/org', function () {
+    Route::get('page', 'sys.OrgController/page');
+    Route::get('list', 'sys.OrgController/list');
     Route::get('tree', 'sys.OrgController/tree');
     Route::get('orgTreeSelector', 'sys.OrgController/treeSelector');
+    Route::get('userSelector', 'sys.OrgController/userSelector');
     Route::get('detail', 'sys.OrgController/detail');
 });
 
 Route::group('sys/position', function () {
     Route::get('page', 'sys.PositionController/page');
+    Route::get('list', 'sys.PositionController/list');
     Route::get('detail', 'sys.PositionController/detail');
+    Route::get('orgTreeSelector', 'sys.PositionController/orgTreeSelector');
     Route::get('positionSelector', 'sys.PositionController/selector');
 });
 
 Route::group('sys/user', function () {
     Route::get('page', 'sys.UserController/page');
     Route::get('detail', 'sys.UserController/detail');
+    Route::get('orgTreeSelector', 'sys.UserController/orgTreeSelector');
+    Route::get('positionSelector', 'sys.UserController/positionSelector');
+    Route::get('roleSelector', 'sys.UserController/roleSelector');
+    Route::get('userSelector', 'sys.UserController/userSelector');
 });
 
 Route::group('biz/task', function () {

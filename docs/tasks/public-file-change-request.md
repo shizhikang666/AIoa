@@ -235,3 +235,37 @@ No new write routes were added. No Controller or Service business logic was chan
 - Requests without token return `code=401 unauthenticated`.
 - `php think route:list` passes.
 - PHP lint passes.
+
+---
+
+# Public File Change Request: Frontend Read-Only Selector Routes
+
+## Request
+
+Register old-frontend-compatible read-only selector and list routes in `route/app.php`.
+
+## Reason
+
+The existing Vue API modules call selector/list endpoints beyond the first user directory route batch. These are needed for frontend pages to load selection controls without adding write behavior.
+
+## Applied Change
+
+`merge-agent` added only read-only route aliases for:
+
+- `/sys/user/orgTreeSelector`
+- `/sys/user/positionSelector`
+- `/sys/user/roleSelector`
+- `/sys/user/userSelector`
+- `/sys/org/page`
+- `/sys/org/list`
+- `/sys/org/userSelector`
+- `/sys/position/list`
+- `/sys/position/orgTreeSelector`
+- `/sys/userCenter/getOrgListByIdList`
+- `/sys/userCenter/getRoleListByIdList`
+- `/sys/userCenter/getAvatarById`
+
+## Explicit Exclusions
+
+- No add, edit, delete, disable, enable, import, export, upload, password, grant, approval, reject, cancel, or process-start routes were added.
+- No database schema, seed data, Java source, `.env`, or public config files were changed.
