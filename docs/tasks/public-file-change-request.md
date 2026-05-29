@@ -150,7 +150,7 @@ Route::group('sys/userCenter', function () {
 
 ## Approval Status
 
-Pending user or merge-agent confirmation.
+Applied by merge-agent during integration after api-agent merge. Only the listed read-only user, organization, and position routes were registered.
 
 ---
 
@@ -197,4 +197,4 @@ Route::group('biz/process', function () {
 
 ## Approval Status
 
-Pending user or merge-agent confirmation.
+Applied by merge-agent during integration after api-agent merge. Only the listed read-only workflow query routes were registered.
