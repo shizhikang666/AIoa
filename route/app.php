@@ -26,6 +26,8 @@ Route::group('auth/b', function () {
     Route::post('safe/password', 'auth.AuthController/openSafe');
 });
 
+Route::get('dev/config/sysBaseList', 'dev.ConfigController/sysBaseList');
+
 Route::group('sys/userCenter', function () {
     Route::get('loginMenu', 'auth.UserCenterAuthController/loginMenu');
     Route::get('loginOrgTree', 'sys.UserCenterController/loginOrgTree');
@@ -131,6 +133,12 @@ Route::group('dev/dict', function () {
     Route::get('list', 'dev.DictController/list');
     Route::get('tree', 'dev.DictController/tree');
     Route::get('detail', 'dev.DictController/detail');
+})->middleware(AuthMiddleware::class);
+
+Route::group('dev/config', function () {
+    Route::get('page', 'dev.ConfigController/page');
+    Route::get('list', 'dev.ConfigController/list');
+    Route::get('detail', 'dev.ConfigController/detail');
 })->middleware(AuthMiddleware::class);
 
 Route::group('dev/log', function () {

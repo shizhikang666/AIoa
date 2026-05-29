@@ -1685,3 +1685,51 @@ Agent: api-agent
 
 - Commit and push this message read-only compatibility slice.
 - Continue with carefully scoped development support APIs, likely config reads after reviewing sensitive value exposure.
+
+## 2026-05-29 - merge-agent - Dev Config Safe Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed Java `DevConfigController` / `DevConfigServiceImpl`, frontend `configApi.js`, login-page usage, and `dev_config` SQL seed data.
+- Added public read-only `/dev/config/sysBaseList` for login-page system base configuration.
+- Added protected read-only `/dev/config/page`, `/dev/config/list`, and `/dev/config/detail` routes behind `AuthMiddleware`.
+- Masked sensitive config values when `configKey` contains password, secret, token, private, access-key, or app-key markers.
+- Kept config add, edit, delete, editBatch, and Redis config cache mutation behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/ConfigService.php`
+- `app/controller/dev/ConfigController.php`
+- `route/app.php`
+- `docs/api/dev-config-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\dev\ConfigService.php`: passed.
+- `php -l app\controller\dev\ConfigController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the public `/dev/config/sysBaseList` route plus protected `/dev/config/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke returned `code=200` for public `GET /dev/config/sysBaseList` without a token.
+- `GET /dev/config/sysBaseList` excluded `SNOWY_SYS_DEFAULT_PASSWORD`.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /dev/config/page`
+  - `GET /dev/config/list`
+  - `GET /dev/config/detail`
+- Sensitive config rows returned masked `configValue`.
+- Protected `GET /dev/config/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- Config writes remain deferred because they need permission, audit, validation, and "keep existing secret" semantics.
+- Full-value secret reads are intentionally not implemented; later write endpoints should avoid requiring the frontend to round-trip secret values.
+
+### Next Plan
+
+- Commit and push this config read-only compatibility slice.
+- Continue scanning the old frontend for the next safe read-only API group before enabling any write endpoint.

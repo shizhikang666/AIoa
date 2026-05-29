@@ -1544,3 +1544,52 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No message send/delete/SSE/read-status mutation routes are added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Dev Config Safe Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only configuration endpoints while preventing accidental exposure of sensitive config values.
+
+### 2. Modules In Scope
+
+- dev config read-only API compatibility
+- public system base config list for login page
+- protected config page/list/detail
+- sensitive config value masking
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/ConfigService.php`
+- `app/controller/dev/ConfigController.php`
+- `route/app.php`
+- `docs/api/dev-config-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- `dev_config` stores default passwords, cloud SecretKey values, email credentials, SMS credentials, and file-storage keys.
+- Java returns full values for several reads, but this PHP slice should mask sensitive values until a write-endpoint and permission review exists.
+- `sysBaseList` is public in the Java project and must exclude default password data.
+- `route/app.php` is locked and must only receive documented protected/public read-only routes.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/dev/config/sysBaseList`, `/dev/config/page`, `/dev/config/list`, and `/dev/config/detail` routes are added.
+- No config add/edit/delete/editBatch routes are added.
+- `sysBaseList` excludes `SNOWY_SYS_DEFAULT_PASSWORD`.
+- Sensitive config values are masked in read responses.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

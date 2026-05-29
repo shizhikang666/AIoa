@@ -497,6 +497,44 @@ The existing Vue message pages call `/dev/message/page` and `/dev/message/detail
 
 ---
 
+# Public File Change Request: Dev Config Safe Read-Only Routes
+
+## Request
+
+Register read-only configuration routes in `route/app.php`.
+
+## Reason
+
+The existing login page calls `/dev/config/sysBaseList` before authentication to load system base display settings, and the existing admin configuration pages call `/dev/config/page`, `/dev/config/list`, and `/dev/config/detail` after login.
+
+## Applied Change
+
+`merge-agent` registered the following route without `AuthMiddleware`, matching Java's public login-page base-config behavior:
+
+- `GET /dev/config/sysBaseList`
+
+`merge-agent` registered the following protected routes:
+
+- `GET /dev/config/page`
+- `GET /dev/config/list`
+- `GET /dev/config/detail`
+
+## Explicit Exclusions
+
+- No config add, edit, delete, or editBatch routes were added.
+- Sensitive config values are masked in read responses.
+- `sysBaseList` excludes `SNOWY_SYS_DEFAULT_PASSWORD`.
+- No Redis config cache mutation, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Public `GET /dev/config/sysBaseList` should return `code=200` without a token.
+- Protected token requests should return `code=200` for representative routes.
+- Protected requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Mobile Resource Read-Only Routes
 
 ## Request
