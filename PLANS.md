@@ -822,6 +822,41 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 
 Runtime smoke must verify token requests return `200` and no-token requests return `401` for `/sys/org/tree`, `/sys/position/page`, and `/sys/user/page`.
 
+## Current Plan: merge-agent Phase - RBAC Role Read-Only Compatibility
+
+Status: in progress on 2026-05-29.
+
+### Current Goal
+
+Add read-only `/sys/role/*` compatibility endpoints used by the existing Vue role management page, without implementing role writes or grant mutations.
+
+### Involved Files
+
+- `app/service/auth/RoleService.php`
+- `app/controller/sys/RoleController.php`
+- `route/app.php`
+- `docs/api/rbac-role-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### Risks
+
+- Role grant viewing reads relation data, but grant mutation must remain deferred.
+- Resource and mobile menu tree payloads are compatibility approximations based on current database rows.
+- Permission tree data is derived from existing `sys_relation` permission targets until route-level permission metadata is fully modeled.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+Runtime smoke should cover role page/detail/selectors/own* routes with a bearer token and confirm no-token requests return `401`.
+
 Status: in progress on 2026-05-29.
 
 ### Current Goal

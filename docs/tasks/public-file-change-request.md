@@ -294,3 +294,37 @@ The existing frontend uses these routes only after login, but leaving user, orga
 
 - Token requests to representative routes return `code=200`.
 - No-token requests to representative routes return `code=401`.
+
+---
+
+# Public File Change Request: RBAC Role Read-Only Routes
+
+## Request
+
+Register read-only `/sys/role/*` compatibility routes in `route/app.php`.
+
+## Reason
+
+The existing Vue role management API calls several GET endpoints for role pagination, detail, existing grants, and selector trees. These endpoints are required for the role page to load without enabling mutation behavior.
+
+## Applied Change
+
+`merge-agent` registered a protected `sys/role` route group with only GET routes:
+
+- `page`
+- `detail`
+- `ownResource`
+- `ownMobileMenu`
+- `ownPermission`
+- `ownUser`
+- `orgTreeSelector`
+- `resourceTreeSelector`
+- `mobileMenuTreeSelector`
+- `permissionTreeSelector`
+- `roleSelector`
+- `userSelector`
+
+## Explicit Exclusions
+
+- No role add, edit, delete, grant resource, grant mobile menu, grant permission, or grant user routes were added.
+- No relation writes, database schema changes, Java source changes, or frontend source changes were made.

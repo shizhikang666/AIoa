@@ -1266,3 +1266,55 @@ Agent: api-agent
 
 - Verify token requests return `200` and no-token requests return `401`.
 - Commit and push if checks pass.
+
+## 2026-05-29 - merge-agent - RBAC Role Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed the old Vue `sys/role` API module and Java `SysRoleController`.
+- Added read-only role service/controller adapters for role page, detail, existing grants, and selector trees.
+- Registered protected `/sys/role/*` GET routes behind `AuthMiddleware`.
+- Kept all role write and grant mutation endpoints deferred.
+- Documented the public route change and read-only compatibility scope.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/auth/RoleService.php`
+- `app/controller/sys/RoleController.php`
+- `route/app.php`
+- `docs/api/rbac-role-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/sys/role/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke checks with a valid bearer token returned `code=200` for:
+  - `GET /sys/role/page`
+  - `GET /sys/role/detail`
+  - `GET /sys/role/ownResource`
+  - `GET /sys/role/ownMobileMenu`
+  - `GET /sys/role/ownPermission`
+  - `GET /sys/role/ownUser`
+  - `GET /sys/role/orgTreeSelector`
+  - `GET /sys/role/resourceTreeSelector`
+  - `GET /sys/role/mobileMenuTreeSelector`
+  - `GET /sys/role/permissionTreeSelector`
+  - `GET /sys/role/roleSelector`
+  - `GET /sys/role/userSelector`
+- `GET /sys/role/page` without a bearer token returned `code=401`.
+
+### Current Issues
+
+- `permissionTreeSelector` derives available API permission targets from existing `sys_relation` data until route-level permission metadata is modeled in ThinkPHP.
+- Grant mutations still need a later dedicated implementation with validation and audit behavior.
+
+### Next Plan
+
+- Run Composer/ThinkPHP/PHP lint checks.
+- Run token-based HTTP smoke checks for representative `/sys/role/*` routes.
+- Commit and push if checks pass.
