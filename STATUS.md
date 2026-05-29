@@ -1733,3 +1733,50 @@ Agent: api-agent
 
 - Commit and push this config read-only compatibility slice.
 - Continue scanning the old frontend for the next safe read-only API group before enabling any write endpoint.
+
+## 2026-05-29 - merge-agent - Dev File Metadata Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed Java `DevFileController` / `DevFileServiceImpl`, frontend `fileApi.js`, file management page usage, and the `dev_file` table from `oa2026.sql`.
+- Added protected read-only file metadata page, list, and detail endpoints.
+- Registered protected `/dev/file/*` GET routes behind `AuthMiddleware`.
+- Kept file upload, delete, and actual file download streaming behavior deferred.
+- Adjusted `/dev/file/list` to return at most 200 lightweight metadata rows without thumbnail payloads after smoke testing found the full list could trigger a 500 response due to large base64 thumbnail data.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/FileService.php`
+- `app/controller/dev/FileController.php`
+- `route/app.php`
+- `docs/api/dev-file-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\dev\FileService.php`: passed.
+- `php -l app\controller\dev\FileController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/dev/file/*` read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /dev/file/page`
+  - `GET /dev/file/list`
+  - `GET /dev/file/detail`
+- `/dev/file/page` returns thumbnail metadata for paginated table compatibility.
+- `/dev/file/list` returns lightweight metadata without thumbnail payloads.
+- `GET /dev/file/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- File upload, delete, and download streaming remain deferred because they need a storage root, cloud credential, validation, permission, audit, and safe path plan.
+- Existing `DOWNLOAD_PATH` values in imported data may point at the old Java backend domain; a later frontend/runtime compatibility step should decide whether to rewrite them at response time or migrate values.
+
+### Next Plan
+
+- Commit and push this file metadata read-only compatibility slice.
+- Continue with another safe read-only support module, likely email/SMS metadata pages, before planning write endpoints.

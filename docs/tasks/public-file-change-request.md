@@ -535,6 +535,40 @@ The existing login page calls `/dev/config/sysBaseList` before authentication to
 
 ---
 
+# Public File Change Request: Dev File Metadata Read-Only Routes
+
+## Request
+
+Register protected read-only file metadata routes in `route/app.php`.
+
+## Reason
+
+The existing Vue file management page calls `/dev/file/page`, `/dev/file/list`, and `/dev/file/detail` to load file metadata and detail drawer content after login. These routes are needed for compatibility while upload, delete, and actual file download behavior remains deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /dev/file/page`
+- `GET /dev/file/list`
+- `GET /dev/file/detail`
+
+## Explicit Exclusions
+
+- No upload routes were added.
+- No `/dev/file/download` route was added.
+- No `/dev/file/delete` route was added.
+- No local filesystem file content is read.
+- No database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Mobile Resource Read-Only Routes
 
 ## Request

@@ -141,6 +141,12 @@ Route::group('dev/config', function () {
     Route::get('detail', 'dev.ConfigController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('dev/file', function () {
+    Route::get('page', 'dev.FileController/page');
+    Route::get('list', 'dev.FileController/list');
+    Route::get('detail', 'dev.FileController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('dev/log', function () {
     Route::get('page', 'dev.LogController/page');
     Route::get('detail', 'dev.LogController/detail');

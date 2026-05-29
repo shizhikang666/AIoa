@@ -1593,3 +1593,50 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - `sysBaseList` excludes `SNOWY_SYS_DEFAULT_PASSWORD`.
 - Sensitive config values are masked in read responses.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Dev File Metadata Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only file metadata endpoints for the file management page and file detail drawer.
+
+### 2. Modules In Scope
+
+- dev file metadata read-only API compatibility
+- file page/list/detail
+- tenant-scoped page/list reads
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/FileService.php`
+- `app/controller/dev/FileController.php`
+- `route/app.php`
+- `docs/api/dev-file-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java file upload and delete mutate file metadata and storage, so they remain deferred.
+- Java file download streams local files from `STORAGE_PATH`; this slice must not expose file content or read from disk.
+- `dev_file.THUMBNAIL` can contain large base64 data; it is included for frontend compatibility but only as stored metadata.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/dev/file/page`, `/dev/file/list`, and `/dev/file/detail` routes are added.
+- No file upload, delete, or download file-stream route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
