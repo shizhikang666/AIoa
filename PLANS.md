@@ -123,3 +123,52 @@ git status --short --branch
 - Java delegate side effects are mapped to future PHP services.
 - No Java source files are modified.
 - No ThinkPHP workflow code, routes, models, or database changes are added.
+
+## Current Plan: Phase 3 - Read-Only Workflow Query Services
+
+Date: 2026-05-29
+
+### 1. Current Goal
+
+Add read-only workflow query service classes for pending tasks, history tasks, started processes, process detail, and variable normalization.
+
+### 2. Module Scope
+
+- Runtime task reads.
+- Historic task reads.
+- Historic process instance reads.
+- Historic activity and comment reads.
+- Runtime/history variable normalization.
+
+### 3. Files To Modify
+
+Only workflow-agent worktree files:
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/workflow/WorkflowVariableService.php`
+- `app/service/workflow/WorkflowQueryService.php`
+- `docs/tasks/workflow-query-services.md`
+
+### 4. Risks
+
+- The current workflow branch does not yet contain db-agent `Act*` models; final merged branch must merge `refactor/db` first.
+- Query services are read-only and intentionally do not mutate workflow state.
+- Process variable value compatibility needs real data tests after database configuration exists.
+
+### 5. Forbidden Scope
+
+- Do not modify Java source files.
+- Do not modify locked public files.
+- Do not add routes or controllers.
+- Do not implement approve, reject, cancel, process start, or side effects.
+
+### 6. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```

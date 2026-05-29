@@ -74,3 +74,39 @@
 
 - Start workflow code with read-only query services only after db-agent model coverage for `act_*` tables is confirmed.
 - Defer approve/reject and process start routes until test-agent has baseline route/task checks.
+
+## 2026-05-29 - workflow-agent - Phase 3 Query Services
+
+### Completed Content
+
+- Added read-only workflow query services.
+- Added variable normalization for runtime and historic Camunda variables.
+- Covered pending task count/list/page, historic task page, started process page, and process detail query shape.
+- Kept Phase 3 free of routes, controllers, approve/reject/cancel/start behavior, and business side effects.
+- Documented dependency on db-agent `Act*` models.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/workflow/WorkflowVariableService.php`
+- `app/service/workflow/WorkflowQueryService.php`
+- `docs/tasks/workflow-query-services.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed, current route baseline only contains `think` and `hello/<name>`.
+- PHP lint for `app`, `config`, and `route`: passed.
+
+### Current Problems
+
+- Runtime DB query testing must wait until `refactor/db` is merged before `refactor/workflow`.
+- API routes are still not registered and require a public file change request.
+- Mutation behavior and Java delegate replacement remain deferred.
+
+### Next Plan
+
+- Add workflow public route change request for the read-only API batch.
+- After merged model/service validation, add thin controller adapters that call these services.
