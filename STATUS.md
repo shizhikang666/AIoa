@@ -2491,3 +2491,52 @@ Agent: api-agent
 
 - Commit and push this payment-record read-only compatibility slice.
 - Continue with the next safe read-only settlement/business module.
+
+## 2026-05-29 - merge-agent - Biz Expenditure Record Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `bizExpenditureRecordApi.js`, Java `BizExpenditureRecordController` / `BizExpenditureRecordServiceImpl`, Java expenditure-record page/query params, entity, and the `biz_expenditure_record` SQL table.
+- Added protected read-only expenditure-record page, listDetails, list, and detail compatibility endpoints.
+- Enriched expenditure-record rows with settlement account name/number from `settlement_account` and `orgName` from `sys_org`.
+- Supported Java/old-frontend filters for object id, object ids, target id, serial id, process id, settlement category, payer, bank, remark, payer time, create time, amount, account name, org id, search key, sorting, and pagination.
+- Registered protected `/biz/bizexpenditurerecord/*` read-only routes behind `AuthMiddleware`.
+- Kept expenditure-record add, edit, delete, and account-switch behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/ExpenditureRecordService.php`
+- `app/controller/biz/ExpenditureRecordController.php`
+- `route/app.php`
+- `docs/api/biz-expenditure-record-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\ExpenditureRecordService.php`: passed.
+- `php -l app\controller\biz\ExpenditureRecordController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected expenditure-record read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/bizexpenditurerecord/page`
+  - `GET /biz/bizexpenditurerecord/listDetails`
+  - `GET /biz/bizexpenditurerecord/list`
+  - `GET /biz/bizexpenditurerecord/detail`
+- Runtime smoke confirmed expenditure-record page total `1535`, sampled listDetails count `207`, sampled list count `207`, detail account-name enrichment, and account-name filtered total `231`.
+- `GET /biz/bizexpenditurerecord/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- Expenditure-record write flows affect settlement-account balances and settlement statements. Those routes need a later write-endpoint design with transactions, optimistic locking, audit behavior, and data-change events.
+- Customer-related reads remain deferred until the SM4 encrypted-field strategy is documented.
+
+### Next Plan
+
+- Commit and push this expenditure-record read-only compatibility slice.
+- Continue with the next safe read-only settlement/business module.

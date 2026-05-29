@@ -236,6 +236,13 @@ Route::group('biz/bizpaymentrecord', function () {
     Route::get('detail', 'biz.PaymentRecordController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizexpenditurerecord', function () {
+    Route::get('page', 'biz.ExpenditureRecordController/page');
+    Route::get('listDetails', 'biz.ExpenditureRecordController/listDetails');
+    Route::get('list', 'biz.ExpenditureRecordController/list');
+    Route::get('detail', 'biz.ExpenditureRecordController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/warehouses', function () {
     Route::get('page', 'biz.WarehousesController/page');
     Route::get('list', 'biz.WarehousesController/list');

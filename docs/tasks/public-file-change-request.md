@@ -1160,3 +1160,38 @@ The existing Vue payment-record pages call `/biz/bizpaymentrecord/page`, `/biz/b
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Expenditure Record Read-Only Routes
+
+## Request
+
+Register protected read-only expenditure-record routes in `route/app.php`.
+
+## Reason
+
+The existing Vue expenditure-record pages call `/biz/bizexpenditurerecord/page`, `/biz/bizexpenditurerecord/listDetails`, `/biz/bizexpenditurerecord/list`, and `/biz/bizexpenditurerecord/detail` after login to load expense records, settlement account display fields, and organization context. These reads are needed for expense, purchase, and settlement views while corrections and account-switch behavior remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/bizexpenditurerecord/page`
+- `GET /biz/bizexpenditurerecord/listDetails`
+- `GET /biz/bizexpenditurerecord/list`
+- `GET /biz/bizexpenditurerecord/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizexpenditurerecord/add` route was added.
+- No `/biz/bizexpenditurerecord/edit` route was added.
+- No `/biz/bizexpenditurerecord/edit/account` route was added.
+- No `/biz/bizexpenditurerecord/delete` route was added.
+- No expenditure-record mutation, settlement-account transfer, statement edit, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

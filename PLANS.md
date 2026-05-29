@@ -1308,6 +1308,58 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
 
+## Completed Plan: merge-agent - Biz Expenditure Record Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only expenditure-record endpoints for expense list and detail views.
+
+### 2. Modules In Scope
+
+- expenditure record read-only API compatibility
+- `/biz/bizexpenditurerecord/page`
+- `/biz/bizexpenditurerecord/listDetails`
+- `/biz/bizexpenditurerecord/list`
+- `/biz/bizexpenditurerecord/detail`
+- settlement-account display enrichment
+- organization-name display enrichment
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/ExpenditureRecordService.php`
+- `app/controller/biz/ExpenditureRecordController.php`
+- `route/app.php`
+- `docs/api/biz-expenditure-record-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java expenditure-record edits can update settlement statements and switch account balances, so edit routes must remain deferred.
+- Frontend has add/delete wrappers, but the analyzed Java controller does not expose add/delete; those remain excluded from this read-only slice.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\ExpenditureRecordService.php
+php -l app\controller\biz\ExpenditureRecordController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/bizexpenditurerecord/page`, `/biz/bizexpenditurerecord/listDetails`, `/biz/bizexpenditurerecord/list`, and `/biz/bizexpenditurerecord/detail` routes are added.
+- No expenditure-record add/edit/delete/account-switch route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
 ## Active Plan: merge-agent - System Resource Read-Only Compatibility
 
 Status: in progress on 2026-05-29.
