@@ -2585,3 +2585,51 @@ Agent: api-agent
 
 - Commit and push this collection-receipt read-only compatibility slice.
 - Continue with the next safe read-only business module, likely debit-note read endpoints.
+
+## 2026-05-29 - merge-agent - Biz Debit Note Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `bizDebitNoteApi.js`, Java `BizDebitNoteController` / `BizDebitNoteServiceImpl`, Java debit-note page params, entity, and the `biz_debit_note` SQL table.
+- Added protected read-only debit-note page, list, and detail compatibility endpoints.
+- Enriched debit-note rows with linked expenditure-record payer time, settlement category, payer/bank fields, settlement account name/number, and organization name.
+- Supported Java/old-frontend filters for play status, create time range, remark, account name, category, search key, sorting, pagination, expenditure record id, org id, amount, and tenant id.
+- Registered protected `/biz/bizdebitnote/*` read-only routes behind `AuthMiddleware`.
+- Kept debit-note history add, mark success, batch repayment, add, edit, and delete behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/DebitNoteService.php`
+- `app/controller/biz/DebitNoteController.php`
+- `route/app.php`
+- `docs/api/biz-debit-note-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\DebitNoteService.php`: passed.
+- `php -l app\controller\biz\DebitNoteController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected debit-note read-only routes.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/bizdebitnote/page`
+  - `GET /biz/bizdebitnote/list`
+  - `GET /biz/bizdebitnote/detail`
+- Runtime smoke confirmed debit-note page total `106`, `AlreadySettled` list count `84`, sampled detail organization/account enrichment, and account-name filtered total `2`.
+- `GET /biz/bizdebitnote/page` without a token returned business `code=401`.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- Debit-note history add, mark-success, and batch-repayment flows mutate settlement state, payment records, and settlement accounts. Those routes need a later transactional write design before implementation.
+- Customer-related reads remain deferred until the SM4 encrypted-field strategy is documented.
+
+### Next Plan
+
+- Commit and push this debit-note read-only compatibility slice.
+- Continue with the next safe read-only business module.

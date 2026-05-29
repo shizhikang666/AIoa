@@ -249,6 +249,12 @@ Route::group('biz/bizcollectionreceipt', function () {
     Route::get('detail', 'biz.CollectionReceiptController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizdebitnote', function () {
+    Route::get('page', 'biz.DebitNoteController/page');
+    Route::get('list', 'biz.DebitNoteController/list');
+    Route::get('detail', 'biz.DebitNoteController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/warehouses', function () {
     Route::get('page', 'biz.WarehousesController/page');
     Route::get('list', 'biz.WarehousesController/list');

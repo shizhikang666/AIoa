@@ -397,6 +397,42 @@ The existing Vue homepage and message panel call `/sys/index/*` endpoints after 
 
 ---
 
+# Public File Change Request: Biz Debit Note Read-Only Routes
+
+## Request
+
+Register protected read-only debit-note routes in `route/app.php`.
+
+## Reason
+
+The existing Vue debit-note pages call `/biz/bizdebitnote/page`, `/biz/bizdebitnote/list`, and `/biz/bizdebitnote/detail` after login to load loan/payment-on-behalf records, linked expenditure-record display fields, settlement account fields, and organization context. These reads are needed for finance views while history add, mark-success, batch-repayment, add, edit, and delete behavior remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/bizdebitnote/page`
+- `GET /biz/bizdebitnote/list`
+- `GET /biz/bizdebitnote/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizdebitnote/history/add` route was added.
+- No `/biz/bizdebitnote/mark/success/edit` route was added.
+- No `/biz/bizdebitnote/batchRepayment/edit` route was added.
+- No `/biz/bizdebitnote/add` route was added.
+- No `/biz/bizdebitnote/edit` route was added.
+- No `/biz/bizdebitnote/delete` route was added.
+- No debit-note mutation, payment-record creation, settlement-account balance mutation, settlement-state mutation, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Biz Collection Receipt Read-Only Routes
 
 ## Request

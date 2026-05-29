@@ -1412,6 +1412,58 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
 
+## Completed Plan: merge-agent - Biz Debit Note Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only debit-note endpoints for loan/payment-on-behalf list and detail views.
+
+### 2. Modules In Scope
+
+- debit note read-only API compatibility
+- `/biz/bizdebitnote/page`
+- `/biz/bizdebitnote/list`
+- `/biz/bizdebitnote/detail`
+- expenditure-record display enrichment
+- settlement-account display enrichment
+- organization-name display enrichment
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/DebitNoteService.php`
+- `app/controller/biz/DebitNoteController.php`
+- `route/app.php`
+- `docs/api/biz-debit-note-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java debit-note history add, mark success, and batch repayment methods mutate debit-note settlement state, payment records, and settlement accounts, so they must remain deferred.
+- Java list/page joins expenditure records only when account/category filters are present. This slice always enriches read rows by the linked expenditure record but keeps mutation routes excluded.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\DebitNoteService.php
+php -l app\controller\biz\DebitNoteController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/bizdebitnote/page`, `/biz/bizdebitnote/list`, and `/biz/bizdebitnote/detail` routes are added.
+- No debit-note history add, mark-success, batch-repayment, add, edit, or delete route is added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
 ## Active Plan: merge-agent - System Resource Read-Only Compatibility
 
 Status: in progress on 2026-05-29.
