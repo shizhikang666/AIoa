@@ -2657,3 +2657,70 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No team member add/manage/edit/delete route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Plan: merge-agent - Biz Team Project Task Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, lint, baseline checks, HTTP smoke, and secret-scan checks.
+
+### 1. Current Goal
+
+Add the remaining old-frontend-compatible read-only endpoints required by the team project detail page: task categories, tasks, project timeline comments, and task comments.
+
+### 2. Modules In Scope
+
+- `/biz/bizteamprojecttaskcategory/page`
+- `/biz/bizteamprojecttaskcategory/list`
+- `/biz/bizteamprojecttaskcategory/detail`
+- `/biz/bizteamprojecttask/page`
+- `/biz/bizteamprojecttask/list`
+- `/biz/bizteamprojecttask/detail`
+- `/biz/bizteamprojectcomment/page`
+- `/biz/bizteamprojectcomment/list`
+- `/biz/bizteamprojecttaskcomment/page`
+- `/biz/bizteamprojecttaskcomment/list`
+- `/biz/bizteamprojecttaskcomment/detail`
+- nested project-comment replies returned from project-comment list
+- current-user team-project membership gating
+- creator/avatar and task-user enrichment
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `app/controller/biz/TeamProjectTaskCategoryController.php`
+- `app/controller/biz/TeamProjectTaskController.php`
+- `app/controller/biz/TeamProjectCommentController.php`
+- `app/controller/biz/TeamProjectTaskCommentController.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Task detail opens by task id from a query string, so ThinkPHP must resolve the project id from the task before checking membership.
+- Project comment list embeds reply rows; a standalone reply read route is not part of the Java controller and should remain deferred.
+- Task add/edit/delete, category add/edit/sort/delete, comment add/delete, reply add/edit/delete, and task-user edit are write flows and must remain deferred.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l app\controller\biz\TeamProjectTaskCategoryController.php
+php -l app\controller\biz\TeamProjectTaskController.php
+php -l app\controller\biz\TeamProjectCommentController.php
+php -l app\controller\biz\TeamProjectTaskCommentController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only the listed read-only team-project task/category/comment routes are added.
+- No task, task-category, comment, reply, or task-user write route is added.
+- Routes are protected by `AuthMiddleware`.
+- Current user must be a member of the target project for project-scoped reads.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

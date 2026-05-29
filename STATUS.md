@@ -2733,3 +2733,66 @@ Agent: api-agent
 
 - Commit and push this team-project read-only compatibility slice.
 - Continue with team project task/category/comment read-only endpoints before implementing write flows.
+
+## 2026-05-29 - merge-agent - Biz Team Project Task Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend team-project task, task-category, project-comment, task-comment, and comment-reply API usage.
+- Analyzed Java `BizTeamProjectTaskCategoryController` / service, `BizTeamProjectTaskController` / service, `BizTeamProjectCommentController` / service, `BizTeamProjectTaskCommentController` / service, and comment-reply service.
+- Added protected read-only task-category page, list, and detail endpoints.
+- Added protected read-only task page, list, and detail endpoints; task detail includes assigned task users.
+- Added protected read-only project-comment page and list endpoints; list includes nested comment replies.
+- Added protected read-only task-comment page, list, and detail endpoints.
+- Added current-user project membership gating for project-scoped reads and direct task/comment id lookups.
+- Kept all task, task-category, project-comment, comment-reply, and task-user write flows deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `app/controller/biz/TeamProjectTaskCategoryController.php`
+- `app/controller/biz/TeamProjectTaskController.php`
+- `app/controller/biz/TeamProjectCommentController.php`
+- `app/controller/biz/TeamProjectTaskCommentController.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\TeamProjectTaskReadService.php`: passed.
+- `php -l app\controller\biz\TeamProjectTaskCategoryController.php`: passed.
+- `php -l app\controller\biz\TeamProjectTaskController.php`: passed.
+- `php -l app\controller\biz\TeamProjectCommentController.php`: passed.
+- `php -l app\controller\biz\TeamProjectTaskCommentController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected team-project task/category/comment read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/bizteamprojecttaskcategory/list`
+  - `GET /biz/bizteamprojecttaskcategory/page`
+  - `GET /biz/bizteamprojecttaskcategory/detail`
+  - `GET /biz/bizteamprojecttask/list`
+  - `GET /biz/bizteamprojecttask/page`
+  - `GET /biz/bizteamprojecttask/detail`
+  - `GET /biz/bizteamprojectcomment/list`
+  - `GET /biz/bizteamprojectcomment/page`
+  - `GET /biz/bizteamprojecttaskcomment/list`
+  - `GET /biz/bizteamprojecttaskcomment/page`
+  - `GET /biz/bizteamprojecttaskcomment/detail`
+- Runtime smoke confirmed project `1903996479133360129`, category count `1`, task count `4`, first task id `2033724343755141122`, task detail user count `2`, project-comment count `2`, task-comment count `10`, and nested project-comment reply array presence.
+- `GET /biz/bizteamprojecttask/list` without a token returned business `code=401`.
+
+### Current Issues
+
+- Team project task/category/comment write routes remain deferred because they mutate category order, task state, task users, comments, replies, and data-change event side effects.
+- Standalone project-comment-reply read routes were not added because the Java controller does not expose them; project-comment list embeds replies instead.
+- Some frontend interactions on the task board still call write routes (`edit`, `user/edit`, `sort/edit`, `add`, `delete`) and need later transactional implementation.
+
+### Next Plan
+
+- Commit and push this team-project task read-only compatibility slice.
+- Continue with the next safe read-only business module or begin a separate write-flow design for team project tasks after review.

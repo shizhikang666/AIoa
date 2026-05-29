@@ -272,6 +272,29 @@ Route::group('biz/bizteamprojectuser', function () {
     Route::get('detail', 'biz.TeamProjectUserController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizteamprojecttaskcategory', function () {
+    Route::get('page', 'biz.TeamProjectTaskCategoryController/page');
+    Route::get('list', 'biz.TeamProjectTaskCategoryController/list');
+    Route::get('detail', 'biz.TeamProjectTaskCategoryController/detail');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/bizteamprojecttask', function () {
+    Route::get('page', 'biz.TeamProjectTaskController/page');
+    Route::get('list', 'biz.TeamProjectTaskController/list');
+    Route::get('detail', 'biz.TeamProjectTaskController/detail');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/bizteamprojectcomment', function () {
+    Route::get('page', 'biz.TeamProjectCommentController/page');
+    Route::get('list', 'biz.TeamProjectCommentController/list');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/bizteamprojecttaskcomment', function () {
+    Route::get('page', 'biz.TeamProjectTaskCommentController/page');
+    Route::get('list', 'biz.TeamProjectTaskCommentController/list');
+    Route::get('detail', 'biz.TeamProjectTaskCommentController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/warehouses', function () {
     Route::get('page', 'biz.WarehousesController/page');
     Route::get('list', 'biz.WarehousesController/list');

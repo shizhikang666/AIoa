@@ -402,6 +402,54 @@ The existing Vue team-project pages call `/biz/bizteamproject/page`, `/biz/bizte
 
 ---
 
+# Public File Change Request: Biz Team Project Task Read-Only Routes
+
+## Request
+
+Register protected read-only team-project task, task-category, project-comment, and task-comment routes in `route/app.php`.
+
+## Reason
+
+The existing Vue team-project detail page calls these routes after login to display kanban columns, task cards, task details, project timeline comments, task comments, and nested project-comment replies. These reads are needed for the project detail screen while all task, category, member, comment, and reply mutations remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/bizteamprojecttaskcategory/page`
+- `GET /biz/bizteamprojecttaskcategory/list`
+- `GET /biz/bizteamprojecttaskcategory/detail`
+- `GET /biz/bizteamprojecttask/page`
+- `GET /biz/bizteamprojecttask/list`
+- `GET /biz/bizteamprojecttask/detail`
+- `GET /biz/bizteamprojectcomment/page`
+- `GET /biz/bizteamprojectcomment/list`
+- `GET /biz/bizteamprojecttaskcomment/page`
+- `GET /biz/bizteamprojecttaskcomment/list`
+- `GET /biz/bizteamprojecttaskcomment/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizteamprojecttask/add` route was added.
+- No `/biz/bizteamprojecttask/edit` route was added.
+- No `/biz/bizteamprojecttask/delete` route was added.
+- No `/biz/bizteamprojecttask/user/edit` route was added.
+- No `/biz/bizteamprojecttaskcategory/add` route was added.
+- No `/biz/bizteamprojecttaskcategory/edit` route was added.
+- No `/biz/bizteamprojecttaskcategory/sort/edit` route was added.
+- No `/biz/bizteamprojecttaskcategory/delete` route was added.
+- No `/biz/bizteamprojectcomment/add` or `/delete` route was added.
+- No `/biz/bizteamprojectcommentreply/add`, `/edit`, or `/delete` route was added.
+- No task/category/comment/reply mutation, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Biz File Relation Read-Only Routes
 
 ## Request
