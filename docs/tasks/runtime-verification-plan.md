@@ -72,6 +72,8 @@ CACHE_PREFIX=
 
 The actual database and Redis passwords must stay only in the ignored local `.env` file and must not be committed.
 
+For legacy Vue login compatibility, `AUTH_SM2_PRIVATE_KEY` may be configured locally so the backend can decrypt SM2 password transport ciphertext. This value is private key material and must remain local/deployment-only.
+
 ## Runtime Configuration Change Rule
 
 The user-designated runtime targets for this project are:
@@ -137,6 +139,8 @@ Then verify:
   - Reusing the same token after logout: `code=401`
 
 The login password was not written to this document and must remain local/user-provided only.
+
+SM2 encrypted login was not exercised in this run because the runtime private key is not stored in the repository. Plaintext local smoke login continues to pass.
 
 ## 2026-05-29 Frontend Token Compatibility Result
 

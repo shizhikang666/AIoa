@@ -4,6 +4,10 @@ namespace app\service\auth;
 
 class PasswordService
 {
+    public function __construct(private readonly Sm2Decryptor $sm2Decryptor = new Sm2Decryptor())
+    {
+    }
+
     public function verify(string $inputPassword, string $storedPassword): bool
     {
         $storedPassword = trim($storedPassword);
@@ -24,9 +28,16 @@ class PasswordService
 
     public function looksLikeSm2Ciphertext(string $inputPassword): bool
     {
-        $inputPassword = trim($inputPassword);
+        return $this->sm2Decryptor->isCiphertext($inputPassword);
+    }
 
-        return preg_match('/^[0-9a-f]{160,}$/i', $inputPassword) === 1;
+    public function decodeTransportPassword(string $inputPassword): ?string
+    {
+        if (!$this->looksLikeSm2Ciphertext($inputPassword)) {
+            return $inputPassword;
+        }
+
+        return $this->sm2Decryptor->decrypt($inputPassword);
     }
 
     private function verifySm3(string $inputPassword, string $storedPassword): bool

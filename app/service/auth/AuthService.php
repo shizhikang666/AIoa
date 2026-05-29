@@ -63,8 +63,9 @@ class AuthService
             throw new RuntimeException('account is disabled', 403);
         }
 
-        if ($this->passwordService->looksLikeSm2Ciphertext($password)) {
-            throw new RuntimeException('SM2 encrypted password requires compatibility adapter', 400);
+        $password = $this->passwordService->decodeTransportPassword($password);
+        if ($password === null) {
+            throw new RuntimeException('SM2 encrypted password requires AUTH_SM2_PRIVATE_KEY runtime configuration', 400);
         }
 
         if (!$this->passwordService->verify($password, (string)($user['PASSWORD'] ?? ''))) {
@@ -108,8 +109,9 @@ class AuthService
             throw new RuntimeException('password is required', 400);
         }
 
-        if ($this->passwordService->looksLikeSm2Ciphertext($password)) {
-            throw new RuntimeException('SM2 encrypted password requires compatibility adapter', 400);
+        $password = $this->passwordService->decodeTransportPassword($password);
+        if ($password === null) {
+            throw new RuntimeException('SM2 encrypted password requires AUTH_SM2_PRIVATE_KEY runtime configuration', 400);
         }
 
         $payload = $this->currentPayload($request);

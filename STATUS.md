@@ -1318,3 +1318,43 @@ Agent: api-agent
 - Run Composer/ThinkPHP/PHP lint checks.
 - Run token-based HTTP smoke checks for representative `/sys/role/*` routes.
 - Commit and push if checks pass.
+
+## 2026-05-29 - merge-agent - Auth SM2 Transport Compatibility
+
+### Completed Content
+
+- Analyzed old Vue login SM2 transport and Java decrypt-then-SM3 behavior.
+- Added an optional pure PHP SM2 decrypt adapter for C1C3C2 ciphertext.
+- Updated password verification flow so SM2-looking passwords are decrypted only when `AUTH_SM2_PRIVATE_KEY` is configured at runtime.
+- Preserved plaintext local login support for smoke testing.
+- Documented that private key material must stay out of Git and tracked docs.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/auth/Sm2Decryptor.php`
+- `app/service/auth/PasswordService.php`
+- `app/service/auth/AuthService.php`
+- `docs/api/auth-sm2-compatibility.md`
+- `docs/tasks/runtime-verification-plan.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Plaintext local login smoke still returns `code=200` and a 64-character token.
+- SM2-looking ciphertext without `AUTH_SM2_PRIVATE_KEY` returns `code=400` with a clear runtime configuration message.
+
+### Current Issues
+
+- SM2 encrypted browser login still needs runtime testing with a local/deployment-only private key.
+- The legacy Java key pair should be reviewed and likely rotated before production.
+
+### Next Plan
+
+- Run baseline checks and plaintext login smoke.
+- Confirm no private key or password was committed.
+- Commit and push if checks pass.

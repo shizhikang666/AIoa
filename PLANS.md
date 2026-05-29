@@ -857,6 +857,41 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 
 Runtime smoke should cover role page/detail/selectors/own* routes with a bearer token and confirm no-token requests return `401`.
 
+## Current Plan: merge-agent Phase - Auth SM2 Transport Compatibility
+
+Status: in progress on 2026-05-29.
+
+### Current Goal
+
+Add a safe optional SM2 decrypt adapter for legacy Vue login password transport without committing private key material.
+
+### Involved Files
+
+- `app/service/auth/Sm2Decryptor.php`
+- `app/service/auth/PasswordService.php`
+- `app/service/auth/AuthService.php`
+- `docs/api/auth-sm2-compatibility.md`
+- `docs/tasks/runtime-verification-plan.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### Risks
+
+- Password transport compatibility needs private key material at runtime. The key must be supplied only through local/secure environment configuration and must never be committed.
+- Pure PHP SM2 math relies on `bcmath`; runtime checks must confirm the extension is loaded.
+- Existing plaintext local smoke tests must continue to pass.
+
+### Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+Runtime smoke must confirm plaintext login still succeeds. SM2 encrypted login should be tested only when `AUTH_SM2_PRIVATE_KEY` is configured locally.
+
 Status: in progress on 2026-05-29.
 
 ### Current Goal
