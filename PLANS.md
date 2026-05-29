@@ -1792,3 +1792,53 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - Route is protected by `AuthMiddleware`.
 - Missing or invalid config returns a runtime default object without writing to the database.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Completed Plan: merge-agent - Dev Monitor Server Info Read-Only Compatibility
+
+Status: completed on 2026-05-29 after implementation, route registration, baseline checks, runtime HTTP smoke tests, and secret scan.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only server monitor information endpoint without executing external system commands.
+
+### 2. Modules In Scope
+
+- dev monitor server info
+- Java `DevMonitorController.serverInfo` compatibility
+- safe PHP runtime and disk information
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/MonitorService.php`
+- `app/controller/dev/MonitorController.php`
+- `route/app.php`
+- `docs/api/dev-monitor-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java `networkInfo` runs OS commands and waits during sampling; it must remain deferred.
+- Server monitor data can expose host/runtime information, so the route must stay authenticated.
+- PHP runtime cannot provide all Java/JVM/OSHI metrics without extensions or system commands; unavailable values must be safe placeholders.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\dev\MonitorService.php
+php -l app\controller\dev\MonitorController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `GET /dev/monitor/serverInfo` is added.
+- No `/dev/monitor/networkInfo` route is added.
+- No external system commands are executed.
+- Route is protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

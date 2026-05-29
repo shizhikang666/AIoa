@@ -748,3 +748,34 @@ The existing Vue login flow and process configuration page call `/sys/sysConfig/
 - `php think route:list` must list the added route.
 - Token requests should return `code=200`.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Dev Monitor Server Info Read-Only Route
+
+## Request
+
+Register a protected read-only server monitor route in `route/app.php`.
+
+## Reason
+
+The existing Vue monitor page calls `/dev/monitor/serverInfo` after login to load runtime, memory, storage, server, and JVM-shaped information. This read is needed for frontend compatibility, while network sampling and external command execution remain disabled.
+
+## Applied Change
+
+`merge-agent` registered the following protected route:
+
+- `GET /dev/monitor/serverInfo`
+
+## Explicit Exclusions
+
+- No `/dev/monitor/networkInfo` route was added.
+- No shell commands, `netstat`, or `ifconfig` calls were added.
+- No long-running network sampling behavior was added.
+- No database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return `code=200`.
+- Requests without token should return `code=401`.

@@ -168,6 +168,10 @@ Route::group('dev/job', function () {
     Route::get('getActionClass', 'dev.JobController/getActionClass');
 })->middleware(AuthMiddleware::class);
 
+Route::group('dev/monitor', function () {
+    Route::get('serverInfo', 'dev.MonitorController/serverInfo');
+})->middleware(AuthMiddleware::class);
+
 Route::group('dev/log', function () {
     Route::get('page', 'dev.LogController/page');
     Route::get('detail', 'dev.LogController/detail');

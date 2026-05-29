@@ -1916,3 +1916,46 @@ Agent: api-agent
 
 - Commit and push this sys config read-only compatibility slice.
 - Continue with `/dev/monitor/serverInfo` read-only compatibility, using explorer findings, while keeping `networkInfo` deferred.
+
+## 2026-05-29 - merge-agent - Dev Monitor Server Info Read-Only Compatibility
+
+### Completed Content
+
+- Used multi-agent explorer output to confirm the safe monitor scope before implementation.
+- Analyzed Java `DevMonitorController`, `DevMonitorServiceImpl`, `DevMonitorServerResult`, and frontend `monitorApi.js`.
+- Added protected read-only `/dev/monitor/serverInfo` compatibility route.
+- Returned Java monitor group keys for CPU, memory, storage, server, and JVM-shaped runtime data.
+- Used only safe PHP built-ins and left `/dev/monitor/networkInfo` deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/dev/MonitorService.php`
+- `app/controller/dev/MonitorController.php`
+- `route/app.php`
+- `docs/api/dev-monitor-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\dev\MonitorService.php`: passed.
+- `php -l app\controller\dev\MonitorController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected `/dev/monitor/serverInfo` route.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for `GET /dev/monitor/serverInfo`.
+- Runtime HTTP smoke confirmed monitor payload includes `devMonitorCpuInfo` and `devMonitorMemoryInfo`.
+- Protected `GET /dev/monitor/serverInfo` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- CPU usage, physical core count, JVM start time, and JVM run time are safe placeholders because PHP cannot provide the Java OSHI/JVM metrics without extensions or system commands.
+- `/dev/monitor/networkInfo` remains deferred because the Java implementation uses platform commands and sampling delay.
+
+### Next Plan
+
+- Commit and push this monitor read-only compatibility slice.
+- Continue with the next safe read-only compatibility group, likely generator metadata reads, using the previously completed explorer findings.
