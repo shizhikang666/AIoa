@@ -1449,3 +1449,53 @@ Agent: api-agent
 
 - Commit and push this index read-only compatibility slice.
 - Continue frontend compatibility by scanning remaining old API modules for read-only endpoints with high page-load impact.
+
+## 2026-05-29 - merge-agent - System Resource Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old Vue module/menu/button API usage and Java `SysModuleController`, `SysMenuController`, and `SysButtonController`.
+- Added read-only compatibility for module page/detail, menu page/tree/detail/selectors, and button page/detail.
+- Registered protected `/sys/module/*`, `/sys/menu/*`, and `/sys/button/*` GET routes behind `AuthMiddleware`.
+- Kept module/menu/button add, edit, delete, menu change-module, and grant mutations deferred.
+- Documented the locked route-file change and endpoint behavior.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/sys/ResourceService.php`
+- `app/controller/sys/ModuleController.php`
+- `app/controller/sys/MenuController.php`
+- `app/controller/sys/ButtonController.php`
+- `route/app.php`
+- `docs/api/resource-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected system resource read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /sys/module/page`
+  - `GET /sys/module/detail`
+  - `GET /sys/menu/page`
+  - `GET /sys/menu/tree`
+  - `GET /sys/menu/moduleSelector`
+  - `GET /sys/menu/menuTreeSelector`
+  - `GET /sys/button/page`
+  - `GET /sys/button/detail`
+- `GET /sys/module/page` without a token returned `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+
+### Current Issues
+
+- System resource write endpoints remain deferred because they mutate menu/button permission state and need validation/audit rules.
+- The old field management API is not implemented yet; no matching Java controller was found in the scanned system resource package.
+
+### Next Plan
+
+- Commit and push this resource read-only compatibility slice.
+- Continue frontend compatibility scanning for the next high-impact read-only API group before considering safe write endpoints.

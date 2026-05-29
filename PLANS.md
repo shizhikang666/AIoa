@@ -1307,3 +1307,52 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - No schedule add/delete, all-message-mark-read, or SSE routes are added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Active Plan: merge-agent - System Resource Read-Only Compatibility
+
+Status: in progress on 2026-05-29.
+
+### 1. Current Goal
+
+Add old-frontend-compatible read-only system resource endpoints for modules, menus, and buttons so RBAC/menu management pages can load existing data.
+
+### 2. Modules In Scope
+
+- system resource read-only API compatibility
+- module pagination/detail
+- menu pagination/tree/detail/selectors
+- button pagination/detail
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/sys/ResourceService.php`
+- `app/controller/sys/ModuleController.php`
+- `app/controller/sys/MenuController.php`
+- `app/controller/sys/ButtonController.php`
+- `route/app.php`
+- `docs/api/resource-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so this route change must stay documented and limited to read-only endpoints.
+- Resource write routes can affect role grants, menu permissions, and frontend routing; they remain deferred.
+- Tree payloads must stay compatible enough for old Vue selectors while preserving original database field meanings.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/sys/module/*`, `/sys/menu/*`, and `/sys/button/*` routes are added.
+- No module/menu/button add, edit, delete, change-module, or grant mutation routes are added.
+- Routes are protected by `AuthMiddleware`.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.

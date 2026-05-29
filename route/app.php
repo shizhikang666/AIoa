@@ -91,6 +91,24 @@ Route::group('sys/role', function () {
     Route::get('userSelector', 'sys.RoleController/userSelector');
 })->middleware(AuthMiddleware::class);
 
+Route::group('sys/module', function () {
+    Route::get('page', 'sys.ModuleController/page');
+    Route::get('detail', 'sys.ModuleController/detail');
+})->middleware(AuthMiddleware::class);
+
+Route::group('sys/menu', function () {
+    Route::get('page', 'sys.MenuController/page');
+    Route::get('tree', 'sys.MenuController/tree');
+    Route::get('detail', 'sys.MenuController/detail');
+    Route::get('moduleSelector', 'sys.MenuController/moduleSelector');
+    Route::get('menuTreeSelector', 'sys.MenuController/menuTreeSelector');
+})->middleware(AuthMiddleware::class);
+
+Route::group('sys/button', function () {
+    Route::get('page', 'sys.ButtonController/page');
+    Route::get('detail', 'sys.ButtonController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

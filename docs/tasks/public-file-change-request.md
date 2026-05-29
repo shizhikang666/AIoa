@@ -394,3 +394,42 @@ The existing Vue homepage and message panel call `/sys/index/*` endpoints after 
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: System Resource Read-Only Routes
+
+## Request
+
+Register protected read-only system resource routes in `route/app.php`.
+
+## Reason
+
+The existing Vue system resource management pages call `/sys/module/*`, `/sys/menu/*`, and `/sys/button/*` endpoints after login to load modules, menu trees, and button lists. These read-only routes are needed before write/grant behavior is implemented.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /sys/module/page`
+- `GET /sys/module/detail`
+- `GET /sys/menu/page`
+- `GET /sys/menu/tree`
+- `GET /sys/menu/detail`
+- `GET /sys/menu/moduleSelector`
+- `GET /sys/menu/menuTreeSelector`
+- `GET /sys/button/page`
+- `GET /sys/button/detail`
+
+## Explicit Exclusions
+
+- No module add, edit, or delete routes were added.
+- No menu add, edit, delete, or change-module routes were added.
+- No button add, edit, or delete routes were added.
+- No role/resource grant mutations, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
