@@ -1119,3 +1119,55 @@ Agent: api-agent
 
 - Commit and push the non-sensitive auth smoke test record.
 - Continue with frontend/API compatibility checks against the running local backend.
+
+## 2026-05-29 - merge-agent - Frontend Token Route Compatibility
+
+### Completed Content
+
+- Ran frontend-style API smoke checks with a valid bearer token.
+- Found token-only requests failed with `missing userId` on current-user-dependent user center and workflow routes.
+- Confirmed the cause: controllers expected `auth_payload` from middleware, but the route groups did not attach `AuthMiddleware`.
+- Added `AuthMiddleware` to:
+  - `sys/userCenter`
+  - `biz/task`
+  - `biz/process`
+- Kept the fix limited to route middleware wiring; no Controller or Service business logic was changed.
+- Documented the public route file change in `docs/tasks/public-file-change-request.md`.
+
+### Modified Files
+
+- `route/app.php`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/runtime-verification-plan.md`
+- `STATUS.md`
+
+### Test Results
+
+- Before fix:
+  - `GET /sys/userCenter/loginOrgTree` with token: `400 missing userId`.
+  - `GET /sys/userCenter/loginPositionInfo` with token: `400 missing userId`.
+  - `GET /biz/task/count` with token: `400 missing userId`.
+  - `GET /biz/task/page` with token: `400 missing userId`.
+  - `GET /biz/process/page` with token: `400 missing userId`.
+- After fix:
+  - `GET /sys/userCenter/loginOrgTree` with token: `code=200`.
+  - `GET /sys/userCenter/loginPositionInfo` with token: `code=200`.
+  - `GET /biz/task/count` with token: `code=200`.
+  - `GET /biz/task/page` with token: `code=200`.
+  - `GET /biz/process/page` with token: `code=200`.
+  - Protected route checks without token return `code=401 unauthenticated`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed.
+- PHP lint for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with Git line-ending normalization warnings only.
+
+### Current Issues
+
+- Full browser-based old frontend verification is still pending.
+- Mutation workflow endpoints are still intentionally deferred.
+
+### Next Plan
+
+- Commit and push this route middleware compatibility fix.
+- Continue frontend-agent verification for old frontend request/response assumptions.

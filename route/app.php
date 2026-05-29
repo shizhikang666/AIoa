@@ -8,6 +8,7 @@
 // +----------------------------------------------------------------------
 // | Author: liu21st <liu21st@gmail.com>
 // +----------------------------------------------------------------------
+use app\middleware\AuthMiddleware;
 use think\facade\Route;
 
 Route::get('think', function () {
@@ -31,7 +32,7 @@ Route::group('sys/userCenter', function () {
     Route::get('loginPositionInfo', 'sys.UserCenterController/loginPositionInfo');
     Route::post('getUserListByIdList', 'sys.UserCenterController/getUserListByIdList');
     Route::post('getPositionListByIdList', 'sys.UserCenterController/getPositionListByIdList');
-});
+})->middleware(AuthMiddleware::class);
 
 Route::group('sys/org', function () {
     Route::get('tree', 'sys.OrgController/tree');
@@ -55,10 +56,10 @@ Route::group('biz/task', function () {
     Route::get('list', 'biz.TaskController/list');
     Route::get('page', 'biz.TaskController/page');
     Route::get('history/page', 'biz.TaskController/historyPage');
-});
+})->middleware(AuthMiddleware::class);
 
 Route::group('biz/process', function () {
     Route::get('page', 'biz.ProcessController/page');
     Route::get('detail', 'biz.ProcessController/detail');
     Route::post('variable', 'biz.ProcessController/variable');
-});
+})->middleware(AuthMiddleware::class);

@@ -198,3 +198,40 @@ Route::group('biz/process', function () {
 ## Approval Status
 
 Applied by merge-agent during integration after api-agent merge. Only the listed read-only workflow query routes were registered.
+
+---
+
+# Public File Change Request: Auth Middleware On Token-Owned Routes
+
+## Request
+
+Attach `AuthMiddleware` to route groups that need the current login user from the bearer token.
+
+## Reason
+
+Frontend compatibility smoke testing found that token-only requests failed with `missing userId` on routes whose controllers call `currentUserId()`:
+
+- `GET /sys/userCenter/loginOrgTree`
+- `GET /sys/userCenter/loginPositionInfo`
+- `GET /biz/task/count`
+- `GET /biz/task/page`
+- `GET /biz/process/page`
+
+The controllers already support reading `auth_payload` from request middleware, but the route groups were not using `AuthMiddleware`, so the payload was never attached.
+
+## Applied Change
+
+`merge-agent` added `AuthMiddleware` to these route groups:
+
+- `sys/userCenter`
+- `biz/task`
+- `biz/process`
+
+No new write routes were added. No Controller or Service business logic was changed.
+
+## Verification
+
+- Token-only requests to the affected routes now return `code=200`.
+- Requests without token return `code=401 unauthenticated`.
+- `php think route:list` passes.
+- PHP lint passes.

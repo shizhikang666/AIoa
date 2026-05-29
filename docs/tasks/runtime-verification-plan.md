@@ -138,6 +138,21 @@ Then verify:
 
 The login password was not written to this document and must remain local/user-provided only.
 
+## 2026-05-29 Frontend Token Compatibility Result
+
+Initial frontend-style token-only smoke checks found that several routes returned `missing userId` because they required the current user id but did not have `AuthMiddleware` attached.
+
+The route groups `sys/userCenter`, `biz/task`, and `biz/process` now use `AuthMiddleware`, so token payload is available to the controllers.
+
+After the fix:
+
+- `GET /sys/userCenter/loginOrgTree`: `code=200` with token.
+- `GET /sys/userCenter/loginPositionInfo`: `code=200` with token.
+- `GET /biz/task/count`: `code=200` with token.
+- `GET /biz/task/page`: `code=200` with token.
+- `GET /biz/process/page`: `code=200` with token.
+- The same protected routes return `code=401` without token.
+
 ## Stop Conditions
 
 - Do not import SQL into production.
