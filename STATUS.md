@@ -1026,3 +1026,61 @@ Agent: api-agent
 - Run non-destructive ThinkPHP checks after the Redis cache configuration update.
 - Commit and push the runtime readiness update if checks pass.
 - Wait for explicit confirmation before starting MySQL, creating a database, importing `oa2026.sql`, or writing `.env`.
+
+## 2026-05-29 - merge-agent - Local Database And Redis Runtime
+
+### Completed Content
+
+- Accepted the user-designated long-term local runtime database configuration for this project.
+- Confirmed actual secrets are stored only in ignored local `.env`; no password is committed.
+- Confirmed `F:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe` is usable.
+- Confirmed MySQL server version `8.0.45`.
+- Created local database `phpoa20026`.
+- Imported `F:\AI\projects\testJava\OA\oa2026.sql` into `phpoa20026`.
+- Confirmed imported table count is 121.
+- Confirmed key table counts:
+  - `sys_user`: 121
+  - `sys_org`: 55
+  - `sys_position`: 79
+  - `sys_role`: 32
+  - `sys_resource`: 272
+  - `sys_relation`: 3894
+  - `act_ru_task`: 77
+  - `act_hi_procinst`: 2915
+- Confirmed Redis `PING` with authentication returns `PONG`.
+- Confirmed ThinkPHP can read `sys_user` and write/read/delete a Redis cache probe.
+- Started ThinkPHP dev server at `http://127.0.0.1:8000`.
+- Ran HTTP smoke checks for captcha, organization tree, user page, task count/page, and process page.
+
+### Modified Files
+
+- `config/cache.php`
+- `docs/tasks/runtime-verification-plan.md`
+- `STATUS.md`
+- `.env` local only, ignored by Git and not committed
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed.
+- `php runtime/probe-runtime.php`: passed with DB and Redis probes.
+- HTTP smoke checks returned `code=200` for:
+  - `GET /auth/b/getPicCaptcha`
+  - `GET /sys/org/tree`
+  - `GET /sys/user/page?pageNo=1&pageSize=2`
+  - `GET /biz/task/count?userId=1894269031672111106`
+  - `GET /biz/task/page?userId=1894269031672111106&pageNo=1&pageSize=2`
+  - `GET /biz/process/page?userId=1894269031672111106&pageNo=1&pageSize=2`
+
+### Current Issues
+
+- `startServer1.bat` was not found under `F:\project\socket\AI\testPhp\files\tools\mysql`, but MySQL and Redis were already running and reachable.
+- Real login flow still needs an explicit user-provided test account/password or explicit approval to test an imported account.
+- Online realtime production data sync remains deferred until the project is complete and accepted.
+
+### Next Plan
+
+- Commit and push the non-secret runtime configuration/documentation update.
+- Keep `.env`, import wrapper, probe scripts, and logs local and ignored.
+- Continue with login/API compatibility only after a safe test account is confirmed.

@@ -31,7 +31,7 @@ Read-only SQL reference:
 Do not run these commands against production.
 
 1. Start or prepare a local MySQL instance.
-2. Create an isolated development database, for example `aioa_dev`.
+2. Create an isolated development database named `phpoa20026`.
 3. Import the SQL dump into that local database.
 4. Configure ThinkPHP database environment variables in a local `.env` file.
 5. Run the smoke checks below.
@@ -39,8 +39,8 @@ Do not run these commands against production.
 Example commands to run manually after confirming MySQL credentials:
 
 ```powershell
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS aioa_dev DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
-mysql -u root -p aioa_dev < F:\AI\projects\testJava\OA\oa2026.sql
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS phpoa20026 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+mysql -u root -p phpoa20026 < F:\AI\projects\testJava\OA\oa2026.sql
 ```
 
 ## Local Environment Keys
@@ -54,20 +54,36 @@ DB_DRIVER=mysql
 DB_TYPE=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_NAME=aioa_dev
+DB_NAME=phpoa20026
 DB_USER=root
-DB_PASS=
+DB_PASS=<local-only>
 DB_CHARSET=utf8mb4
 
 CACHE_DRIVER=redis
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
-REDIS_PASSWORD=
+REDIS_PASSWD=<local-only>
 REDIS_DB=0
+REDIS_EXPIRE=11
 CACHE_PREFIX=
 ```
 
 `CACHE_PREFIX` should stay empty unless the token key convention is adjusted, because `TokenService` already writes keys with the `oa:auth:` prefix.
+
+The actual database and Redis passwords must stay only in the ignored local `.env` file and must not be committed.
+
+## Runtime Configuration Change Rule
+
+The user-designated runtime targets for this project are:
+
+- MySQL host: `127.0.0.1`
+- MySQL port: `3306`
+- MySQL database: `phpoa20026`
+- Redis host: `127.0.0.1`
+- Redis port: `6379`
+- Redis expire setting: `11`
+
+If a later phase needs to change the database name, database account, Redis host, Redis port, Redis password variable, or Redis expiration setting, stop and ask the user to confirm before applying the change.
 
 ## Smoke Checks
 
@@ -100,6 +116,19 @@ Then verify:
 - `GET /biz/task/count`
 - `GET /biz/task/page`
 - `GET /biz/process/page`
+
+## 2026-05-29 Local Verification Result
+
+- MySQL client used: `F:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe`.
+- MySQL server version: `8.0.45`.
+- Target database: `phpoa20026`.
+- Imported SQL source: `F:\AI\projects\testJava\OA\oa2026.sql`.
+- Imported table count: 121.
+- Redis checked with `F:\project\socket\AI\testPhp\files\tools\redis\redis-cli.exe`.
+- ThinkPHP DB probe returned `sys_user` count 121.
+- ThinkPHP Redis probe returned `ok`.
+- HTTP smoke server: `http://127.0.0.1:8000`.
+- HTTP smoke checks returned `code=200` for captcha, organization tree, user page, task count/page, and process page.
 
 ## Stop Conditions
 
