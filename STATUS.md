@@ -38,3 +38,39 @@
 ### Next Plan
 
 - Phase 2 should choose the ThinkPHP workflow runtime strategy before any Controller or Service implementation.
+
+## 2026-05-29 - workflow-agent - Phase 2 Runtime Strategy
+
+### Completed Content
+
+- Documented the recommended workflow runtime strategy.
+- Chose a transitional ThinkPHP runtime that keeps existing Camunda `act_*` tables read-compatible.
+- Mapped first read-only workflow API batch, config batch, and deferred mutation batch.
+- Mapped Java delegate side effects to future explicit PHP services.
+- Kept Phase 2 documentation-only and did not modify routes, models, services, or Java source.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/workflow-runtime-design.md`
+- `docs/tasks/workflow-api-map.md`
+- `docs/tasks/workflow-side-effect-map.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed, ThinkPHP version `8.1.4`.
+- `php think route:list`: passed, current route baseline only contains `think` and `hello/<name>`.
+- PHP lint for `app`, `config`, and `route`: passed.
+
+### Current Problems
+
+- Runtime workflow code is still blocked until db/auth/user foundations are merged and tested.
+- Route registration still requires a public file change request before modifying `route/app.php`.
+- Approval mutation and side effects remain high risk and must be implemented process by process.
+
+### Next Plan
+
+- Start workflow code with read-only query services only after db-agent model coverage for `act_*` tables is confirmed.
+- Defer approve/reject and process start routes until test-agent has baseline route/task checks.

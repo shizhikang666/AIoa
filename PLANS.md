@@ -74,3 +74,52 @@ php think test
 - Do not modify `composer.json`, `composer.lock`, `config/app.php`, `config/database.php`, `route/app.php`, `.env`, `.env.example`, or `app/common.php`.
 - Do not modify auth-agent or user-agent paths.
 - Do not implement workflow Controller, Service, Model, or route in this phase.
+
+## Active Plan: Phase 2 - Workflow Runtime Strategy
+
+Date: 2026-05-29
+
+### 1. Current Goal
+
+Choose and document the safest ThinkPHP workflow runtime strategy before implementing workflow business code.
+
+### 2. Module Scope
+
+- Workflow runtime migration strategy
+- Workflow API migration order
+- Approval side-effect replacement map
+- Existing `act_*` table compatibility
+
+### 3. Files To Modify
+
+Only workflow-agent worktree files:
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/workflow-runtime-design.md`
+- `docs/tasks/workflow-api-map.md`
+- `docs/tasks/workflow-side-effect-map.md`
+
+### 4. Risks
+
+- Direct Camunda execution is Java-specific and cannot be run inside ThinkPHP.
+- Full workflow runtime implementation is high risk without merged auth/user/db foundations.
+- Delegate side effects touch sales, finance, warehouse, procurement, and personnel modules.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git status --short --branch
+```
+
+### 6. Acceptance Criteria
+
+- A workflow runtime strategy is documented.
+- API migration batches are documented.
+- Java delegate side effects are mapped to future PHP services.
+- No Java source files are modified.
+- No ThinkPHP workflow code, routes, models, or database changes are added.
