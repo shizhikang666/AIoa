@@ -1,4 +1,4 @@
-﻿# IMPLEMENT.md
+﻿锘? IMPLEMENT.md
 
 ## db-agent Implementation Flow
 
@@ -39,6 +39,42 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 
 The following files are locked for db-agent by default:
 The following files are locked for auth-agent by default:
+# IMPLEMENT.md
+
+## user-agent Implementation Flow
+
+Every user-agent phase must follow:
+
+1. Read `AGENTS.md`, `PLANS.md`, `IMPLEMENT.md`, and `STATUS.md`.
+2. Check `git status --short --branch`.
+3. Analyze Java source under `F:\AI\projects\testJava\OA` as read-only input.
+4. Analyze the current ThinkPHP worktree under `F:\AI\projects\testJava\OA-user`.
+5. Write the smallest safe change set.
+6. Avoid locked public files unless a change request is written and confirmed.
+7. Run baseline checks.
+8. Commit with a message containing `user-agent`.
+9. Report modified files, tests, current issues, and next plan.
+
+## Scope
+
+user-agent owns:
+
+- users
+- departments and organizations
+- positions
+- user-center profile APIs
+- user selectors and organization trees
+
+user-agent must not own:
+
+- login, token, RBAC session state, or menu permissions already handled by auth-agent
+- workflow engine logic
+- frontend adaptation
+- database schema changes
+
+## Public File Rule
+
+The following files are locked:
 
 - `composer.json`
 - `composer.lock`
@@ -96,3 +132,4 @@ auth-agent must not implement:
 - Store Token/session state with Redis-compatible key prefix `oa:auth:`.
 - Do not commit Redis credentials, API keys, passwords, or plaintext secrets.
 - Token payload must not contain plaintext password or sensitive identity data.
+If a route or config change is needed, document it in `docs/tasks/public-file-change-request.md` and wait for confirmation.
