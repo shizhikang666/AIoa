@@ -2887,3 +2887,52 @@ git diff --check
 - `/sys/position/page`, `/sys/position/list`, and `/sys/position/detail` responses include `id`, `orgId`, `name`, `category`, and `sortCode`.
 - Existing uppercase SQL fields remain present for compatibility.
 - No route, Controller, database, Java source, or write endpoint is changed.
+
+## Completed Plan: api-agent/frontend-agent - Dev Message SSE Compatibility Review
+
+Status: completed on 2026-06-01 as a planning-only slice. Route implementation is pending public-file approval or merge-agent handling.
+
+Date: 2026-06-01
+
+### 1. Current Goal
+
+Review the missing `/dev/message/createSseConnect` browser-console 404 and define the smallest safe ThinkPHP compatibility path without touching locked route files in this slice.
+
+### 2. Modules In Scope
+
+- Dev message SSE route compatibility analysis
+- Frontend EventSource caller analysis
+- Public route-change request documentation
+- Status and progress tracking
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/api/dev-message-sse-compat-plan.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so route registration must not be changed without an explicit request record.
+- Java uses Spring `SseEmitter`; ThinkPHP needs a PHP stream response and long-running connection behavior.
+- Full push/broadcast behavior touches workflow and message mutation side effects, so first implementation must stay connection/heartbeat-only.
+- EventSource browser behavior should be tested from the copied frontend after the route is implemented.
+
+### 5. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Java source remains read-only.
+- No `route/app.php` edit is made in this slice.
+- The Java controller/service/SSE-provider behavior is summarized.
+- The copied frontend EventSource callers are identified.
+- A public-file change request records the proposed protected route.

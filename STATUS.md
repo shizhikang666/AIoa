@@ -3098,3 +3098,39 @@ Agent: api-agent
 - Review Java message/SSE behavior and decide whether to add a safe `/dev/message/createSseConnect` compatibility route.
 - Start small api-agent read-only slices for `biz/saleproject` and `biz/customer`.
 - Keep final online realtime data sync deferred until the full system is complete and the user confirms the plan.
+
+## 2026-06-01 - api-agent/frontend-agent - Dev Message SSE Compatibility Review
+
+### Completed Content
+
+- Reviewed the Java SSE route behind `/dev/message/createSseConnect` from the read-only Java OA source.
+- Confirmed the copied Vue frontend opens the same route from the layout message components with a bearer-token EventSource header.
+- Documented the compatible first-slice behavior for ThinkPHP: authenticated `text/event-stream`, initial `code = 0` client id event, and lightweight heartbeat.
+- Added a public-file change request because implementing the route requires editing locked file `route/app.php`.
+- Kept this slice planning-only; no route, Controller, Service, frontend, database, Java source, Composer, or `.env` file was changed.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/api/dev-message-sse-compat-plan.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; SSE route remains intentionally absent because this slice did not edit `route/app.php`.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- `/dev/message/createSseConnect` remains unimplemented until the public-file route request is approved or handled by merge-agent.
+- Full realtime message/task push behavior remains deferred because it crosses message mutation, workflow, and later Redis/pub-sub design.
+
+### Next Plan
+
+- After approval, add the minimal SSE route/controller behavior and browser-smoke the layout console.
+- In parallel-safe order, continue api-agent read-only slices for `biz/saleproject` and `biz/customer`.
+- Keep final online realtime data sync deferred until the full system is complete and the user confirms the sync plan.

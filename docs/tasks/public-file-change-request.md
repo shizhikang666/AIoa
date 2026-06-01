@@ -363,6 +363,65 @@ The existing Vue user-center API calls workbench, unread message, and process co
 
 ---
 
+# Public File Change Request: Dev Message SSE Compatibility Route
+
+## Request
+
+Register a protected SSE compatibility route in `route/app.php`.
+
+## Reason
+
+The copied Vue frontend opens an EventSource connection to `/dev/message/createSseConnect` from the layout message components after login. The Java OA project exposes the same path from `SysIndexController` and delegates to the dev SSE provider. The current ThinkPHP route table does not expose this path, so the browser logs a 404 even though the rest of the page can load.
+
+## Proposed Route
+
+Do not execute this change until approved or assigned to merge-agent.
+
+```php
+Route::get('createSseConnect', 'dev.MessageController/createSseConnect');
+```
+
+Target route group:
+
+```php
+Route::group('dev/message', function () {
+    Route::get('page', 'dev.MessageController/page');
+    Route::get('detail', 'dev.MessageController/detail');
+    Route::get('createSseConnect', 'dev.MessageController/createSseConnect');
+})->middleware(AuthMiddleware::class);
+```
+
+## Expected First-Slice Behavior
+
+- Authenticate using the existing bearer-token middleware.
+- Accept optional `clientId` from the query string.
+- Return `text/event-stream`.
+- Send an initial compatible event with `code = 0` and a generated or reused client id.
+- Keep the connection alive with a lightweight heartbeat.
+
+## Explicit Exclusions
+
+- No frontend file change in this request.
+- No message broadcast route.
+- No manual send-message route.
+- No mark-read mutation.
+- No workflow push side effects.
+- No Redis pub/sub fanout in this first slice.
+- No database schema change, Java source change, `.env`, Composer file, or public config change.
+- No production online realtime-data sync implementation yet.
+
+## Verification
+
+- `php think route:list` must list `dev/message/createSseConnect`.
+- Token EventSource requests should return `text/event-stream`.
+- Requests without token should return `code=401` or be rejected by existing auth middleware.
+
+## Approval Status
+
+Pending. The route has not been added in this planning slice.
+
+---
+
 # Public File Change Request: Biz Team Project Read-Only Routes
 
 ## Request
