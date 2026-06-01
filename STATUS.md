@@ -2846,3 +2846,32 @@ Agent: api-agent
 
 - Commit and push this return-order read-only compatibility slice.
 - Continue with the next safe read-only business module, likely sale-project read endpoints after customer encryption strategy is handled, or another non-encrypted support module.
+
+## 2026-06-01 - merge-agent - Progress Dashboard
+
+### Completed Content
+
+- Reviewed current project rules and repository status.
+- Counted current ThinkPHP Models, Controllers, Services, API docs, database docs, and route entries.
+- Counted Java original Controllers, frontend API files, and SQL table definitions as comparison baselines.
+- Created a persistent progress dashboard for future real-time tracking.
+
+### Modified Files
+
+- `STATUS.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- Documentation-only update.
+- `git status --short --branch`: checked before editing and was clean/synced.
+
+### Current Issues
+
+- Overall production-ready completion is estimated at about 45%; read-only API compatibility is further along than write/workflow/frontend completion.
+- Business write flows, workflow side effects, frontend adaptation, deployment, and final online data sync remain the main work.
+
+### Next Plan
+
+- Keep updating `docs/tasks/refactor-progress-dashboard.md` after each completed slice.
+- Generate an API gap map from remaining frontend API files before selecting the next read-only business endpoint.
