@@ -2777,3 +2777,56 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - Routes are protected by `AuthMiddleware`.
 - `query` returns `productList` rows for each return order.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+## Completed Plan: frontend-agent - Frontend API Gap Map
+
+Status: completed on 2026-06-01 after static frontend API scan, gap-map documentation, dashboard update, and baseline ThinkPHP checks.
+
+Date: 2026-06-01
+
+### 1. Current Goal
+
+Generate a frontend API gap map after the Vue baseline import and first login smoke test.
+
+This phase documents which copied frontend API wrappers already match ThinkPHP routes, which wrappers are still missing, and which endpoints are intentionally deferred because they are write-heavy or require workflow/finance/warehouse side effects.
+
+### 2. Modules In Scope
+
+- frontend-agent API compatibility analysis
+- api-agent follow-up planning
+- docs-agent status tracking
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Inputs
+
+- Copied frontend API files under `snowy-admin-web/src/api`
+- Current ThinkPHP route output from `php think route:list`
+- Existing API docs under `docs/api`
+
+### 5. Risks
+
+- Some frontend API wrappers build endpoint names dynamically, so the gap map is a planning aid rather than a perfect compiler.
+- Write endpoints must not be implemented just because the frontend contains wrappers for them.
+- Missing field and dictionary display problems may require backend response-shape work even when the route exists.
+
+### 6. Test Commands
+
+```powershell
+composer dump-autoload
+php think
+php think route:list
+git status --short --branch
+```
+
+### 7. Acceptance Criteria
+
+- Java source project remains read-only.
+- No business Controller, Service, Model, or route implementation is changed in this phase.
+- `docs/tasks/api-gap-map.md` lists implemented, missing, and deferred frontend endpoint groups.
+- `STATUS.md` records test results and next priorities.
+- Commit message contains `frontend-agent`.

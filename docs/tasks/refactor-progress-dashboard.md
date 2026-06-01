@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-01 10:30 +08:00
+Last updated: 2026-06-01 11:10 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -24,10 +24,14 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | API compatibility docs | 38 | Stored under `docs/api` |
 | Database docs | 10 | Stored under `docs/database` |
 | Java Controllers in original project | 84 | Read-only reference baseline |
-| Frontend API files in original project | 76 | Remaining gap driver for endpoint coverage |
+| Frontend API files in copied project | 76 | Static scan source: `snowy-admin-web/src/api` |
+| Unique frontend API endpoints | 545 | Normalized static wrapper paths |
+| Frontend endpoints already routed | 173 | Matched against current ThinkPHP route paths |
+| Frontend missing read/selector candidates | 165 | Priority candidates for safe compatibility slices |
+| Frontend deferred write/side-effect candidates | 207 | Do not implement without module-specific write plans |
 | Frontend baseline files copied | 908 | Copied into `snowy-admin-web`; generated/cache files excluded |
 | Current branch | `refactor/thinkphp-main` | Clean and synced with origin at last check |
-| Latest business-slice commit | `f02aa9e` | `merge-agent: add readonly return order routes` |
+| Latest frontend-slice commit | `0528765` | `frontend-agent: adapt request boundary for thinkphp` |
 
 ## Module Progress
 
@@ -41,7 +45,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
 | Business read-only APIs | 55% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order | Sale project, customer, invoice/invoicing, reissue, follow-up, rating, remaining selectors and detail consumers |
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
-| Frontend adaptation | 42% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, and menu leaf handling adapted; browser smoke reaches `/sys/org` and `/sys/user` | API gap map, org/user field display alignment, missing SSE route, broken API method cleanup |
+| Frontend adaptation | 45% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, and API gap map generated; browser smoke reaches `/sys/org` and `/sys/user` | Org/user field display alignment, missing SSE route, broken API method cleanup, missing read-only business routes |
 | Testing / QA | 40% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice | Automated route/API test suite, regression matrix, frontend smoke, negative tests |
 | Deployment | 15% | Red | Local MySQL/Redis startup method known; env is local | Production config, queue/runtime/log permissions, Nginx/PHP deployment checks |
 | Final online data sync | 0% | Red | Requirement recorded as final-stage reminder | Must design and confirm after project completion; do not start early |
@@ -60,7 +64,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 
 | Phase | Planned Dates | Target | Deliverables | Exit Criteria |
 | --- | --- | --- | --- | --- |
-| 1. Progress audit and gap map | 2026-06-01 to 2026-06-02 | Freeze current gap list | `docs/tasks/api-gap-map.md`, updated dashboard | Remaining frontend API files mapped to implemented/deferred |
+| 1. Progress audit and gap map | 2026-06-01 to 2026-06-02 | Freeze current gap list | `docs/tasks/api-gap-map.md`, updated dashboard | Frontend API files mapped to implemented, missing read, and deferred write groups |
 | 2. Remaining read-only business APIs | 2026-06-03 to 2026-06-07 | Finish safe GET/list/detail coverage | Sale project reads, customer strategy, invoice/invoicing/reissue/follow-up/rating reads | Main old frontend pages can load read-only data |
 | 3. Data-scope and permission tightening | 2026-06-08 to 2026-06-10 | Align RBAC/data scope closer to Java | Data-scope org expansion, permission middleware checks where safe | Protected reads match expected user/org access |
 | 4. Low-risk write endpoints | 2026-06-11 to 2026-06-15 | Add isolated CRUD without heavy side effects | Master-data writes for selected modules after review | Transactional writes smoke tested; no stock/payment/workflow side effects yet |
@@ -83,10 +87,10 @@ The estimate assumes continued small commits and local MySQL/Redis availability.
 
 ## Next Immediate Actions
 
-1. Generate an API gap map from the copied frontend API files.
-2. Align org/user response fields and dictionary labels for visible tables.
-3. Review Java SSE implementation before adding `/dev/message/createSseConnect`.
-4. Finish remaining safe read-only business endpoints before adding writes.
+1. Align org/user response fields and dictionary labels for visible tables.
+2. Review Java SSE implementation before adding `/dev/message/createSseConnect`.
+3. Add safe read-only `biz/saleproject` and `biz/customer` routes in small api-agent slices.
+4. Add user-agent selector/read aliases for `biz/org`, `biz/user`, `biz/position`, and `biz/dict`.
 5. Document the customer encrypted-field strategy before customer and sale-project detail work.
 6. Keep final production data sync deferred until the system is complete and the user confirms the sync plan.
 

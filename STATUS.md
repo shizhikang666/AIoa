@@ -3005,3 +3005,46 @@ Agent: api-agent
 - Add a small compatibility plan for org/user field names and dictionary labels.
 - Add or defer a safe SSE compatibility route after reviewing the Java implementation.
 - Commit and push this adaptation slice after the joint smoke result is recorded.
+
+## 2026-06-01 - frontend-agent - Frontend API Gap Map
+
+### Completed Content
+
+- Generated the frontend API gap map from the copied Vue API wrappers under `snowy-admin-web/src/api`.
+- Compared static frontend endpoint references with the current ThinkPHP route table.
+- Classified gaps into already routed endpoints, missing read/selector/report candidates, and deferred write/side-effect candidates.
+- Updated the progress dashboard with frontend endpoint metrics and next execution order.
+- Kept this slice documentation-only; no Controller, Service, Model, route, database, or Java source file was modified.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- Static scan source: 76 frontend API wrapper files.
+- Static scan result: 545 unique frontend endpoints.
+- Current route baseline: 179 ThinkPHP route entries.
+- Matched routes: 173 frontend endpoint paths.
+- Missing read/selector/report candidates: 165.
+- Deferred write/side-effect candidates: 207.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- The old frontend still has missing route consumers, especially sale-project, customer, biz org/user/position selectors, workflow query/runtime detail, upload, SSE, and report endpoints.
+- Several existing visible pages load but still need response-field and dictionary-label compatibility cleanup.
+- Write-heavy routes remain intentionally deferred.
+
+### Next Plan
+
+- Run a small frontend-agent/api-agent follow-up for visible org/user field display and dictionary labels.
+- Review Java SSE behavior before deciding whether to add `/dev/message/createSseConnect`.
+- Start api-agent read-only slices for `biz/saleproject` and `biz/customer`.
+- Keep production online realtime data sync deferred until project completion and user confirmation.
