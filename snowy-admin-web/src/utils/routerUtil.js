@@ -33,6 +33,7 @@ const traverseChild = (menu) => {
 				return traverseChild(menu[0].children)
 			}
 		}
+		return menu[0]
 	} else {
 		return menu[0]
 	}

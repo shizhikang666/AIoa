@@ -2951,3 +2951,57 @@ Agent: api-agent
 - Generate `docs/tasks/api-gap-map.md` from the copied frontend API files.
 - Adapt request/token/menu behavior in small frontend-agent commits.
 - Start MySQL/Redis, backend port `82`, and frontend port `83` for joint smoke testing after the first adaptation slice.
+
+## 2026-06-01 - frontend-agent - Frontend Request Boundary Adaptation
+
+### Completed Content
+
+- Adapted the copied Vue frontend request boundary for ThinkPHP local joint testing.
+- Switched browser calls to use a Vite proxy prefix instead of directly calling the backend URL from the browser.
+- Removed the duplicated Axios `/api` base URL so Vite rewrites requests from `/api/...` to the backend route path correctly.
+- Updated the frontend token convention to `Authorization: Bearer <token>` for normal requests, uploads, and SSE connections.
+- Adapted the frontend first-menu selection helper to treat `children: []` as a leaf node.
+- Moved SM2 public-key usage to `VITE_PUBLIC_KEY`; local development without a configured key now submits plaintext password values for the ThinkPHP compatibility path.
+- Kept the original Java frontend source read-only and did not edit any file under `F:\AI\projects\testJava\OA`.
+
+### Modified Files
+
+- `snowy-admin-web/.env.development`
+- `snowy-admin-web/.env.production`
+- `snowy-admin-web/src/config/index.js`
+- `snowy-admin-web/src/utils/smCrypto.js`
+- `snowy-admin-web/src/components/XnUpload/index.vue`
+- `snowy-admin-web/src/layout/components/message.vue`
+- `snowy-admin-web/src/layout/components/panel-message/index.vue`
+- `snowy-admin-web/src/utils/request.js`
+- `snowy-admin-web/src/utils/routerUtil.js`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `STATUS.md`
+
+### Test Results
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed.
+- `npm ci --no-audit --no-fund`: passed.
+- `npm run build`: passed with upstream warnings only.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Local MySQL and Redis startup: passed using the user-specified helper.
+- ThinkPHP dev server on port `82`: started.
+- Vue dev server on port `83`: started.
+- Browser smoke: fresh-origin login succeeded and reached `/sys/org`.
+- Browser smoke: `/sys/org` and `/sys/user` loaded with menus, tables, and pagination.
+
+### Current Issues
+
+- The frontend API gap map is still pending.
+- Some frontend pages will still hit routes that are not implemented or are intentionally read-only.
+- Org/user table rows show partially blank fields and missing dictionary labels, so response-field and dictionary compatibility still need a follow-up slice.
+- Frontend SSE calls `/dev/message/createSseConnect`, which is not yet implemented in ThinkPHP and currently returns 404.
+
+### Next Plan
+
+- Generate `docs/tasks/api-gap-map.md` from the copied frontend API files.
+- Add a small compatibility plan for org/user field names and dictionary labels.
+- Add or defer a safe SSE compatibility route after reviewing the Java implementation.
+- Commit and push this adaptation slice after the joint smoke result is recorded.

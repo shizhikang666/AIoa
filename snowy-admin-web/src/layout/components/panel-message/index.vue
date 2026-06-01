@@ -95,7 +95,7 @@
 			let url = sysConfig.API_URL + `/dev/message/createSseConnect?clientId=${clientId}`
 			const connect = () => {
 				let source = new EventSourcePolyfill(url, {
-					headers: { token: tool.data.get('TOKEN') },
+					headers: { [sysConfig.TOKEN_NAME]: sysConfig.TOKEN_PREFIX + tool.data.get('TOKEN') },
 					heartbeatTimeout: 300000
 				})
 				// 监听打开事件

@@ -1,0 +1,46 @@
+# Frontend Adaptation Notes
+
+Date: 2026-06-01
+
+Agent: frontend-agent
+
+## Scope
+
+This slice keeps the imported Vue frontend as a copied baseline and only adapts the request boundary needed for local ThinkPHP joint testing.
+
+## Changes
+
+- Use `VITE_API_PREFIX` as the browser request prefix so Vite can proxy local development traffic to ThinkPHP.
+- Keep `VITE_API_BASEURL` as the proxy target in Vite configuration.
+- Send tokens with `Authorization: Bearer <token>` to match the ThinkPHP `AuthMiddleware`.
+- Apply the same token header convention to upload and SSE connections.
+- Use `VITE_PUBLIC_KEY` for SM2 encryption. If no public key is configured in local development, password submission falls back to plaintext so the current ThinkPHP password compatibility path can be tested.
+- Leave the Axios instance `baseURL` empty so `baseRequest` does not double-prefix requests with `/api`.
+- Treat menu nodes with `children: []` as leaf nodes when picking the first route after login.
+
+## Local URLs
+
+- Backend: `http://127.0.0.1:82`
+- Frontend: `http://127.0.0.1:83`
+- Frontend API prefix: `/api`
+- Production API prefix: `/backend`
+
+## Verification
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed.
+- `npm ci --no-audit --no-fund`: passed.
+- `npm run build`: passed with upstream warnings only.
+- Local MySQL/Redis helper: started.
+- ThinkPHP dev server: `http://127.0.0.1:82`, started.
+- Vue dev server: `http://127.0.0.1:83`, started.
+- Browser smoke on a fresh local origin: login succeeded and redirected to `/sys/org`.
+- Browser smoke: `/sys/org` and `/sys/user` pages loaded with menus, tables, and pagination.
+
+## Deferred
+
+- Missing frontend API gap map.
+- API wrapper cleanup for routes that are still read-only or not yet implemented.
+- Field/dictionary display alignment for org/user tables.
+- Missing SSE route `/dev/message/createSseConnect`.

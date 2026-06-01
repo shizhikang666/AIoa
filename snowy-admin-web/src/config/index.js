@@ -13,17 +13,17 @@ const DEFAULT_CONFIG = {
 	DASHBOARD_URL: '/index',
 
 	// 接口地址
-	API_URL: import.meta.env.VITE_API_BASEURL,
+	API_URL: import.meta.env.VITE_API_PREFIX || '/api',
 	PUBLIC_KEY: import.meta.env.VITE_PUBLIC_KEY,
 
 	// 请求超时
 	TIMEOUT: 60000,
 
 	// TokenName // Authorization
-	TOKEN_NAME: 'token',
+	TOKEN_NAME: 'Authorization',
 
 	// Token前缀，注意最后有个空格，如不需要需设置空字符串 // Bearer
-	TOKEN_PREFIX: '',
+	TOKEN_PREFIX: 'Bearer ',
 
 	// 追加其他头
 	HEADERS: {},

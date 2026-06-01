@@ -84,7 +84,7 @@
 	const previewTitle = ref('')
 	const previewImage = ref('')
 	const headers = ref({
-		token: tool.data.get('TOKEN')
+		[sysConfig.TOKEN_NAME]: sysConfig.TOKEN_PREFIX + tool.data.get('TOKEN')
 	})
 	const accept = ref('')
 	const props = defineProps({

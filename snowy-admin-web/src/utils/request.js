@@ -44,7 +44,7 @@ const loginBack = ref(false)
 
 // 创建 axios 实例
 const service = axios.create({
-	baseURL: '/api', // api base_url
+	baseURL: '', // API prefix is added in baseRequest via sysConfig.API_URL
 	timeout: sysConfig.TIMEOUT // 请求超时时间
 })
 
