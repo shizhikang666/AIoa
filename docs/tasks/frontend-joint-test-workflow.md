@@ -20,31 +20,28 @@ The worktrees remain temporary parallel workspaces and are not final standalone 
 | --- | --- |
 | Original frontend source | `F:\AI\projects\testJava\OA\snowy-admin-web` |
 | Original frontend write policy | Read-only, do not edit |
-| Target repository frontend path | Not imported yet |
+| Target repository frontend path | `F:\AI\projects\testJava\OA-ThinkPHP\snowy-admin-web` |
 | frontend-agent worktree | `F:\AI\projects\testJava\OA-frontend`, currently still contains the ThinkPHP backend tree only |
 | Frontend dev script | `npm run dev` or `npm run serve` |
 | Frontend default dev port | `83` from `.env.development` |
 | Frontend default backend target | `http://localhost:82` from `.env.development` |
 
-## Required Frontend Import Decision
+## Frontend Baseline Import
 
-Before frontend code can be adapted, frontend-agent must copy the original frontend into the final repository or the frontend worktree.
+The frontend baseline has been copied into the final target repository.
 
-Recommended target:
+Target:
 
 `F:\AI\projects\testJava\OA-ThinkPHP\snowy-admin-web`
 
-Reason:
+Import notes:
 
-- The final deliverable must include the runnable ThinkPHP backend and adapted Vue frontend together.
-- The Java source project must remain read-only.
-- Frontend changes must be committed in Git and later merged into `refactor/thinkphp-main`.
-
-Important:
-
-- The first frontend import will likely touch more than 30 files because it is a baseline source import.
+- Copied from `F:\AI\projects\testJava\OA\snowy-admin-web` in read-only mode.
+- Copied files: 908.
+- Excluded files/directories: `.git`, `.idea`, `.vite`, `node_modules`, `dist`, `coverage`, `log`, `logs`, `stats.html`, `*.log`, and `vite.config.mjs.timestamp-*.mjs`.
+- The first frontend import is an approved baseline exception to the normal small-commit size because it brings the existing Vue app under the target repository.
 - After the baseline import, all adaptation commits should return to small commits.
-- Do not copy `node_modules`, `dist`, local logs, local secrets, or runtime cache.
+- Do not commit `node_modules`, `dist`, local logs, local secrets, or runtime cache.
 
 ## Joint Startup Order
 
@@ -160,4 +157,3 @@ frontend-agent is not complete until:
 - main migrated read-only pages are browser-smoked
 - missing write-flow calls are recorded and assigned
 - no secrets or generated dependency directories are committed
-

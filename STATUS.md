@@ -2909,3 +2909,45 @@ Agent: api-agent
 - Create an API gap map from the original frontend API files.
 - Prepare a frontend-agent baseline import plan for `snowy-admin-web` without copying `node_modules`, `dist`, logs, or secrets.
 - After the baseline import, start MySQL/Redis, ThinkPHP on port `82`, and Vue on port `83` for joint browser smoke tests.
+
+## 2026-06-01 - frontend-agent - Frontend Baseline Import
+
+### Completed Content
+
+- Copied the original frontend from `F:\AI\projects\testJava\OA\snowy-admin-web` into `F:\AI\projects\testJava\OA-ThinkPHP\snowy-admin-web`.
+- Kept the Java source frontend read-only and did not edit any file under `F:\AI\projects\testJava\OA`.
+- Copied 908 frontend source/config/static files.
+- Excluded IDE, dependency, build, coverage, log, and Vite timestamp artifacts.
+- Verified the copied frontend includes `package.json`, Vite config, environment files, `public`, and `src`.
+- Checked copied frontend environment keys without printing values.
+
+### Modified Files
+
+- `snowy-admin-web/**`
+- `STATUS.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/frontend-joint-test-workflow.md`
+
+### Test Results
+
+- Target frontend file count: 908.
+- Excluded directories/files were not present in the copied target.
+- High-risk secret-marker scan found only frontend configuration form field names for `SECRET_KEY`; no committed credential values were printed or identified.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed.
+- `git diff --cached --check`: passed after whitespace cleanup in the copied frontend files.
+- Frontend dependency install and browser startup were not run in this import-only step.
+
+### Current Issues
+
+- `package-lock.json` exists in the copied frontend directory but is ignored by the original frontend `.gitignore`.
+- The copied frontend still uses the original request/token behavior and must be adapted before full browser testing.
+- The backend convention is `Authorization: Bearer <token>`, while the original frontend code uses a legacy token header.
+
+### Next Plan
+
+- Commit and push the frontend baseline import.
+- Generate `docs/tasks/api-gap-map.md` from the copied frontend API files.
+- Adapt request/token/menu behavior in small frontend-agent commits.
+- Start MySQL/Redis, backend port `82`, and frontend port `83` for joint smoke testing after the first adaptation slice.

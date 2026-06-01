@@ -1,0 +1,122 @@
+<template>
+	<a-skeleton active :loading="loading">
+		<template v-if="error">
+			<a-result status="500" title="500" sub-title="服务器错误">
+				<template #extra>
+					<a-button type="primary" @click="load">重载</a-button>
+				</template>
+			</a-result>
+		</template>
+		<template v-else>
+			<a-descriptions bordered title="项目信息" size="small">
+				<a-descriptions-item label="项目名称">
+					<a-typography-link @click="openProjectDetail"> {{ projectBaseInfo.projectName }}</a-typography-link>
+				</a-descriptions-item>
+				<a-descriptions-item label="备注">
+					{{ baseInfo.remark }}
+				</a-descriptions-item>
+				<a-descriptions-item label="变更金额">
+					{{ baseInfo.amount }}
+				</a-descriptions-item>
+				<a-descriptions-item label="退回仓库">
+					{{ baseInfo.warehouseName }}
+				</a-descriptions-item>
+			</a-descriptions>
+			<br />
+			<a-typography-title :level="5">退货表单</a-typography-title>
+			<br />
+			<a-table :pagination="false" size="middle" bordered :data-source="baseInfo.productList" :columns="columns">
+				<template #bodyCell="{ column }">
+					<template v-if="column.dataIndex === 'warehousesId'"></template>
+				</template>
+			</a-table>
+		</template>
+	</a-skeleton>
+	<detail ref="projectDetailRef"></detail>
+</template>
+<script setup name="projectReturnInfo">
+	import { useLoading } from '@/composables/useLoading'
+	import bizProcessApi from '@/api/biz/bizProcessApi'
+	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
+	import { useTemplateRef } from 'vue'
+	import saleProjectProductItemRelationApi from '@/api/biz/saleProjectProductItemRelationApi'
+	import detail from '@/views/biz/saleproject/detail.vue'
+	import WarehousesApi from '@/api/biz/warehousesApi'
+
+	const { id } = defineProps({
+		id: {
+			required: true,
+			type: String
+		}
+	})
+	const projectBaseInfo = ref({})
+	const baseInfo = ref({})
+	const projectDetailRef = useTemplateRef('projectDetailRef')
+	const openProjectDetail = () => {
+		projectDetailRef.value.onOpen({
+			id: projectBaseInfo.value.id
+		})
+	}
+	const { loading, load, error } = useLoading(async () => {
+		const fields = ['projectId', 'remark', 'amount', 'productList', 'warehousesId']
+		const res = await bizProcessApi.bizVariable({ id: id, fields })
+		const result = {}
+		res.forEach((item) => {
+			result[item.name] = item.value
+		})
+		const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
+
+		const list = await WarehousesApi.warehousesList()
+		const find = list.find((v) => {
+			return v.id === result.warehousesId
+		})
+
+		const productItems = result.productList.length
+			? await saleProjectProductItemRelationApi.saleProjectProductItemRelationList(
+					result.productList.map((v) => {
+						return {
+							id: v.projectProductItemId
+						}
+					})
+			  )
+			: []
+		productItems.forEach((v) => {
+			const product = JSON.parse(v.extJson).product
+			const find = result.productList.find((f) => {
+				return f.projectProductItemId === v.objectId
+			})
+			if (find && !find.children) {
+				find.children = []
+			}
+			if (find && find.children) {
+				find.children.push({ ...product, amount: v.number })
+			}
+		})
+
+		console.log(result)
+		projectBaseInfo.value = details.bizSaleProject
+		baseInfo.value = result
+		baseInfo.value.warehouseName = find.name
+	})
+
+	const columns = [
+		{
+			title: '产品名称',
+			dataIndex: 'productName',
+			width: '20%'
+		},
+		{
+			title: '数量',
+			width: '10%',
+			dataIndex: 'amount'
+		},
+
+		{
+			title: '备注',
+			width: '25%',
+			dataIndex: 'remark'
+		}
+	]
+	load()
+</script>
+<style scoped></style>
