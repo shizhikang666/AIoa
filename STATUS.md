@@ -2796,3 +2796,53 @@ Agent: api-agent
 
 - Commit and push this team-project task read-only compatibility slice.
 - Continue with the next safe read-only business module or begin a separate write-flow design for team project tasks after review.
+
+## 2026-06-01 - merge-agent - Biz Return Order Read-Only Compatibility
+
+### Completed Content
+
+- Analyzed old frontend `returnOrderApi.js`, sale-project return-order consumers, Java `ReturnOrderController` / `ReturnOrderServiceImpl`, Java return-order params/entities, and the `return_order` / `return_order_item` SQL tables.
+- Added protected read-only return-order page, query, and detail compatibility endpoints.
+- Enriched return-order rows with project name, warehouse name, current handler name, and organization name.
+- Added `productList` child rows for `query` and `detail`, including project-product and product display fields.
+- Preserved Java-style data-scope shape: explicit org filter, token data-scope org ids when present, then current user fallback.
+- Registered protected `/biz/returnorder/*` read-only routes behind `AuthMiddleware`.
+- Kept return-order add/edit/delete/status, warehouse delivery, inventory stock, refund, and workflow mutation behavior deferred.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/ReturnOrderService.php`
+- `app/controller/biz/ReturnOrderController.php`
+- `route/app.php`
+- `docs/api/biz-return-order-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### Test Results
+
+- `php -l app\service\biz\ReturnOrderService.php`: passed.
+- `php -l app\controller\biz\ReturnOrderController.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists the protected return-order read-only routes.
+- PHP lint for `app`, `config`, and `route`: passed.
+- Runtime HTTP smoke with a valid bearer token returned `code=200` for:
+  - `GET /biz/returnorder/page`
+  - `GET /biz/returnorder/query`
+  - `GET /biz/returnorder/detail`
+- Runtime smoke confirmed return-order page total `1`, sampled order id `2052251605190221825`, project id `2013520917029085185`, query count `1`, query `productList` count `1`, and detail `productList` count `1`.
+- `GET /biz/returnorder/page` without a token returned business `code=401`.
+- Secret scan found no committed database password, superadmin password, SM2 private key, SM2 public key, or temporary encoded smoke-test password in tracked project paths.
+- `git diff --check`: passed with existing CRLF normalization warnings only.
+
+### Current Issues
+
+- Return-order write flows create warehouse delivery-in records, affect inventory stock, update settlement/refund state, and emit data-change events. Those routes need a later transactional write design before implementation.
+- The current token payload does not always carry expanded Java data-scope org ids, so fallback behavior may be narrower than Java for users without populated `data_scope_org_ids`.
+- Customer-related sale-project reads remain deferred until the SM4 encrypted-field strategy is documented.
+
+### Next Plan
+
+- Commit and push this return-order read-only compatibility slice.
+- Continue with the next safe read-only business module, likely sale-project read endpoints after customer encryption strategy is handled, or another non-encrypted support module.

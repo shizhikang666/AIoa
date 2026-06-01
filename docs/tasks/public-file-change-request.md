@@ -1387,3 +1387,37 @@ The existing Vue expenditure-record pages call `/biz/bizexpenditurerecord/page`,
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Return Order Read-Only Routes
+
+## Request
+
+Register protected read-only return-order routes in `route/app.php`.
+
+## Reason
+
+The existing Vue sale-project and return-order pages call `/biz/returnorder/page`, `/biz/returnorder/query`, and `/biz/returnorder/detail` after login to load return-order rows, project/warehouse/user display fields, and returned product items. These reads are needed for return/refund compatibility while warehouse stock-in, settlement status update, refund, and process mutation behavior remain deferred.
+
+## Applied Change
+
+`merge-agent` registered the following protected routes:
+
+- `GET /biz/returnorder/page`
+- `GET /biz/returnorder/query`
+- `GET /biz/returnorder/detail`
+
+## Explicit Exclusions
+
+- No `/biz/returnorder/add` route was added.
+- No `/biz/returnorder/edit` route was added.
+- No `/biz/returnorder/delete` route was added.
+- No `/biz/returnorder/status/update` or equivalent settlement-status route was added.
+- No delivery-record creation, inventory stock mutation, refund mutation, workflow mutation, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

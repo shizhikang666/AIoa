@@ -320,6 +320,12 @@ Route::group('biz/bizpurchaseorder', function () {
     Route::get('detail', 'biz.PurchaseOrderController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/returnorder', function () {
+    Route::get('page', 'biz.ReturnOrderController/page');
+    Route::get('query', 'biz.ReturnOrderController/query');
+    Route::get('detail', 'biz.ReturnOrderController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/task', function () {
     Route::get('count', 'biz.TaskController/count');
     Route::get('list', 'biz.TaskController/list');

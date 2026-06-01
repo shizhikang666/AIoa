@@ -2724,3 +2724,56 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 - Routes are protected by `AuthMiddleware`.
 - Current user must be a member of the target project for project-scoped reads.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
+
+## Plan: merge-agent - Biz Return Order Read-Only Compatibility
+
+Status: completed on 2026-06-01 after implementation, route registration, lint, baseline checks, HTTP smoke, and secret-scan checks.
+
+Date: 2026-06-01
+
+### 1. Current Goal
+
+Add the old-frontend-compatible read-only return-order endpoints for sale-project return/refund views.
+
+### 2. Modules In Scope
+
+- `/biz/returnorder/page`
+- `/biz/returnorder/query`
+- `/biz/returnorder/detail`
+- return-order item enrichment for `productList`
+- project, warehouse, user, and organization display-name enrichment
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/biz/ReturnOrderService.php`
+- `app/controller/biz/ReturnOrderController.php`
+- `route/app.php`
+- `docs/api/biz-return-order-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+
+### 4. Risks
+
+- Java return-order write behavior creates warehouse delivery-in records, updates settlement status, and emits data-change events. Those mutation routes must remain deferred.
+- Java data scope uses login-user organization scope when available and falls back to the current user. The current ThinkPHP token payload may not always include expanded data-scope org ids, so this slice preserves the same fallback shape as closely as the current auth payload allows.
+- `route/app.php` is locked and must only receive documented protected read-only routes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\ReturnOrderService.php
+php -l app\controller\biz\ReturnOrderController.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+```
+
+### 6. Acceptance Criteria
+
+- Only read-only `/biz/returnorder/page`, `/biz/returnorder/query`, and `/biz/returnorder/detail` routes are added.
+- No return-order add/edit/status/warehouse/inventory/refund mutation route is added.
+- Routes are protected by `AuthMiddleware`.
+- `query` returns `productList` rows for each return order.
+- Baseline ThinkPHP checks and representative HTTP smoke tests pass.
