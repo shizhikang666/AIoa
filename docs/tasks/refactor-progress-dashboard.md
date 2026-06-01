@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-01 11:08 +08:00
+Last updated: 2026-06-01 11:47 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -8,7 +8,7 @@ Agent: merge-agent / main control agent
 
 Overall production-ready completion: **45%**
 
-Read-only API compatibility completion: **65%**
+Read-only API compatibility completion: **66%**
 
 This estimate uses the final goal as the denominator: one complete runnable ThinkPHP OA system with login, RBAC, user/org, workflow, business APIs, frontend adaptation, tests, deployment, and final production data sync.
 
@@ -20,14 +20,14 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | ThinkPHP Models | 67 | Database/model foundation is mostly in place |
 | ThinkPHP Controllers | 52 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
 | ThinkPHP Services | 46 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
-| Registered route entries | 179 | Most are protected read-only compatibility routes |
+| Registered route entries | 180 | Most are protected read-only compatibility routes |
 | API compatibility docs | 40 | Stored under `docs/api` |
 | Database docs | 10 | Stored under `docs/database` |
 | Java Controllers in original project | 84 | Read-only reference baseline |
 | Frontend API files in copied project | 76 | Static scan source: `snowy-admin-web/src/api` |
 | Unique frontend API endpoints | 545 | Normalized static wrapper paths |
-| Frontend endpoints already routed | 173 | Matched against current ThinkPHP route paths |
-| Frontend missing read/selector candidates | 165 | Priority candidates for safe compatibility slices |
+| Frontend endpoints already routed | 174 | Matched against current ThinkPHP route paths |
+| Frontend missing read/selector candidates | 164 | Priority candidates for safe compatibility slices |
 | Frontend deferred write/side-effect candidates | 207 | Do not implement without module-specific write plans |
 | Frontend baseline files copied | 908 | Copied into `snowy-admin-web`; generated/cache files excluded |
 | Current branch | `refactor/thinkphp-main` | Clean and synced with origin at last check |
@@ -45,7 +45,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
 | Business read-only APIs | 55% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order | Sale project, customer, invoice/invoicing, reissue, follow-up, rating, remaining selectors and detail consumers |
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
-| Frontend adaptation | 48% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, and SSE compatibility plan documented; browser smoke reaches `/sys/org` and `/sys/user` | Implement pending SSE route, broken API method cleanup, missing read-only business routes |
+| Frontend adaptation | 49% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, and minimal SSE route added; browser smoke reaches `/sys/org` and `/sys/user` | Browser-smoke SSE console, broken API method cleanup, missing read-only business routes |
 | Testing / QA | 40% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice | Automated route/API test suite, regression matrix, frontend smoke, negative tests |
 | Deployment | 15% | Red | Local MySQL/Redis startup method known; env is local | Production config, queue/runtime/log permissions, Nginx/PHP deployment checks |
 | Final online data sync | 0% | Red | Requirement recorded as final-stage reminder | Must design and confirm after project completion; do not start early |
@@ -59,7 +59,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Workflow reads | Task count/list/page/history, process page/detail/variable reads | Deferred |
 | System/dev/mobile/gen reads | Config, dict, file, email/sms records, job metadata, logs, messages, monitor, resource/menu/mobile resource, gen metadata, tenant reads | Deferred |
 | Business reads | Product, supplier, settlement account, payment record, expenditure record, collection receipt, debit note, file relation, team project, task/comments, warehouses, inventory, delivery, purchase order, return order | Deferred |
-| SSE planning | `/dev/message/createSseConnect` Java/frontend behavior mapped and public-file route request recorded | Route implementation pending approval |
+| SSE compatibility | `/dev/message/createSseConnect` Java/frontend behavior mapped and minimal protected ThinkPHP route added | Full realtime push deferred |
 
 ## Remaining High-Level Plan
 
@@ -88,7 +88,7 @@ The estimate assumes continued small commits and local MySQL/Redis availability.
 
 ## Next Immediate Actions
 
-1. Implement `/dev/message/createSseConnect` only after the public-file route request is approved or assigned to merge-agent.
+1. Browser-smoke `/dev/message/createSseConnect` from the layout and confirm the previous 404 is gone.
 2. Add safe read-only `biz/saleproject` and `biz/customer` routes in small api-agent slices.
 3. Add user-agent selector/read aliases for `biz/org`, `biz/user`, `biz/position`, and `biz/dict`.
 4. Browser-smoke `/sys/org` and `/sys/user` after each backend or frontend compatibility slice.

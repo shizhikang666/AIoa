@@ -418,7 +418,19 @@ Route::group('dev/message', function () {
 
 ## Approval Status
 
-Pending. The route has not been added in this planning slice.
+Applied during the api-agent minimal SSE compatibility slice after the user continued from the public-file request.
+
+Applied route:
+
+- `GET /dev/message/createSseConnect`
+
+Applied files:
+
+- `route/app.php`
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageSseService.php`
+
+The implementation keeps broadcast, manual send-message, mark-read mutation, workflow push side effects, Redis pub/sub fanout, and production realtime-data sync deferred.
 
 ---
 

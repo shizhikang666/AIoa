@@ -190,6 +190,7 @@ Route::group('dev/log', function () {
 Route::group('dev/message', function () {
     Route::get('page', 'dev.MessageController/page');
     Route::get('detail', 'dev.MessageController/detail');
+    Route::get('createSseConnect', 'dev.MessageController/createSseConnect');
 })->middleware(AuthMiddleware::class);
 
 Route::group('gen/basic', function () {

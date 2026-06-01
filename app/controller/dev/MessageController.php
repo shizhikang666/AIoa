@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace app\controller\dev;
 
 use app\controller\sys\BaseSysController;
+use app\service\dev\MessageSseService;
 use app\service\dev\MessageService;
 use think\Request;
 use think\Response;
 
 class MessageController extends BaseSysController
 {
-    public function __construct(private readonly MessageService $messageService = new MessageService())
+    public function __construct(
+        private readonly MessageService $messageService = new MessageService(),
+        private readonly MessageSseService $messageSseService = new MessageSseService()
+    )
     {
     }
 
@@ -23,6 +27,14 @@ class MessageController extends BaseSysController
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->messageService->detail($this->requiredString($request, 'id'), $this->tenantId($request)));
+    }
+
+    public function createSseConnect(Request $request): Response
+    {
+        return $this->messageSseService->connect(
+            (string)$request->get('clientId', ''),
+            $this->currentUserId($request)
+        );
     }
 
     private function tenantId(Request $request): ?string

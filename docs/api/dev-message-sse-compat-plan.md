@@ -6,11 +6,11 @@ Agent: api-agent / frontend-agent coordination
 
 ## Scope
 
-This document records the compatibility plan for the frontend SSE endpoint:
+This document records the compatibility plan and first implementation slice for the frontend SSE endpoint:
 
 - `GET /dev/message/createSseConnect`
 
-The current slice is documentation and planning only. It does not modify `route/app.php`, Controller code, frontend code, database schema, or Java source.
+The first implementation slice is intentionally minimal. It registers the route and returns a short compatible `text/event-stream` response. It does not implement broadcast, workflow push side effects, database mutation, frontend changes, Redis pub/sub, or Java source changes.
 
 ## Java Source Reference
 
@@ -63,31 +63,35 @@ Current ThinkPHP routes expose read-only message APIs:
 
 - `GET /dev/message/page`
 - `GET /dev/message/detail`
-
-Current ThinkPHP route table does not expose:
-
 - `GET /dev/message/createSseConnect`
 
-The missing route is the remaining browser-console 404 on the current layout shell.
+The SSE route was added after the public-file request was continued by the user:
+
+- `route/app.php`
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageSseService.php`
 
 ## Recommended Implementation Slice
 
-Add a minimal SSE compatibility endpoint after route-change approval:
+The minimal SSE compatibility endpoint now uses:
 
 - Controller method: `app\controller\dev\MessageController::createSseConnect`
 - Service/helper: a small `MessageSseService` or a method on `MessageService`
 - Route: `GET /dev/message/createSseConnect`
 - Middleware: `AuthMiddleware`
 
-Initial behavior should be conservative:
+Initial behavior is conservative:
 
 - authenticate by existing bearer-token middleware;
 - accept optional `clientId`;
 - return `text/event-stream`;
 - send one initial event with `code = 0` and the effective `clientId`;
-- send a lightweight heartbeat/comment event or periodic compatible message;
+- send a lightweight compatible message event for `FlushMessageNotice`;
+- send a heartbeat comment;
 - avoid mutation of message records;
 - avoid implementing broadcast/push writes until workflow/message mutation modules are ready.
+
+The response is short-lived by design. A persistent PHP SSE loop could block the local `php think run` development server, so full long-lived realtime behavior is deferred to a later runtime design.
 
 ## Deferred Behavior
 
@@ -107,8 +111,8 @@ Adding the route requires editing locked file:
 
 - `route/app.php`
 
-The proposed change is recorded in:
+The route change was recorded in:
 
 - `docs/tasks/public-file-change-request.md`
 
-Implementation must wait until the public-file request is approved or handled by merge-agent.
+The first route implementation is applied. Further realtime behavior still requires a separate public-file/runtime design if it touches routes, queues, Redis pub/sub, or workflow write side effects.

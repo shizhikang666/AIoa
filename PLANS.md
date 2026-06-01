@@ -2936,3 +2936,60 @@ git diff --check
 - The Java controller/service/SSE-provider behavior is summarized.
 - The copied frontend EventSource callers are identified.
 - A public-file change request records the proposed protected route.
+
+## Completed Plan: api-agent - Minimal Dev Message SSE Compatibility
+
+Status: completed on 2026-06-01 after route registration, minimal SSE service implementation, direct HTTP probe, browser smoke, baseline ThinkPHP checks, and syntax checks.
+
+Date: 2026-06-01
+
+### 1. Current Goal
+
+Implement the approved minimal compatibility route for `/dev/message/createSseConnect` so the copied Vue layout no longer receives a 404 after login.
+
+This phase does not implement full realtime push, Redis pub/sub, message mutations, or workflow side-effect notifications.
+
+### 2. Modules In Scope
+
+- Dev message SSE compatibility route
+- Dev message controller adapter
+- Minimal SSE response helper/service
+- Documentation and status tracking
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageSseService.php`
+- `docs/api/dev-message-sse-compat-plan.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Risks
+
+- Long-running SSE would block local `php think run` development requests, so the first slice must be a short compatibility stream.
+- EventSource callers may reconnect after a short stream closes; this is acceptable for this compatibility slice and safer than holding the built-in PHP server.
+- Full live push behavior needs later queue/Redis/pub-sub design and workflow/message mutation integration.
+- `route/app.php` is locked, but the user continued after the public-file request; keep the route change scoped to the requested `dev/message` group.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\dev\MessageController.php
+php -l app\service\dev\MessageSseService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /dev/message/createSseConnect` appears in `php think route:list`.
+- The route is protected by the existing `AuthMiddleware`.
+- The response content type is `text/event-stream`.
+- The initial event includes Java-compatible `code = 0` with a client id.
+- No Java source, database schema, frontend file, Composer file, `.env`, or message mutation endpoint is changed.

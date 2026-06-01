@@ -3134,3 +3134,53 @@ Agent: api-agent
 - After approval, add the minimal SSE route/controller behavior and browser-smoke the layout console.
 - In parallel-safe order, continue api-agent read-only slices for `biz/saleproject` and `biz/customer`.
 - Keep final online realtime data sync deferred until the full system is complete and the user confirms the sync plan.
+
+## 2026-06-01 - api-agent - Minimal Dev Message SSE Compatibility
+
+### Completed Content
+
+- Added the protected ThinkPHP route `GET /dev/message/createSseConnect` under the existing `dev/message` route group.
+- Added `MessageController::createSseConnect` and delegated the response generation to a new `MessageSseService`.
+- Added a minimal Java-compatible SSE response with:
+  - `Content-Type: text/event-stream`
+  - initial `code = 0` client id event
+  - `code = 200` `FlushMessageNotice` compatibility event
+  - heartbeat comment
+- Kept the response short-lived to avoid blocking the local `php think run` development server.
+- Updated the SSE compatibility doc and marked the public-file request as applied.
+- Did not modify Java source, database schema, frontend files, Composer files, `.env`, message mutation routes, workflow side effects, Redis pub/sub, or production realtime sync.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageSseService.php`
+- `docs/api/dev-message-sse-compat-plan.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\dev\MessageController.php`: passed.
+- `php -l app\service\dev\MessageSseService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; route table includes `dev/message/createSseConnect`.
+- Unauthenticated HTTP probe: returned API `code = 401` from auth middleware.
+- Authenticated HTTP probe: returned HTTP 200 with `text/event-stream` and initial `code = 0` client id event.
+- Browser smoke on `http://localhost:83/index`: page loaded to the system home view and recent logs showed no new `createSseConnect` / EventSource 404.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- This is not full realtime push. It only removes the missing-route gap and returns compatible initial events.
+- Full long-lived SSE, Redis pub/sub fanout, and workflow/message push side effects remain deferred.
+
+### Next Plan
+
+- Commit and push this small api-agent slice.
+- Continue with read-only `biz/saleproject` and `biz/customer` API slices.
