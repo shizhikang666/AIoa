@@ -24,10 +24,13 @@ class PositionService
             ->toArray();
 
         return [
-            'records' => $records,
+            'records' => array_map(fn (array $row): array => $this->positionRow($row), $records),
             'total' => $total,
             'page' => $page,
+            'current' => $page,
             'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
         ];
     }
 
@@ -36,17 +39,19 @@ class PositionService
      */
     public function all(array $filters = []): array
     {
-        return $this->baseQuery($filters)
+        $rows = $this->baseQuery($filters)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->select()
             ->toArray();
+
+        return array_map(fn (array $row): array => $this->positionRow($row), $rows);
     }
 
     public function detail(string $id): ?array
     {
         $row = $this->baseQuery(['id' => $id])->find();
 
-        return $row ? $row->toArray() : null;
+        return $row ? $this->positionRow($row->toArray()) : null;
     }
 
     /**
@@ -102,5 +107,23 @@ class PositionService
         $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function positionRow(array $row): array
+    {
+        return array_merge($row, [
+            'id' => $row['ID'] ?? null,
+            'orgId' => $row['ORG_ID'] ?? null,
+            'name' => $row['NAME'] ?? null,
+            'category' => $row['CATEGORY'] ?? null,
+            'sortCode' => $row['SORT_CODE'] ?? null,
+            'extJson' => $row['EXT_JSON'] ?? null,
+            'deleteFlag' => $row['DELETE_FLAG'] ?? null,
+            'createTime' => $row['CREATE_TIME'] ?? null,
+            'createUser' => $row['CREATE_USER'] ?? null,
+            'updateTime' => $row['UPDATE_TIME'] ?? null,
+            'updateUser' => $row['UPDATE_USER'] ?? null,
+            'tenantId' => $row['TENANT_ID'] ?? null,
+        ]);
     }
 }

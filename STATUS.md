@@ -3048,3 +3048,53 @@ Agent: api-agent
 - Review Java SSE behavior before deciding whether to add `/dev/message/createSseConnect`.
 - Start api-agent read-only slices for `biz/saleproject` and `biz/customer`.
 - Keep production online realtime data sync deferred until project completion and user confirmation.
+
+## 2026-06-01 - user-agent - Sys Org/User Display Field Compatibility
+
+### Completed Content
+
+- Added camelCase display aliases to existing read-only system organization, user, and position service responses.
+- Preserved uppercase SQL fields in responses for current backend compatibility.
+- Added batched `orgName` and `positionName` enrichment to user rows and selectors to avoid N+1 lookups.
+- Added `genderName` fallback from `dev_dict` where available.
+- Added pagination aliases `current`, `size`, and `pages` on org/user/position page responses for copied frontend table compatibility.
+- Documented the compatibility contract in `docs/api/sys-user-org-display-compat.md`.
+- Kept this slice read-only; no route, Controller, database, Java source, or write endpoint was changed.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/user/OrgService.php`
+- `app/service/user/UserDirectoryService.php`
+- `app/service/user/PositionService.php`
+- `docs/api/sys-user-org-display-compat.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\service\user\OrgService.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l app\service\user\PositionService.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- `npm run build`: passed after rerunning with filesystem permission escalation; warnings are upstream bundle size, Browserslist age, CSS comment syntax, and `eval` in `docx-templates`.
+- Direct backend API probes with a fresh token passed:
+  - `/sys/org/page` returns `id`, `parentId`, `name`, `category`, and `sortCode`.
+  - `/sys/org/tree` returns normalized tree nodes with `id`, `parentId`, `name`, `category`, `sortCode`, and `children`.
+  - `/sys/user/page` returns `id`, `name`, `orgName`, `positionName`, `userStatus`, and `sortCode`.
+- Browser smoke reached `/sys/org` and `/sys/user`; the remaining visible issue is still the known missing SSE route `/dev/message/createSseConnect`.
+
+### Current Issues
+
+- The browser session may still show empty table state until a fresh reload/login clears stale page state, but direct API probes confirm the response fields are now present.
+- `/dev/message/createSseConnect` remains missing and still logs a frontend 404.
+- Write actions on org/user/position pages remain intentionally deferred.
+
+### Next Plan
+
+- Review Java message/SSE behavior and decide whether to add a safe `/dev/message/createSseConnect` compatibility route.
+- Start small api-agent read-only slices for `biz/saleproject` and `biz/customer`.
+- Keep final online realtime data sync deferred until the full system is complete and the user confirms the plan.

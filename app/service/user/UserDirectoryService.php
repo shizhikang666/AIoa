@@ -51,18 +51,26 @@ class UserDirectoryService
             ->toArray();
 
         return [
-            'records' => array_map(fn (array $row): array => $this->sanitizeUserRow($row), $records),
+            'records' => $this->sanitizeUserRows($records),
             'total' => $total,
             'page' => $page,
+            'current' => $page,
             'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
         ];
     }
 
     public function detail(string $id): ?array
     {
         $row = $this->baseQuery(['id' => $id])->find();
+        if (!$row) {
+            return null;
+        }
 
-        return $row ? $this->sanitizeUserRow($row->toArray()) : null;
+        $rows = $this->sanitizeUserRows([$row->toArray()]);
+
+        return $rows[0] ?? null;
     }
 
     /**
@@ -82,7 +90,7 @@ class UserDirectoryService
             ->select()
             ->toArray();
 
-        return array_map(fn (array $row): array => $this->sanitizeUserRow($row), $rows);
+        return $this->sanitizeUserRows($rows);
     }
 
     /**
@@ -96,11 +104,19 @@ class UserDirectoryService
             return [];
         }
 
-        return SysOrg::where('DELETE_FLAG', self::NOT_DELETE)
+        $rows = SysOrg::where('DELETE_FLAG', self::NOT_DELETE)
             ->whereIn('ID', $ids)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->select()
             ->toArray();
+
+        return array_map(static fn (array $row): array => array_merge($row, [
+            'id' => $row['ID'] ?? null,
+            'parentId' => $row['PARENT_ID'] ?? null,
+            'name' => $row['NAME'] ?? null,
+            'category' => $row['CATEGORY'] ?? null,
+            'sortCode' => $row['SORT_CODE'] ?? null,
+        ]), $rows);
     }
 
     /**
@@ -114,11 +130,19 @@ class UserDirectoryService
             return [];
         }
 
-        return SysPosition::where('DELETE_FLAG', self::NOT_DELETE)
+        $rows = SysPosition::where('DELETE_FLAG', self::NOT_DELETE)
             ->whereIn('ID', $ids)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->select()
             ->toArray();
+
+        return array_map(static fn (array $row): array => array_merge($row, [
+            'id' => $row['ID'] ?? null,
+            'orgId' => $row['ORG_ID'] ?? null,
+            'name' => $row['NAME'] ?? null,
+            'category' => $row['CATEGORY'] ?? null,
+            'sortCode' => $row['SORT_CODE'] ?? null,
+        ]), $rows);
     }
 
     /**
@@ -151,16 +175,20 @@ class UserDirectoryService
             ->select()
             ->toArray();
 
+        $rows = $this->sanitizeUserRows($rows);
+
         return array_map(static function (array $row): array {
             return [
-                'id' => $row['ID'] ?? null,
-                'value' => $row['ID'] ?? null,
-                'label' => $row['NAME'] ?? $row['ACCOUNT'] ?? null,
-                'title' => $row['NAME'] ?? $row['ACCOUNT'] ?? null,
-                'name' => $row['NAME'] ?? null,
-                'account' => $row['ACCOUNT'] ?? null,
-                'orgId' => $row['ORG_ID'] ?? null,
-                'positionId' => $row['POSITION_ID'] ?? null,
+                'id' => $row['id'] ?? null,
+                'value' => $row['id'] ?? null,
+                'label' => $row['name'] ?? $row['account'] ?? null,
+                'title' => $row['name'] ?? $row['account'] ?? null,
+                'name' => $row['name'] ?? null,
+                'account' => $row['account'] ?? null,
+                'orgId' => $row['orgId'] ?? null,
+                'orgName' => $row['orgName'] ?? null,
+                'positionId' => $row['positionId'] ?? null,
+                'positionName' => $row['positionName'] ?? null,
             ];
         }, $rows);
     }
@@ -484,11 +512,134 @@ class UserDirectoryService
         return $query;
     }
 
-    private function sanitizeUserRow(array $row): array
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function sanitizeUserRows(array $rows): array
+    {
+        $orgNames = $this->orgNames($rows);
+        $positionNames = $this->positionNames($rows);
+        $genderLabels = $this->dictLabels('GENDER');
+
+        return array_map(
+            fn (array $row): array => $this->sanitizeUserRow($row, $orgNames, $positionNames, $genderLabels),
+            $rows
+        );
+    }
+
+    /**
+     * @param array<string, string> $orgNames
+     * @param array<string, string> $positionNames
+     * @param array<string, string> $genderLabels
+     */
+    private function sanitizeUserRow(array $row, array $orgNames = [], array $positionNames = [], array $genderLabels = []): array
     {
         unset($row['PASSWORD']);
 
-        return $row;
+        $orgId = $this->rowValue($row, 'ORG_ID', 'orgId');
+        $positionId = $this->rowValue($row, 'POSITION_ID', 'positionId');
+        $gender = $this->rowValue($row, 'GENDER', 'gender');
+
+        return array_merge($row, [
+            'id' => $this->rowValue($row, 'ID', 'id'),
+            'avatar' => $this->rowValue($row, 'AVATAR', 'avatar'),
+            'signature' => $this->rowValue($row, 'SIGNATURE', 'signature'),
+            'account' => $this->rowValue($row, 'ACCOUNT', 'account'),
+            'name' => $this->rowValue($row, 'NAME', 'name'),
+            'nickname' => $this->rowValue($row, 'NICKNAME', 'nickname'),
+            'gender' => $gender,
+            'genderName' => $gender !== null ? ($genderLabels[(string)$gender] ?? $gender) : null,
+            'age' => $this->rowValue($row, 'AGE', 'age'),
+            'birthday' => $this->rowValue($row, 'BIRTHDAY', 'birthday'),
+            'phone' => $this->rowValue($row, 'PHONE', 'phone'),
+            'email' => $this->rowValue($row, 'EMAIL', 'email'),
+            'empNo' => $this->rowValue($row, 'EMP_NO', 'empNo'),
+            'entryDate' => $this->rowValue($row, 'ENTRY_DATE', 'entryDate'),
+            'orgId' => $orgId,
+            'orgName' => $orgId !== null ? ($orgNames[(string)$orgId] ?? $this->rowValue($row, 'orgName', 'ORG_NAME')) : null,
+            'positionId' => $positionId,
+            'positionName' => $positionId !== null ? ($positionNames[(string)$positionId] ?? $this->rowValue($row, 'positionName', 'POSITION_NAME')) : null,
+            'positionLevel' => $this->rowValue($row, 'POSITION_LEVEL', 'positionLevel'),
+            'directorId' => $this->rowValue($row, 'DIRECTOR_ID', 'directorId'),
+            'positionJson' => $this->rowValue($row, 'POSITION_JSON', 'positionJson'),
+            'userStatus' => $this->rowValue($row, 'USER_STATUS', 'userStatus'),
+            'sortCode' => $this->rowValue($row, 'SORT_CODE', 'sortCode'),
+            'extJson' => $this->rowValue($row, 'EXT_JSON', 'extJson'),
+            'deleteFlag' => $this->rowValue($row, 'DELETE_FLAG', 'deleteFlag'),
+            'createTime' => $this->rowValue($row, 'CREATE_TIME', 'createTime'),
+            'createUser' => $this->rowValue($row, 'CREATE_USER', 'createUser'),
+            'updateTime' => $this->rowValue($row, 'UPDATE_TIME', 'updateTime'),
+            'updateUser' => $this->rowValue($row, 'UPDATE_USER', 'updateUser'),
+            'tenantId' => $this->rowValue($row, 'TENANT_ID', 'tenantId'),
+        ]);
+    }
+
+    private function rowValue(array $row, string ...$keys): mixed
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $row)) {
+                return $row[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<string, string>
+     */
+    private function orgNames(array $rows): array
+    {
+        $orgIds = array_values(array_unique(array_filter(array_map(
+            fn (array $row): string => (string)$this->rowValue($row, 'ORG_ID', 'orgId'),
+            $rows
+        ))));
+
+        return $orgIds === []
+            ? []
+            : SysOrg::whereIn('ID', $orgIds)->column('NAME', 'ID');
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<string, string>
+     */
+    private function positionNames(array $rows): array
+    {
+        $positionIds = array_values(array_unique(array_filter(array_map(
+            fn (array $row): string => (string)$this->rowValue($row, 'POSITION_ID', 'positionId'),
+            $rows
+        ))));
+
+        return $positionIds === []
+            ? []
+            : SysPosition::whereIn('ID', $positionIds)->column('NAME', 'ID');
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function dictLabels(string $parentDictValue): array
+    {
+        $parentId = Db::name('dev_dict')
+            ->where('DICT_VALUE', $parentDictValue)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', self::NOT_DELETE);
+            })
+            ->value('ID');
+
+        if ($parentId === null || $parentId === '') {
+            return [];
+        }
+
+        return Db::name('dev_dict')
+            ->where('PARENT_ID', (string)$parentId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', self::NOT_DELETE);
+            })
+            ->column('DICT_LABEL', 'DICT_VALUE');
     }
 
     /**

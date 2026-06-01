@@ -22,10 +22,10 @@ class OrgService
      */
     public function all(array $filters = []): array
     {
-        return $this->baseQuery($filters)
-            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
-            ->select()
-            ->toArray();
+        return array_map(
+            fn (array $row): array => $this->orgRow($row),
+            $this->rawRows($filters)
+        );
     }
 
     public function page(array $filters = []): array
@@ -39,10 +39,13 @@ class OrgService
             ->toArray();
 
         return [
-            'records' => $records,
+            'records' => array_map(fn (array $row): array => $this->orgRow($row), $records),
             'total' => $total,
             'page' => $page,
+            'current' => $page,
             'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
         ];
     }
 
@@ -51,7 +54,7 @@ class OrgService
      */
     public function tree(array $filters = []): array
     {
-        return $this->treeBuilder->build($this->all($filters));
+        return $this->normalizeTree($this->treeBuilder->build($this->rawRows($filters)));
     }
 
     /**
@@ -59,14 +62,25 @@ class OrgService
      */
     public function selector(array $filters = []): array
     {
-        return $this->treeBuilder->toSelector($this->tree($filters));
+        return $this->treeBuilder->toSelector($this->treeBuilder->build($this->rawRows($filters)));
     }
 
     public function detail(string $id): ?array
     {
         $row = $this->baseQuery(['id' => $id])->find();
 
-        return $row ? $row->toArray() : null;
+        return $row ? $this->orgRow($row->toArray()) : null;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function rawRows(array $filters = []): array
+    {
+        return $this->baseQuery($filters)
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->select()
+            ->toArray();
     }
 
     private function baseQuery(array $filters)
@@ -106,5 +120,39 @@ class OrgService
         $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function orgRow(array $row): array
+    {
+        return array_merge($row, [
+            'id' => $row['ID'] ?? null,
+            'parentId' => $row['PARENT_ID'] ?? null,
+            'name' => $row['NAME'] ?? null,
+            'category' => $row['CATEGORY'] ?? null,
+            'sortCode' => $row['SORT_CODE'] ?? null,
+            'directorId' => $row['DIRECTOR_ID'] ?? null,
+            'extJson' => $row['EXT_JSON'] ?? null,
+            'deleteFlag' => $row['DELETE_FLAG'] ?? null,
+            'createTime' => $row['CREATE_TIME'] ?? null,
+            'createUser' => $row['CREATE_USER'] ?? null,
+            'updateTime' => $row['UPDATE_TIME'] ?? null,
+            'updateUser' => $row['UPDATE_USER'] ?? null,
+            'tenantId' => $row['TENANT_ID'] ?? null,
+        ]);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $nodes
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeTree(array $nodes): array
+    {
+        return array_map(function (array $node): array {
+            $children = $node['children'] ?? [];
+            $row = $this->orgRow($node);
+            $row['children'] = is_array($children) ? $this->normalizeTree($children) : [];
+
+            return $row;
+        }, $nodes);
     }
 }

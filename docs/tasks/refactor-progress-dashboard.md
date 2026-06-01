@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-01 11:10 +08:00
+Last updated: 2026-06-01 11:45 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -21,7 +21,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | ThinkPHP Controllers | 52 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
 | ThinkPHP Services | 46 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
 | Registered route entries | 179 | Most are protected read-only compatibility routes |
-| API compatibility docs | 38 | Stored under `docs/api` |
+| API compatibility docs | 39 | Stored under `docs/api` |
 | Database docs | 10 | Stored under `docs/database` |
 | Java Controllers in original project | 84 | Read-only reference baseline |
 | Frontend API files in copied project | 76 | Static scan source: `snowy-admin-web/src/api` |
@@ -40,12 +40,12 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Project engineering setup | 95% | Green | Git, remote sync, worktree plan, docs, AGENTS rules, baseline commands | Keep docs updated after each slice |
 | Database and Models | 85% | Green | 121-table SQL reference used; 67 passive Models; field/relation/index docs | Low-priority tables, model relation methods where needed, final migration review |
 | Auth / Token / RBAC / Menu | 70% | Yellow | Login, password compatibility base, token middleware, RBAC/menu/session reads, protected routes | Refresh/session hardening, fine-grained permission enforcement, data-scope expansion |
-| User / Org / Position | 60% | Yellow | Read-only org tree, position, user directory, user-center selectors | User CRUD, grants, upload/avatar, import/export, encrypted profile fields |
+| User / Org / Position | 63% | Yellow | Read-only org tree, position, user directory, user-center selectors, camelCase display aliases for org/user/position pages | User CRUD, grants, upload/avatar, import/export, encrypted profile fields |
 | Workflow | 35% | Yellow | Runtime strategy, read-only task/process routes, variable normalization | Approval/reject/cancel/start, side effects, workflow write runtime |
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
 | Business read-only APIs | 55% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order | Sale project, customer, invoice/invoicing, reissue, follow-up, rating, remaining selectors and detail consumers |
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
-| Frontend adaptation | 45% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, and API gap map generated; browser smoke reaches `/sys/org` and `/sys/user` | Org/user field display alignment, missing SSE route, broken API method cleanup, missing read-only business routes |
+| Frontend adaptation | 47% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, and org/user display aliases added; browser smoke reaches `/sys/org` and `/sys/user` | Missing SSE route, broken API method cleanup, missing read-only business routes |
 | Testing / QA | 40% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice | Automated route/API test suite, regression matrix, frontend smoke, negative tests |
 | Deployment | 15% | Red | Local MySQL/Redis startup method known; env is local | Production config, queue/runtime/log permissions, Nginx/PHP deployment checks |
 | Final online data sync | 0% | Red | Requirement recorded as final-stage reminder | Must design and confirm after project completion; do not start early |
@@ -87,10 +87,10 @@ The estimate assumes continued small commits and local MySQL/Redis availability.
 
 ## Next Immediate Actions
 
-1. Align org/user response fields and dictionary labels for visible tables.
-2. Review Java SSE implementation before adding `/dev/message/createSseConnect`.
-3. Add safe read-only `biz/saleproject` and `biz/customer` routes in small api-agent slices.
-4. Add user-agent selector/read aliases for `biz/org`, `biz/user`, `biz/position`, and `biz/dict`.
+1. Review Java SSE implementation before adding `/dev/message/createSseConnect`.
+2. Add safe read-only `biz/saleproject` and `biz/customer` routes in small api-agent slices.
+3. Add user-agent selector/read aliases for `biz/org`, `biz/user`, `biz/position`, and `biz/dict`.
+4. Browser-smoke `/sys/org` and `/sys/user` after each backend or frontend compatibility slice.
 5. Document the customer encrypted-field strategy before customer and sale-project detail work.
 6. Keep final production data sync deferred until the system is complete and the user confirms the sync plan.
 

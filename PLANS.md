@@ -2830,3 +2830,60 @@ git status --short --branch
 - `docs/tasks/api-gap-map.md` lists implemented, missing, and deferred frontend endpoint groups.
 - `STATUS.md` records test results and next priorities.
 - Commit message contains `frontend-agent`.
+
+## Completed Plan: user-agent - Sys Org/User Display Field Compatibility
+
+Status: completed on 2026-06-01 after service alias implementation, API response probes, backend checks, frontend build, and browser smoke.
+
+Date: 2026-06-01
+
+### 1. Current Goal
+
+Fix the first visible post-login compatibility issue on `/sys/org` and `/sys/user`: table rows and trees should expose the camelCase fields that the copied Vue frontend already expects.
+
+This phase keeps the change small. It only adds response aliases/enrichment to existing read services. It does not add user/org/position write endpoints.
+
+### 2. Modules In Scope
+
+- System organization reads
+- System user reads
+- System position reads used by user pages/selectors
+- Documentation and status tracking
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/user/OrgService.php`
+- `app/service/user/UserDirectoryService.php`
+- `app/service/user/PositionService.php`
+- `docs/api/sys-user-org-display-compat.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Risks
+
+- Frontend pages still use dictionary values from local storage. This phase should ensure the source field exists, but it should not rewrite frontend dictionary behavior.
+- User rows need `orgName` and `positionName`; this must be resolved in batch to avoid N+1 queries.
+- Existing consumers may still use uppercase SQL fields. Keep uppercase fields in the response and add camelCase aliases rather than replacing fields.
+- Public locked files are not in scope.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\user\OrgService.php
+php -l app\service\user\UserDirectoryService.php
+php -l app\service\user\PositionService.php
+composer dump-autoload
+php think
+php think route:list
+npm run build
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `/sys/org/page`, `/sys/org/tree`, and `/sys/org/detail` responses include `id`, `parentId`, `name`, `category`, and `sortCode`.
+- `/sys/user/page` and `/sys/user/detail` responses include `id`, `account`, `name`, `gender`, `genderName`, `phone`, `orgId`, `orgName`, `positionId`, `positionName`, `userStatus`, and `sortCode`.
+- `/sys/position/page`, `/sys/position/list`, and `/sys/position/detail` responses include `id`, `orgId`, `name`, `category`, and `sortCode`.
+- Existing uppercase SQL fields remain present for compatibility.
+- No route, Controller, database, Java source, or write endpoint is changed.
