@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-01 09:22 +08:00
+Last updated: 2026-06-01 09:36 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -40,7 +40,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
 | Business read-only APIs | 55% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order | Sale project, customer, invoice/invoicing, reissue, follow-up, rating, remaining selectors and detail consumers |
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
-| Frontend adaptation | 15% | Red | Backend compatibility routes reduce some frontend pressure | Actual Vue request/token/menu/permission testing and broken API method cleanup |
+| Frontend adaptation | 18% | Red | Original Vue project located and joint test workflow documented | Baseline frontend import, request/token/menu adaptation, browser smoke, broken API method cleanup |
 | Testing / QA | 40% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice | Automated route/API test suite, regression matrix, frontend smoke, negative tests |
 | Deployment | 15% | Red | Local MySQL/Redis startup method known; env is local | Production config, queue/runtime/log permissions, Nginx/PHP deployment checks |
 | Final online data sync | 0% | Red | Requirement recorded as final-stage reminder | Must design and confirm after project completion; do not start early |
@@ -65,7 +65,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | 4. Low-risk write endpoints | 2026-06-11 to 2026-06-15 | Add isolated CRUD without heavy side effects | Master-data writes for selected modules after review | Transactional writes smoke tested; no stock/payment/workflow side effects yet |
 | 5. Business transactional writes | 2026-06-16 to 2026-06-22 | Implement side-effect-heavy writes | Purchase, inventory, delivery, settlement, payment/refund/status flows | Transactions, rollback tests, state updates, event replacement notes |
 | 6. Workflow write runtime | 2026-06-23 to 2026-06-28 | Implement approval actions | Start/approve/reject/cancel and business side-effect hooks | Workflow smoke passes on imported data |
-| 7. Frontend adaptation | 2026-06-29 to 2026-07-03 | Make Vue frontend work against ThinkPHP API | Token/request/menu/permission adaptation, missing API wrappers | Main workflows usable from browser |
+| 7. Frontend adaptation | Starts now as a parallel track; deeper work 2026-06-29 to 2026-07-03 | Make Vue frontend work against ThinkPHP API | Baseline import, token/request/menu/permission adaptation, missing API wrappers, joint backend/frontend smoke | Main workflows usable from browser |
 | 8. Test hardening | 2026-07-04 to 2026-07-07 | Stabilize full system | Route/API regression suite, syntax/namespace checks, negative auth tests | `composer install`, `php think`, `route:list`, lint, smoke all pass |
 | 9. Deployment rehearsal | 2026-07-08 to 2026-07-10 | Prepare runtime deployment | Env checklist, Nginx/PHP/runtime permission notes, backup plan | Staging deployment checklist passes |
 | 10. Final online data sync plan | After phase 9, with user confirmation | Sync production/online realtime data into final project | Data backup, sync direction, downtime/rollback plan | User confirms sync plan before any production data operation |
@@ -83,6 +83,20 @@ The estimate assumes continued small commits and local MySQL/Redis availability.
 ## Next Immediate Actions
 
 1. Generate an API gap map from the remaining frontend API files.
-2. Finish remaining safe read-only business endpoints before adding writes.
-3. Document the customer encrypted-field strategy before customer and sale-project detail work.
-4. Keep final production data sync deferred until the system is complete and the user confirms the sync plan.
+2. Import the original frontend into the target repository through frontend-agent and keep the Java source read-only.
+3. Start backend and frontend together for browser smoke after the frontend baseline is imported.
+4. Finish remaining safe read-only business endpoints before adding writes.
+5. Document the customer encrypted-field strategy before customer and sale-project detail work.
+6. Keep final production data sync deferred until the system is complete and the user confirms the sync plan.
+
+## Frontend Joint Testing Rule
+
+Frontend adaptation is now part of the active workflow, not a final-only task. Future backend slices should record whether they affect visible frontend pages. After the frontend baseline is imported, every completed route slice should be followed by a backend plus frontend smoke cycle:
+
+1. Start MySQL/Redis.
+2. Start ThinkPHP on port `82`.
+3. Start Vue frontend on port `83`.
+4. Browser-test login, menu loading, and the affected pages.
+5. Record missing frontend calls in `docs/tasks/api-gap-map.md`.
+
+Detailed workflow: `docs/tasks/frontend-joint-test-workflow.md`

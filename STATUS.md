@@ -2875,3 +2875,37 @@ Agent: api-agent
 
 - Keep updating `docs/tasks/refactor-progress-dashboard.md` after each completed slice.
 - Generate an API gap map from remaining frontend API files before selecting the next read-only business endpoint.
+
+## 2026-06-01 - merge-agent - Frontend Joint Test Workflow
+
+### Completed Content
+
+- Accepted the user requirement that frontend adaptation must proceed together with backend refactor work.
+- Confirmed the original frontend exists at `F:\AI\projects\testJava\OA\snowy-admin-web` and remains read-only.
+- Confirmed `F:\AI\projects\testJava\OA-ThinkPHP` does not yet contain the frontend source.
+- Confirmed `F:\AI\projects\testJava\OA-frontend` currently contains the ThinkPHP worktree, not the imported Vue frontend.
+- Documented the future backend plus frontend startup and smoke-test workflow.
+- Updated the progress dashboard so frontend adaptation starts as a parallel track.
+
+### Modified Files
+
+- `STATUS.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/frontend-joint-test-workflow.md`
+
+### Test Results
+
+- Documentation-only update.
+- `git status --short --branch`: checked before editing and was clean/synced.
+
+### Current Issues
+
+- The frontend has not been imported into the target repository yet, so browser testing against the adapted ThinkPHP project cannot start until frontend-agent performs the baseline import.
+- The original frontend sends a legacy `token` header, while the ThinkPHP convention is `Authorization: Bearer <token>`.
+- Browser login may need SM2 compatibility testing after frontend import.
+
+### Next Plan
+
+- Create an API gap map from the original frontend API files.
+- Prepare a frontend-agent baseline import plan for `snowy-admin-web` without copying `node_modules`, `dist`, logs, or secrets.
+- After the baseline import, start MySQL/Redis, ThinkPHP on port `82`, and Vue on port `83` for joint browser smoke tests.
