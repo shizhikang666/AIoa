@@ -30,11 +30,19 @@ Read-only SQL reference:
 
 Do not run these commands against production.
 
-1. Start or prepare a local MySQL instance.
+1. Start or prepare a local MySQL and Redis runtime.
 2. Create an isolated development database named `phpoa20026`.
 3. Import the SQL dump into that local database.
 4. Configure ThinkPHP database environment variables in a local `.env` file.
 5. Run the smoke checks below.
+
+The user-designated local helper script is:
+
+```powershell
+Start-Process -FilePath "F:\project\socket\AI\testPhp\files\startServer1.bat" -WorkingDirectory "F:\project\socket\AI\testPhp\files" -WindowStyle Hidden
+```
+
+Do not assume `startServer1.bat` exists inside the MySQL subdirectory.
 
 Example commands to run manually after confirming MySQL credentials:
 

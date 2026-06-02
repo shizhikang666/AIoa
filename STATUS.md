@@ -3184,3 +3184,73 @@ Agent: api-agent
 
 - Commit and push this small api-agent slice.
 - Continue with read-only `biz/saleproject` and `biz/customer` API slices.
+
+## 2026-06-02 - api-agent - Biz Sale Project Read-Only API Compatibility
+
+### Completed Content
+
+- Analyzed the Java sale-project Controller/Service and the `oa2026.sql` table structures for sale-project read flows.
+- Added protected ThinkPHP read routes for:
+  - `/biz/saleproject/page`
+  - `/biz/saleproject/case/page`
+  - `/biz/saleproject/operation/page`
+  - `/biz/saleproject/public/page`
+  - `/biz/saleproject/list/detail`
+  - `/biz/saleproject/detail`
+  - `/biz/saleproject/product`
+- Added a thin `SaleProjectController` and read-only `SaleProjectService`.
+- Returned Java/frontend-compatible fields for sale project list/detail/product-item display, including customer/user/org/account display names and aggregate detail lists.
+- Preserved product child `extJson` compatibility for frontend parsing.
+- Fixed the ThinkORM case-list join to use `join(..., 'INNER')` because `innerJoin()` is not available in this installed ORM version.
+- Registered nested saleproject paths as explicit full routes to avoid stale local route-cache behavior during `php think run`.
+- Confirmed and documented the corrected local MySQL/Redis helper path: `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, and sale-project write endpoints unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `think`
+- `app/controller/biz/SaleProjectController.php`
+- `app/service/biz/SaleProjectService.php`
+- `docs/api/biz-saleproject-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/runtime-verification-plan.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectController.php`: passed.
+- `php -l app\service\biz\SaleProjectService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; all seven saleproject read routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- MySQL and Redis local services are reachable.
+- Backend smoke on `http://127.0.0.1:82`: passed.
+- Frontend smoke on `http://127.0.0.1:83`: passed.
+- Unauthenticated `/biz/saleproject/page`: returned API `code = 401`.
+- Authenticated saleproject probes with a fresh local token:
+  - `/biz/saleproject/page`: `code = 200`, total `8`.
+  - `/biz/saleproject/detail`: `code = 200`.
+  - `/biz/saleproject/product`: `code = 200`.
+  - `/biz/saleproject/case/page`: `code = 200`.
+  - `/biz/saleproject/operation/page`: `code = 200`.
+  - `/biz/saleproject/public/page`: `code = 200`.
+  - `/biz/saleproject/list/detail`: `code = 200`.
+
+### Current Issues
+
+- Sale-project write routes remain intentionally deferred.
+- Weighted-average inventory cost endpoints remain intentionally deferred because they require a dedicated inventory/finance plan.
+- Customer detail and other adjacent page APIs may still need the next read-only `biz/customer` slice.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this saleproject read-only slice.
+- Continue with the next api-agent read-only slice for `biz/customer`, because sale-project pages depend on customer detail/follow-up endpoints.
+- Keep frontend and backend services available for the user's continued local testing.

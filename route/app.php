@@ -321,6 +321,16 @@ Route::group('biz/bizpurchaseorder', function () {
     Route::get('detail', 'biz.PurchaseOrderController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/saleproject', function () {
+    Route::get('page', 'biz.SaleProjectController/page');
+    Route::get('detail', 'biz.SaleProjectController/detail');
+    Route::get('product', 'biz.SaleProjectController/product');
+})->middleware(AuthMiddleware::class);
+Route::get('biz/saleproject/case/page', 'biz.SaleProjectController/casePage')->middleware(AuthMiddleware::class);
+Route::get('biz/saleproject/operation/page', 'biz.SaleProjectController/operationPage')->middleware(AuthMiddleware::class);
+Route::get('biz/saleproject/public/page', 'biz.SaleProjectController/publicPage')->middleware(AuthMiddleware::class);
+Route::get('biz/saleproject/list/detail', 'biz.SaleProjectController/listDetail')->middleware(AuthMiddleware::class);
+
 Route::group('biz/returnorder', function () {
     Route::get('page', 'biz.ReturnOrderController/page');
     Route::get('query', 'biz.ReturnOrderController/query');

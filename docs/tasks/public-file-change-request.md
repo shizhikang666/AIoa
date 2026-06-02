@@ -1492,3 +1492,50 @@ The existing Vue sale-project and return-order pages call `/biz/returnorder/page
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Sale Project Read-Only Routes
+
+## Request
+
+Register protected read-only sale-project routes in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-project pages call `/biz/saleproject/page`, `/biz/saleproject/case/page`, `/biz/saleproject/operation/page`, `/biz/saleproject/public/page`, `/biz/saleproject/list/detail`, `/biz/saleproject/detail`, and `/biz/saleproject/product` after login. These reads are needed for project list, public project list, case list, detail drawer, export, and product item display while all sale-project mutations remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected routes:
+
+- `GET /biz/saleproject/page`
+- `GET /biz/saleproject/case/page`
+- `GET /biz/saleproject/operation/page`
+- `GET /biz/saleproject/public/page`
+- `GET /biz/saleproject/list/detail`
+- `GET /biz/saleproject/detail`
+- `GET /biz/saleproject/product`
+
+The nested paths (`case/page`, `operation/page`, `public/page`, and `list/detail`) are registered as explicit full route paths in `route/app.php` to keep local route-cache refresh behavior stable during `php think run` smoke tests.
+
+## Explicit Exclusions
+
+- No `/biz/saleproject/add` route was added.
+- No `/biz/saleproject/edit` route was added.
+- No `/biz/saleproject/deal/edit` route was added.
+- No `/biz/saleproject/delete` route was added.
+- No `/biz/saleproject/repeal` route was added.
+- No `/biz/saleproject/cancel` route was added.
+- No `/biz/saleproject/history/add` route was added.
+- No `/biz/saleproject/special/add` route was added.
+- No `/biz/saleproject/visibility/edit` route was added.
+- No `/biz/saleproject/amount/edit` route was added.
+- No `/biz/saleproject/cost` or `/biz/saleproject/cost/details` route was added.
+- No project mutation, inventory mutation, financial cost calculation, workflow mutation, database schema change, Java source change, frontend change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

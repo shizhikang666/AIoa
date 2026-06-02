@@ -2993,3 +2993,67 @@ git diff --check
 - The response content type is `text/event-stream`.
 - The initial event includes Java-compatible `code = 0` with a client id.
 - No Java source, database schema, frontend file, Composer file, `.env`, or message mutation endpoint is changed.
+
+## Active Plan: api-agent - Sale Project Read API Compatibility
+
+Status: completed on 2026-06-02.
+
+### 1. Current Goal
+
+Add the first read-only ThinkPHP compatibility slice for Java `BizSaleProjectController`, focused on frontend browse/test flows after login.
+
+This phase does not implement sale project creation, editing, deletion, visibility changes, deal-state changes, cancellation, special/history project creation, or weighted-average cost calculation.
+
+### 2. Modules In Scope
+
+- `biz/saleproject` read-only Controller mapping
+- Sale project list/page/detail/product item read queries
+- Product child relation compatibility from `sale_project_product_item_relation`
+- API and public route-change documentation
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SaleProjectController.php`
+- `app/service/biz/SaleProjectService.php`
+- `docs/api/biz-saleproject-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so the route registration must stay narrow and be recorded in the public-file change request document.
+- Java sale project detail aggregates invoices, invoicing records, payment records, return orders, follow-ups, change logs, and product children. This first slice returns those related read lists where table structure is already mapped and keeps mutation side effects deferred.
+- Cost endpoints depend on inventory weighted-average logic and are intentionally deferred to avoid inaccurate financial behavior.
+- Customer detail endpoints are still a separate api-agent slice, so a sale-project detail page may still request missing customer APIs after this phase.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectController.php
+php -l app\service\biz\SaleProjectService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/saleproject/page`, `/case/page`, `/operation/page`, `/public/page`, `/list/detail`, `/detail`, and `/product` appear in `php think route:list`.
+- All new sale project routes are protected by the existing `AuthMiddleware`.
+- Page responses include Java/frontend-compatible sale project display fields such as `customerName`, `headName`, `headPhone`, `orgName`, and `accountName`.
+- Detail responses include `bizSaleProject`, `productItems`, `invoicingList`, `invoiceList`, `paymentRecords`, `saleProjectFollowUps`, `changeLogs`, and `returnOrders`.
+- Product item responses include `children` arrays with relation `extJson` preserved for frontend parsing.
+- Java source, database schema, frontend files, Composer files, `.env`, and write endpoints remain unchanged.
+
+### 7. Completion Notes
+
+- Implemented the read-only Controller and Service slice for the seven Java-compatible sale-project read routes.
+- Registered the four nested saleproject routes as explicit full paths to avoid route-cache/runtime ambiguity during local smoke tests.
+- Kept all sale-project write, inventory cost, workflow, Java source, database schema, frontend, Composer, and `.env` changes out of scope.
+- Verified the local MySQL/Redis helper script path is `F:\project\socket\AI\testPhp\files\startServer1.bat`.

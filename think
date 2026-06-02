@@ -2,6 +2,12 @@
 <?php
 namespace think;
 
+foreach ($_SERVER as $key => $_) {
+    if (!is_string($key)) {
+        unset($_SERVER[$key]);
+    }
+}
+
 // 命令行入口文件
 // 加载基础文件
 require __DIR__ . '/vendor/autoload.php';
