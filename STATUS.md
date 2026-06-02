@@ -3440,3 +3440,66 @@ Agent: api-agent
 - Commit and push this directory alias read-only slice.
 - When the user or next test slice starts the backend manually, re-run browser/HTTP smoke for `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict`.
 - Continue the read-only backlog with workflow query/detail reads and business report reads.
+
+## 2026-06-02 - workflow-agent/api-agent - Workflow Read Alias Compatibility
+
+### Completed Content
+
+- Analyzed Java `BizProcessController`, `BizProcessProjectController`, and `BizTaskController` as read-only input.
+- Analyzed copied Vue workflow wrappers for `/biz/process/*` and `/biz/task/*`.
+- Added protected read-only workflow routes for:
+  - `/biz/process/all/page`
+  - `/biz/process/query`
+  - `/biz/process/query/list`
+  - `/biz/process/project/runtime/query/list`
+  - `/biz/process/fileList`
+  - `/biz/task/runtime/activity/detail`
+- Added frontend-friendly workflow process row aliases including `id`, `instanceId`, `category`, `title`, `status`, and `variable`.
+- Made process detail and variable reads accept either `processInstanceId` or Java/frontend `id`.
+- Added workflow detail response compatibility fields: `userProcess`, `startUser`, `startOrgTree`, `userActivityList`, and `ccUser`.
+- Added runtime activity detail reads from `act_ru_task` and normalized runtime variables.
+- Updated API docs, API gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, process starts, task approve/reject, task SSE, and workflow side effects unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/ProcessController.php`
+- `app/controller/biz/TaskController.php`
+- `app/service/workflow/WorkflowQueryService.php`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\ProcessController.php`: passed.
+- `php -l app\controller\biz\TaskController.php`: passed.
+- `php -l app\service\workflow\WorkflowQueryService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; all six new workflow read routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI workflow smoke passed:
+  - `allProcessPage`: returned 2 rows from total 2915.
+  - `processDetail`: returned Java/frontend-compatible shape.
+  - `projectRuntimeQueryList`: returned 1 row.
+  - `runtimeActivityDetail`: skipped because current imported runtime data has no assigned pending task.
+
+### Current Issues
+
+- Task approve/reject, process start/cancel, task SSE, and workflow side effects remain intentionally deferred.
+- Runtime ACL for ThinkPHP `runtime` was repaired for the current local Codex user so normal `php think route:list` can write generated route/log files.
+- Full browser smoke for workflow pages still needs the backend dev server running stably on port `82`.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this workflow read alias slice.
+- Continue with business report, payroll, leave, sale-project-product-info, and settlement-account-payment read-only slices.
+- Keep frontend and backend joint smoke in the loop after the backend dev server is stable.

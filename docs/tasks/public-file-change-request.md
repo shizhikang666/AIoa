@@ -1672,3 +1672,41 @@ The copied Vue frontend contains business-side wrappers under `/biz/org`, `/biz/
 - `php think route:list` must list the added routes.
 - Token requests should return read data for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Workflow Read Alias Routes
+
+## Request
+
+Register protected read-only workflow query routes in `route/app.php`.
+
+## Reason
+
+The copied Vue workflow pages call Java-compatible workflow query endpoints after login. These routes are required for browsing all processes, querying runtime process ids, loading workflow-related files, checking project runtime process lists, and opening task runtime activity detail while workflow writes remain deferred.
+
+## Applied Change
+
+`workflow-agent` and `api-agent` registered the following protected routes:
+
+- `GET /biz/process/all/page`
+- `GET /biz/process/query`
+- `POST /biz/process/query/list`
+- `GET /biz/process/project/runtime/query/list`
+- `POST /biz/process/fileList`
+- `GET /biz/task/runtime/activity/detail`
+
+## Explicit Exclusions
+
+- No `/biz/task/approve` route was added.
+- No `/biz/task/reject` route was added.
+- No `/biz/task/sse/stream` route was added.
+- No `/biz/process/cancel` route was added.
+- No process start/edit routes were added.
+- No Java source, database schema, frontend, Composer, `.env`, or workflow runtime side-effect code was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return read data for representative routes.
+- Requests without token should return `code=401`.

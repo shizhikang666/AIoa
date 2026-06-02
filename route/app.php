@@ -407,10 +407,16 @@ Route::group('biz/task', function () {
     Route::get('list', 'biz.TaskController/list');
     Route::get('page', 'biz.TaskController/page');
     Route::get('history/page', 'biz.TaskController/historyPage');
+    Route::get('runtime/activity/detail', 'biz.TaskController/runtimeActivityDetail');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/process', function () {
     Route::get('page', 'biz.ProcessController/page');
+    Route::get('all/page', 'biz.ProcessController/allPage');
+    Route::get('query', 'biz.ProcessController/query');
+    Route::post('query/list', 'biz.ProcessController/queryList');
+    Route::get('project/runtime/query/list', 'biz.ProcessController/projectRuntimeQueryList');
+    Route::post('fileList', 'biz.ProcessController/fileList');
     Route::get('detail', 'biz.ProcessController/detail');
     Route::post('variable', 'biz.ProcessController/variable');
 })->middleware(AuthMiddleware::class);

@@ -3269,3 +3269,73 @@ git diff --check
 - Added user `listDetail` and `ownRole` read helpers without adding grant/write behavior.
 - Added dictionary `treeAll` read helper without adding dictionary edit behavior.
 - Kept all Java source, database schema, frontend, Composer, `.env`, role grant, password, import/export, and write-route changes out of scope.
+
+## Active Plan: workflow-agent/api-agent - Workflow Read Alias Compatibility
+
+Status: completed on 2026-06-02.
+
+### 1. Current Goal
+
+Add the next safe read-only compatibility slice for workflow pages after login. The slice maps Java and copied Vue workflow query endpoints to the existing ThinkPHP Camunda-table read layer.
+
+This phase does not implement task approve, task reject, process start, process cancel, workflow writes, business side effects, or long-lived task SSE.
+
+### 2. Modules In Scope
+
+- `/biz/process/all/page`
+- `/biz/process/query`
+- `/biz/process/query/list`
+- `/biz/process/project/runtime/query/list`
+- `/biz/process/fileList`
+- `/biz/task/runtime/activity/detail`
+- Workflow query documentation and status tracking
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/ProcessController.php`
+- `app/controller/biz/TaskController.php`
+- `app/service/workflow/WorkflowQueryService.php`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/api-gap-map.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so route changes must stay limited to protected read-only compatibility endpoints and be recorded in the public-file change request document.
+- Java workflow uses Camunda runtime APIs; ThinkPHP can read imported `act_*` tables but cannot execute Java delegates.
+- `fileList` relies on `biz_file_relation` and `dev_file` data shape; upload/delete behavior remains deferred.
+- `/biz/task/sse/stream`, `/biz/task/approve`, `/biz/task/reject`, process starts, and process cancel remain deferred because they create runtime side effects.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\ProcessController.php
+php -l app\controller\biz\TaskController.php
+php -l app\service\workflow\WorkflowQueryService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- All six new workflow read routes appear in `php think route:list`.
+- All new routes are protected by the existing `AuthMiddleware`.
+- Process page/query responses include frontend-friendly fields such as `id`, `instanceId`, `category`, `title`, `status`, and `variable`.
+- Runtime task detail returns `category`, `variables`, `taskId`, `processKey`, and process identifiers.
+- Java source, database schema, frontend files, Composer files, `.env`, and workflow write endpoints remain unchanged.
+
+### 7. Completion Notes
+
+- Added six protected workflow read aliases used by the copied Vue workflow pages.
+- Added Java/frontend-compatible process row aliases and `id` fallback compatibility for process detail/variable reads.
+- Added workflow detail response shape with `userProcess`, `startUser`, `startOrgTree`, `userActivityList`, and `ccUser`.
+- Added runtime activity detail reads from `act_ru_task` and normalized runtime variables.
+- Kept task approve/reject, process start/cancel, task SSE, Java delegates, database schema, frontend, Composer, and `.env` changes out of scope.

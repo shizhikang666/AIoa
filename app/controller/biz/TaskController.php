@@ -42,4 +42,12 @@ class TaskController extends BaseWorkflowController
             $request->get()
         ));
     }
+
+    public function runtimeActivityDetail(Request $request): Response
+    {
+        return $this->guard(fn () => $this->workflowQueryService->runtimeActivityDetail(
+            $this->requiredString($request, 'id'),
+            $this->currentUserId($request)
+        ));
+    }
 }

@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 179 | From `php think route:list` |
-| Endpoints already covered by route path | 173 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 165 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 228 | From `php think route:list` after workflow read aliases |
+| Endpoints already covered by route path | 222 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 116 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -70,8 +70,8 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector` |
 | `biz/position` | `detail`, `list`, `orgTreeSelector`, `page`, `positionSelector` |
 | `biz/dict` | `page`, `tree`, `treeAll` |
-| `biz/process` | `all/page`, `fileList`, `project/runtime/query/list`, `query`, `query/list` |
-| `biz/task` | `runtime/activity/detail`, `sse/stream` |
+| `biz/process` | Read aliases added for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and `query/list`; write/start/cancel routes remain deferred |
+| `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
 | `biz/bizdatareport` | `saleProfit`, `saleproject`, `saleproject/list`, `saleproject/report`, `saleproject/UnpaidPayment`, `saleProjectList/details`, `summary/statistics` |
 | `biz/bizpayroll` | `detail`, `mypage`, `page` |
 | `biz/bizleaveapplication` | `detail`, `my/page`, `page` |
@@ -113,7 +113,7 @@ The frontend still references several auth monitoring and third-party routes:
 1. frontend-agent: document and fix visible org/user field-display and dictionary-label compatibility, with backend changes only if the route output shape is confirmed.
 2. api-agent: add safe read-only `biz/saleproject` and `biz/customer` routes in small slices.
 3. user-agent: add `biz/org`, `biz/user`, `biz/position`, and `biz/dict` selector/read aliases where they overlap with existing system data.
-4. workflow-agent: finish `biz/process` query/list and `biz/task/runtime/activity/detail`; review SSE behavior before implementing stream routes.
+4. workflow-agent: review task SSE stream and workflow write actions only after the read-only workflow pages are stable.
 5. api-agent: plan file upload compatibility after storage provider strategy is confirmed.
 6. test-agent: turn the most-used frontend pages into repeatable backend plus frontend smoke checks.
 
