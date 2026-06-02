@@ -1619,3 +1619,56 @@ The copied Vue sale-project, invoicing, delivery invoice, reissue-order, and pro
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Directory Alias Read-Only Routes
+
+## Request
+
+Register protected read-only legacy directory aliases in `route/app.php`.
+
+## Reason
+
+The copied Vue frontend contains business-side wrappers under `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict`. These paths load organization trees, user tables, selectors, user-owned roles, position selectors, and dictionary trees. The ThinkPHP project already has equivalent system/dev read services, so this slice adds narrow GET aliases instead of duplicating business logic.
+
+## Applied Change
+
+`user-agent` registered the following protected GET routes:
+
+- `/biz/org/page`
+- `/biz/org/list`
+- `/biz/org/tree`
+- `/biz/org/detail`
+- `/biz/org/orgTreeSelector`
+- `/biz/org/userSelector`
+- `/biz/user/page`
+- `/biz/user/list/detail`
+- `/biz/user/detail`
+- `/biz/user/ownRole`
+- `/biz/user/orgTreeSelector`
+- `/biz/user/positionSelector`
+- `/biz/user/roleSelector`
+- `/biz/user/userSelector`
+- `/biz/position/page`
+- `/biz/position/list`
+- `/biz/position/detail`
+- `/biz/position/orgTreeSelector`
+- `/biz/position/positionSelector`
+- `/biz/dict/page`
+- `/biz/dict/tree`
+- `/biz/dict/treeAll`
+
+## Explicit Exclusions
+
+- No `/biz/org/add`, `/edit`, or `/delete` route was added.
+- No `/biz/user/add`, `/edit`, `/center/edit`, `/delete`, `/disableUser`, `/enableUser`, `/resetPassword`, `/grantRole`, `/export`, or `/exportUserInfo` route was added.
+- No `/biz/position/add`, `/edit`, or `/delete` route was added.
+- No `/biz/dict/edit` route was added.
+- No user/role grant mutation, password mutation, import/export, database schema change, Java source change, frontend change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return read data for representative routes.
+- Requests without token should return `code=401`.

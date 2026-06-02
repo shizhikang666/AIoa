@@ -71,6 +71,19 @@ class DictService
         return $this->buildTree($rows);
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function treeAll(array $filters = []): array
+    {
+        $rows = $this->dictQuery($filters, null, false)
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->select()
+            ->toArray();
+
+        return $this->buildTree($rows);
+    }
+
     public function detail(string $id, ?string $tenantId = null): ?array
     {
         $row = $this->dictQuery(['id' => $id], $tenantId, true)->find();

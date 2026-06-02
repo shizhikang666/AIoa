@@ -74,6 +74,43 @@ class UserDirectoryService
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function listDetail(array $filters = []): array
+    {
+        $queryFilters = $filters;
+        unset($queryFilters['orgId']);
+        $query = $this->baseQuery($queryFilters);
+        if (!empty($filters['orgId'])) {
+            $orgIds = $this->orgAndChildren((string)$filters['orgId']);
+            $orgIds === [] ? $query->whereRaw('1 = 0') : $query->whereIn('ORG_ID', $orgIds);
+        }
+
+        $rows = $query
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->select()
+            ->toArray();
+
+        return $this->sanitizeUserRows($rows);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function ownRole(string $id): array
+    {
+        $id = trim($id);
+        if ($id === '') {
+            return [];
+        }
+
+        return array_values(array_map('strval', Db::name('sys_relation')
+            ->where('OBJECT_ID', $id)
+            ->where('CATEGORY', 'SYS_USER_HAS_ROLE')
+            ->column('TARGET_ID')));
+    }
+
+    /**
      * @param array<int, string> $ids
      * @return array<int, array<string, mixed>>
      */
@@ -659,6 +696,46 @@ class UserDirectoryService
         $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function orgAndChildren(string $orgId): array
+    {
+        $orgId = trim($orgId);
+        if ($orgId === '') {
+            return [];
+        }
+
+        $rows = Db::name('sys_org')
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->field(['ID', 'PARENT_ID'])
+            ->select()
+            ->toArray();
+
+        $childrenByParent = [];
+        foreach ($rows as $row) {
+            $childrenByParent[(string)($row['PARENT_ID'] ?? '')][] = (string)$row['ID'];
+        }
+
+        $result = [];
+        $queue = [$orgId];
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            if ($current === null || in_array($current, $result, true)) {
+                continue;
+            }
+
+            $result[] = $current;
+            foreach ($childrenByParent[$current] ?? [] as $childId) {
+                $queue[] = $childId;
+            }
+        }
+
+        return $result;
     }
 
     private function defaultWorkbenchData(): string

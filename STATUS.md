@@ -3385,3 +3385,58 @@ Agent: api-agent
 - Commit and push this sale-project billing read-only slice.
 - Continue the api-agent read-only backlog with remaining frontend-visible selectors/detail consumers.
 - Keep backend and frontend services available for continued local testing.
+
+## 2026-06-02 - user-agent - Biz Directory Alias Read-Only API Compatibility
+
+### Completed Content
+
+- Analyzed copied Vue wrappers for `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict`.
+- Analyzed Java `BizUserController` and service methods for `list/detail` and `ownRole` as read-only input.
+- Added protected legacy business-side directory read routes for organization, user, position, and dictionary wrappers.
+- Reused existing ThinkPHP `sys` and `dev` read controllers instead of duplicating user/org/position/dict business logic.
+- Added `UserDirectoryService::listDetail()` for Java-compatible `/biz/user/list/detail` reads, including organization-child expansion for `orgId`.
+- Added `UserDirectoryService::ownRole()` for Java-compatible `/biz/user/ownRole` reads from `sys_relation` category `SYS_USER_HAS_ROLE`.
+- Added `DictService::treeAll()` for frontend-compatible `/biz/dict/treeAll` reads.
+- Documented the route aliases and deferred write routes.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, and all user/org/position/dict write endpoints unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/sys/UserController.php`
+- `app/controller/dev/DictController.php`
+- `app/service/user/UserDirectoryService.php`
+- `app/service/dev/DictService.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\UserController.php`: passed.
+- `php -l app\controller\dev\DictController.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l app\service\dev\DictService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; all twenty-two `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict` read aliases are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- MySQL, Redis, and frontend port `83` were reachable during this phase.
+- Initial HTTP smoke before backend restart confirmed unauthenticated `/biz/org/tree` returned API `code = 401`; authenticated selector routes returned data.
+
+### Current Issues
+
+- After stopping a previously hung local backend process, repeated attempts to restart the ThinkPHP built-in server on port `82` from this sandbox did not produce a stable responding HTTP process, even though foreground `php think run` can start. This appears to be a local process-management issue, not a route or syntax failure.
+- Because of the backend process-management issue, the final HTTP smoke matrix for all new aliases was not completed in this turn.
+- User/org/position/dict write routes, role grant, user status/password actions, import/export, and profile writes remain intentionally deferred.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this directory alias read-only slice.
+- When the user or next test slice starts the backend manually, re-run browser/HTTP smoke for `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict`.
+- Continue the read-only backlog with workflow query/detail reads and business report reads.

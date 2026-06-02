@@ -362,6 +362,40 @@ Route::group('biz/projectrate', function () {
     Route::get('list', 'biz.SaleProjectRateController/list');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/org', function () {
+    Route::get('page', 'sys.OrgController/page');
+    Route::get('list', 'sys.OrgController/list');
+    Route::get('tree', 'sys.OrgController/tree');
+    Route::get('detail', 'sys.OrgController/detail');
+    Route::get('orgTreeSelector', 'sys.OrgController/treeSelector');
+    Route::get('userSelector', 'sys.OrgController/userSelector');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/user', function () {
+    Route::get('page', 'sys.UserController/page');
+    Route::get('list/detail', 'sys.UserController/listDetail');
+    Route::get('detail', 'sys.UserController/detail');
+    Route::get('ownRole', 'sys.UserController/ownRole');
+    Route::get('orgTreeSelector', 'sys.UserController/orgTreeSelector');
+    Route::get('positionSelector', 'sys.UserController/positionSelector');
+    Route::get('roleSelector', 'sys.UserController/roleSelector');
+    Route::get('userSelector', 'sys.UserController/userSelector');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/position', function () {
+    Route::get('page', 'sys.PositionController/page');
+    Route::get('list', 'sys.PositionController/list');
+    Route::get('detail', 'sys.PositionController/detail');
+    Route::get('orgTreeSelector', 'sys.PositionController/orgTreeSelector');
+    Route::get('positionSelector', 'sys.PositionController/selector');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/dict', function () {
+    Route::get('page', 'dev.DictController/page');
+    Route::get('tree', 'dev.DictController/tree');
+    Route::get('treeAll', 'dev.DictController/treeAll');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/returnorder', function () {
     Route::get('page', 'biz.ReturnOrderController/page');
     Route::get('query', 'biz.ReturnOrderController/query');

@@ -3201,3 +3201,71 @@ git diff --check
 - Returned nested Java/frontend-compatible invoice and reissue structures.
 - Preserved relation `extJson` for reissue children and synthesized minimal product JSON only when the relation row has no `extJson`.
 - Kept all invoice, invoicing, reissue, project-rate, workflow, inventory, finance, Java source, database schema, frontend, Composer, and `.env` mutations out of scope.
+
+## Active Plan: user-agent - Biz Directory Alias Read API Compatibility
+
+Status: completed on 2026-06-02.
+
+### 1. Current Goal
+
+Add safe read-only compatibility aliases for legacy frontend `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict` requests by reusing the existing ThinkPHP organization, user, position, and dictionary read services.
+
+This phase does not implement add, edit, delete, grant, enable, disable, reset-password, export, import, upload, or profile-write behavior.
+
+### 2. Modules In Scope
+
+- `biz/org` page/list/tree/detail/selectors
+- `biz/user` page/detail/list-detail/selectors/own-role reads
+- `biz/position` page/list/detail/selectors
+- `biz/dict` page/tree/treeAll reads
+- API and public route-change documentation
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/sys/UserController.php`
+- `app/controller/dev/DictController.php`
+- `app/service/user/UserDirectoryService.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so added routes must stay limited to safe GET reads and be recorded in the public-file change request document.
+- `/biz/user/ownRole` reads role relations from `sys_relation` with category `SYS_USER_HAS_ROLE`; `/biz/user/grantRole` remains deferred because it writes permissions.
+- `biz/dict/treeAll` is mapped to an unscoped dictionary tree for frontend compatibility, while write/edit routes remain deferred.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\UserController.php
+php -l app\controller\dev\DictController.php
+php -l app\service\user\UserDirectoryService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Legacy `/biz/org` GET read routes appear in `php think route:list`.
+- Legacy `/biz/user` GET read routes appear in `php think route:list`, including `list/detail` and `ownRole`.
+- Legacy `/biz/position` GET read routes appear in `php think route:list`.
+- Legacy `/biz/dict/page`, `/tree`, and `/treeAll` appear in `php think route:list`.
+- All new routes are protected by `AuthMiddleware`.
+- Password fields are never returned by user list/detail reads.
+- Java source, database schema, frontend files, Composer files, `.env`, and all write endpoints remain unchanged.
+
+### 7. Completion Notes
+
+- Added twenty-two protected GET aliases for legacy `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict` frontend wrappers.
+- Reused existing system/dev read services for organization, user, position, role selector, and dictionary reads.
+- Added user `listDetail` and `ownRole` read helpers without adding grant/write behavior.
+- Added dictionary `treeAll` read helper without adding dictionary edit behavior.
+- Kept all Java source, database schema, frontend, Composer, `.env`, role grant, password, import/export, and write-route changes out of scope.

@@ -6,9 +6,9 @@ Agent: merge-agent / main control agent
 
 ## Current Estimate
 
-Overall production-ready completion: **48%**
+Overall production-ready completion: **49%**
 
-Read-only API compatibility completion: **73%**
+Read-only API compatibility completion: **75%**
 
 This estimate uses the final goal as the denominator: one complete runnable ThinkPHP OA system with login, RBAC, user/org, workflow, business APIs, frontend adaptation, tests, deployment, and final production data sync.
 
@@ -20,14 +20,14 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | ThinkPHP Models | 67 | Database/model foundation is mostly in place |
 | ThinkPHP Controllers | 59 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
 | ThinkPHP Services | 50 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
-| Registered route entries | 200 | Most are protected read-only compatibility routes |
-| API compatibility docs | 43 | Stored under `docs/api` |
+| Registered route entries | 222 | Most are protected read-only compatibility routes |
+| API compatibility docs | 44 | Stored under `docs/api` |
 | Database docs | 10 | Stored under `docs/database` |
 | Java Controllers in original project | 84 | Read-only reference baseline |
 | Frontend API files in copied project | 76 | Static scan source: `snowy-admin-web/src/api` |
 | Unique frontend API endpoints | 545 | Normalized static wrapper paths |
-| Frontend endpoints already routed | 194 | Matched against current ThinkPHP route paths |
-| Frontend missing read/selector candidates | 144 | Priority candidates for safe compatibility slices |
+| Frontend endpoints already routed | 216 | Matched against current ThinkPHP route paths |
+| Frontend missing read/selector candidates | 122 | Priority candidates for safe compatibility slices |
 | Frontend deferred write/side-effect candidates | 207 | Do not implement without module-specific write plans |
 | Frontend baseline files copied | 908 | Copied into `snowy-admin-web`; generated/cache files excluded |
 | Current branch | `refactor/thinkphp-main` | Clean and synced with origin at last check |
@@ -40,7 +40,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Project engineering setup | 95% | Green | Git, remote sync, worktree plan, docs, AGENTS rules, baseline commands | Keep docs updated after each slice |
 | Database and Models | 85% | Green | 121-table SQL reference used; 67 passive Models; field/relation/index docs | Low-priority tables, model relation methods where needed, final migration review |
 | Auth / Token / RBAC / Menu | 70% | Yellow | Login, password compatibility base, token middleware, RBAC/menu/session reads, protected routes | Refresh/session hardening, fine-grained permission enforcement, data-scope expansion |
-| User / Org / Position | 63% | Yellow | Read-only org tree, position, user directory, user-center selectors, camelCase display aliases for org/user/position pages | User CRUD, grants, upload/avatar, import/export, encrypted profile fields |
+| User / Org / Position | 68% | Yellow | Read-only org tree, position, user directory, user-center selectors, business-side directory aliases, camelCase display aliases for org/user/position pages | User CRUD, grants, upload/avatar, import/export, encrypted profile fields |
 | Workflow | 35% | Yellow | Runtime strategy, read-only task/process routes, variable normalization | Approval/reject/cancel/start, side effects, workflow write runtime |
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
 | Business read-only APIs | 66% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate reads | Remaining selectors and detail consumers |
@@ -63,6 +63,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Sale project reads | `/biz/saleproject/page`, `/case/page`, `/operation/page`, `/public/page`, `/list/detail`, `/detail`, and `/product` routed with aggregate read data | Writes, weighted-average cost, and workflow/finance side effects deferred |
 | Customer reads | `/biz/customer/page`, `/detail`, `/detail/list`, `/biz/customerfollowup/page`, and `/detail` routed with customer owner/org/file and follow-up creator display fields | Customer and follow-up writes, owner reassignment, and SM4 plaintext search deferred |
 | Sale project billing reads | `/biz/saleprojectinvoicing/page`, `/customer`, `/detail`, `/biz/saleprojectinvoice/page`, `/list`, `/biz/saleprojectreissueorder/list/query`, `/biz/projectrate/page`, and `/list` routed with nested invoice/reissue structures | Invoice, invoicing, reissue, rating, workflow, inventory, and finance writes deferred |
+| Biz directory aliases | `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict` read paths routed to existing system/dev read services | User/org/position/dict writes, role grants, password actions, import/export deferred |
 
 ## Remaining High-Level Plan
 
@@ -93,7 +94,7 @@ The estimate assumes continued small commits and local MySQL/Redis availability.
 
 1. Browser-smoke `/dev/message/createSseConnect` from the layout and confirm the previous 404 is gone.
 2. Add remaining read-only selectors and detail consumers needed by sale-project, finance, and customer pages.
-3. Add user-agent selector/read aliases for `biz/org`, `biz/user`, `biz/position`, and `biz/dict`.
+3. Add remaining workflow query/detail reads and business report read slices.
 4. Browser-smoke `/sys/org`, `/sys/user`, and customer detail pages after each backend or frontend compatibility slice.
 5. Keep the customer encrypted-field strategy deferred until an approved SM4 compatibility plan.
 6. Keep final production data sync deferred until the system is complete and the user confirms the sync plan.

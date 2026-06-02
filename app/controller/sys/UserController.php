@@ -29,6 +29,16 @@ class UserController extends BaseSysController
         return $this->guard(fn () => $this->userDirectoryService->detail($this->requiredString($request, 'id')));
     }
 
+    public function listDetail(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->listDetail($request->get()));
+    }
+
+    public function ownRole(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->ownRole($this->requiredString($request, 'id')));
+    }
+
     public function orgTreeSelector(Request $request): Response
     {
         return $this->guard(fn () => $this->orgService->selector($request->get()));

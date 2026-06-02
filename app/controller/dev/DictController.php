@@ -30,6 +30,11 @@ class DictController extends BaseSysController
         return $this->guard(fn () => $this->dictService->tree($request->get(), $this->tenantId($request)));
     }
 
+    public function treeAll(Request $request): Response
+    {
+        return $this->guard(fn () => $this->dictService->treeAll($request->get()));
+    }
+
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->dictService->detail($this->requiredString($request, 'id'), $this->tenantId($request)));
