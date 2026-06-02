@@ -6,9 +6,9 @@ Agent: merge-agent / main control agent
 
 ## Current Estimate
 
-Overall production-ready completion: **47%**
+Overall production-ready completion: **48%**
 
-Read-only API compatibility completion: **70%**
+Read-only API compatibility completion: **73%**
 
 This estimate uses the final goal as the denominator: one complete runnable ThinkPHP OA system with login, RBAC, user/org, workflow, business APIs, frontend adaptation, tests, deployment, and final production data sync.
 
@@ -18,16 +18,16 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | --- | ---: | --- |
 | SQL tables analyzed/imported | 121 | From `F:\AI\projects\testJava\OA\oa2026.sql` |
 | ThinkPHP Models | 67 | Database/model foundation is mostly in place |
-| ThinkPHP Controllers | 55 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
-| ThinkPHP Services | 49 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
-| Registered route entries | 192 | Most are protected read-only compatibility routes |
-| API compatibility docs | 42 | Stored under `docs/api` |
+| ThinkPHP Controllers | 59 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
+| ThinkPHP Services | 50 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
+| Registered route entries | 200 | Most are protected read-only compatibility routes |
+| API compatibility docs | 43 | Stored under `docs/api` |
 | Database docs | 10 | Stored under `docs/database` |
 | Java Controllers in original project | 84 | Read-only reference baseline |
 | Frontend API files in copied project | 76 | Static scan source: `snowy-admin-web/src/api` |
 | Unique frontend API endpoints | 545 | Normalized static wrapper paths |
-| Frontend endpoints already routed | 186 | Matched against current ThinkPHP route paths |
-| Frontend missing read/selector candidates | 152 | Priority candidates for safe compatibility slices |
+| Frontend endpoints already routed | 194 | Matched against current ThinkPHP route paths |
+| Frontend missing read/selector candidates | 144 | Priority candidates for safe compatibility slices |
 | Frontend deferred write/side-effect candidates | 207 | Do not implement without module-specific write plans |
 | Frontend baseline files copied | 908 | Copied into `snowy-admin-web`; generated/cache files excluded |
 | Current branch | `refactor/thinkphp-main` | Clean and synced with origin at last check |
@@ -43,7 +43,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | User / Org / Position | 63% | Yellow | Read-only org tree, position, user directory, user-center selectors, camelCase display aliases for org/user/position pages | User CRUD, grants, upload/avatar, import/export, encrypted profile fields |
 | Workflow | 35% | Yellow | Runtime strategy, read-only task/process routes, variable normalization | Approval/reject/cancel/start, side effects, workflow write runtime |
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
-| Business read-only APIs | 62% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project, customer, customer follow-up | Invoice/invoicing standalone pages, reissue, rating, remaining selectors and detail consumers |
+| Business read-only APIs | 66% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate reads | Remaining selectors and detail consumers |
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
 | Frontend adaptation | 49% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, and minimal SSE route added; browser smoke reaches `/sys/org` and `/sys/user` | Browser-smoke SSE console, broken API method cleanup, missing read-only business routes |
 | Testing / QA | 40% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice | Automated route/API test suite, regression matrix, frontend smoke, negative tests |
@@ -62,6 +62,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | SSE compatibility | `/dev/message/createSseConnect` Java/frontend behavior mapped and minimal protected ThinkPHP route added | Full realtime push deferred |
 | Sale project reads | `/biz/saleproject/page`, `/case/page`, `/operation/page`, `/public/page`, `/list/detail`, `/detail`, and `/product` routed with aggregate read data | Writes, weighted-average cost, and workflow/finance side effects deferred |
 | Customer reads | `/biz/customer/page`, `/detail`, `/detail/list`, `/biz/customerfollowup/page`, and `/detail` routed with customer owner/org/file and follow-up creator display fields | Customer and follow-up writes, owner reassignment, and SM4 plaintext search deferred |
+| Sale project billing reads | `/biz/saleprojectinvoicing/page`, `/customer`, `/detail`, `/biz/saleprojectinvoice/page`, `/list`, `/biz/saleprojectreissueorder/list/query`, `/biz/projectrate/page`, and `/list` routed with nested invoice/reissue structures | Invoice, invoicing, reissue, rating, workflow, inventory, and finance writes deferred |
 
 ## Remaining High-Level Plan
 
@@ -91,7 +92,7 @@ The estimate assumes continued small commits and local MySQL/Redis availability.
 ## Next Immediate Actions
 
 1. Browser-smoke `/dev/message/createSseConnect` from the layout and confirm the previous 404 is gone.
-2. Add standalone invoice/invoicing read-only slices needed by sale-project and finance pages.
+2. Add remaining read-only selectors and detail consumers needed by sale-project, finance, and customer pages.
 3. Add user-agent selector/read aliases for `biz/org`, `biz/user`, `biz/position`, and `biz/dict`.
 4. Browser-smoke `/sys/org`, `/sys/user`, and customer detail pages after each backend or frontend compatibility slice.
 5. Keep the customer encrypted-field strategy deferred until an approved SM4 compatibility plan.

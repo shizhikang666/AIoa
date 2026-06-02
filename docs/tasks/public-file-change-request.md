@@ -1578,3 +1578,44 @@ The nested paths (`case/page`, `operation/page`, `public/page`, and `list/detail
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Sale Project Billing Read-Only Routes
+
+## Request
+
+Register protected read-only sales-project billing-adjacent routes in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-project, invoicing, delivery invoice, reissue-order, and project-rate pages call these Java-compatible endpoints after login. These reads are needed so the existing frontend can load invoice applications, delivery invoice rows, reissue product items, and project rating/case data while all billing, workflow, inventory, and finance mutations remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected routes:
+
+- `GET /biz/saleprojectinvoicing/page`
+- `GET /biz/saleprojectinvoicing/customer`
+- `GET /biz/saleprojectinvoicing/detail`
+- `GET /biz/saleprojectinvoice/page`
+- `GET /biz/saleprojectinvoice/list`
+- `GET /biz/saleprojectreissueorder/list/query`
+- `GET /biz/projectrate/page`
+- `GET /biz/projectrate/list`
+
+## Explicit Exclusions
+
+- No `/biz/saleprojectinvoicing/add` route was added.
+- No `/biz/saleprojectinvoicing/edit` route was added.
+- No `/biz/saleprojectinvoicing/complete` route was added.
+- No `/biz/saleprojectinvoice/add`, `/edit`, `/delete`, or delivery mutation route was added.
+- No `/biz/saleprojectreissueorder/add` or workflow start route was added.
+- No `/biz/projectrate/add`, `/edit`, `/delete`, or rating mutation route was added.
+- No workflow mutation, inventory stock mutation, finance settlement mutation, database schema change, Java source change, frontend change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.

@@ -3126,3 +3126,78 @@ git diff --check
 - Preserved Java/frontend field compatibility for owner, organization, creator, file download, and follow-up creator organization display fields.
 - Kept SM4 phone/detail-address plaintext search deferred and documented the limitation.
 - Kept all customer/follow-up write, owner reassignment, Java source, database schema, frontend, Composer, and `.env` changes out of scope.
+
+## Active Plan: api-agent - Sale Project Billing Read API Compatibility
+
+Status: completed on 2026-06-02.
+
+### 1. Current Goal
+
+Add the next read-only ThinkPHP compatibility slice for Java sales-project billing-adjacent APIs used by the copied Vue frontend after the sale-project and customer pages are available.
+
+This phase covers invoicing applications, delivery invoices, reissue-order detail lists, and project rating reads. It does not implement add, edit, delete, complete, workflow, inventory, finance, or stock side effects.
+
+### 2. Modules In Scope
+
+- `biz/saleprojectinvoicing` read-only page/customer/detail mapping
+- `biz/saleprojectinvoice` read-only page/list mapping
+- `biz/saleprojectreissueorder` read-only list/query mapping
+- `biz/projectrate` read-only page/list mapping
+- Java/frontend-compatible nested invoice item and reissue product-item response structures
+- API and public route-change documentation
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SaleProjectInvoicingController.php`
+- `app/controller/biz/SaleProjectInvoiceController.php`
+- `app/controller/biz/SaleProjectReissueOrderController.php`
+- `app/controller/biz/SaleProjectRateController.php`
+- `app/service/biz/SaleProjectBillingService.php`
+- `docs/api/biz-saleproject-billing-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so the route registration must stay narrow and be recorded in the public-file change request document.
+- Java invoicing page filters projects to invoiceable states only: `PARTIALLY_SHIPPED`, `SHIPPED`, and `COMPLETED`. This slice preserves that filter.
+- Reissue-order product item children must keep `extJson` compatible because the frontend parses nested product data from that JSON value.
+- Write endpoints remain deferred to avoid accidental workflow, inventory, finance, or billing mutations before those modules are planned.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectInvoicingController.php
+php -l app\controller\biz\SaleProjectInvoiceController.php
+php -l app\controller\biz\SaleProjectReissueOrderController.php
+php -l app\controller\biz\SaleProjectRateController.php
+php -l app\service\biz\SaleProjectBillingService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/saleprojectinvoicing/page`, `/customer`, and `/detail` appear in `php think route:list`.
+- `GET /biz/saleprojectinvoice/page` and `/list` appear in `php think route:list`.
+- `GET /biz/saleprojectreissueorder/list/query` appears in `php think route:list`.
+- `GET /biz/projectrate/page` and `/list` appear in `php think route:list`.
+- All new routes are protected by the existing `AuthMiddleware`.
+- Invoice list responses include `bizSaleProjectInvoice` and `invoiceItems`.
+- Reissue list responses include `order` and `productItemList`, and product items include `children` with relation `extJson` preserved.
+- Java source, database schema, frontend files, Composer files, `.env`, and all billing write endpoints remain unchanged.
+
+### 7. Completion Notes
+
+- Implemented read-only Controller and Service adapters for the eight sales-project billing-adjacent routes.
+- Preserved Java's invoiceable-project-state filter for invoice application pages.
+- Returned nested Java/frontend-compatible invoice and reissue structures.
+- Preserved relation `extJson` for reissue children and synthesized minimal product JSON only when the relation row has no `extJson`.
+- Kept all invoice, invoicing, reissue, project-rate, workflow, inventory, finance, Java source, database schema, frontend, Composer, and `.env` mutations out of scope.

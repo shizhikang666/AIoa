@@ -342,6 +342,26 @@ Route::group('biz/customerfollowup', function () {
     Route::get('detail', 'biz.CustomerFollowUpController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/saleprojectinvoicing', function () {
+    Route::get('page', 'biz.SaleProjectInvoicingController/page');
+    Route::get('customer', 'biz.SaleProjectInvoicingController/customer');
+    Route::get('detail', 'biz.SaleProjectInvoicingController/detail');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/saleprojectinvoice', function () {
+    Route::get('page', 'biz.SaleProjectInvoiceController/page');
+    Route::get('list', 'biz.SaleProjectInvoiceController/list');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/saleprojectreissueorder', function () {
+    Route::get('list/query', 'biz.SaleProjectReissueOrderController/listQuery');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/projectrate', function () {
+    Route::get('page', 'biz.SaleProjectRateController/page');
+    Route::get('list', 'biz.SaleProjectRateController/list');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/returnorder', function () {
     Route::get('page', 'biz.ReturnOrderController/page');
     Route::get('query', 'biz.ReturnOrderController/query');

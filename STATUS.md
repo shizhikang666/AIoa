@@ -3319,3 +3319,69 @@ Agent: api-agent
 - Commit and push this customer read-only slice.
 - Continue the api-agent read-only backlog with standalone invoice/invoicing/reissue/rating pages and remaining frontend-visible business reads.
 - Keep backend and frontend services available for continued local testing.
+
+## 2026-06-02 - api-agent - Sale Project Billing Read-Only API Compatibility
+
+### Completed Content
+
+- Analyzed Java sale-project invoicing, delivery invoice, reissue-order, and project-rate Controller/Service flow as read-only input.
+- Added protected ThinkPHP read routes for:
+  - `/biz/saleprojectinvoicing/page`
+  - `/biz/saleprojectinvoicing/customer`
+  - `/biz/saleprojectinvoicing/detail`
+  - `/biz/saleprojectinvoice/page`
+  - `/biz/saleprojectinvoice/list`
+  - `/biz/saleprojectreissueorder/list/query`
+  - `/biz/projectrate/page`
+  - `/biz/projectrate/list`
+- Added thin Controller adapters for invoicing, invoice, reissue-order, and project-rate reads.
+- Added a read-only `SaleProjectBillingService` with Java/frontend-compatible page/list/detail structures.
+- Preserved Java's invoiceable project state filter for invoicing pages: `PARTIALLY_SHIPPED`, `SHIPPED`, and `COMPLETED`.
+- Returned invoice list entries with `bizSaleProjectInvoice` and `invoiceItems`.
+- Returned reissue list entries with `order` and `productItemList`; product items include `children` and preserve relation `extJson`.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, and all billing/write/side-effect endpoints unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SaleProjectInvoicingController.php`
+- `app/controller/biz/SaleProjectInvoiceController.php`
+- `app/controller/biz/SaleProjectReissueOrderController.php`
+- `app/controller/biz/SaleProjectRateController.php`
+- `app/service/biz/SaleProjectBillingService.php`
+- `docs/api/biz-saleproject-billing-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l` for all new Controllers, the new Service, and `route/app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; all eight new routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- MySQL, Redis, backend port `82`, and frontend port `83` are reachable.
+- Unauthenticated `/biz/saleprojectinvoice/list`: returned API `code = 401`.
+- Authenticated probes:
+  - `/biz/saleprojectinvoicing/page`: `code = 200`, total `131`.
+  - `/biz/saleprojectinvoicing/detail`: `code = 200`.
+  - `/biz/saleprojectinvoice/page`: `code = 200`, total `236`.
+  - `/biz/saleprojectinvoice/list`: `code = 200`.
+  - `/biz/projectrate/page`: `code = 200`, total `62`.
+  - `/biz/projectrate/list`: `code = 200`.
+  - `/biz/saleprojectreissueorder/list/query`: `code = 200`; a known project with a reissue order returned the expected `order` and `productItemList` shape.
+
+### Current Issues
+
+- Billing, invoice, invoicing, reissue, project-rate, workflow, inventory, and finance write routes remain intentionally deferred.
+- A one-off CLI DB probe hit a runtime log file permission lock while the local server was active; required framework and HTTP smoke checks passed, so no runtime files were modified.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-project billing read-only slice.
+- Continue the api-agent read-only backlog with remaining frontend-visible selectors/detail consumers.
+- Keep backend and frontend services available for continued local testing.
