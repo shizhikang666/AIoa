@@ -3254,3 +3254,68 @@ Agent: api-agent
 - Commit and push this saleproject read-only slice.
 - Continue with the next api-agent read-only slice for `biz/customer`, because sale-project pages depend on customer detail/follow-up endpoints.
 - Keep frontend and backend services available for the user's continued local testing.
+
+## 2026-06-02 - api-agent - Biz Customer Read-Only API Compatibility
+
+### Completed Content
+
+- Analyzed the Java customer and customer-follow-up Controller/Service/entity flow and the `oa2026.sql` table structures for customer read flows.
+- Added protected ThinkPHP read routes for:
+  - `/biz/customer/page`
+  - `/biz/customer/detail`
+  - `/biz/customer/detail/list`
+  - `/biz/customerfollowup/page`
+  - `/biz/customerfollowup/detail`
+- Added thin `CustomerController` and `CustomerFollowUpController` adapters.
+- Added read-only `CustomerService` and `CustomerFollowUpService` query services.
+- Returned Java/frontend-compatible fields for customer display, including `headName`, `orgName`, `createUserName`, `downloadPath`, and `firstContactTime`.
+- Returned Java/frontend-compatible follow-up display fields, including `customerName`, `createUserName`, `avatar`, `createUserOrgId`, and `createUserOrgName`.
+- Documented the SM4 limitation for customer `PHONE` and `DETAILS_ADDRESS`: stored values are preserved, while plaintext decrypt/search remains deferred.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, and customer/follow-up write endpoints unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/CustomerController.php`
+- `app/controller/biz/CustomerFollowUpController.php`
+- `app/service/biz/CustomerService.php`
+- `app/service/biz/CustomerFollowUpService.php`
+- `docs/api/biz-customer-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CustomerController.php`: passed.
+- `php -l app\controller\biz\CustomerFollowUpController.php`: passed.
+- `php -l app\service\biz\CustomerService.php`: passed.
+- `php -l app\service\biz\CustomerFollowUpService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; all five customer and follow-up read routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- MySQL, Redis, backend port `82`, and frontend port `83` are reachable.
+- Frontend `/index` HTTP smoke on `http://127.0.0.1:83`: returned HTTP 200.
+- Unauthenticated `/biz/customer/page`: returned API `code = 401`.
+- Authenticated customer probes:
+  - `/biz/customer/page`: `code = 200`, total `5020`.
+  - `/biz/customer/detail`: `code = 200`.
+  - `/biz/customer/detail/list`: `code = 200`, export-compatible rows returned.
+  - `/biz/customerfollowup/page`: `code = 200`, total `53`.
+  - `/biz/customerfollowup/detail`: `code = 200`.
+
+### Current Issues
+
+- Customer and customer-follow-up write routes remain intentionally deferred.
+- Customer phone and detail-address plaintext decrypt/search remains deferred until an approved SM4 compatibility plan.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this customer read-only slice.
+- Continue the api-agent read-only backlog with standalone invoice/invoicing/reissue/rating pages and remaining frontend-visible business reads.
+- Keep backend and frontend services available for continued local testing.

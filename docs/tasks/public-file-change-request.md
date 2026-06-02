@@ -473,6 +473,45 @@ The existing Vue team-project pages call `/biz/bizteamproject/page`, `/biz/bizte
 
 ---
 
+# Public File Change Request: Biz Customer Read-Only Routes
+
+## Request
+
+Register protected read-only customer and customer-follow-up routes in `route/app.php`.
+
+## Reason
+
+The copied Vue customer, customer detail, sale-project detail, follow-up, and export pages call `/biz/customer/page`, `/biz/customer/detail`, `/biz/customer/detail/list`, `/biz/customerfollowup/page`, and `/biz/customerfollowup/detail` after login. These reads are needed for customer browsing, detail drawers, sale-project customer base info, follow-up tabs, and export data preparation while all customer and follow-up mutations remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected routes:
+
+- `GET /biz/customer/page`
+- `GET /biz/customer/detail`
+- `POST /biz/customer/detail/list`
+- `GET /biz/customerfollowup/page`
+- `GET /biz/customerfollowup/detail`
+
+## Explicit Exclusions
+
+- No `/biz/customer/add` route will be added.
+- No `/biz/customer/edit` route will be added.
+- No `/biz/customer/delete` route will be added.
+- No `/biz/customer/head/edit` route will be added.
+- No `/biz/customerfollowup/add` route will be added.
+- No `/biz/customerfollowup/edit` route will be added.
+- No `/biz/customerfollowup/delete` route will be added.
+- No customer mutation, follow-up mutation, SM4 crypto implementation, database schema change, Java source change, frontend change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Biz Team Project Task Read-Only Routes
 
 ## Request

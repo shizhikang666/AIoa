@@ -3057,3 +3057,72 @@ git diff --check
 - Registered the four nested saleproject routes as explicit full paths to avoid route-cache/runtime ambiguity during local smoke tests.
 - Kept all sale-project write, inventory cost, workflow, Java source, database schema, frontend, Composer, and `.env` changes out of scope.
 - Verified the local MySQL/Redis helper script path is `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+
+## Active Plan: api-agent - Customer Read API Compatibility
+
+Status: completed on 2026-06-02.
+
+### 1. Current Goal
+
+Add the next read-only ThinkPHP compatibility slice for Java `CustomerController` and `CustomerFollowUpController`, focused on customer list/detail/export and customer follow-up tabs used by the copied Vue frontend after login.
+
+This phase does not implement customer creation, editing, deletion, head-owner reassignment, follow-up creation, follow-up editing, or follow-up deletion.
+
+### 2. Modules In Scope
+
+- `biz/customer` read-only Controller mapping
+- Customer list/page/detail/detail-list queries
+- Customer follow-up page/detail queries
+- Java/frontend-compatible display fields for customer owner, creator, organization, file download path, and follow-up creator organization
+- API and public route-change documentation
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/CustomerController.php`
+- `app/controller/biz/CustomerFollowUpController.php`
+- `app/service/biz/CustomerService.php`
+- `app/service/biz/CustomerFollowUpService.php`
+- `docs/api/biz-customer-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so the route registration must stay narrow and be recorded in the public-file change request document.
+- Java customer phone and detail-address fields use SM4 type handlers. This slice preserves stored values and documents that plaintext decrypt/search behavior is deferred until a dedicated cryptography compatibility plan is approved.
+- Customer data scope depends on Java login context. This slice uses the existing token payload org scope when present and falls back to current user ownership to avoid broadening visibility.
+- Customer write endpoints remain deferred to avoid accidental mutation behavior before validation, permission, and encryption rules are complete.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\CustomerController.php
+php -l app\controller\biz\CustomerFollowUpController.php
+php -l app\service\biz\CustomerService.php
+php -l app\service\biz\CustomerFollowUpService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/customer/page`, `GET /biz/customer/detail`, and `POST /biz/customer/detail/list` appear in `php think route:list`.
+- `GET /biz/customerfollowup/page` and `GET /biz/customerfollowup/detail` appear in `php think route:list`.
+- All new routes are protected by the existing `AuthMiddleware`.
+- Customer responses include Java/frontend-compatible fields such as `headName`, `orgName`, `createUserName`, and `downloadPath`.
+- Customer follow-up responses include `customerName`, `createUserName`, `avatar`, `createUserOrgId`, and `createUserOrgName`.
+- Java source, database schema, frontend files, Composer files, `.env`, and customer/follow-up write endpoints remain unchanged.
+
+### 7. Completion Notes
+
+- Implemented read-only Controller and Service adapters for the five customer and customer-follow-up routes.
+- Preserved Java/frontend field compatibility for owner, organization, creator, file download, and follow-up creator organization display fields.
+- Kept SM4 phone/detail-address plaintext search deferred and documented the limitation.
+- Kept all customer/follow-up write, owner reassignment, Java source, database schema, frontend, Composer, and `.env` changes out of scope.
