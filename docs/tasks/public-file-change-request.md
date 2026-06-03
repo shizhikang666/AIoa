@@ -1978,3 +1978,35 @@ The copied Vue data-report settlement page calls Java-compatible income and expe
 - `php think route:list` must list both added routes.
 - Token requests should return payment/expenditure record lists with Java-compatible `PAYER_TIME` filtering.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Datareport Sale Profit Read-Only Route
+
+## Request
+
+Register a protected read-only sale-profit report route in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-profit dashboard calls Java-compatible `/biz/bizdatareport/saleProfit` and expects raw report collections for frontend WebWorker calculation. This route is required for the sale-profit page while purchase, sale, inventory, return, settlement, and workflow mutations remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected POST route:
+
+- `POST /biz/bizdatareport/saleProfit`
+
+## Explicit Exclusions
+
+- No summary-statistics route was added.
+- No purchase order write route was added.
+- No sale project write route was added.
+- No inventory, return, settlement, payment, or workflow side-effect route was added.
+- No Java source, database schema, frontend, Composer, `.env`, account-balance update, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return `projectlist`, `orderList`, and `bizProducts`.
+- Requests without token should return `code=401`.

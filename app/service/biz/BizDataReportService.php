@@ -14,6 +14,7 @@ class BizDataReportService
     private const NOT_DELETE = 'NOT_DELETE';
     private const DEAL_STATES = ['WAIT_DELIVER', 'SHIPPED', 'PARTIALLY_SHIPPED', 'COMPLETED'];
     private const UNPAID_PLAY_STATES = ['PARTIALLY_PAID', 'UNPAID'];
+    private const PURCHASE_ORDER_SETTLEMENT_COMPLETED = 'COMPLETED';
     private const PROJECT_FIELDS = <<<SQL
 p.ID AS ID,
 p.CUSTOMER AS CUSTOMER,
@@ -147,6 +148,86 @@ r.ORG AS ORG,
 a.ACCOUNT_NAME AS ACCOUNT_NAME,
 a.ACCOUNT_NUMBER AS ACCOUNT_NUMBER,
 org.NAME AS ORG_NAME
+SQL;
+    private const PURCHASE_ORDER_FIELDS = <<<SQL
+o.ID AS ID,
+o.TITLE AS TITLE,
+o.SETTLEMENT_STATUS AS SETTLEMENT_STATUS,
+o.STORAGE_STATUS AS STORAGE_STATUS,
+o.SUPPLIER_ID AS SUPPLIER_ID,
+o.INSTANCE_ID AS INSTANCE_ID,
+o.DESIRE_PURCHASE_DATE AS DESIRE_PURCHASE_DATE,
+o.AMOUNT AS AMOUNT,
+o.REMARK AS REMARK,
+o.EXT_JSON AS EXT_JSON,
+o.DELETE_FLAG AS DELETE_FLAG,
+o.CREATE_TIME AS CREATE_TIME,
+o.CREATE_USER AS CREATE_USER,
+o.UPDATE_TIME AS UPDATE_TIME,
+o.UPDATE_USER AS UPDATE_USER,
+o.TENANT_ID AS TENANT_ID,
+o.VERSION AS VERSION,
+o.ORG AS ORG,
+org.NAME AS ORG_NAME
+SQL;
+    private const PURCHASE_ORDER_ITEM_FIELDS = <<<SQL
+i.ID AS ID,
+i.PURCHASE_ORDER_ID AS PURCHASE_ORDER_ID,
+i.STORAGE_STATUS AS STORAGE_STATUS,
+i.PRODUCT_ID AS PRODUCT_ID,
+i.AMOUNT AS AMOUNT,
+i.NUMBER AS NUMBER,
+i.UNIT_AMOUNT AS UNIT_AMOUNT,
+i.DISCOUNT_RATE AS DISCOUNT_RATE,
+i.REMARK AS REMARK,
+i.EXT_JSON AS EXT_JSON,
+i.DELETE_FLAG AS DELETE_FLAG,
+i.CREATE_TIME AS CREATE_TIME,
+i.CREATE_USER AS CREATE_USER,
+i.UPDATE_TIME AS UPDATE_TIME,
+i.UPDATE_USER AS UPDATE_USER,
+i.TENANT_ID AS TENANT_ID,
+i.VERSION AS VERSION,
+i.FREIGHT_SHARE_AMOUNT AS FREIGHT_SHARE_AMOUNT,
+i.UNIT_COST_WITH_FREIGHT AS UNIT_COST_WITH_FREIGHT,
+p.PRODUCT_NAME AS PRODUCT_NAME
+SQL;
+    private const PRODUCT_FIELDS = <<<SQL
+p.ID AS ID,
+p.PRODUCT_NAME AS PRODUCT_NAME,
+p.PRODUCT_CATEGORY AS PRODUCT_CATEGORY,
+p.SAFETY_STOCK AS SAFETY_STOCK,
+p.PURCHASE_PRICE AS PURCHASE_PRICE,
+p.SALE_PRICE AS SALE_PRICE,
+p.MIN_PRICE AS MIN_PRICE,
+p.CATEGORY AS CATEGORY,
+p.DELETE_FLAG AS DELETE_FLAG,
+p.CREATE_TIME AS CREATE_TIME,
+p.CREATE_USER AS CREATE_USER,
+p.UPDATE_TIME AS UPDATE_TIME,
+p.UPDATE_USER AS UPDATE_USER,
+p.TENANT_ID AS TENANT_ID,
+p.SPECS AS SPECS,
+p.ORG AS ORG,
+p.COVER_IMAGE AS COVER_IMAGE,
+p.RECONCILIATION_TYPE AS RECONCILIATION_TYPE,
+p.RECONCILIATION_AMOUNT AS RECONCILIATION_AMOUNT,
+p.status AS STATUS
+SQL;
+    private const RETURN_ORDER_ITEM_FIELDS = <<<SQL
+i.ID AS ID,
+i.RETURN_ORDER_ID AS RETURN_ORDER_ID,
+i.PROJECT_PRODUCT_ITEM_ID AS PROJECT_PRODUCT_ITEM_ID,
+i.AMOUNT AS AMOUNT,
+i.DELETE_FLAG AS DELETE_FLAG,
+i.CREATE_TIME AS CREATE_TIME,
+i.CREATE_USER AS CREATE_USER,
+i.UPDATE_TIME AS UPDATE_TIME,
+i.UPDATE_USER AS UPDATE_USER,
+i.TENANT_ID AS TENANT_ID,
+pi.PROJECT_ID AS PROJECT_ID,
+pi.PRODUCT_ID AS PRODUCT_ID,
+bp.PRODUCT_NAME AS PRODUCT_NAME
 SQL;
     private const EXPENDITURE_RECORD_FIELDS = <<<SQL
 e.ID AS ID,
@@ -286,6 +367,33 @@ SQL;
             ->toArray();
 
         return $this->expenditureRecordRows($rows);
+    }
+
+    public function saleProfit(array $filters = [], array $payload = []): array
+    {
+        $projects = $this->projectRows(
+            $this->saleProjectQuery($filters, $payload)
+                ->order('p.COMPLETION_DATE', 'asc')
+                ->order('p.ID', 'asc')
+                ->select()
+                ->toArray()
+        );
+        $projectIds = array_column($projects, 'id');
+        $productItems = $this->saleProfitProductItemsByProjectIds($projectIds, $payload);
+        $returnOrders = $this->returnOrdersWithItemsByProjectIds($projectIds, $payload);
+
+        foreach ($projects as &$project) {
+            $projectId = (string)($project['id'] ?? '');
+            $project['productList'] = $productItems[$projectId] ?? [];
+            $project['returnOrders'] = $returnOrders[$projectId] ?? [];
+        }
+        unset($project);
+
+        return [
+            'projectlist' => $projects,
+            'orderList' => $this->completedPurchaseOrders($payload),
+            'bizProducts' => $this->saleProfitProducts($payload),
+        ];
     }
 
     private function saleProjectQuery(array $filters, array $payload)
@@ -549,6 +657,185 @@ SQL;
     }
 
     /**
+     * @param array<int, string|null> $projectIds
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function saleProfitProductItemsByProjectIds(array $projectIds, array $payload): array
+    {
+        $itemsByProjectId = $this->productItemsByProjectIds($projectIds, $payload);
+
+        foreach ($itemsByProjectId as &$items) {
+            foreach ($items as &$item) {
+                if (($item['children'] ?? []) === []) {
+                    unset($item['children']);
+                }
+            }
+            unset($item);
+        }
+        unset($items);
+
+        return $itemsByProjectId;
+    }
+
+    /**
+     * @param array<int, string|null> $projectIds
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function returnOrdersWithItemsByProjectIds(array $projectIds, array $payload): array
+    {
+        $ids = $this->stringList($projectIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $query = Db::name('return_order')
+            ->alias('r')
+            ->leftJoin('warehouses w', 'w.ID = r.WAREHOUSES_ID')
+            ->leftJoin('sys_user u', 'u.ID = r.USER')
+            ->leftJoin('sys_org org', 'org.ID = r.ORG')
+            ->field(self::RETURN_ORDER_FIELDS)
+            ->whereIn('r.PROJECT_ID', $ids);
+        $this->whereNotDeleted($query, 'r.DELETE_FLAG');
+
+        if ($tenantId !== '') {
+            $query->where('r.TENANT_ID', $tenantId);
+        }
+
+        $orders = $this->returnOrderRows($query->order('r.CREATE_TIME', 'asc')->select()->toArray());
+        $itemsByOrderId = $this->returnOrderItemsByOrderIds(array_column($orders, 'id'), $payload);
+        $result = [];
+
+        foreach ($orders as $order) {
+            $order['productList'] = $itemsByOrderId[(string)($order['id'] ?? '')] ?? [];
+            $result[(string)($order['projectId'] ?? '')][] = $order;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<int, string|null> $orderIds
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function returnOrderItemsByOrderIds(array $orderIds, array $payload): array
+    {
+        $ids = $this->stringList($orderIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $query = Db::name('return_order_item')
+            ->alias('i')
+            ->leftJoin('biz_sale_project_product_item pi', 'pi.ID = i.PROJECT_PRODUCT_ITEM_ID')
+            ->leftJoin('biz_product bp', 'bp.ID = pi.PRODUCT_ID')
+            ->field(self::RETURN_ORDER_ITEM_FIELDS)
+            ->whereIn('i.RETURN_ORDER_ID', $ids);
+        $this->whereNotDeleted($query, 'i.DELETE_FLAG');
+
+        if ($tenantId !== '') {
+            $query->where('i.TENANT_ID', $tenantId);
+        }
+
+        $result = [];
+        foreach ($this->returnOrderItemRows($query->order('i.ID', 'asc')->select()->toArray()) as $row) {
+            $result[(string)($row['returnOrderId'] ?? '')][] = $row;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function completedPurchaseOrders(array $payload): array
+    {
+        $query = Db::name('biz_purchase_order')
+            ->alias('o')
+            ->leftJoin('sys_org org', 'org.ID = o.ORG')
+            ->field(self::PURCHASE_ORDER_FIELDS)
+            ->where('o.SETTLEMENT_STATUS', self::PURCHASE_ORDER_SETTLEMENT_COMPLETED);
+        $this->whereNotDeleted($query, 'o.DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('o.TENANT_ID', $tenantId);
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== []) {
+            $query->whereIn('o.ORG', $scopeOrgIds);
+        } else {
+            $userId = $this->currentUserId($payload);
+            if ($userId !== '') {
+                $query->where('o.CREATE_USER', $userId);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        $orders = $this->purchaseOrderRows($query->order('o.ID', 'asc')->select()->toArray());
+        $itemsByOrderId = $this->purchaseOrderItemsByOrderIds(array_column($orders, 'id'), $payload);
+
+        foreach ($orders as &$order) {
+            $order['orderItems'] = $itemsByOrderId[(string)($order['id'] ?? '')] ?? [];
+        }
+        unset($order);
+
+        return $orders;
+    }
+
+    /**
+     * @param array<int, string|null> $orderIds
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function purchaseOrderItemsByOrderIds(array $orderIds, array $payload): array
+    {
+        $ids = $this->stringList($orderIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $query = Db::name('biz_purchase_order_item')
+            ->alias('i')
+            ->leftJoin('biz_product p', 'p.ID = i.PRODUCT_ID')
+            ->field(self::PURCHASE_ORDER_ITEM_FIELDS)
+            ->whereIn('i.PURCHASE_ORDER_ID', $ids);
+        $this->whereNotDeleted($query, 'i.DELETE_FLAG');
+
+        if ($tenantId !== '') {
+            $query->where('i.TENANT_ID', $tenantId);
+        }
+
+        $result = [];
+        foreach ($this->purchaseOrderItemRows($query->order('i.ID', 'asc')->select()->toArray()) as $row) {
+            $result[(string)($row['purchaseOrderId'] ?? '')][] = $row;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function saleProfitProducts(array $payload): array
+    {
+        $query = Db::name('biz_product')
+            ->alias('p')
+            ->field(self::PRODUCT_FIELDS);
+        $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('p.TENANT_ID', $tenantId);
+        }
+
+        return $this->productRows($query->order('p.ID', 'asc')->select()->toArray());
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $rows
      * @return array<int, array<string, mixed>>
      */
@@ -685,6 +972,127 @@ SQL;
                 'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
                 'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
                 'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
+                'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
+            ];
+        }, $rows));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function purchaseOrderRows(array $rows): array
+    {
+        return array_values(array_map(function (array $row): array {
+            return [
+                'id' => $this->value($row, 'ID', 'id'),
+                'title' => $this->value($row, 'TITLE', 'title'),
+                'settlementStatus' => $this->value($row, 'SETTLEMENT_STATUS', 'settlementStatus'),
+                'storageStatus' => $this->value($row, 'STORAGE_STATUS', 'storageStatus'),
+                'supplierId' => $this->value($row, 'SUPPLIER_ID', 'supplierId'),
+                'instanceId' => $this->value($row, 'INSTANCE_ID', 'instanceId'),
+                'desirePurchaseDate' => $this->value($row, 'DESIRE_PURCHASE_DATE', 'desirePurchaseDate'),
+                'amount' => $this->decimal($this->value($row, 'AMOUNT', 'amount')),
+                'remark' => $this->value($row, 'REMARK', 'remark'),
+                'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
+                'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
+                'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+                'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+                'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
+                'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+                'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
+                'version' => $this->integer($this->value($row, 'VERSION', 'version')),
+                'org' => $this->value($row, 'ORG', 'org'),
+                'orgName' => $this->value($row, 'ORG_NAME', 'orgName'),
+                'orderItems' => [],
+            ];
+        }, $rows));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function purchaseOrderItemRows(array $rows): array
+    {
+        return array_values(array_map(function (array $row): array {
+            return [
+                'id' => $this->value($row, 'ID', 'id'),
+                'purchaseOrderId' => $this->value($row, 'PURCHASE_ORDER_ID', 'purchaseOrderId'),
+                'storageStatus' => $this->value($row, 'STORAGE_STATUS', 'storageStatus'),
+                'productId' => $this->value($row, 'PRODUCT_ID', 'productId'),
+                'productName' => $this->value($row, 'PRODUCT_NAME', 'productName'),
+                'amount' => $this->decimal($this->value($row, 'AMOUNT', 'amount')),
+                'number' => $this->decimal($this->value($row, 'NUMBER', 'number')),
+                'unitAmount' => $this->decimal($this->value($row, 'UNIT_AMOUNT', 'unitAmount')),
+                'discountRate' => $this->decimal($this->value($row, 'DISCOUNT_RATE', 'discountRate')),
+                'remark' => $this->value($row, 'REMARK', 'remark'),
+                'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
+                'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
+                'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+                'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+                'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
+                'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+                'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
+                'version' => $this->integer($this->value($row, 'VERSION', 'version')),
+                'freightShareAmount' => $this->decimal($this->value($row, 'FREIGHT_SHARE_AMOUNT', 'freightShareAmount')),
+                'unitCostWithFreight' => $this->decimal($this->value($row, 'UNIT_COST_WITH_FREIGHT', 'unitCostWithFreight')),
+            ];
+        }, $rows));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function productRows(array $rows): array
+    {
+        return array_values(array_map(function (array $row): array {
+            return [
+                'id' => $this->value($row, 'ID', 'id'),
+                'productName' => $this->value($row, 'PRODUCT_NAME', 'productName'),
+                'productCategory' => $this->value($row, 'PRODUCT_CATEGORY', 'productCategory'),
+                'safetyStock' => $this->decimal($this->value($row, 'SAFETY_STOCK', 'safetyStock')),
+                'purchasePrice' => $this->decimal($this->value($row, 'PURCHASE_PRICE', 'purchasePrice')),
+                'salePrice' => $this->decimal($this->value($row, 'SALE_PRICE', 'salePrice')),
+                'minPrice' => $this->decimal($this->value($row, 'MIN_PRICE', 'minPrice')),
+                'category' => $this->value($row, 'CATEGORY', 'category'),
+                'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
+                'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+                'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+                'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
+                'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+                'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
+                'specs' => $this->value($row, 'SPECS', 'specs'),
+                'org' => $this->value($row, 'ORG', 'org'),
+                'coverImage' => $this->value($row, 'COVER_IMAGE', 'coverImage'),
+                'reconciliationType' => $this->value($row, 'RECONCILIATION_TYPE', 'reconciliationType'),
+                'reconciliationAmount' => $this->decimal($this->value($row, 'RECONCILIATION_AMOUNT', 'reconciliationAmount')),
+                'status' => $this->value($row, 'STATUS', 'status'),
+            ];
+        }, $rows));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function returnOrderItemRows(array $rows): array
+    {
+        return array_values(array_map(function (array $row): array {
+            return [
+                'id' => $this->value($row, 'ID', 'id'),
+                'returnOrderId' => $this->value($row, 'RETURN_ORDER_ID', 'returnOrderId'),
+                'projectProductItemId' => $this->value($row, 'PROJECT_PRODUCT_ITEM_ID', 'projectProductItemId'),
+                'amount' => $this->decimal($this->value($row, 'AMOUNT', 'amount')),
+                'productId' => $this->value($row, 'PRODUCT_ID', 'productId'),
+                'productName' => $this->value($row, 'PRODUCT_NAME', 'productName'),
+                'projectId' => $this->value($row, 'PROJECT_ID', 'projectId'),
+                'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
+                'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+                'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+                'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
+                'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
                 'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
             ];
         }, $rows));

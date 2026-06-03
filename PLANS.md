@@ -3834,3 +3834,64 @@ git diff --check
 - Do not add settlement account income, expense, payment, transfer, or balance mutation routes.
 - Do not modify locked public config files other than the documented `route/app.php` route addition.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent - Biz Datareport Sale Profit Read
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Add a focused read-only compatibility slice for Java `POST /biz/bizdatareport/saleProfit`, used by the copied sale-profit dashboard page.
+
+### 2. Involved Modules
+
+- api-agent
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `route/app.php`
+- `docs/api/biz-datareport-sale-profit-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The frontend computes profit in a WebWorker and expects raw Java-compatible `projectlist`, `orderList`, and `bizProducts` collections rather than precomputed summary numbers.
+- Java purchase-order scope ignores the selected `orgId` and only uses login data-scope or current-user fallback; the ThinkPHP implementation should preserve that behavior.
+- Product item `children` compatibility matters because the frontend treats any truthy `children` field as a kit product. Empty child arrays must not be sent for single products in this endpoint.
+- Purchase and sales records are financial inputs, so this slice must stay strictly read-only.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\BizDataReportController.php
+php -l app\service\biz\BizDataReportService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizdatareport/saleProfit` is registered behind token middleware.
+- The response returns `projectlist`, `orderList`, and `bizProducts`.
+- `projectlist` includes project `productList` and return-order `productList` rows needed by the frontend worker.
+- `orderList` includes completed purchase orders with nested `orderItems`.
+- `bizProducts` includes product rows needed for worker product lookup.
+- Java source, database schema, frontend, Composer, `.env`, finance mutation, workflow, and write-side business behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `summary/statistics` in this slice.
+- Do not add purchase, sale, inventory, settlement, payment, or workflow mutation routes.
+- Do not modify locked public config files other than the documented `route/app.php` route addition.
+- Do not modify `F:\AI\projects\testJava\OA`.

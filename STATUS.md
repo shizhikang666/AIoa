@@ -3963,3 +3963,71 @@ Agent: api-agent
 - Commit and push this settlement report read-only slice.
 - Continue with remaining business report reads in small slices, likely sale profit or summary statistics next.
 - Keep backend and frontend joint smoke in the loop for visible pages.
+
+## 2026-06-03 - api-agent - Biz Datareport Sale Profit Read
+
+### Completed Content
+
+- Analyzed Java `BizDataReportController#querySaleProfitReport`, `BizDataReportServiceImp#getSaleProfitResult`, `SaleProfitResult`, and the copied Vue `saleProfit` page/WebWorker as read-only input.
+- Confirmed the frontend expects raw Java-compatible collections and calculates profit in `saleProfit/webWork/calcProfit.js`.
+- Added protected read-only route:
+  - `/biz/bizdatareport/saleProfit`
+- Extended the existing thin `BizDataReportController` adapter.
+- Extended `BizDataReportService` with Java-compatible `projectlist`, `orderList`, and `bizProducts` output.
+- Preserved Java sale-project filtering:
+  - selected organization plus child organizations;
+  - token data-scope organization ids;
+  - current-login-user fallback;
+  - completion-date range;
+  -成交 project states.
+- Preserved Java purchase-order filtering:
+  - completed settlement status;
+  - token data-scope organization ids;
+  - current-login-user fallback through `CREATE_USER`.
+- Added nested data needed by the frontend worker:
+  - sale-project `productList`;
+  - sale-project `returnOrders.productList`;
+  - completed purchase-order `orderItems`;
+  - product lookup rows.
+- Omitted empty `children` arrays from sale-profit product rows so the frontend does not treat single products as kit products.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, summary statistics, purchase/sale/return/inventory/settlement mutations, workflow, and business write behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `docs/api/biz-datareport-sale-profit-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizDataReportController.php`: passed.
+- `php -l app\service\biz\BizDataReportService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; the sale-profit route is listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI read-only smoke passed:
+  - sample project `2054401155761872898` returned `projectlist=1`, `bizProducts=3324`, `productList=3`, and no empty `children` arrays.
+  - sample completed purchase order `2053022436501659650` returned `orderList=114` and `orderItems=1` for the sampled order.
+
+### Current Issues
+
+- Summary statistics remains intentionally deferred.
+- Full browser smoke for the sale-profit page should still be run with backend and frontend servers active.
+- Purchase, sale, return, inventory, settlement, payment, workflow, and account-balance write behavior remains deferred.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-profit read-only slice.
+- Continue with the remaining `bizdatareport` read slice: `summary/statistics`.
+- Keep backend and frontend joint smoke in the loop for visible pages.
