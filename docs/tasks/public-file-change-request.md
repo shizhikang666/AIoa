@@ -1879,3 +1879,37 @@ The copied Vue payroll pages call Java-compatible payroll page, personal page, a
 - `php think route:list` must list the added routes.
 - Token requests should return payroll rows and detail data when imported payroll data exists.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Datareport Sale Project Summary Read-Only Routes
+
+## Request
+
+Register protected read-only sale-project summary report routes in `route/app.php`.
+
+## Reason
+
+The copied Vue data-report dashboard calls Java-compatible sale-project amount, list, and status report endpoints. These routes are required for dashboard cards and sale-project statistics charts while more complex profit, unpaid-payment, settlement, and summary-statistics reports remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected POST routes:
+
+- `POST /biz/bizdatareport/saleproject`
+- `POST /biz/bizdatareport/saleproject/list`
+- `POST /biz/bizdatareport/saleproject/report`
+
+## Explicit Exclusions
+
+- No sale profit report route was added.
+- No unpaid-payment report route was added.
+- No settlement income or expenses report route was added.
+- No summary-statistics route was added.
+- No Java source, database schema, frontend, Composer, `.env`, workflow, finance mutation, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return sale-project amount/list/report read data for representative data-scope payloads.
+- Requests without token should return `code=401`.

@@ -8,7 +8,7 @@ Agent: merge-agent / main control agent
 
 Overall production-ready completion: **51%**
 
-Read-only API compatibility completion: **82%**
+Read-only API compatibility completion: **83%**
 
 This estimate uses the final goal as the denominator: one complete runnable ThinkPHP OA system with login, RBAC, user/org, workflow, business APIs, frontend adaptation, tests, deployment, and final production data sync.
 
@@ -20,14 +20,14 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | ThinkPHP Models | 67 | Database/model foundation is mostly in place |
 | ThinkPHP Controllers | 64 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
 | ThinkPHP Services | 55 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
-| Registered route entries | 240 | Most are protected read-only compatibility routes |
-| API compatibility docs | 50 | Stored under `docs/api` |
+| Registered route entries | 243 | Most are protected read-only compatibility routes |
+| API compatibility docs | 51 | Stored under `docs/api` |
 | Database docs | 10 | Stored under `docs/database` |
 | Java Controllers in original project | 84 | Read-only reference baseline |
 | Frontend API files in copied project | 76 | Static scan source: `snowy-admin-web/src/api` |
 | Unique frontend API endpoints | 545 | Normalized static wrapper paths |
-| Frontend endpoints already routed | 234 | Matched against current ThinkPHP route paths |
-| Frontend missing read/selector candidates | 104 | Priority candidates for safe compatibility slices |
+| Frontend endpoints already routed | 237 | Matched against current ThinkPHP route paths |
+| Frontend missing read/selector candidates | 101 | Priority candidates for safe compatibility slices |
 | Frontend deferred write/side-effect candidates | 207 | Do not implement without module-specific write plans |
 | Frontend baseline files copied | 908 | Copied into `snowy-admin-web`; generated/cache files excluded |
 | Current branch | `refactor/thinkphp-main` | Clean and synced with origin at last check |
@@ -43,7 +43,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | User / Org / Position | 68% | Yellow | Read-only org tree, position, user directory, user-center selectors, business-side directory aliases, camelCase display aliases for org/user/position pages | User CRUD, grants, upload/avatar, import/export, encrypted profile fields |
 | Workflow | 40% | Yellow | Runtime strategy, read-only task/process routes, process query aliases, file-list reads, runtime activity detail, variable normalization | Approval/reject/cancel/start, task SSE, side effects, workflow write runtime |
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
-| Business read-only APIs | 74% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate, sale-project product info, biz-datareport sale-project details, leave-application reads, settlement-account-payment reads, payroll reads, workflow process/task reads | Remaining reports and detail consumers |
+| Business read-only APIs | 75% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate, sale-project product info, biz-datareport sale-project summaries/details, leave-application reads, settlement-account-payment reads, payroll reads, workflow process/task reads | Remaining reports and detail consumers |
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
 | Frontend adaptation | 49% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, and minimal SSE route added; browser smoke reaches `/sys/org` and `/sys/user` | Browser-smoke SSE console, broken API method cleanup, missing read-only business routes |
 | Testing / QA | 40% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice | Automated route/API test suite, regression matrix, frontend smoke, negative tests |
@@ -67,6 +67,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Workflow read aliases | `/biz/process/all/page`, `/query`, `/query/list`, `/project/runtime/query/list`, `/fileList`, and `/biz/task/runtime/activity/detail` routed through Camunda-table read services | Task approve/reject, task SSE, process starts/cancel, and Java delegate side effects deferred |
 | Sale project product info reads | `/biz/saleprojectproductinfo/page`, `/list`, and `/detail` routed with software package/version rows and creator display names | Add/edit/delete package rows deferred |
 | Biz datareport sale-project details | `/biz/bizdatareport/saleProjectList/details` routed with sale project rows, nested product items, package children, and return orders | Other report, profit, unpaid-payment, and summary-statistics endpoints deferred |
+| Biz datareport sale-project summaries | `/biz/bizdatareport/saleproject`, `/saleproject/list`, and `/saleproject/report` routed with amount totals, project amount rows, and status/time rows | Sale profit, unpaid payment, settlement income/expenses, and summary-statistics endpoints deferred |
 | Leave application reads | `/biz/bizleaveapplication/page`, `/my/page`, and `/detail` routed with applicant, organization, workflow process id, date, amount, and object id fields | Add/edit/delete and workflow start/approval side effects deferred |
 | Settlement account payment reads | `/biz/settlementaccountpayment/page` and `/list` routed with account statement amount, settlement type/category, process id, account, and timestamp fields | Account payment/transfer/income/expense mutations and balance changes deferred |
 | Payroll reads | `/biz/bizpayroll/page`, `/mypage`, and `/detail` routed with salary fields, employee display name, organization display name, salary month filters, and data-scope guards | Payroll import/export/generate/add/edit/batch edit/delete deferred |
@@ -100,7 +101,7 @@ The estimate assumes continued small commits and local MySQL/Redis availability.
 
 1. Browser-smoke `/dev/message/createSseConnect` from the layout and confirm the previous 404 is gone.
 2. Add remaining read-only selectors and detail consumers needed by sale-project, finance, and customer pages.
-3. Add remaining business report read slices and detail consumers.
+3. Add remaining business report read slices: unpaid payment, sale profit, settlement income/expenses, and summary statistics.
 4. Browser-smoke `/sys/org`, `/sys/user`, and customer detail pages after each backend or frontend compatibility slice.
 5. Keep the customer encrypted-field strategy deferred until an approved SM4 compatibility plan.
 6. Keep final production data sync deferred until the system is complete and the user confirms the sync plan.

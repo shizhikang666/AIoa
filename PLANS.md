@@ -3660,3 +3660,61 @@ git diff --check
 - Do not add payroll import, export, generate, add, edit, batch edit, or delete behavior.
 - Do not modify locked public config files other than the documented `route/app.php` route addition.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent - Biz Datareport Sale Project Summary Reads
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Add the next small read-only compatibility slice for Java `BizDataReportController` sale-project summary endpoints used by the copied dashboard page.
+
+### 2. Involved Modules
+
+- api-agent
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `route/app.php`
+- `docs/api/biz-datareport-saleproject-summary-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The dashboard uses multiple report endpoints; this slice must not try to implement all reports at once.
+- Java `saleproject` and `saleproject/list` filter by completion date and成交 states, while `saleproject/report` uses create time OR completion date and does not apply the same成交-state filter.
+- Data scope must stay aligned with existing sale-project report reads.
+
+### 5. Test Commands
+
+```powershell
+php -l app/controller/biz/BizDataReportController.php
+php -l app/service/biz/BizDataReportService.php
+php -l route/app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizdatareport/saleproject`, `/saleproject/list`, and `/saleproject/report` are registered behind token middleware.
+- `saleproject` returns an object with `amount`.
+- `saleproject/list` returns project amount rows with Java/frontend-compatible fields.
+- `saleproject/report` returns an object with `list` containing `playState`, `projectState`, `createTime`, and `completionDate`.
+- Java source, database schema, frontend, Composer, `.env`, and write-side business behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `saleProfit`, `saleproject/UnpaidPayment`, `settlement/income`, `settlement/expenses`, or `summary/statistics` in this slice.
+- Do not modify locked public config files other than the documented `route/app.php` route addition.
+- Do not modify `F:\AI\projects\testJava\OA`.

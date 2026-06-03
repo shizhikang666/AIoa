@@ -148,6 +148,45 @@ SQL;
         }, $projects));
     }
 
+    public function saleProjectAmount(array $filters = [], array $payload = []): array
+    {
+        return [
+            'amount' => $this->decimal($this->saleProjectQuery($filters, $payload)->sum('p.TOTAL_PRICE') ?? 0) ?? 0,
+        ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function saleProjectList(array $filters = [], array $payload = []): array
+    {
+        return $this->projectRows(
+            $this->saleProjectQuery($filters, $payload)
+                ->order('p.COMPLETION_DATE', 'asc')
+                ->order('p.ID', 'asc')
+                ->select()
+                ->toArray()
+        );
+    }
+
+    public function saleProjectReport(array $filters = [], array $payload = []): array
+    {
+        $rows = $this->saleProjectReportQuery($filters, $payload)
+            ->order('p.CREATE_TIME', 'asc')
+            ->order('p.ID', 'asc')
+            ->select()
+            ->toArray();
+
+        return [
+            'list' => array_values(array_map(fn (array $row): array => [
+                'playState' => $this->value($row, 'PLAY_STATE', 'playState'),
+                'projectState' => $this->value($row, 'PROJECT_STATE', 'projectState'),
+                'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+                'completionDate' => $this->value($row, 'COMPLETION_DATE', 'completionDate'),
+            ], $rows)),
+        ];
+    }
+
     private function saleProjectQuery(array $filters, array $payload)
     {
         $query = Db::name('biz_sale_project')
@@ -188,6 +227,58 @@ SQL;
 
         if (!empty($filters['startCreateTime']) && !empty($filters['endCreateTime'])) {
             $query->whereBetweenTime('p.COMPLETION_DATE', (string)$filters['startCreateTime'], (string)$filters['endCreateTime']);
+        }
+
+        if (!empty($filters['headName'])) {
+            $query->whereLike('u.NAME', '%' . trim((string)$filters['headName']) . '%');
+        }
+
+        return $query;
+    }
+
+    private function saleProjectReportQuery(array $filters, array $payload)
+    {
+        $query = Db::name('biz_sale_project')
+            ->alias('p')
+            ->field('p.PLAY_STATE AS PLAY_STATE, p.PROJECT_STATE AS PROJECT_STATE, p.CREATE_TIME AS CREATE_TIME, p.COMPLETION_DATE AS COMPLETION_DATE')
+            ->leftJoin('sys_user u', 'u.ID = p.USER');
+        $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+
+        $tenantId = trim((string)($filters['tenantId'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('p.TENANT_ID', $tenantId);
+        }
+
+        if (!empty($filters['orgId'])) {
+            $orgIds = $this->orgAndChildren((string)$filters['orgId']);
+            if ($orgIds === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('p.ORG', $orgIds);
+            }
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== []) {
+            $query->whereIn('p.ORG', $scopeOrgIds);
+        } else {
+            $userId = trim((string)($payload['userId'] ?? $payload['user_id'] ?? $payload['id'] ?? ''));
+            if ($userId !== '') {
+                $query->where('p.USER', $userId);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        if (!empty($filters['startCreateTime']) && !empty($filters['endCreateTime'])) {
+            $start = (string)$filters['startCreateTime'];
+            $end = (string)$filters['endCreateTime'];
+            $query->where(function ($query) use ($start, $end): void {
+                $query->whereBetweenTime('p.CREATE_TIME', $start, $end)
+                    ->whereOr(function ($query) use ($start, $end): void {
+                        $query->whereBetweenTime('p.COMPLETION_DATE', $start, $end);
+                    });
+            });
         }
 
         if (!empty($filters['headName'])) {

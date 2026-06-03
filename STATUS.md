@@ -3783,3 +3783,65 @@ Agent: api-agent
 - Commit and push this payroll read-only slice.
 - Continue with the remaining safe read-only backlog: business report endpoints and remaining detail consumers in small slices.
 - Keep backend and frontend joint smoke in the loop for visible pages.
+
+## 2026-06-03 - api-agent - Biz Datareport Sale Project Summary Reads
+
+### Completed Content
+
+- Analyzed Java `BizDataReportController`, `BizDataReportServiceImp`, query params, and sale-project report result classes as read-only input.
+- Analyzed copied Vue `bizDataReportApi` and data-report dashboard usage.
+- Added protected read-only routes for:
+  - `/biz/bizdatareport/saleproject`
+  - `/biz/bizdatareport/saleproject/list`
+  - `/biz/bizdatareport/saleproject/report`
+- Extended the existing thin `BizDataReportController` adapter.
+- Extended `BizDataReportService` with:
+  - sale-project total amount aggregation;
+  - sale-project amount row list;
+  - sale-project status/time report list.
+- Preserved Java filter behavior:
+  - `saleproject` and `saleproject/list` filter by completion date and成交 project states;
+  - `saleproject/report` filters by create time or completion date and returns status/time rows;
+  - data scope uses token organization ids with current-user fallback.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, sale profit, unpaid payment, settlement income/expenses, summary statistics, workflow, finance mutation, and business write behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `docs/api/biz-datareport-saleproject-summary-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizDataReportController.php`: passed.
+- `php -l app\service\biz\BizDataReportService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; all three sale-project summary report routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI read-only smoke passed:
+  - `saleProjectAmount`: returned sampled amount `0`.
+  - `saleProjectList`: returned 1 row for the sampled organization and completion month.
+  - `saleProjectReport`: returned 1 status/time row for the sampled organization and month.
+  - The sampled row itself has `TOTAL_PRICE = 0.00`, matching the amount smoke result.
+
+### Current Issues
+
+- Sale profit, unpaid payment, settlement income/expenses, and summary statistics remain intentionally deferred.
+- Full browser smoke for the data-report dashboard should still be run with backend and frontend servers active.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this biz-datareport sale-project summary read-only slice.
+- Continue with remaining business report reads in small slices, likely unpaid payment first because it is close to the existing sale-project report query.
+- Keep backend and frontend joint smoke in the loop for visible pages.
