@@ -4095,3 +4095,53 @@ Agent: api-agent
 - Commit and push this summary-statistics read-only slice.
 - Run backend plus frontend browser smoke for the summary statistics page when both services are active.
 - Continue with the next safe read-only business detail/selector slice before opening write-heavy finance or workflow behavior.
+
+## 2026-06-03 - test-agent - Summary Statistics Browser Smoke
+
+### Completed Content
+
+- Kept the Java project read-only and made no business-code changes.
+- Confirmed local backend and frontend services were running:
+  - ThinkPHP backend on `http://127.0.0.1:82`
+  - Vue frontend on `http://127.0.0.1:83`
+- Browser login smoke reached the authenticated layout.
+- Opened `/biz/bizdatareport/summaryStatistics` through the copied Vue frontend.
+- Confirmed browser title `汇总统计 - 福地科技`.
+- Confirmed visible page content renders:
+  - `汇总统计表`
+  - month finance columns
+  - company finance data rows
+  - `未回款统计表`
+- Checked ThinkPHP runtime log for new backend exceptions after the smoke.
+- Recorded the frontend console observations in `docs/tasks/frontend-adaptation-notes.md`.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- Backend port `82`: open.
+- Frontend port `83`: open.
+- Browser smoke login: passed.
+- Browser smoke `/biz/bizdatareport/summaryStatistics`: passed.
+- Visible loading state after wait: not present.
+- ThinkPHP runtime exception check: no new smoke-related runtime exception found.
+
+### Current Issues
+
+- Local WebPush permission failure still appears in browser console.
+- Realtime message connection still logs disconnect errors from the layout message panel.
+- Vite still reports upstream `docx-templates` Node built-in compatibility warnings.
+- Screenshot capture timed out in the in-app browser on this heavy report page; DOM and visible text checks were used instead.
+- Write-heavy finance, workflow, stock, and account-balance side effects remain deferred.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this browser-smoke documentation slice.
+- Continue with the next safe read-only visible business page or detail API before opening finance/workflow writes.
+- Add a later test-agent task for the realtime message/WebPush console noise.

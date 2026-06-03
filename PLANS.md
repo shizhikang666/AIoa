@@ -3955,3 +3955,46 @@ git diff --check
 - Do not add or modify workflow start/approve/reject/cancel behavior.
 - Do not modify locked public config files other than the documented `route/app.php` route addition.
 - Do not modify `F:\AI\projects\testJava\OA`.
+## 2026-06-03 - test-agent - Summary Statistics Browser Smoke
+
+### Current Goal
+
+Verify the completed read-only summary-statistics route through the copied Vue frontend and local ThinkPHP backend.
+
+### Modules
+
+- Frontend joint testing
+- Biz datareport summary statistics
+
+### Files Involved
+
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Risks
+
+- The page runs frontend WebWorker calculations over imported finance data, so rendering may be slower than simple list pages.
+- Layout-level realtime message/WebPush behavior may still produce console noise unrelated to the summary-statistics table.
+- Screenshot capture in the in-app browser may time out on heavy table pages; visible DOM text is the primary verification signal for this smoke.
+
+### Test Commands
+
+- Start ThinkPHP dev server on port `82`.
+- Start Vue dev server on port `83`.
+- Browser login smoke.
+- Browser route smoke for `/biz/bizdatareport/summaryStatistics`.
+- `git diff --check`
+
+### Acceptance Criteria
+
+- Login reaches the authenticated layout.
+- `/biz/bizdatareport/summaryStatistics` loads with title `汇总统计 - 福地科技`.
+- The page renders `汇总统计表` and `未回款统计表`.
+- No ThinkPHP runtime exception is introduced by the smoke.
+
+### Do Not Modify
+
+- Java source project.
+- Business Controller, Service, Model, Mapper, or database schema.
+- Public locked config files.

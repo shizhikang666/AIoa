@@ -44,3 +44,38 @@ This slice keeps the imported Vue frontend as a copied baseline and only adapts 
 - API wrapper cleanup for routes that are still read-only or not yet implemented.
 - Field/dictionary display alignment for org/user tables.
 - Missing SSE route `/dev/message/createSseConnect`.
+
+## 2026-06-03 Summary Statistics Joint Smoke
+
+Agent: test-agent
+
+### Scope
+
+This smoke verifies the existing frontend page against the new ThinkPHP read-only summary-statistics endpoint. No frontend page code or backend business code was changed.
+
+### Services
+
+- Backend: `http://127.0.0.1:82`
+- Frontend: `http://127.0.0.1:83`
+
+### Result
+
+- Login reached the authenticated layout.
+- Direct route `/biz/bizdatareport/summaryStatistics` loaded successfully.
+- Browser title was `汇总统计 - 福地科技`.
+- Visible page content included `汇总统计表`, annual month columns, company finance rows, and `未回款统计表`.
+- The page finished loading without a visible loading state.
+- ThinkPHP runtime log did not show a new runtime exception for this smoke.
+
+### Observed Non-Blocking Issues
+
+- Browser console still reports WebPush permission failure in local development.
+- Browser console still reports repeated realtime message connection disconnects from `src/layout/components/panel-message/index.vue`.
+- Vite still reports upstream `docx-templates` browser compatibility warnings for Node built-ins.
+- In-app browser screenshot capture timed out on this heavy table page; visible DOM text was used as the smoke evidence.
+
+### Next Frontend Follow-Up
+
+- Keep summary-statistics as browser-smoked read-only coverage.
+- Add a dedicated test-agent slice for realtime message/SSE console noise after remaining read-only pages are covered.
+- Continue joint backend/frontend smoke for the next visible business report or detail page.
