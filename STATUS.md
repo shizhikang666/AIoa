@@ -4549,3 +4549,46 @@ Agent: api-agent
 
 - Commit and push this documentation-only smoke record.
 - Continue with the next safe read-only visible page or the frontend SSE noise task.
+
+## 2026-06-03 - frontend-agent - Message SSE Noise Fallback
+
+### Completed Content
+
+- Updated the copied layout message panel SSE client for the current ThinkPHP short-lived compatibility stream.
+- Added SSE source and reconnect timer cleanup on component unmount.
+- Changed reconnect behavior from unbounded 5-second retries to a bounded compatibility fallback:
+  - retries at 30-second intervals;
+  - stops after 3 short-lived disconnect retries;
+  - resets the retry count only after a stable connection lasts longer than 60 seconds.
+- Reconnect requests now read the latest stored `CLIENTID`.
+- Kept backend SSE service, route files, Java source, database schema, message writes, workflow writes, Redis/queue behavior, Composer files, `.env`, and production data sync behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `snowy-admin-web/src/layout/components/panel-message/index.vue`
+
+### Test Results
+
+- `npm run build`: passed with known Vite warnings only.
+- `php think route:list`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Browser smoke:
+  - opened authenticated `/sys/org`;
+  - page title was `组织管理 - 福地科技`;
+  - observed browser logs for 42 seconds after reload;
+  - no relevant SSE/message connection error or warning logs were captured during that observation window.
+
+### Current Issues
+
+- Full realtime message push is still deferred until Redis/queue/message workflow behavior is designed.
+- Message send/delete/read-state writes remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this frontend-agent compatibility fix.
+- Continue with the next safe visible page or read-only API compatibility slice.

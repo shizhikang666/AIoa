@@ -57,6 +57,12 @@
 	const messageCount = ref(0)
 	const taskRef = useTemplateRef('taskRef')
 	const messageRef = useTemplateRef('messageRef')
+	let sseSource = null
+	let reconnectTimer = null
+	let reconnectCount = 0
+	let openedAt = 0
+	const maxReconnectCount = 3
+	const reconnectDelay = 30000
 
 	const loadTaskCount = async () => {
 		taskCount.value = await BizTaskApi.bizTaskCount()
@@ -83,6 +89,17 @@
 		createSseConnect()
 	})
 
+	onBeforeUnmount(() => {
+		if (reconnectTimer) {
+			clearTimeout(reconnectTimer)
+			reconnectTimer = null
+		}
+		if (sseSource) {
+			sseSource.close()
+			sseSource = null
+		}
+	})
+
 	const loadInit = async () => {
 		loadTaskCount()
 		loadMessageCount()
@@ -91,15 +108,18 @@
 	// 创建sse连接
 	const createSseConnect = () => {
 		if (window.EventSource) {
-			let clientId = tool.data.get('CLIENTID') ? tool.data.get('CLIENTID') : ''
-			let url = sysConfig.API_URL + `/dev/message/createSseConnect?clientId=${clientId}`
 			const connect = () => {
+				let clientId = tool.data.get('CLIENTID') ? tool.data.get('CLIENTID') : ''
+				let url = sysConfig.API_URL + `/dev/message/createSseConnect?clientId=${clientId}`
 				let source = new EventSourcePolyfill(url, {
 					headers: { [sysConfig.TOKEN_NAME]: sysConfig.TOKEN_PREFIX + tool.data.get('TOKEN') },
 					heartbeatTimeout: 300000
 				})
+				sseSource = source
+				openedAt = 0
 				// 监听打开事件
 				source.addEventListener('open', (e) => {
+					openedAt = Date.now()
 					loadInit()
 					console.log('SSE 连接已建立')
 				})
@@ -123,14 +143,30 @@
 
 				// 监听错误事件
 				source.addEventListener('error', (e) => {
-					console.error('发生错误，消息实时获取已断开与服务器的连接')
+					if (openedAt && Date.now() - openedAt > 60000) {
+						reconnectCount = 0
+					}
+					if (reconnectCount >= maxReconnectCount) {
+						source.close()
+						if (sseSource === source) {
+							sseSource = null
+						}
+						console.warn('Message SSE is using short-lived compatibility mode; realtime push is deferred.')
+						return
+					}
+					reconnectCount += 1
+					if (sseSource === source) {
+						sseSource = null
+					}
+					console.warn('消息实时获取连接已断开，当前使用短连接兼容模式')
 					source.close()
 
-					// 5秒后尝试重连
-					setTimeout(() => {
+					// 30秒后尝试重连
+					reconnectTimer = setTimeout(() => {
+						reconnectTimer = null
 						console.log('尝试重新连接...')
 						connect()
-					}, 5000)
+					}, reconnectDelay)
 				})
 			}
 

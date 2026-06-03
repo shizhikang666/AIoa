@@ -272,3 +272,29 @@ This smoke verifies existing read-only data paths for sale-project detail tabs b
 - Empty return-order data is valid for the sampled imported project.
 - Browser automation for the already-open local sale-project page remains blocked by URL policy in this session, so the direct service smoke was used.
 - Realtime message disconnect console noise still appears from the layout message panel.
+
+## 2026-06-03 Message SSE Noise Fallback
+
+Agent: frontend-agent
+
+### Scope
+
+This slice adapts only the copied layout message panel's SSE client to the current ThinkPHP short-lived compatibility stream. It does not implement backend realtime push.
+
+### Result
+
+- The component now closes its EventSource and reconnect timer on unmount.
+- Short-lived disconnects retry every 30 seconds instead of every 5 seconds.
+- The retry loop stops after 3 short-lived disconnects and logs a compatibility-mode warning instead of continuously treating the short stream as a hard error.
+- Reconnect requests use the latest stored `CLIENTID`.
+
+### Verification
+
+- `npm run build` passed.
+- `php think route:list` passed.
+- Browser smoke opened the authenticated `/sys/org` page and observed logs for 42 seconds after reload; no relevant SSE/message connection error or warning logs were captured.
+
+### Deferred
+
+- Full Redis/queue-backed realtime push remains deferred.
+- Message send/delete/read-state write routes remain deferred.

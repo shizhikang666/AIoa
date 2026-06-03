@@ -4473,3 +4473,61 @@ Smoke checks:
 - Do not add or test file upload writes.
 - Do not add or test finance, inventory, workflow, return, delivery, or account-balance mutations.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: frontend-agent - Message SSE Noise Fallback
+
+Status: completed on 2026-06-03 after frontend build, route-list check, and authenticated browser observation.
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Reduce repeated frontend console noise from the copied layout message panel while ThinkPHP only provides the current short-lived `/dev/message/createSseConnect` compatibility stream.
+
+### 2. Involved Modules
+
+- frontend-agent
+- test-agent smoke
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `snowy-admin-web/src/layout/components/panel-message/index.vue`
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Risks
+
+- The current ThinkPHP SSE service is intentionally short-lived to avoid blocking the local PHP built-in server.
+- The frontend currently assumes a long-lived EventSource and logs/reconnects every time the short stream closes.
+- This slice must not implement Redis pub/sub, workflow push, message send/delete, read-status writes, or production realtime behavior.
+
+### 5. Test Commands
+
+```powershell
+npm run build
+git diff --check
+git status --short --branch
+```
+
+Optional browser smoke:
+
+- Start backend on port `82`.
+- Start frontend on port `83`.
+- Open the login page and authenticated layout.
+- Confirm the layout can load without repeated message-SSE error spam.
+
+### 6. Acceptance Criteria
+
+- The panel message component closes existing SSE/timer resources on unmount.
+- Short-lived SSE disconnects no longer produce repeated `console.error` noise every few seconds.
+- The component still loads task and message counts on initial connection and when the message panel opens.
+- Java source, database schema, backend SSE service, route files, message writes, workflow writes, Redis/queue behavior, Composer files, `.env`, and production data sync behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement full realtime push in this slice.
+- Do not add message send/delete/read-state write routes.
+- Do not modify `F:\AI\projects\testJava\OA`.
