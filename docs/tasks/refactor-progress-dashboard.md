@@ -6,7 +6,7 @@ Agent: merge-agent / main control agent
 
 ## Current Estimate
 
-Overall production-ready completion: **53%**
+Overall production-ready completion: **54%**
 
 Read-only API compatibility completion: **86%**
 
@@ -45,7 +45,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
 | Business read-only APIs | 83% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project including cost details, sale-project follow-up, sale-project product item relation list, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate, sale-project product info, biz-datareport sale-project summaries/unpaid/details/settlement/sale-profit/summary-statistics reads, leave-application reads, settlement-account-payment reads, payroll reads, workflow process/task reads | Remaining detail consumers |
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
-| Frontend adaptation | 51% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, minimal SSE route added; browser smoke reaches `/sys/org`, `/sys/user`, and `/biz/bizdatareport/summaryStatistics` | Browser-smoke realtime message console noise, broken API method cleanup, missing read-only business routes |
+| Frontend adaptation | 52% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, minimal SSE route added; browser smoke reaches `/sys/org`, `/sys/user`, `/biz/bizdatareport/summaryStatistics`, and `/biz/saleproject` with visible pagination | Browser-smoke realtime message console noise, broken API method cleanup, remaining read-only business routes |
 | Testing / QA | 42% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice, backend/frontend browser smoke for summary-statistics | Automated route/API test suite, regression matrix, broader frontend smoke, negative tests |
 | Deployment | 15% | Red | Local MySQL/Redis startup method known; env is local | Production config, queue/runtime/log permissions, Nginx/PHP deployment checks |
 | Final online data sync | 0% | Red | Requirement recorded as final-stage reminder | Must design and confirm after project completion; do not start early |
@@ -60,7 +60,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | System/dev/mobile/gen reads | Config, dict, file, email/sms records, job metadata, logs, messages, monitor, resource/menu/mobile resource, gen metadata, tenant reads | Deferred |
 | Business reads | Product, supplier, settlement account, payment record, expenditure record, collection receipt, debit note, file relation, team project, task/comments, warehouses, inventory, delivery, purchase order, return order, sale project | Deferred |
 | SSE compatibility | `/dev/message/createSseConnect` Java/frontend behavior mapped and minimal protected ThinkPHP route added | Full realtime push deferred |
-| Sale project reads | `/biz/saleproject/page`, `/case/page`, `/operation/page`, `/public/page`, `/list/detail`, `/detail`, `/product`, `/cost`, and `/cost/details` routed with aggregate read data and weighted-average purchase cost details | Writes and workflow/finance side effects deferred |
+| Sale project reads | `/biz/saleproject/page`, `/case/page`, `/operation/page`, `/public/page`, `/list/detail`, `/detail`, `/product`, `/cost`, and `/cost/details` routed with aggregate read data, weighted-average purchase cost details, and admin-compatible list data scope for the copied sale-project page | Writes and workflow/finance side effects deferred |
 | Sale project follow-up reads | `/biz/saleprojectfollowup/page` and `/detail` routed with project name, creator display fields, data-scope guarding, and unchanged `extJson` for frontend file-list parsing | Follow-up add/edit/delete and attachment writes deferred |
 | Sale project product item relation reads | `/biz/saleprojectproductitemrelation/list` routed with combo-product child relation rows, product aliases, product display fields, and data-scope guarding through the owning sale project | Relation/product item mark edits and delivery/invoice writes deferred |
 | Customer reads | `/biz/customer/page`, `/detail`, `/detail/list`, `/biz/customerfollowup/page`, and `/detail` routed with customer owner/org/file and follow-up creator display fields | Customer and follow-up writes, owner reassignment, and SM4 plaintext search deferred |

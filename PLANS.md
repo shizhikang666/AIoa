@@ -4183,3 +4183,57 @@ git diff --check
 - Do not modify sale-project product items, invoices, delivery, inventory, workflow, finance, file upload, or account-balance behavior.
 - Do not modify locked public config files other than the documented `route/app.php` route addition.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent/frontend-agent - Sale Project Page Data Scope Smoke Fix
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Fix the smallest backend compatibility issue causing the copied Vue `/biz/saleproject` page to show an empty table for the local admin smoke account while the imported database contains `FOLLOW` sale projects.
+
+### 2. Involved Modules
+
+- api-agent
+- frontend-agent smoke only
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/service/biz/SaleProjectService.php`
+- `docs/api/biz-saleproject-readonly.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The copied sale-project page forces `projectState=FOLLOW`; strict fallback-to-current-user data scope can hide all imported rows for admin smoke testing.
+- The fix must not relax ordinary user data scope, org filters, or tenant filters.
+- Browser logs still contain unrelated realtime message and `docx-templates` warnings.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\SaleProjectService.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Admin-compatible accounts such as `bizAdmin`, `superadmin`, or roles `bizadmin/superadmin/tenantadmin` can read sale-project lists without fallback user-only filtering.
+- Ordinary data-scope behavior remains unchanged for non-admin accounts.
+- Authenticated frontend-shaped `/biz/saleproject/page?projectState=FOLLOW&showDiscard=false` returns records.
+- `/biz/process/query` still returns compatible rows for the sale-project page's secondary workflow lookup.
+- Browser smoke on `/biz/saleproject` shows pagination instead of `暂无数据`.
+
+### 7. Forbidden Scope
+
+- Do not change frontend source in this slice.
+- Do not change routes, Composer files, `.env`, database schema, Java source, sale-project writes, workflow writes, finance behavior, inventory behavior, or account-balance behavior.

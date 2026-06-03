@@ -4343,3 +4343,50 @@ Agent: api-agent
 
 - Commit and push this sale-project product item relation read-only slice.
 - Continue with the next small read-only sale-project/detail consumer or move to frontend-agent investigation of the sale-project table empty-state mismatch.
+
+## 2026-06-03 - api-agent/frontend-agent - Sale Project Page Data Scope Smoke Fix
+
+### Completed Content
+
+- Investigated the copied Vue `/biz/saleproject` page while the in-app browser was on `http://127.0.0.1:83/biz/saleproject`.
+- Confirmed the page title and table shell loaded, but the table previously showed `暂无数据`.
+- Read the sale-project page source and confirmed it forces `projectState=FOLLOW` before calling `/biz/saleproject/page`, then calls `/biz/process/query` for workflow amount lookup.
+- Compared Java sale-project page filtering and existing ThinkPHP customer/follow-up/billing data-scope patterns.
+- Added admin-compatible data-scope bypass to `SaleProjectService` for accounts/roles `bizAdmin`, `superadmin`, `tenantadmin`, and `bizadmin`.
+- Kept ordinary user data scope, org filters, tenant filters, frontend files, route files, Java source, database schema, Composer files, `.env`, sale-project writes, workflow writes, inventory, finance, and account-balance behavior unchanged.
+
+### Modified Files
+
+- `app/service/biz/SaleProjectService.php`
+- `docs/api/biz-saleproject-readonly.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\biz\SaleProjectService.php`: passed.
+- Authenticated frontend-shaped `/biz/saleproject/page?projectState=FOLLOW&showDiscard=false`: returned `code = 200`, `total = 254`, and 10 rows.
+- `/biz/process/query` for those sale-project ids returned `code = 200` and 10 workflow lookup items.
+- Browser reload of `/biz/saleproject`: page title remained `销售项目管理 - 福地科技` and pagination showed `1-10 共 254 条`.
+- Full baseline checks passed:
+  - `composer dump-autoload`;
+  - `php think`;
+  - `php think route:list`;
+  - PHP lint for `app`, `config`, and `route`;
+  - `git diff --check` with CRLF conversion warnings only.
+- Unauthenticated `/biz/saleproject/page` returned `code = 401`.
+- Browser screenshot captured the sale-project table with real rows and pagination.
+
+### Current Issues
+
+- Realtime message connection console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.
+- Broader non-admin data-scope token alignment should be reviewed in a later auth/user-agent slice; this commit only fixes the admin smoke-account visibility gap.
+- Sale-project write routes, workflow side effects, inventory/finance/account-balance behavior, and online realtime production data sync remain deferred.
+
+### Next Plan
+
+- Commit and push this sale-project page smoke fix.
+- Continue with the next visible read-only page or a focused auth/user-agent data-scope review after this commit.

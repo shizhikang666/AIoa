@@ -153,4 +153,25 @@ This smoke followed the sale-project product item relation read-only API slice. 
 
 - Relation mark editing remains deferred because `/biz/saleprojectproductitemrelation/mark/edit` mutates data.
 - Product item mark editing remains deferred because `/biz/saleprojectproductitem/mark/edit` mutates data.
+
+## 2026-06-03 Sale Project Page Data Scope Smoke Fix
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This smoke followed the sale-project product item relation slice. Frontend source files were not changed.
+
+### Result
+
+- Root cause: the copied sale-project page forces `projectState=FOLLOW`; ThinkPHP `SaleProjectService` then applied fallback current-user data scope to the local admin smoke account, hiding all imported `FOLLOW` projects.
+- Fix: `SaleProjectService` now mirrors existing customer/follow-up/billing services by allowing admin-compatible accounts and roles to bypass fallback current-user filtering.
+- Frontend-shaped HTTP smoke returned `/biz/saleproject/page` `code = 200`, `total = 254`, and 10 rows for `projectState=FOLLOW`.
+- `/biz/process/query` returned `code = 200` and 10 workflow lookup items for those page rows.
+- Browser reload of `/biz/saleproject` showed pagination `1-10 共 254 条` instead of the previous empty-table state.
+
+### Observed Non-Blocking Issues
+
+- Realtime message connection console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.
 - Deep browser smoke for delivery/invoice helper actions still depends on a visible sale-project detail flow and should be handled in a later frontend-agent pass.

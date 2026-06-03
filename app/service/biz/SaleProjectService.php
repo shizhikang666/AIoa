@@ -408,6 +408,10 @@ SQL;
             return;
         }
 
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
         $scope = $payload['data_scope_org_ids'] ?? [];
         if (is_string($scope)) {
             $scope = explode(',', $scope);
@@ -980,6 +984,27 @@ SQL)
         }
 
         return $result;
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function pagination(array $filters): array

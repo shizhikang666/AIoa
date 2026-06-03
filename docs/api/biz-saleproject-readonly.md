@@ -85,3 +85,13 @@ Date: 2026-06-02
 - Unauthenticated `/biz/saleproject/page` returned API `code = 401`.
 - `php think route:list` lists all seven saleproject read routes.
 - `case/page` uses ThinkORM `join(..., 'INNER')`; `innerJoin()` is not available in the installed ThinkORM version.
+
+## Frontend Page Smoke Follow-Up
+
+Date: 2026-06-03
+
+- The copied Vue `/biz/saleproject` page sends `projectState=FOLLOW`, `showDiscard=false`, `sortField=createTime`, and `sortOrder=descend`.
+- Admin-compatible data scope now matches the existing customer/follow-up/billing service pattern and does not fall back to current-user-only filtering.
+- Authenticated frontend-shaped `/biz/saleproject/page` smoke returned `code = 200`, `total = 254`, and 10 rows.
+- The page's secondary `/biz/process/query` lookup returned `code = 200` and 10 items.
+- Browser reload of `/biz/saleproject` showed pagination `1-10 共 254 条` instead of `暂无数据`.
