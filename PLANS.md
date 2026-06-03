@@ -4237,3 +4237,59 @@ git diff --check
 
 - Do not change frontend source in this slice.
 - Do not change routes, Composer files, `.env`, database schema, Java source, sale-project writes, workflow writes, finance behavior, inventory behavior, or account-balance behavior.
+
+## Completed Plan: test-agent/frontend-agent - Sale Project Detail Tab Smoke
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Verify the copied Vue sale-project detail modal after the sale-project list visibility fix, focusing only on read-only tab rendering and avoiding all write buttons.
+
+### 2. Involved Modules
+
+- test-agent browser smoke
+- frontend-agent compatibility observation
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### 4. Risks
+
+- The detail modal contains write controls such as follow-up add, case upload, edit, discard, and batch discard. This smoke must not click those controls.
+- Browser console still has known realtime-message disconnect noise and upstream `docx-templates` warnings that are unrelated to sale-project detail reads.
+- Some tabs can legitimately show empty states depending on the sampled project data.
+
+### 5. Test Commands
+
+```powershell
+git status --short --branch
+git diff --check
+```
+
+Browser smoke:
+
+- Open `/biz/saleproject`.
+- Open a visible sale-project detail modal.
+- Click `项目跟进记录`.
+- Click `项目案例`.
+- Click `审核中的流程`.
+
+### 6. Acceptance Criteria
+
+- The sale-project detail modal opens from a visible table row.
+- The information tab renders project and customer details.
+- The follow-up tab renders existing follow-up read data.
+- The case tab renders its empty/read state without backend runtime failure.
+- The pending-process tab renders its empty/read state without backend runtime failure.
+- Java source, database schema, frontend files, routes, services, controllers, models, Composer files, `.env`, sale-project writes, workflow writes, finance behavior, inventory behavior, file upload, and account-balance behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not click or implement add, edit, delete, discard, upload, workflow action, delivery, invoice, inventory, finance, or account-balance write behavior.
+- Do not modify `F:\AI\projects\testJava\OA`.

@@ -175,3 +175,33 @@ This smoke followed the sale-project product item relation slice. Frontend sourc
 - Realtime message connection console noise still appears from the layout message panel.
 - Vite `docx-templates` browser compatibility warnings still appear.
 - Deep browser smoke for delivery/invoice helper actions still depends on a visible sale-project detail flow and should be handled in a later frontend-agent pass.
+
+## 2026-06-03 Sale Project Detail Tab Smoke
+
+Agent: test-agent / frontend-agent
+
+### Scope
+
+This smoke verifies the copied sale-project detail modal after the local admin data-scope list fix. No frontend source, backend business code, route file, database schema, or Java source was changed.
+
+### Result
+
+- Browser remained on `/biz/saleproject`.
+- The visible sale-project table opened the detail modal for `赣州开放大学心理中心`.
+- `项目信息` rendered project and customer details.
+- `项目跟进记录` rendered one existing follow-up record and pagination.
+- `项目案例` rendered the current empty/read state and did not raise a new backend runtime failure.
+- `审核中的流程 0` rendered the current empty/read state and did not raise a new backend runtime failure.
+- Write controls were not exercised.
+
+### Observed Non-Blocking Issues
+
+- The detail modal still exposes write controls for adding follow-ups, uploading case images, editing, discarding, and related business actions; these remain deferred.
+- Realtime message disconnect console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.
+
+### Next Frontend Follow-Up
+
+- Keep sale-project list and detail tabs as browser-smoked read-only coverage.
+- Continue with the next visible read-only page before opening sale-project writes.
+- Schedule realtime message/WebPush console noise as a later test-agent slice.

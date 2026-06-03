@@ -4390,3 +4390,46 @@ Agent: api-agent
 
 - Commit and push this sale-project page smoke fix.
 - Continue with the next visible read-only page or a focused auth/user-agent data-scope review after this commit.
+
+## 2026-06-03 - test-agent/frontend-agent - Sale Project Detail Tab Browser Smoke
+
+### Completed Content
+
+- Continued browser smoke from `http://127.0.0.1:83/biz/saleproject`.
+- Opened the detail modal for visible project `赣州开放大学心理中心`.
+- Confirmed the information tab rendered project and customer details.
+- Confirmed the `项目跟进记录` tab rendered existing read data, including one follow-up record and its pagination.
+- Confirmed the `项目案例` tab rendered its current empty/read state without a new backend runtime failure.
+- Confirmed the `审核中的流程` tab rendered its current empty/read state without a new backend runtime failure.
+- Avoided all visible write controls, including add, edit, discard, upload, and form submit actions.
+- Kept Java source, database schema, frontend files, routes, services, controllers, models, Composer files, `.env`, workflow writes, finance behavior, inventory behavior, file upload, and account-balance behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- Browser smoke `/biz/saleproject`: passed.
+- Sale-project detail information tab: passed.
+- Sale-project detail follow-up tab: passed.
+- Sale-project detail case tab: passed with empty/read state.
+- Sale-project detail pending-process tab: passed with empty/read state.
+- Browser console still shows only known non-blocking realtime message disconnects and upstream `docx-templates` warnings during this smoke.
+
+### Current Issues
+
+- Follow-up add/edit/delete remains deferred.
+- Case upload/add behavior remains deferred.
+- Pending workflow action behavior remains deferred.
+- Realtime message connection console noise remains a later test-agent task.
+- Broader non-admin data-scope token alignment remains a later auth/user-agent task.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-project detail smoke documentation slice.
+- Continue with the next visible read-only page or start a focused auth/user-agent data-scope review.
