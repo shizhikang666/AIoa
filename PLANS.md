@@ -3470,3 +3470,71 @@ git diff --check
 - Returned sale-project rows with nested `productList`, product item `children`, and `returnOrders`.
 - Preserved long ID values as strings while normalizing known amount and quantity fields.
 - Kept all other `bizdatareport` routes, Java source, database schema, frontend files, Composer files, `.env`, workflow, inventory, finance, and business write behavior out of scope.
+
+## Active Plan: api-agent - Biz Leave Application Read API Compatibility
+
+Status: completed on 2026-06-03.
+
+### 1. Current Goal
+
+Add a small read-only compatibility slice for Java `BizLeaveApplicationController` and the copied Vue leave-application pages.
+
+This phase only implements list/detail reads. It does not implement leave creation, edit, delete, workflow start, approval, or process side effects.
+
+### 2. Modules In Scope
+
+- `GET /biz/bizleaveapplication/page`
+- `GET /biz/bizleaveapplication/my/page`
+- `GET /biz/bizleaveapplication/detail`
+- Java/frontend-compatible response fields for leave/business-trip records
+- Data-scope and current-user filtering compatible with the Java service
+- API, public route-change, status, dashboard, and gap-map documentation
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizLeaveApplicationController.php`
+- `app/service/biz/BizLeaveApplicationService.php`
+- `docs/api/biz-leave-application-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/api-gap-map.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so route changes must stay limited to three protected read-only endpoints and be recorded in the public-file change request document.
+- Java `page` uses data scope when available and falls back to the current login user; this service must preserve that behavior without exposing unrelated records.
+- Java `my/page` must always restrict to the current login user.
+- Leave records can link to workflow process details through `processId` and sale project details through `objectId`, but this phase must not start or mutate workflows.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\BizLeaveApplicationController.php
+php -l app\service\biz\BizLeaveApplicationService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/bizleaveapplication/page`, `/my/page`, and `/detail` appear in `php think route:list`.
+- All new routes are protected by the existing `AuthMiddleware`.
+- `page` supports filters for `name`, `category`, `amount`, `remark`, `orgId`, `startStartTime/endStartTime`, and `startEndTime/endEndTime`.
+- `my/page` restricts records to the current user from the bearer token payload.
+- Responses include frontend-compatible fields such as `id`, `userId`, `name`, `orgId`, `orgName`, `processId`, `category`, `amount`, `remark`, `startTime`, `endTime`, and `objectId`.
+- Java source, database schema, frontend files, Composer files, `.env`, add/edit/delete, and workflow write endpoints remain unchanged.
+
+### 7. Completion Notes
+
+- Added three protected read-only routes for leave/business-trip records.
+- Added a thin Controller and read-only Service compatible with Java `page`, `my/page`, and `detail`.
+- Preserved Java data-scope behavior for `page` and current-login-user filtering for `my/page`.
+- Returned frontend-compatible applicant, organization, process, date, amount, and object-id fields.
+- Kept add/edit/delete, workflow start/approval/cancel, Java source, database schema, frontend files, Composer files, and `.env` changes out of scope.

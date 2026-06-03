@@ -1709,6 +1709,40 @@ The copied Vue sale-project-product-info page calls `POST /biz/bizdatareport/sal
 
 ---
 
+# Public File Change Request: Biz Leave Application Read-Only Routes
+
+## Request
+
+Register protected read-only leave-application routes in `route/app.php`.
+
+## Reason
+
+The copied Vue leave-application page and workflow payment forms call Java-compatible leave-application reads after login. These routes are needed to browse leave/business-trip records, current-user leave records, and detail rows while workflow starts and mutations remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected routes:
+
+- `GET /biz/bizleaveapplication/page`
+- `GET /biz/bizleaveapplication/my/page`
+- `GET /biz/bizleaveapplication/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizleaveapplication/add` route was added.
+- No `/biz/bizleaveapplication/edit` route was added.
+- No `/biz/bizleaveapplication/delete` route was added.
+- No workflow start, approve, reject, or cancel behavior was added.
+- No Java source, database schema, frontend, Composer, `.env`, finance, inventory, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return paged leave rows and detail data.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Sale Project Product Info Read-Only Routes
 
 ## Request

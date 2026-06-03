@@ -3616,3 +3616,60 @@ Agent: api-agent
 - Commit and push this biz-datareport sale-project details read-only slice.
 - Continue with the remaining safe read-only backlog: payroll, leave, settlement-account-payment, and remaining report reads in small slices.
 - Keep backend and frontend joint smoke in the loop for visible pages.
+
+## 2026-06-03 - api-agent - Biz Leave Application Read-Only API Compatibility
+
+### Completed Content
+
+- Analyzed Java `BizLeaveApplicationController`, `BizLeaveApplicationServiceImpl`, entity, and page param as read-only input.
+- Analyzed copied Vue `bizLeaveApplicationApi`, leave list page, modal selector page, and detail component usage.
+- Added protected read-only routes for:
+  - `/biz/bizleaveapplication/page`
+  - `/biz/bizleaveapplication/my/page`
+  - `/biz/bizleaveapplication/detail`
+- Added a thin `BizLeaveApplicationController` adapter.
+- Added a read-only `BizLeaveApplicationService` with Java/frontend-compatible filters and fields.
+- Preserved Java page behavior: data-scope organization filtering when available, current-user fallback otherwise.
+- Preserved Java my-page behavior by always restricting records to the current user.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, add/edit/delete, workflow start/approval/cancel, finance, inventory, and business write behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizLeaveApplicationController.php`
+- `app/service/biz/BizLeaveApplicationService.php`
+- `docs/api/biz-leave-application-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizLeaveApplicationController.php`: passed.
+- `php -l app\service\biz\BizLeaveApplicationService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; all three leave-application read routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI read-only smoke passed:
+  - `page`: returned 2 rows from total 6 in the sampled data-scope organization.
+  - `myPage`: returned 2 rows from total 4 for the sampled user.
+  - `detail`: returned sampled row `2008808074807599105` with applicant name.
+  - `filterPage`: returned 1 row from total 1 for sampled category and start-time filters.
+
+### Current Issues
+
+- Leave add/edit/delete and workflow start/approval/cancel routes remain intentionally deferred.
+- Full browser smoke for the leave-application page should still be run with backend and frontend servers active.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this leave-application read-only slice.
+- Continue with the remaining safe read-only backlog: payroll, settlement-account-payment, and remaining report reads in small slices.
+- Keep backend and frontend joint smoke in the loop for visible pages.

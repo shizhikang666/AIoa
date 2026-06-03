@@ -367,6 +367,12 @@ Route::group('biz/bizdatareport', function () {
     Route::post('saleProjectList/details', 'biz.BizDataReportController/saleProjectListDetails');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizleaveapplication', function () {
+    Route::get('page', 'biz.BizLeaveApplicationController/page');
+    Route::get('my/page', 'biz.BizLeaveApplicationController/myPage');
+    Route::get('detail', 'biz.BizLeaveApplicationController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/projectrate', function () {
     Route::get('page', 'biz.SaleProjectRateController/page');
     Route::get('list', 'biz.SaleProjectRateController/list');
