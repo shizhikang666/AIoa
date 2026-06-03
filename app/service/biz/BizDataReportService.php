@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use RuntimeException;
 use think\facade\Db;
 
 /**
@@ -254,6 +255,64 @@ a.ACCOUNT_NAME AS ACCOUNT_NAME,
 a.ACCOUNT_NUMBER AS ACCOUNT_NUMBER,
 org.NAME AS ORG_NAME
 SQL;
+    private const ORG_FIELDS = <<<SQL
+o.ID AS ID,
+o.PARENT_ID AS PARENT_ID,
+o.DIRECTOR_ID AS DIRECTOR_ID,
+o.NAME AS NAME,
+o.CODE AS CODE,
+o.CATEGORY AS CATEGORY,
+o.SORT_CODE AS SORT_CODE,
+o.EXT_JSON AS EXT_JSON,
+o.DELETE_FLAG AS DELETE_FLAG,
+o.CREATE_TIME AS CREATE_TIME,
+o.CREATE_USER AS CREATE_USER,
+o.UPDATE_TIME AS UPDATE_TIME,
+o.UPDATE_USER AS UPDATE_USER,
+o.TENANT_ID AS TENANT_ID
+SQL;
+    private const SETTLEMENT_ACCOUNT_FIELDS = <<<SQL
+a.ID AS ID,
+a.ACCOUNT_NAME AS ACCOUNT_NAME,
+a.ACCOUNT_NUMBER AS ACCOUNT_NUMBER,
+a.INITIAL_AMOUNT AS INITIAL_AMOUNT,
+a.CURRENT_AMOUNT AS CURRENT_AMOUNT,
+a.ACCOUNT_STATUS AS ACCOUNT_STATUS,
+a.SORT_CODE AS SORT_CODE,
+a.DELETE_FLAG AS DELETE_FLAG,
+a.CREATE_TIME AS CREATE_TIME,
+a.CREATE_USER AS CREATE_USER,
+a.UPDATE_TIME AS UPDATE_TIME,
+a.UPDATE_USER AS UPDATE_USER,
+a.EXT_JSON AS EXT_JSON,
+a.TENANT_ID AS TENANT_ID,
+a.VERSION AS VERSION,
+a.org AS ORG,
+a.ARCHIVE_AMOUNT AS ARCHIVE_AMOUNT,
+a.ARCHIVE_TIME AS ARCHIVE_TIME,
+org.NAME AS ORG_NAME
+SQL;
+    private const DEBIT_NOTE_FIELDS = <<<SQL
+d.ID AS ID,
+d.EXPENDITURE_RECORD_ID AS EXPENDITURE_RECORD_ID,
+d.REMARK AS REMARK,
+d.PLAY_STATUS AS PLAY_STATUS,
+d.AMOUNT AS AMOUNT,
+d.SETTLEMENT_AMOUNT AS SETTLEMENT_AMOUNT,
+d.DELETE_FLAG AS DELETE_FLAG,
+d.CREATE_TIME AS CREATE_TIME,
+d.CREATE_USER AS CREATE_USER,
+d.UPDATE_TIME AS UPDATE_TIME,
+d.UPDATE_USER AS UPDATE_USER,
+d.TENANT_ID AS TENANT_ID,
+d.VERSION AS VERSION,
+d.ORG AS ORG,
+d.HISTORY_AMOUNT AS HISTORY_AMOUNT,
+e.PAYER_TIME AS PAYER_TIME,
+e.TARGET_ID AS ACCOUNT_ID,
+a.ACCOUNT_NAME AS ACCOUNT_NAME,
+org.NAME AS ORG_NAME
+SQL;
 
     /**
      * @return array<int, array<string, mixed>>
@@ -396,6 +455,45 @@ SQL;
         ];
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function summaryStatistics(array $filters = [], array $payload = []): array
+    {
+        $endDate = $this->summaryEndOfYear($filters['year'] ?? null);
+        $companyScopes = $this->summaryCompanyScopes($payload);
+
+        if ($companyScopes === []) {
+            throw new RuntimeException('no permission to view summary statistics', 403);
+        }
+
+        return array_values(array_map(function (array $scope) use ($endDate, $payload): array {
+            $orgIds = $scope['orgIds'] ?? [];
+            if (!is_array($orgIds) || $orgIds === []) {
+                return [
+                    'org' => $scope['org'] ?? [],
+                    'settlementAccounts' => [],
+                    'paymentRecords' => [],
+                    'bizExpenditureRecords' => [],
+                    'bizSaleProjects' => [],
+                    'bizDebitNotes' => [],
+                ];
+            }
+
+            $settlementAccounts = $this->summarySettlementAccounts($orgIds, $payload);
+            $settlementAccountIds = array_column($settlementAccounts, 'id');
+
+            return [
+                'org' => $scope['org'] ?? [],
+                'settlementAccounts' => $settlementAccounts,
+                'paymentRecords' => $this->summaryPaymentRecords($settlementAccountIds, $endDate, $payload),
+                'bizExpenditureRecords' => $this->summaryExpenditureRecords($settlementAccountIds, $endDate, $payload),
+                'bizSaleProjects' => $this->summarySaleProjects($orgIds, $endDate, $payload),
+                'bizDebitNotes' => $this->summaryDebitNotes($orgIds, $endDate, $payload),
+            ];
+        }, $companyScopes));
+    }
+
     private function saleProjectQuery(array $filters, array $payload)
     {
         $query = Db::name('biz_sale_project')
@@ -485,6 +583,153 @@ SQL;
         $this->applyReportPayerTimeRange($query, $filters, 'e.PAYER_TIME');
 
         return $query;
+    }
+
+    /**
+     * @param array<int, string> $orgIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function summarySaleProjects(array $orgIds, string $endDate, array $payload): array
+    {
+        $ids = $this->stringList($orgIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $query = Db::name('biz_sale_project')
+            ->alias('p')
+            ->field(self::PROJECT_FIELDS)
+            ->leftJoin('customer c', 'c.ID = p.CUSTOMER')
+            ->leftJoin('sys_user u', 'u.ID = p.USER')
+            ->leftJoin('sys_org org', 'org.ID = p.ORG')
+            ->leftJoin('settlement_account a', 'a.ID = p.ACCOUNT_ID')
+            ->whereIn('p.PROJECT_STATE', self::DEAL_STATES)
+            ->whereIn('p.ORG', $ids)
+            ->where('p.COMPLETION_DATE', '<=', $endDate);
+        $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+        $this->applyTenant($query, [], $payload, 'p.TENANT_ID');
+
+        return $this->projectRows(
+            $query->order('p.COMPLETION_DATE', 'asc')
+                ->order('p.ID', 'asc')
+                ->select()
+                ->toArray()
+        );
+    }
+
+    /**
+     * @param array<int, string> $orgIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function summarySettlementAccounts(array $orgIds, array $payload): array
+    {
+        $ids = $this->stringList($orgIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $query = Db::name('settlement_account')
+            ->alias('a')
+            ->field(self::SETTLEMENT_ACCOUNT_FIELDS)
+            ->leftJoin('sys_org org', 'org.ID = a.org')
+            ->whereIn('a.org', $ids);
+        $this->whereNotDeleted($query, 'a.DELETE_FLAG');
+        $this->applyTenant($query, [], $payload, 'a.TENANT_ID');
+
+        return $this->settlementAccountRows(
+            $query->order('a.SORT_CODE', 'asc')
+                ->order('a.ID', 'asc')
+                ->select()
+                ->toArray()
+        );
+    }
+
+    /**
+     * @param array<int, string|null> $settlementAccountIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function summaryPaymentRecords(array $settlementAccountIds, string $endDate, array $payload): array
+    {
+        $ids = $this->stringList($settlementAccountIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $query = Db::name('biz_payment_record')
+            ->alias('r')
+            ->field(self::PAYMENT_RECORD_FIELDS)
+            ->leftJoin('settlement_account a', 'a.ID = r.TARGET_ID')
+            ->leftJoin('sys_org org', 'org.ID = r.ORG')
+            ->whereIn('r.TARGET_ID', $ids)
+            ->where('r.PAYER_TIME', '<=', $endDate);
+        $this->whereNotDeleted($query, 'r.DELETE_FLAG');
+        $this->applyTenant($query, [], $payload, 'r.TENANT_ID');
+
+        return $this->paymentRecordRows(
+            $query->order('r.PAYER_TIME', 'asc')
+                ->order('r.ID', 'asc')
+                ->select()
+                ->toArray()
+        );
+    }
+
+    /**
+     * @param array<int, string|null> $settlementAccountIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function summaryExpenditureRecords(array $settlementAccountIds, string $endDate, array $payload): array
+    {
+        $ids = $this->stringList($settlementAccountIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $query = Db::name('biz_expenditure_record')
+            ->alias('e')
+            ->field(self::EXPENDITURE_RECORD_FIELDS)
+            ->leftJoin('settlement_account a', 'a.ID = e.TARGET_ID')
+            ->leftJoin('sys_org org', 'org.ID = e.ORG')
+            ->whereIn('e.TARGET_ID', $ids)
+            ->where('e.PAYER_TIME', '<=', $endDate);
+        $this->whereNotDeleted($query, 'e.DELETE_FLAG');
+        $this->applyTenant($query, [], $payload, 'e.TENANT_ID');
+
+        return $this->expenditureRecordRows(
+            $query->order('e.PAYER_TIME', 'asc')
+                ->order('e.ID', 'asc')
+                ->select()
+                ->toArray()
+        );
+    }
+
+    /**
+     * @param array<int, string> $orgIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function summaryDebitNotes(array $orgIds, string $endDate, array $payload): array
+    {
+        $ids = $this->stringList($orgIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $query = Db::name('biz_debit_note')
+            ->alias('d')
+            ->field(self::DEBIT_NOTE_FIELDS)
+            ->leftJoin('biz_expenditure_record e', 'e.ID = d.EXPENDITURE_RECORD_ID')
+            ->leftJoin('settlement_account a', 'a.ID = e.TARGET_ID')
+            ->leftJoin('sys_org org', 'org.ID = d.ORG')
+            ->whereIn('d.ORG', $ids)
+            ->where('d.CREATE_TIME', '<=', $endDate);
+        $this->whereNotDeleted($query, 'd.DELETE_FLAG');
+        $this->applyTenant($query, [], $payload, 'd.TENANT_ID');
+
+        return $this->debitNoteRows(
+            $query->order('d.CREATE_TIME', 'asc')
+                ->order('d.ID', 'asc')
+                ->select()
+                ->toArray()
+        );
     }
 
     private function saleProjectReportQuery(array $filters, array $payload)
@@ -1102,6 +1347,88 @@ SQL;
      * @param array<int, array<string, mixed>> $rows
      * @return array<int, array<string, mixed>>
      */
+    private function settlementAccountRows(array $rows): array
+    {
+        return array_values(array_map(function (array $row): array {
+            return [
+                'id' => $this->value($row, 'ID', 'id'),
+                'accountName' => $this->value($row, 'ACCOUNT_NAME', 'accountName'),
+                'accountNumber' => $this->value($row, 'ACCOUNT_NUMBER', 'accountNumber'),
+                'initialAmount' => $this->decimal($this->value($row, 'INITIAL_AMOUNT', 'initialAmount')),
+                'currentAmount' => $this->decimal($this->value($row, 'CURRENT_AMOUNT', 'currentAmount')),
+                'accountStatus' => $this->value($row, 'ACCOUNT_STATUS', 'accountStatus'),
+                'sortCode' => $this->integer($this->value($row, 'SORT_CODE', 'sortCode')),
+                'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
+                'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+                'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+                'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
+                'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+                'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
+                'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
+                'version' => $this->integer($this->value($row, 'VERSION', 'version')),
+                'org' => $this->value($row, 'ORG', 'org'),
+                'orgName' => $this->value($row, 'ORG_NAME', 'orgName'),
+                'archiveAmount' => $this->decimal($this->value($row, 'ARCHIVE_AMOUNT', 'archiveAmount')),
+                'archiveTime' => $this->value($row, 'ARCHIVE_TIME', 'archiveTime'),
+            ];
+        }, $rows));
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function debitNoteRows(array $rows): array
+    {
+        return array_values(array_map(function (array $row): array {
+            return [
+                'id' => $this->value($row, 'ID', 'id'),
+                'expenditureRecordId' => $this->value($row, 'EXPENDITURE_RECORD_ID', 'expenditureRecordId'),
+                'accountId' => $this->value($row, 'ACCOUNT_ID', 'accountId'),
+                'accountName' => $this->value($row, 'ACCOUNT_NAME', 'accountName'),
+                'payerTime' => $this->value($row, 'PAYER_TIME', 'payerTime'),
+                'orgName' => $this->value($row, 'ORG_NAME', 'orgName'),
+                'remark' => $this->value($row, 'REMARK', 'remark'),
+                'playStatus' => $this->value($row, 'PLAY_STATUS', 'playStatus'),
+                'amount' => $this->decimal($this->value($row, 'AMOUNT', 'amount')),
+                'settlementAmount' => $this->decimal($this->value($row, 'SETTLEMENT_AMOUNT', 'settlementAmount')),
+                'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
+                'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+                'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+                'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
+                'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+                'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
+                'version' => $this->integer($this->value($row, 'VERSION', 'version')),
+                'org' => $this->value($row, 'ORG', 'org'),
+                'historyAmount' => $this->decimal($this->value($row, 'HISTORY_AMOUNT', 'historyAmount')),
+            ];
+        }, $rows));
+    }
+
+    private function orgRow(array $row): array
+    {
+        return [
+            'id' => $this->value($row, 'ID', 'id'),
+            'parentId' => $this->value($row, 'PARENT_ID', 'parentId'),
+            'directorId' => $this->value($row, 'DIRECTOR_ID', 'directorId'),
+            'name' => $this->value($row, 'NAME', 'name'),
+            'code' => $this->value($row, 'CODE', 'code'),
+            'category' => $this->value($row, 'CATEGORY', 'category'),
+            'sortCode' => $this->integer($this->value($row, 'SORT_CODE', 'sortCode')),
+            'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
+            'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
+            'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+            'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+            'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
+            'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+            'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
     private function paymentRecordRows(array $rows): array
     {
         return array_map(fn (array $row): array => $this->settlementRecordRow($row), $rows);
@@ -1213,6 +1540,176 @@ SQL;
     private function currentUserId(array $payload): string
     {
         return trim((string)($payload['userId'] ?? $payload['user_id'] ?? $payload['id'] ?? ''));
+    }
+
+    private function summaryEndOfYear(mixed $year): string
+    {
+        $value = trim((string)$year);
+        if ($value === '') {
+            throw new RuntimeException('missing year', 400);
+        }
+
+        if (preg_match('/^\d{4}$/', $value) === 1) {
+            $value .= '-01-01 00:00:00';
+        }
+
+        try {
+            $date = new \DateTimeImmutable($value);
+        } catch (\Throwable) {
+            throw new RuntimeException('invalid year', 400);
+        }
+
+        return $date->setDate((int)$date->format('Y'), 12, 31)
+            ->setTime(23, 59, 59)
+            ->format('Y-m-d H:i:s');
+    }
+
+    /**
+     * @return array<int, array{org: array<string, mixed>, orgIds: array<int, string>}>
+     */
+    private function summaryCompanyScopes(array $payload): array
+    {
+        $rows = $this->activeOrgRows($payload);
+        $rowsById = $this->orgRowsById($rows);
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+
+        if ($scopeOrgIds === []) {
+            $currentOrgId = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? ''));
+            if ($currentOrgId !== '') {
+                $scopeOrgIds = [$currentOrgId];
+            }
+        }
+
+        $scopes = [];
+        foreach ($scopeOrgIds as $scopeOrgId) {
+            if (!isset($rowsById[$scopeOrgId])) {
+                continue;
+            }
+
+            $companyId = $this->companyIdForOrg($scopeOrgId, $rowsById);
+            if ($companyId === null || !isset($rowsById[$companyId])) {
+                continue;
+            }
+
+            $isCompanyScope = strtoupper((string)($rowsById[$scopeOrgId]['CATEGORY'] ?? '')) === 'COMPANY';
+            $orgIds = $this->orgAndChildrenFromRows($rows, $isCompanyScope ? $companyId : $scopeOrgId);
+            if ($orgIds === []) {
+                continue;
+            }
+
+            if (!isset($scopes[$companyId])) {
+                $scopes[$companyId] = [
+                    'org' => $this->orgRow($rowsById[$companyId]),
+                    'orgIds' => [],
+                ];
+            }
+
+            $scopes[$companyId]['orgIds'] = $this->stringList(array_merge($scopes[$companyId]['orgIds'], $orgIds));
+        }
+
+        $result = array_values($scopes);
+        usort($result, static function (array $left, array $right): int {
+            return ((int)($left['org']['sortCode'] ?? 0) <=> (int)($right['org']['sortCode'] ?? 0))
+                ?: strcmp((string)($left['org']['id'] ?? ''), (string)($right['org']['id'] ?? ''));
+        });
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function activeOrgRows(array $payload = []): array
+    {
+        $query = Db::name('sys_org')
+            ->alias('o')
+            ->field(self::ORG_FIELDS);
+        $this->whereNotDeleted($query, 'o.DELETE_FLAG');
+        $this->applyTenant($query, [], $payload, 'o.TENANT_ID');
+
+        return $query->order('o.SORT_CODE', 'asc')
+            ->order('o.ID', 'asc')
+            ->select()
+            ->toArray();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<string, array<string, mixed>>
+     */
+    private function orgRowsById(array $rows): array
+    {
+        $result = [];
+        foreach ($rows as $row) {
+            $id = trim((string)($row['ID'] ?? ''));
+            if ($id !== '') {
+                $result[$id] = $row;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $rowsById
+     */
+    private function companyIdForOrg(string $orgId, array $rowsById): ?string
+    {
+        $current = trim($orgId);
+        $visited = [];
+
+        while ($current !== '' && $current !== '0' && isset($rowsById[$current])) {
+            if (isset($visited[$current])) {
+                return null;
+            }
+            $visited[$current] = true;
+
+            if (strtoupper((string)($rowsById[$current]['CATEGORY'] ?? '')) === 'COMPANY') {
+                return $current;
+            }
+
+            $current = trim((string)($rowsById[$current]['PARENT_ID'] ?? ''));
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, string>
+     */
+    private function orgAndChildrenFromRows(array $rows, string $orgId): array
+    {
+        $orgId = trim($orgId);
+        if ($orgId === '') {
+            return [];
+        }
+
+        $childrenByParent = [];
+        foreach ($rows as $row) {
+            $id = trim((string)($row['ID'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+
+            $childrenByParent[trim((string)($row['PARENT_ID'] ?? ''))][] = $id;
+        }
+
+        $result = [];
+        $queue = [$orgId];
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            if ($current === null || in_array($current, $result, true)) {
+                continue;
+            }
+
+            $result[] = $current;
+            foreach ($childrenByParent[$current] ?? [] as $childId) {
+                $queue[] = $childId;
+            }
+        }
+
+        return $result;
     }
 
     /**

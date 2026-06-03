@@ -4031,3 +4031,67 @@ Agent: api-agent
 - Commit and push this sale-profit read-only slice.
 - Continue with the remaining `bizdatareport` read slice: `summary/statistics`.
 - Keep backend and frontend joint smoke in the loop for visible pages.
+
+## 2026-06-03 - api-agent - Biz Datareport Summary Statistics Read
+
+### Completed Content
+
+- Analyzed Java `BizDataReportController#querySummaryStatistics`, `BizDataReportServiceImp#querySummaryStatistics`, `BizQuerySummaryStatisticsResult`, and the copied Vue `summaryStatistics` page/WebWorker.
+- Confirmed the frontend expects raw company-scoped collections and calculates annual/monthly finance values in `summaryStatistics/components/webWork/calcStatisics.js`.
+- Added protected read-only route:
+  - `/biz/bizdatareport/summary/statistics`
+- Extended the existing thin `BizDataReportController` adapter.
+- Extended `BizDataReportService` with Java-compatible summary output:
+  - `org`
+  - `settlementAccounts`
+  - `paymentRecords`
+  - `bizExpenditureRecords`
+  - `bizSaleProjects`
+  - `bizDebitNotes`
+- Preserved the Java summary behavior of returning data grouped by company organization and bounded by selected-year end time.
+- Kept the endpoint strictly read-only:
+  - no settlement/account-balance mutation;
+  - no workflow start/approval behavior;
+  - no database schema change.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, finance mutations, workflow writes, and business write behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `docs/api/biz-datareport-summary-statistics-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizDataReportController.php`: passed.
+- `php -l app\service\biz\BizDataReportService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; the summary-statistics route is listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI read-only smoke passed:
+  - sample company scope returned 1 company summary object;
+  - first summary object contains `org`, `settlementAccounts`, `paymentRecords`, `bizExpenditureRecords`, `bizSaleProjects`, and `bizDebitNotes`;
+  - sample counts were: settlement accounts 19, payment records 263, expenditure records 731, sale projects 98, debit notes 52.
+
+### Current Issues
+
+- Full browser smoke for the summary-statistics page should still be run with backend and frontend servers active.
+- Settlement account payment, transfer, income, expense, correction, and balance mutation write behavior remains deferred.
+- Purchase, sale, return, inventory, workflow, and account-balance side effects remain deferred.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this summary-statistics read-only slice.
+- Run backend plus frontend browser smoke for the summary statistics page when both services are active.
+- Continue with the next safe read-only business detail/selector slice before opening write-heavy finance or workflow behavior.

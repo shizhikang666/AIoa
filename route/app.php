@@ -371,6 +371,7 @@ Route::group('biz/bizdatareport', function () {
     Route::post('settlement/income', 'biz.BizDataReportController/settlementIncome');
     Route::post('settlement/expenses', 'biz.BizDataReportController/settlementExpenses');
     Route::post('saleProfit', 'biz.BizDataReportController/saleProfit');
+    Route::post('summary/statistics', 'biz.BizDataReportController/summaryStatistics');
     Route::post('saleProjectList/details', 'biz.BizDataReportController/saleProjectListDetails');
 })->middleware(AuthMiddleware::class);
 

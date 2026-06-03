@@ -2010,3 +2010,35 @@ The copied Vue sale-profit dashboard calls Java-compatible `/biz/bizdatareport/s
 - `php think route:list` must list the added route.
 - Token requests should return `projectlist`, `orderList`, and `bizProducts`.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Datareport Summary Statistics Read-Only Route
+
+## Request
+
+Register a protected read-only summary statistics report route in `route/app.php`.
+
+## Reason
+
+The copied Vue summary statistics page calls Java-compatible `/biz/bizdatareport/summary/statistics` and expects raw company-scoped report collections for frontend WebWorker calculation. This route is required for the annual/monthly summary page while finance, settlement, workflow, and account-balance mutations remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected POST route:
+
+- `POST /biz/bizdatareport/summary/statistics`
+
+## Explicit Exclusions
+
+- No settlement account income/add route was added.
+- No settlement account expenses/add route was added.
+- No settlement account payment/add or transfer/add route was added.
+- No workflow start/approve/reject/cancel route was added.
+- No Java source, database schema, frontend, Composer, `.env`, account-balance update, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return company summary objects with `org`, `settlementAccounts`, `paymentRecords`, `bizExpenditureRecords`, `bizSaleProjects`, and `bizDebitNotes`.
+- Requests without token should return `code=401`.

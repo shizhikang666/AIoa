@@ -55,6 +55,11 @@ class BizDataReportController extends BaseSysController
         return $this->guard(fn () => $this->reportService->saleProfit($request->post(), $this->authPayload($request)));
     }
 
+    public function summaryStatistics(Request $request): Response
+    {
+        return $this->guard(fn () => $this->reportService->summaryStatistics($request->post(), $this->authPayload($request)));
+    }
+
     private function authPayload(Request $request): array
     {
         $payload = $request->middleware('auth_payload', []);

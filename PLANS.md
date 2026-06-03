@@ -3895,3 +3895,63 @@ git diff --check
 - Do not add purchase, sale, inventory, settlement, payment, or workflow mutation routes.
 - Do not modify locked public config files other than the documented `route/app.php` route addition.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent - Biz Datareport Summary Statistics Read
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Add a focused read-only compatibility slice for Java `POST /biz/bizdatareport/summary/statistics`, used by the copied annual summary statistics page and its WebWorker.
+
+### 2. Involved Modules
+
+- api-agent
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `route/app.php`
+- `docs/api/biz-datareport-summary-statistics-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The frontend WebWorker computes annual and monthly finance totals from raw Java-compatible collections, so backend response field names must match Java/frontend expectations.
+- Java groups summary data by accessible company organizations and then expands each company to its child organizations; data-scope handling must preserve this shape.
+- The endpoint returns potentially large yearly financial collections, so queries must stay bounded by data-scope, company subtree, tenant, and selected year.
+- This slice reads finance data only. Account balance changes, settlement corrections, workflow starts, and repayment writes remain forbidden.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\BizDataReportController.php
+php -l app\service\biz\BizDataReportService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizdatareport/summary/statistics` is registered behind token middleware.
+- The response returns one item per accessible company organization.
+- Each item includes `org`, `settlementAccounts`, `paymentRecords`, `bizExpenditureRecords`, `bizSaleProjects`, and `bizDebitNotes`.
+- Returned records use camelCase fields expected by the copied frontend worker, including `completionDate`, `totalPrice`, `historyAmount`, `totalReturnAmount`, `payerTime`, `settlementCategory`, `targetId`, `initialAmount`, `playStatus`, and `settlementAmount`.
+- Java source, database schema, frontend, Composer, `.env`, finance mutation, workflow, and write-side business behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add settlement account income, expense, payment, transfer, or balance mutation routes.
+- Do not add or modify workflow start/approve/reject/cancel behavior.
+- Do not modify locked public config files other than the documented `route/app.php` route addition.
+- Do not modify `F:\AI\projects\testJava\OA`.
