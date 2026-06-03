@@ -129,3 +129,28 @@ This smoke followed the sale-project follow-up read-only API slice. No frontend 
 
 - Standalone sale-project follow-up page route/menu exposure remains a frontend adaptation task.
 - Sale-project detail tab deep smoke remains tied to the existing sale-project table visibility mismatch.
+
+## 2026-06-03 Sale Project Product Item Relation Read Smoke
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This smoke followed the sale-project product item relation read-only API slice. No frontend files were changed.
+
+### Backend Result
+
+- `/biz/saleprojectproductitemrelation/list` was added as a protected read-only POST route.
+- Direct service smoke used a sampled sale-project product item id and returned 10 combo child relation rows.
+- Response rows include relation ids, `objectId`, `targetId`, `productId`, `mark`, `number`, product display fields, and `extJson`.
+
+### Browser Result
+
+- No standalone browser page was opened for this slice because the copied frontend currently references this API from sale-project delivery/invoice helpers rather than a direct page route.
+- The current browser tab remains on `/biz/saleproject`.
+
+### Observed Non-Blocking Issues
+
+- Relation mark editing remains deferred because `/biz/saleprojectproductitemrelation/mark/edit` mutates data.
+- Product item mark editing remains deferred because `/biz/saleprojectproductitem/mark/edit` mutates data.
+- Deep browser smoke for delivery/invoice helper actions still depends on a visible sale-project detail flow and should be handled in a later frontend-agent pass.

@@ -4121,3 +4121,65 @@ git diff --check
 - Do not modify sale-project, workflow, finance, file upload, or attachment write behavior.
 - Do not modify locked public config files other than the documented `route/app.php` route addition.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent - Sale Project Product Item Relation List Read
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Add a focused read-only compatibility slice for Java `POST /biz/saleprojectproductitemrelation/list`, used by copied sale-project delivery/invoice UI helpers to read combo-product child rows.
+
+### 2. Involved Modules
+
+- api-agent
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SaleProjectProductItemRelationController.php`
+- `app/service/biz/SaleProjectProductItemRelationService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-product-item-relation-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java returns raw relation rows, while existing ThinkPHP sale-project detail already embeds child rows; the standalone list route should preserve raw relation compatibility and product display fields.
+- The copied frontend exposes `mark/edit`, but that route mutates relation marks and must stay deferred in this read-only slice.
+- Relation rows are addressed by sale-project product item ids, so ThinkPHP should data-scope through `biz_sale_project_product_item -> biz_sale_project`.
+- Some rows rely on `EXT_JSON.product`; when missing, the response should provide a minimal product JSON fallback like the existing sale-project detail service.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectProductItemRelationController.php
+php -l app\service\biz\SaleProjectProductItemRelationService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/saleprojectproductitemrelation/list` is registered behind token middleware.
+- Requests can pass Java-style body rows like `[{ "id": "<productItemId>" }]`.
+- Response rows include `id`, `objectId`, `targetId`, `productId`, `mark`, `number`, `extJson`, product display fields, audit fields, and tenant id.
+- The route reads only rows under visible sale projects.
+- Java source, database schema, frontend files, Composer files, `.env`, relation mark writes, sale-project writes, delivery/invoice writes, workflow, inventory, and finance behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `POST /biz/saleprojectproductitemrelation/mark/edit`.
+- Do not add `POST /biz/saleprojectproductitem/mark/edit`.
+- Do not modify sale-project product items, invoices, delivery, inventory, workflow, finance, file upload, or account-balance behavior.
+- Do not modify locked public config files other than the documented `route/app.php` route addition.
+- Do not modify `F:\AI\projects\testJava\OA`.

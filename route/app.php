@@ -370,6 +370,10 @@ Route::group('biz/saleprojectproductinfo', function () {
     Route::get('detail', 'biz.SaleProjectProductInfoController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/saleprojectproductitemrelation', function () {
+    Route::post('list', 'biz.SaleProjectProductItemRelationController/list');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/bizdatareport', function () {
     Route::post('saleproject', 'biz.BizDataReportController/saleProjectAmount');
     Route::post('saleproject/list', 'biz.BizDataReportController/saleProjectList');

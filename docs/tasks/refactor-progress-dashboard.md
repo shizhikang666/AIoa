@@ -18,16 +18,16 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | --- | ---: | --- |
 | SQL tables analyzed/imported | 121 | From `F:\AI\projects\testJava\OA\oa2026.sql` |
 | ThinkPHP Models | 67 | Database/model foundation is mostly in place |
-| ThinkPHP Controllers | 65 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
-| ThinkPHP Services | 56 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
-| Registered route entries | 252 | Most are protected read-only compatibility routes |
-| API compatibility docs | 57 | Stored under `docs/api` |
+| ThinkPHP Controllers | 66 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
+| ThinkPHP Services | 57 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
+| Registered route entries | 253 | Most are protected read-only compatibility routes |
+| API compatibility docs | 58 | Stored under `docs/api` |
 | Database docs | 10 | Stored under `docs/database` |
 | Java Controllers in original project | 84 | Read-only reference baseline |
 | Frontend API files in copied project | 76 | Static scan source: `snowy-admin-web/src/api` |
 | Unique frontend API endpoints | 545 | Normalized static wrapper paths |
-| Frontend endpoints already routed | 246 | Matched against current ThinkPHP route paths |
-| Frontend missing read/selector candidates | 92 | Priority candidates for safe compatibility slices |
+| Frontend endpoints already routed | 247 | Matched against current ThinkPHP route paths |
+| Frontend missing read/selector candidates | 91 | Priority candidates for safe compatibility slices |
 | Frontend deferred write/side-effect candidates | 207 | Do not implement without module-specific write plans |
 | Frontend baseline files copied | 908 | Copied into `snowy-admin-web`; generated/cache files excluded |
 | Current branch | `refactor/thinkphp-main` | Clean and synced with origin at last check |
@@ -43,7 +43,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | User / Org / Position | 68% | Yellow | Read-only org tree, position, user directory, user-center selectors, business-side directory aliases, camelCase display aliases for org/user/position pages | User CRUD, grants, upload/avatar, import/export, encrypted profile fields |
 | Workflow | 40% | Yellow | Runtime strategy, read-only task/process routes, process query aliases, file-list reads, runtime activity detail, variable normalization | Approval/reject/cancel/start, task SSE, side effects, workflow write runtime |
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
-| Business read-only APIs | 82% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project including cost details, sale-project follow-up, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate, sale-project product info, biz-datareport sale-project summaries/unpaid/details/settlement/sale-profit/summary-statistics reads, leave-application reads, settlement-account-payment reads, payroll reads, workflow process/task reads | Remaining detail consumers |
+| Business read-only APIs | 83% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project including cost details, sale-project follow-up, sale-project product item relation list, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate, sale-project product info, biz-datareport sale-project summaries/unpaid/details/settlement/sale-profit/summary-statistics reads, leave-application reads, settlement-account-payment reads, payroll reads, workflow process/task reads | Remaining detail consumers |
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
 | Frontend adaptation | 51% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, minimal SSE route added; browser smoke reaches `/sys/org`, `/sys/user`, and `/biz/bizdatareport/summaryStatistics` | Browser-smoke realtime message console noise, broken API method cleanup, missing read-only business routes |
 | Testing / QA | 42% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice, backend/frontend browser smoke for summary-statistics | Automated route/API test suite, regression matrix, broader frontend smoke, negative tests |
@@ -62,6 +62,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | SSE compatibility | `/dev/message/createSseConnect` Java/frontend behavior mapped and minimal protected ThinkPHP route added | Full realtime push deferred |
 | Sale project reads | `/biz/saleproject/page`, `/case/page`, `/operation/page`, `/public/page`, `/list/detail`, `/detail`, `/product`, `/cost`, and `/cost/details` routed with aggregate read data and weighted-average purchase cost details | Writes and workflow/finance side effects deferred |
 | Sale project follow-up reads | `/biz/saleprojectfollowup/page` and `/detail` routed with project name, creator display fields, data-scope guarding, and unchanged `extJson` for frontend file-list parsing | Follow-up add/edit/delete and attachment writes deferred |
+| Sale project product item relation reads | `/biz/saleprojectproductitemrelation/list` routed with combo-product child relation rows, product aliases, product display fields, and data-scope guarding through the owning sale project | Relation/product item mark edits and delivery/invoice writes deferred |
 | Customer reads | `/biz/customer/page`, `/detail`, `/detail/list`, `/biz/customerfollowup/page`, and `/detail` routed with customer owner/org/file and follow-up creator display fields | Customer and follow-up writes, owner reassignment, and SM4 plaintext search deferred |
 | Sale project billing reads | `/biz/saleprojectinvoicing/page`, `/customer`, `/detail`, `/biz/saleprojectinvoice/page`, `/list`, `/biz/saleprojectreissueorder/list/query`, `/biz/projectrate/page`, and `/list` routed with nested invoice/reissue structures | Invoice, invoicing, reissue, rating, workflow, inventory, and finance writes deferred |
 | Biz directory aliases | `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict` read paths routed to existing system/dev read services | User/org/position/dict writes, role grants, password actions, import/export deferred |

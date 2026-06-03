@@ -4284,3 +4284,62 @@ Agent: api-agent
 - Commit and push this sale-project follow-up read-only slice.
 - Continue with the next small read-only sale-project/detail consumer, likely sale-project product-item relation or visible history/cc-record reads.
 - Keep write-heavy sale-project, workflow, inventory, finance, file upload, and account-balance behavior deferred until dedicated write plans are confirmed.
+
+## 2026-06-03 - api-agent - Sale Project Product Item Relation List Read
+
+### Completed Content
+
+- Analyzed Java `SaleProjectProductItemRelationController`, `SaleProjectProductItemRelationServiceImpl`, `SaleProjectProductItemRelation`, and the `sale_project_product_item_relation` SQL table from `oa2026.sql`.
+- Analyzed copied Vue API wrapper `snowy-admin-web/src/api/biz/saleProjectProductItemRelationApi.js` and sale-project delivery/invoice helper usage.
+- Added protected read-only route:
+  - `/biz/saleprojectproductitemrelation/list`
+- Added a thin ThinkPHP controller and read-only service.
+- Returned relation rows with Java/frontend-compatible camelCase fields, `productId` alias, joined product display fields, and `extJson` fallback when missing.
+- Scoped relation reads through `biz_sale_project_product_item -> biz_sale_project`.
+- Kept relation mark edits, product item mark edits, delivery/invoice writes, sale-project writes, inventory, workflow, finance, account-balance behavior, frontend files, Java source, Composer files, `.env`, and database schema unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SaleProjectProductItemRelationController.php`
+- `app/service/biz/SaleProjectProductItemRelationService.php`
+- `docs/api/biz-saleproject-product-item-relation-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- Initial local syntax check passed:
+  - `php -l app\controller\biz\SaleProjectProductItemRelationController.php`
+  - `php -l app\service\biz\SaleProjectProductItemRelationService.php`
+  - `php -l route\app.php`
+- `php think route:list`: passed; `/biz/saleprojectproductitemrelation/list` is listed and route count is 253.
+- Direct service smoke passed:
+  - sample object id `2007746037931307010`;
+  - returned 10 relation rows;
+  - first sampled row included `productId` and non-empty `extJson`.
+- Full baseline checks passed:
+  - `composer dump-autoload`;
+  - `php think`;
+  - `php think route:list`;
+  - PHP lint for `app`, `config`, and `route`;
+  - `git diff --check` with CRLF conversion warnings only.
+- Authenticated HTTP smoke passed:
+  - local login returned a bearer token;
+  - `/biz/saleprojectproductitemrelation/list` returned `code = 200`, 10 rows, `productId`, and non-empty `extJson`;
+  - unauthenticated `/biz/saleprojectproductitemrelation/list` returned `code = 401`.
+
+### Current Issues
+
+- Relation/product item mark edit routes remain deferred because they mutate data.
+- Deep browser smoke remains deferred until a visible sale-project delivery/invoice helper flow is available.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-project product item relation read-only slice.
+- Continue with the next small read-only sale-project/detail consumer or move to frontend-agent investigation of the sale-project table empty-state mismatch.

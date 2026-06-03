@@ -2105,3 +2105,34 @@ The copied Vue sale-project follow-up list and sale-project detail follow-up tab
 - `php think route:list` must list the added routes.
 - Token requests should return paginated follow-up records and single detail records.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Product Item Relation List Read-Only Route
+
+## Request
+
+Register a protected read-only sale-project product item relation list route in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-project delivery/invoice helpers include Java-compatible `/biz/saleprojectproductitemrelation/list` to read combo-product child relation rows by sale-project product item ids. This route reads relation rows only. Mark editing and product-item mutation routes remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected POST route:
+
+- `POST /biz/saleprojectproductitemrelation/list`
+
+## Explicit Exclusions
+
+- No `/biz/saleprojectproductitemrelation/mark/edit` route was added.
+- No `/biz/saleprojectproductitem/mark/edit` route was added.
+- No sale-project product item, invoice, delivery, inventory, workflow, finance, file upload, or account-balance write behavior was added.
+- No Java source, database schema, frontend files, Composer files, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return relation rows for visible sale-project product item ids.
+- Requests without token should return `code=401`.

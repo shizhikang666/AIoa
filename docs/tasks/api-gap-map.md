@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 252 | From `php think route:list` after sale-project follow-up read routes |
-| Endpoints already covered by route path | 246 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 92 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 253 | From `php think route:list` after sale-project product item relation read route |
+| Endpoints already covered by route path | 247 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 91 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -79,6 +79,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
 | `biz/saleprojectreissueorder` | `list/query` |
+| `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
 
 ## Deferred Write And Side-Effect Groups
 
@@ -88,6 +89,8 @@ The frontend contains many wrappers that should stay deferred until their module
 | --- | --- | --- |
 | `biz/saleproject` | `add`, `edit`, `delete`, `amount/edit`, `deal/edit`, `cancel`, `history/add`, `special/add`, `visibility/edit` | Project state, finance, visibility, and history side effects |
 | `biz/saleprojectfollowup` | `add`, `edit`, `delete` | Follow-up record and attachment metadata writes |
+| `biz/saleprojectproductitemrelation` | `mark/edit` | Relation mark mutation |
+| `biz/saleprojectproductitem` | `mark/edit` | Product item mark mutation |
 | `biz/customer` | `add`, `edit`, `delete`, `head/edit` | Customer ownership and possibly encrypted fields |
 | `biz/org`, `biz/user`, `biz/position` | `add`, `edit`, `delete`, grants, enable/disable, reset password | Permission and organization-state side effects |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
