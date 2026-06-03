@@ -3503,3 +3503,62 @@ Agent: api-agent
 - Commit and push this workflow read alias slice.
 - Continue with business report, payroll, leave, sale-project-product-info, and settlement-account-payment read-only slices.
 - Keep frontend and backend joint smoke in the loop after the backend dev server is stable.
+
+## 2026-06-03 - api-agent - Sale Project Product Info Read-Only API Compatibility
+
+### Completed Content
+
+- Analyzed Java `BizSaleProjectProductInfoController`, entity, param, and service implementation as read-only input.
+- Analyzed copied Vue `bizSaleProjectProductInfoApi` wrapper and `saleprojectproductinfo` page usage.
+- Added protected read-only routes for:
+  - `/biz/saleprojectproductinfo/page`
+  - `/biz/saleprojectproductinfo/list`
+  - `/biz/saleprojectproductinfo/detail`
+- Added a thin `SaleProjectProductInfoController` adapter.
+- Added a read-only `SaleProjectProductInfoService` with Java/frontend-compatible fields.
+- Preserved Java `targetIds` list behavior and accepted comma-separated frontend values.
+- Added creator/updater and product display aliases for expanded frontend rows.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, add/edit/delete, workflow, inventory, finance, and business write behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SaleProjectProductInfoController.php`
+- `app/service/biz/SaleProjectProductInfoService.php`
+- `docs/api/biz-saleproject-product-info-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectProductInfoController.php`: passed.
+- `php -l app\service\biz\SaleProjectProductInfoService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; all three sale-project-product-info routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Redis port was reachable after the helper service start.
+- MySQL initially rejected connections, then listened on port `3306` after starting the user-provided helper script.
+- CLI read-only smoke passed:
+  - `page`: returned 2 rows from total 9.
+  - `detail`: returned row `1882232045490913281`.
+  - `list`: returned 1 row for the sampled `targetId`.
+
+### Current Issues
+
+- Sale-project-product-info add/edit/delete routes remain intentionally deferred.
+- The frontend page still has modal actions wired to write endpoints; those actions should be tested only after a dedicated write plan is approved.
+- Reading CIM process details for local `mysqld.exe` was denied by Windows permissions, but port and database smoke checks passed.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-project-product-info read-only slice.
+- Continue with the remaining safe read-only backlog: business data reports, payroll, leave, and settlement-account-payment.
+- Keep backend and frontend joint smoke in the loop for pages the user opens in browser testing.

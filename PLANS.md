@@ -3339,3 +3339,68 @@ git diff --check
 - Added workflow detail response shape with `userProcess`, `startUser`, `startOrgTree`, `userActivityList`, and `ccUser`.
 - Added runtime activity detail reads from `act_ru_task` and normalized runtime variables.
 - Kept task approve/reject, process start/cancel, task SSE, Java delegates, database schema, frontend, Composer, and `.env` changes out of scope.
+
+## Active Plan: api-agent - Sale Project Product Info Read API Compatibility
+
+Status: completed on 2026-06-03.
+
+### 1. Current Goal
+
+Add a small read-only compatibility slice for Java `BizSaleProjectProductInfoController` and the copied Vue sale-project-product-info page.
+
+This phase does not implement add, edit, delete, import, export, workflow, inventory, finance, or frontend changes.
+
+### 2. Modules In Scope
+
+- `/biz/saleprojectproductinfo/page`
+- `/biz/saleprojectproductinfo/list`
+- `/biz/saleprojectproductinfo/detail`
+- Java/frontend-compatible response fields for product package/version information
+- API, public route-change, status, dashboard, and gap-map documentation
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SaleProjectProductInfoController.php`
+- `app/service/biz/SaleProjectProductInfoService.php`
+- `docs/api/biz-saleproject-product-info-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/api-gap-map.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so added routes must stay limited to the three protected read-only endpoints and be recorded in the public-file change request document.
+- Java `list` accepts `targetIds`; the frontend sends comma-separated ids, while Java param type is a list. The ThinkPHP service must normalize both forms.
+- The copied Vue page still calls `add`, `edit`, and `delete` from modal actions. Those write routes remain intentionally deferred until validation, audit, and transaction behavior are planned.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectProductInfoController.php
+php -l app\service\biz\SaleProjectProductInfoService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/saleprojectproductinfo/page`, `/list`, and `/detail` appear in `php think route:list`.
+- All new routes are protected by the existing `AuthMiddleware`.
+- `list` supports comma-separated and array `targetIds`.
+- Responses include frontend-compatible fields such as `targetId`, `productId`, `createUserName`, `contentText`, `oldCode`, `alias`, `abbreviation`, `versionType`, `hardware`, `remark`, and `versionRemark`.
+- Java source, database schema, frontend files, Composer files, `.env`, and all write endpoints remain unchanged.
+
+### 7. Completion Notes
+
+- Added three protected read-only routes for sale-project product package/version info.
+- Added a thin Controller and read-only Service that preserves Java `page`, `list`, and `detail` behavior.
+- Normalized comma-separated and array `targetIds` values for frontend compatibility.
+- Added creator/updater and product display aliases for expanded frontend rows.
+- Kept add/edit/delete, Java source, database schema, frontend, Composer, `.env`, workflow, inventory, and finance mutations out of scope.

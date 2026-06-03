@@ -1675,6 +1675,39 @@ The copied Vue frontend contains business-side wrappers under `/biz/org`, `/biz/
 
 ---
 
+# Public File Change Request: Sale Project Product Info Read-Only Routes
+
+## Request
+
+Register protected read-only software package/product-info routes in `route/app.php`.
+
+## Reason
+
+The copied Vue page under `/biz/saleprojectproductinfo` calls Java-compatible read endpoints to load product package/version rows for each sale-project product item. The Java service exposes `page`, `list`, and `detail` reads, while add/edit/delete have mutation behavior and remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected GET routes:
+
+- `GET /biz/saleprojectproductinfo/page`
+- `GET /biz/saleprojectproductinfo/list`
+- `GET /biz/saleprojectproductinfo/detail`
+
+## Explicit Exclusions
+
+- No `/biz/saleprojectproductinfo/add` route was added.
+- No `/biz/saleprojectproductinfo/edit` route was added.
+- No `/biz/saleprojectproductinfo/delete` route was added.
+- No Java source, database schema, frontend, Composer, `.env`, workflow, inventory, finance, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return read data for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Workflow Read Alias Routes
 
 ## Request

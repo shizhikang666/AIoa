@@ -357,6 +357,12 @@ Route::group('biz/saleprojectreissueorder', function () {
     Route::get('list/query', 'biz.SaleProjectReissueOrderController/listQuery');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/saleprojectproductinfo', function () {
+    Route::get('page', 'biz.SaleProjectProductInfoController/page');
+    Route::get('list', 'biz.SaleProjectProductInfoController/list');
+    Route::get('detail', 'biz.SaleProjectProductInfoController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/projectrate', function () {
     Route::get('page', 'biz.SaleProjectRateController/page');
     Route::get('list', 'biz.SaleProjectRateController/list');
