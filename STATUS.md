@@ -3904,3 +3904,62 @@ Agent: api-agent
 - Commit and push this unpaid-payment read-only slice.
 - Continue with remaining business report reads in small slices, likely settlement income/expenses next because they are pure read aggregations but touch payment/expenditure records.
 - Keep backend and frontend joint smoke in the loop for visible pages.
+
+## 2026-06-03 - api-agent - Biz Datareport Settlement Income And Expenses Reads
+
+### Completed Content
+
+- Analyzed Java `BizDataReportController` settlement report routes and `BizDataReportServiceImp#queryIncomeRecord/#queryExpenditureRecord` as read-only input.
+- Confirmed copied Vue data-report pages call settlement income and expenses endpoints for frontend aggregation.
+- Added protected read-only routes for:
+  - `/biz/bizdatareport/settlement/income`
+  - `/biz/bizdatareport/settlement/expenses`
+- Extended the existing thin `BizDataReportController` adapter.
+- Extended `BizDataReportService` with Java-compatible payment and expenditure record list reads.
+- Preserved Java filter behavior:
+  - selected organization plus child organizations;
+  - token data-scope organization ids;
+  - current-login-user fallback;
+  - income category filter;
+  - `startCreateTime/endCreateTime` applied to `PAYER_TIME`.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, settlement mutations, account-balance updates, sale profit, summary statistics, workflow, and business write behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `docs/api/biz-datareport-settlement-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizDataReportController.php`: passed.
+- `php -l app\service\biz\BizDataReportService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; both settlement report routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI read-only smoke passed:
+  - `settlementIncome`: returned 1 row for sampled payment record `2053774062208327681`.
+  - `settlementExpenses`: returned 1 row for sampled expenditure record `2054438640814563330`.
+
+### Current Issues
+
+- Sale profit and summary statistics remain intentionally deferred.
+- Settlement account payment, transfer, income, expenses, and balance mutation write routes remain deferred.
+- Full browser smoke for the data-report settlement page should still be run with backend and frontend servers active.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this settlement report read-only slice.
+- Continue with remaining business report reads in small slices, likely sale profit or summary statistics next.
+- Keep backend and frontend joint smoke in the loop for visible pages.

@@ -123,6 +123,56 @@ w.NAME AS WAREHOUSE_NAME,
 u.NAME AS HEAD_NAME,
 org.NAME AS ORG_NAME
 SQL;
+    private const PAYMENT_RECORD_FIELDS = <<<SQL
+r.ID AS ID,
+r.OBJECT_ID AS OBJECT_ID,
+r.TARGET_ID AS TARGET_ID,
+r.SERIAL_ID AS SERIAL_ID,
+r.PROCESS_ID AS PROCESS_ID,
+r.SETTLEMENT_CATEGORY AS SETTLEMENT_CATEGORY,
+r.PAYER AS PAYER,
+r.BANK_NAME AS BANK_NAME,
+r.BANK_ACCOUNT AS BANK_ACCOUNT,
+r.REMARK AS REMARK,
+r.PAYER_TIME AS PAYER_TIME,
+r.AMOUNT AS AMOUNT,
+r.DELETE_FLAG AS DELETE_FLAG,
+r.CREATE_TIME AS CREATE_TIME,
+r.CREATE_USER AS CREATE_USER,
+r.UPDATE_TIME AS UPDATE_TIME,
+r.UPDATE_USER AS UPDATE_USER,
+r.TENANT_ID AS TENANT_ID,
+r.`USER` AS USER_ID,
+r.ORG AS ORG,
+a.ACCOUNT_NAME AS ACCOUNT_NAME,
+a.ACCOUNT_NUMBER AS ACCOUNT_NUMBER,
+org.NAME AS ORG_NAME
+SQL;
+    private const EXPENDITURE_RECORD_FIELDS = <<<SQL
+e.ID AS ID,
+e.OBJECT_ID AS OBJECT_ID,
+e.TARGET_ID AS TARGET_ID,
+e.SERIAL_ID AS SERIAL_ID,
+e.PROCESS_ID AS PROCESS_ID,
+e.SETTLEMENT_CATEGORY AS SETTLEMENT_CATEGORY,
+e.PAYER AS PAYER,
+e.BANK_NAME AS BANK_NAME,
+e.BANK_ACCOUNT AS BANK_ACCOUNT,
+e.REMARK AS REMARK,
+e.PAYER_TIME AS PAYER_TIME,
+e.AMOUNT AS AMOUNT,
+e.DELETE_FLAG AS DELETE_FLAG,
+e.CREATE_TIME AS CREATE_TIME,
+e.CREATE_USER AS CREATE_USER,
+e.UPDATE_TIME AS UPDATE_TIME,
+e.UPDATE_USER AS UPDATE_USER,
+e.TENANT_ID AS TENANT_ID,
+e.`USER` AS USER_ID,
+e.ORG AS ORG,
+a.ACCOUNT_NAME AS ACCOUNT_NAME,
+a.ACCOUNT_NUMBER AS ACCOUNT_NUMBER,
+org.NAME AS ORG_NAME
+SQL;
 
     /**
      * @return array<int, array<string, mixed>>
@@ -208,6 +258,36 @@ SQL;
         ];
     }
 
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function settlementIncome(array $filters = [], array $payload = []): array
+    {
+        $rows = $this->settlementIncomeQuery($filters, $payload)
+            ->field(self::PAYMENT_RECORD_FIELDS)
+            ->order('r.PAYER_TIME', 'asc')
+            ->order('r.ID', 'asc')
+            ->select()
+            ->toArray();
+
+        return $this->paymentRecordRows($rows);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function settlementExpenses(array $filters = [], array $payload = []): array
+    {
+        $rows = $this->settlementExpensesQuery($filters, $payload)
+            ->field(self::EXPENDITURE_RECORD_FIELDS)
+            ->order('e.PAYER_TIME', 'asc')
+            ->order('e.ID', 'asc')
+            ->select()
+            ->toArray();
+
+        return $this->expenditureRecordRows($rows);
+    }
+
     private function saleProjectQuery(array $filters, array $payload)
     {
         $query = Db::name('biz_sale_project')
@@ -253,6 +333,48 @@ SQL;
         if (!empty($filters['headName'])) {
             $query->whereLike('u.NAME', '%' . trim((string)$filters['headName']) . '%');
         }
+
+        return $query;
+    }
+
+    private function settlementIncomeQuery(array $filters, array $payload)
+    {
+        $query = Db::name('biz_payment_record')
+            ->alias('r')
+            ->leftJoin('settlement_account a', 'a.ID = r.TARGET_ID')
+            ->leftJoin('sys_org org', 'org.ID = r.ORG');
+        $this->whereNotDeleted($query, 'r.DELETE_FLAG');
+
+        $this->applyTenant($query, $filters, $payload, 'r.TENANT_ID');
+
+        $category = trim((string)($filters['category'] ?? $filters['settlementCategory'] ?? ''));
+        if ($category !== '') {
+            $query->where('r.SETTLEMENT_CATEGORY', $category);
+        }
+
+        $this->applyOrgAndDataScope($query, $filters, $payload, 'r.ORG', 'r.USER');
+        $this->applyReportPayerTimeRange($query, $filters, 'r.PAYER_TIME');
+
+        return $query;
+    }
+
+    private function settlementExpensesQuery(array $filters, array $payload)
+    {
+        $query = Db::name('biz_expenditure_record')
+            ->alias('e')
+            ->leftJoin('settlement_account a', 'a.ID = e.TARGET_ID')
+            ->leftJoin('sys_org org', 'org.ID = e.ORG');
+        $this->whereNotDeleted($query, 'e.DELETE_FLAG');
+
+        $this->applyTenant($query, $filters, $payload, 'e.TENANT_ID');
+
+        $category = trim((string)($filters['category'] ?? $filters['settlementCategory'] ?? ''));
+        if ($category !== '') {
+            $query->where('e.SETTLEMENT_CATEGORY', $category);
+        }
+
+        $this->applyOrgAndDataScope($query, $filters, $payload, 'e.ORG', 'e.USER');
+        $this->applyReportPayerTimeRange($query, $filters, 'e.PAYER_TIME');
 
         return $query;
     }
@@ -569,6 +691,53 @@ SQL;
     }
 
     /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function paymentRecordRows(array $rows): array
+    {
+        return array_map(fn (array $row): array => $this->settlementRecordRow($row), $rows);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function expenditureRecordRows(array $rows): array
+    {
+        return array_map(fn (array $row): array => $this->settlementRecordRow($row), $rows);
+    }
+
+    private function settlementRecordRow(array $row): array
+    {
+        return [
+            'id' => $this->value($row, 'ID', 'id'),
+            'objectId' => $this->value($row, 'OBJECT_ID', 'objectId'),
+            'targetId' => $this->value($row, 'TARGET_ID', 'targetId'),
+            'accountName' => $this->value($row, 'ACCOUNT_NAME', 'accountName'),
+            'accountNumber' => $this->value($row, 'ACCOUNT_NUMBER', 'accountNumber'),
+            'serialId' => $this->value($row, 'SERIAL_ID', 'serialId'),
+            'processId' => $this->value($row, 'PROCESS_ID', 'processId'),
+            'settlementCategory' => $this->value($row, 'SETTLEMENT_CATEGORY', 'settlementCategory'),
+            'payer' => $this->value($row, 'PAYER', 'payer'),
+            'bankName' => $this->value($row, 'BANK_NAME', 'bankName'),
+            'bankAccount' => $this->value($row, 'BANK_ACCOUNT', 'bankAccount'),
+            'remark' => $this->value($row, 'REMARK', 'remark'),
+            'payerTime' => $this->value($row, 'PAYER_TIME', 'payerTime'),
+            'amount' => $this->decimal($this->value($row, 'AMOUNT', 'amount')),
+            'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
+            'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+            'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+            'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
+            'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+            'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
+            'user' => $this->value($row, 'USER_ID', 'user'),
+            'org' => $this->value($row, 'ORG', 'org'),
+            'orgName' => $this->value($row, 'ORG_NAME', 'orgName'),
+        ];
+    }
+
+    /**
      * @param array<int, string|null> $values
      * @return array<int, string>
      */
@@ -582,6 +751,60 @@ SQL;
         $query->where(function ($query) use ($column): void {
             $query->whereNull($column)->whereOr($column, '=', self::NOT_DELETE);
         });
+    }
+
+    private function applyTenant($query, array $filters, array $payload, string $column): void
+    {
+        $tenantId = trim((string)($filters['tenantId'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where($column, $tenantId);
+        }
+    }
+
+    private function applyOrgAndDataScope($query, array $filters, array $payload, string $orgColumn, string $userColumn): void
+    {
+        if (!empty($filters['orgId'])) {
+            $orgIds = $this->orgAndChildren((string)$filters['orgId']);
+            if ($orgIds === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn($orgColumn, $orgIds);
+            }
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== []) {
+            $query->whereIn($orgColumn, $scopeOrgIds);
+            return;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId !== '') {
+            $query->where($userColumn, $userId);
+            return;
+        }
+
+        $query->whereRaw('1 = 0');
+    }
+
+    private function applyReportPayerTimeRange($query, array $filters, string $column): void
+    {
+        foreach ([
+            ['startCreateTime', 'endCreateTime'],
+            ['startPayerTime', 'endPayerTime'],
+            ['payerStartTime', 'payerEndTime'],
+        ] as [$startKey, $endKey]) {
+            $start = trim((string)($filters[$startKey] ?? ''));
+            $end = trim((string)($filters[$endKey] ?? ''));
+            if ($start !== '' && $end !== '') {
+                $query->whereBetweenTime($column, $start, $end);
+            }
+        }
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['userId'] ?? $payload['user_id'] ?? $payload['id'] ?? ''));
     }
 
     /**

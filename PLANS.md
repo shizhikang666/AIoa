@@ -3775,3 +3775,62 @@ git diff --check
 - Do not implement `saleProfit`, `settlement/income`, `settlement/expenses`, or `summary/statistics` in this slice.
 - Do not modify locked public config files other than the documented `route/app.php` route addition.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent - Biz Datareport Settlement Income And Expenses Reads
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Add a focused read-only compatibility slice for Java `POST /biz/bizdatareport/settlement/income` and `POST /biz/bizdatareport/settlement/expenses`, used by the copied data-report settlement statistics page.
+
+### 2. Involved Modules
+
+- api-agent
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `route/app.php`
+- `docs/api/biz-datareport-settlement-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The endpoint parameters use `startCreateTime/endCreateTime`, but Java applies them to `PAYER_TIME`; the ThinkPHP implementation must preserve that behavior.
+- Settlement report reads touch financial payment and expenditure records, so data-scope organization filters and current-user fallback must be preserved.
+- These endpoints return raw record lists for frontend aggregation; they must not mutate account balances or create settlement statements.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\BizDataReportController.php
+php -l app\service\biz\BizDataReportService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizdatareport/settlement/income` and `/settlement/expenses` are registered behind token middleware.
+- Income reads return payment record rows with Java/frontend-compatible fields such as `settlementCategory`, `amount`, `payerTime`, `payer`, `remark`, `accountName`, and `orgName`.
+- Expenses reads return expenditure record rows with the same frontend-compatible settlement fields.
+- The Java-compatible org subtree, token data-scope, current-user fallback, category, and payer-time filters are preserved.
+- Java source, database schema, frontend, Composer, `.env`, account-balance mutation, and write-side business behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `saleProfit` or `summary/statistics` in this slice.
+- Do not add settlement account income, expense, payment, transfer, or balance mutation routes.
+- Do not modify locked public config files other than the documented `route/app.php` route addition.
+- Do not modify `F:\AI\projects\testJava\OA`.

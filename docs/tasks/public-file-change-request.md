@@ -1944,3 +1944,37 @@ The copied Vue data-report dashboard calls Java-compatible `/biz/bizdatareport/s
 - `php think route:list` must list the added route.
 - Token requests should return an `amount` object using Java's unpaid-payment calculation.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Datareport Settlement Income And Expenses Read-Only Routes
+
+## Request
+
+Register protected read-only settlement report routes in `route/app.php`.
+
+## Reason
+
+The copied Vue data-report settlement page calls Java-compatible income and expenses endpoints to load settlement record lists for frontend aggregation. These routes are pure reads over payment and expenditure records and are required for the settlement statistics page while account-balance mutations remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected POST routes:
+
+- `POST /biz/bizdatareport/settlement/income`
+- `POST /biz/bizdatareport/settlement/expenses`
+
+## Explicit Exclusions
+
+- No settlement account income/add route was added.
+- No settlement account expenses/add route was added.
+- No settlement account payment/add or transfer/add route was added.
+- No sale profit report route was added.
+- No summary-statistics route was added.
+- No Java source, database schema, frontend, Composer, `.env`, workflow, finance mutation, account-balance update, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list both added routes.
+- Token requests should return payment/expenditure record lists with Java-compatible `PAYER_TIME` filtering.
+- Requests without token should return `code=401`.
