@@ -344,6 +344,11 @@ Route::group('biz/customerfollowup', function () {
     Route::get('detail', 'biz.CustomerFollowUpController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/saleprojectfollowup', function () {
+    Route::get('page', 'biz.SaleProjectFollowUpController/page');
+    Route::get('detail', 'biz.SaleProjectFollowUpController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/saleprojectinvoicing', function () {
     Route::get('page', 'biz.SaleProjectInvoicingController/page');
     Route::get('customer', 'biz.SaleProjectInvoicingController/customer');

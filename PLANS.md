@@ -4059,3 +4059,65 @@ git diff --check
 - Do not add purchase, inventory, delivery, settlement, payment, return-order, workflow, or account-balance mutation behavior.
 - Do not modify locked public config files other than the documented `route/app.php` route addition.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent - Sale Project Follow-Up Read
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Add a focused read-only compatibility slice for Java sale-project follow-up endpoints used by the copied sale-project follow-up list and sale-project detail tabs.
+
+### 2. Involved Modules
+
+- api-agent
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SaleProjectFollowUpController.php`
+- `app/service/biz/SaleProjectFollowUpService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-followup-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The copied sale-project detail tab parses `extJson.fileList`; the backend must return the original `extJson` unchanged.
+- Java page queries join sale projects for data-scope filtering, so the ThinkPHP query must not expose follow-up records outside the visible sale-project scope.
+- The frontend also contains add/edit/delete calls, but those write paths update records and attachments and remain deferred in this read-only slice.
+- Browser-level testing may depend on a sale project being visible in the frontend table, which currently has a known display/query mismatch.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectFollowUpController.php
+php -l app\service\biz\SaleProjectFollowUpService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/saleprojectfollowup/page` is registered behind token middleware.
+- `GET /biz/saleprojectfollowup/detail` is registered behind token middleware.
+- Page records include `projectId`, `projectName`, `followUpTime`, `category`, `content`, `createUserName`, `avatar`, `createUserOrgId`, `createUserOrgName`, and `extJson`.
+- Filters support `projectId`, `startFollowUpTime`, `endFollowUpTime`, `category`, `content`, and `searchKey`.
+- Sort supports Java/frontend camelCase fields and defaults to ascending follow-up id.
+- Java source, database schema, frontend files, Composer files, `.env`, sale-project writes, attachment writes, workflow, and finance behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add sale-project follow-up add/edit/delete routes in this slice.
+- Do not modify sale-project, workflow, finance, file upload, or attachment write behavior.
+- Do not modify locked public config files other than the documented `route/app.php` route addition.
+- Do not modify `F:\AI\projects\testJava\OA`.

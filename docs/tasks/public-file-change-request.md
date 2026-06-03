@@ -2074,3 +2074,34 @@ The copied Vue sale-project API wrapper calls Java-compatible `/biz/saleproject/
 - `php think route:list` must list the added routes.
 - Token requests should return a numeric aggregate for `cost` and `items`, `productItems`, `returnOrders` for `cost/details`.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Follow-Up Read-Only Routes
+
+## Request
+
+Register protected read-only sale-project follow-up routes in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-project follow-up list and sale-project detail follow-up tab call Java-compatible `/biz/saleprojectfollowup/page` and `/biz/saleprojectfollowup/detail`. These routes are pure reads over follow-up records and sale-project data-scope joins, while follow-up add/edit/delete writes remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected GET routes:
+
+- `GET /biz/saleprojectfollowup/page`
+- `GET /biz/saleprojectfollowup/detail`
+
+## Explicit Exclusions
+
+- No sale-project follow-up add/edit/delete route was added.
+- No sale project, attachment upload, file persistence, workflow, finance, or account-balance write behavior was added.
+- No Java source, database schema, frontend files, Composer files, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return paginated follow-up records and single detail records.
+- Requests without token should return `code=401`.

@@ -102,3 +102,30 @@ This smoke followed the sale-project cost read-only API slice. No frontend files
 - Realtime message connection console noise still appears from the layout message panel.
 - Vite `docx-templates` browser compatibility warnings still appear.
 - Cost tab deep smoke needs a currently visible project with product items; the current local account/page result did not expose one in the browser flow.
+
+## 2026-06-03 Sale Project Follow-Up Read Smoke
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This smoke followed the sale-project follow-up read-only API slice. No frontend files were changed.
+
+### Backend Result
+
+- `/biz/saleprojectfollowup/page` returned `code = 200` with local authenticated requests.
+- `/biz/saleprojectfollowup/detail` returned `code = 200` for a sampled follow-up record.
+- Unauthenticated `/biz/saleprojectfollowup/page` returned `code = 401`.
+- Direct service smoke found 836 follow-up rows in the local database and preserved `extJson` for file-list parsing.
+
+### Browser Result
+
+- Direct route `/biz/saleprojectfollowup` returned the copied Vue 404 page.
+- The frontend source contains `snowy-admin-web/src/views/biz/saleprojectfollowup/index.vue`, but the current route/menu data does not expose it as a standalone browser path.
+- The sale-project detail follow-up tab uses the same API wrapper, so the backend read route is available once a sale-project detail flow reaches that component.
+- Browser was restored to `/biz/saleproject` after the smoke.
+
+### Observed Non-Blocking Issues
+
+- Standalone sale-project follow-up page route/menu exposure remains a frontend adaptation task.
+- Sale-project detail tab deep smoke remains tied to the existing sale-project table visibility mismatch.

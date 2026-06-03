@@ -4221,3 +4221,66 @@ Agent: api-agent
   - sale-project product-item relation list;
   - draft/history/cc-record visible reads.
 - Keep finance, inventory, workflow, and account-balance writes deferred until their dedicated plans are confirmed.
+
+## 2026-06-03 - api-agent - Sale Project Follow-Up Read
+
+### Completed Content
+
+- Analyzed Java `SaleProjectFollowUpController`, `SaleProjectFollowUpServiceImpl`, `SaleProjectFollowUp`, page/id params, and the `sale_project_follow_up` SQL table from `oa2026.sql`.
+- Analyzed copied Vue callers:
+  - `snowy-admin-web/src/api/biz/saleProjectFollowUpApi.js`;
+  - standalone `saleprojectfollowup/index.vue`;
+  - sale-project detail follow-up tab.
+- Added protected read-only routes:
+  - `/biz/saleprojectfollowup/page`
+  - `/biz/saleprojectfollowup/detail`
+- Added a thin ThinkPHP controller and data-scope-aware read service.
+- Returned Java/frontend-compatible fields including `projectName`, creator display fields, avatar, creator org display, and unchanged `extJson`.
+- Kept follow-up add/edit/delete, upload, attachment persistence, workflow, sale-project writes, finance, account-balance behavior, frontend files, Java source, Composer files, `.env`, and database schema unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SaleProjectFollowUpController.php`
+- `app/service/biz/SaleProjectFollowUpService.php`
+- `docs/api/biz-saleproject-followup-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectFollowUpController.php`: passed.
+- `php -l app\service\biz\SaleProjectFollowUpService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; both sale-project follow-up routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Direct service smoke passed:
+  - local sample returned `followup_total=836`, `followup_records=3`;
+  - detail for the first sampled record matched the sampled id.
+- Authenticated HTTP smoke passed:
+  - local login `code=200`;
+  - `/biz/saleprojectfollowup/page` `code=200`, `total=836`;
+  - `/biz/saleprojectfollowup/detail` `code=200`;
+  - unauthenticated `/biz/saleprojectfollowup/page` returned `code=401`.
+- Browser smoke found `/biz/saleprojectfollowup` currently renders the copied Vue 404 page because the standalone route/menu entry is not exposed; browser was restored to `/biz/saleproject`.
+
+### Current Issues
+
+- Standalone sale-project follow-up page route/menu exposure remains a frontend adaptation task.
+- Sale-project detail follow-up tab deep smoke remains tied to the existing sale-project table visibility mismatch.
+- Follow-up add/edit/delete writes remain deferred.
+- Local realtime message connection console noise and Vite upstream warnings remain non-blocking known issues.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-project follow-up read-only slice.
+- Continue with the next small read-only sale-project/detail consumer, likely sale-project product-item relation or visible history/cc-record reads.
+- Keep write-heavy sale-project, workflow, inventory, finance, file upload, and account-balance behavior deferred until dedicated write plans are confirmed.
