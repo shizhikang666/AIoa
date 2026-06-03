@@ -205,3 +205,24 @@ This smoke verifies the copied sale-project detail modal after the local admin d
 - Keep sale-project list and detail tabs as browser-smoked read-only coverage.
 - Continue with the next visible read-only page before opening sale-project writes.
 - Schedule realtime message/WebPush console noise as a later test-agent slice.
+
+## 2026-06-03 Completed Sale Project Cost Tab Route Fix
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This fixes the completed-project detail cost tab at `/biz/saleproject/dealProjectList`. Frontend files were not changed.
+
+### Result
+
+- Browser opened `/biz/saleproject/dealProjectList` and found completed special projects.
+- Opening the first project detail exposed the `成本核算` tab.
+- The cost tab initially rendered a 500 result because `/biz/saleproject/cost/details` matched the shorter `/biz/saleproject/cost` route and returned a numeric aggregate.
+- The sale-project route group now registers `cost/details` before `cost`.
+
+### Observed Non-Blocking Issues
+
+- Cost tab display for historical zero-amount projects can still show zero-value statistics, which is expected for imported history data.
+- Realtime message disconnect console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.

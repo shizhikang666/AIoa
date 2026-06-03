@@ -325,8 +325,8 @@ Route::group('biz/saleproject', function () {
     Route::get('page', 'biz.SaleProjectController/page');
     Route::get('detail', 'biz.SaleProjectController/detail');
     Route::get('product', 'biz.SaleProjectController/product');
-    Route::post('cost', 'biz.SaleProjectController/cost');
     Route::post('cost/details', 'biz.SaleProjectController/costDetails');
+    Route::post('cost', 'biz.SaleProjectController/cost');
 })->middleware(AuthMiddleware::class);
 Route::get('biz/saleproject/case/page', 'biz.SaleProjectController/casePage')->middleware(AuthMiddleware::class);
 Route::get('biz/saleproject/operation/page', 'biz.SaleProjectController/operationPage')->middleware(AuthMiddleware::class);

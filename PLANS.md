@@ -4293,3 +4293,62 @@ Browser smoke:
 
 - Do not click or implement add, edit, delete, discard, upload, workflow action, delivery, invoice, inventory, finance, or account-balance write behavior.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: api-agent/frontend-agent - Sale Project Cost Route Precedence Fix
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Fix the completed sale-project detail cost tab smoke failure where the copied Vue frontend calls `POST /biz/saleproject/cost/details` but ThinkPHP route matching returns the aggregate `/cost` response first.
+
+### 2. Involved Modules
+
+- api-agent route compatibility
+- frontend-agent browser smoke
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `route/app.php`
+- `docs/api/biz-saleproject-cost-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file; this change must be documented as a public-file change request.
+- ThinkPHP route matching can prefer the shorter `cost` route if it is registered before `cost/details`.
+- The fix must preserve both Java-compatible endpoints and keep both routes protected by `AuthMiddleware`.
+
+### 5. Test Commands
+
+```powershell
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+HTTP/browser smoke:
+
+- Authenticated `POST /biz/saleproject/cost/details` returns `items`, `productItems`, and `returnOrders`.
+- Authenticated `POST /biz/saleproject/cost` still returns the numeric aggregate.
+- Browser cost tab in `/biz/saleproject/dealProjectList` no longer renders the 500 result.
+
+### 6. Acceptance Criteria
+
+- `cost/details` is registered before `cost` in the sale-project route group.
+- No new route, controller, service, model, frontend source, database schema, Java source, Composer, `.env`, write-side sale-project behavior, workflow behavior, inventory behavior, finance behavior, file upload, or account-balance behavior is changed.
+
+### 7. Forbidden Scope
+
+- Do not implement sale-project writes.
+- Do not implement delivery, invoice, return, workflow, inventory, finance, or account-balance mutations.
+- Do not modify `F:\AI\projects\testJava\OA`.

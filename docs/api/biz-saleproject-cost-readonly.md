@@ -45,6 +45,7 @@ Cost item fields:
 ## Compatibility Notes
 
 - The implementation first verifies sale-project access through the existing data-scope-aware project query.
+- Route precedence matters in ThinkPHP: `cost/details` must be registered before `cost` so the detail route does not return the numeric aggregate response.
 - Product quantities are expanded from `biz_sale_project_product_item`.
 - Combo-product children are expanded from `sale_project_product_item_relation`.
 - Return orders are read with `return_order_item` rows and attached as `productList`.

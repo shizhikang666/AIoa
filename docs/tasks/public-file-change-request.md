@@ -2136,3 +2136,38 @@ The copied Vue sale-project delivery/invoice helpers include Java-compatible `/b
 - `php think route:list` must list the added route.
 - Token requests should return relation rows for visible sale-project product item ids.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Cost Route Precedence Fix
+
+## Request
+
+Adjust sale-project cost route ordering in `route/app.php`.
+
+## Reason
+
+The copied Vue completed-project detail cost tab calls Java-compatible `POST /biz/saleproject/cost/details`. ThinkPHP route matching used the shorter `cost` route first when it was registered before `cost/details`, so the detail call returned the numeric aggregate response instead of the expected detail object. The frontend then rendered a 500 result in the cost tab.
+
+## Applied Change
+
+`api-agent` reordered the existing protected sale-project cost routes:
+
+- `POST /biz/saleproject/cost/details`
+- `POST /biz/saleproject/cost`
+
+No new endpoint was added.
+
+## Explicit Exclusions
+
+- No sale-project add/edit/delete/cancel/repeal route was added.
+- No sale-project cost calculation rule was changed.
+- No delivery, invoice, return, inventory, workflow, finance, file upload, or account-balance write behavior was added.
+- No Java source, database schema, frontend files, Composer files, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list both routes.
+- Token requests to `/biz/saleproject/cost/details` should return `items`, `productItems`, and `returnOrders`.
+- Token requests to `/biz/saleproject/cost` should still return a numeric aggregate.
+- The completed sale-project cost tab should no longer render the 500 result caused by route precedence.

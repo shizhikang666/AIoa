@@ -4433,3 +4433,50 @@ Agent: api-agent
 
 - Commit and push this sale-project detail smoke documentation slice.
 - Continue with the next visible read-only page or start a focused auth/user-agent data-scope review.
+
+## 2026-06-03 - api-agent/frontend-agent - Sale Project Cost Route Precedence Fix
+
+### Completed Content
+
+- Browser-smoked `/biz/saleproject/dealProjectList` and opened a completed historical project detail modal.
+- Confirmed the completed-project cost tab initially rendered a 500 result.
+- Reproduced the route issue with authenticated HTTP smoke:
+  - `POST /biz/saleproject/cost/details` returned the numeric aggregate response because `cost` was registered before `cost/details`.
+- Reordered the sale-project route group so `cost/details` is registered before `cost`.
+- Documented the public-file route change request and cost API route precedence note.
+- Kept Java source, database schema, frontend files, controllers, services, models, Composer files, `.env`, sale-project writes, delivery/invoice/return writes, workflow writes, inventory/finance behavior, file upload, and account-balance behavior unchanged.
+
+### Modified Files
+
+- `route/app.php`
+- `docs/api/biz-saleproject-cost-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed and lists `biz/saleproject/cost/details` before `biz/saleproject/cost`.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Authenticated HTTP smoke passed:
+  - `/biz/saleproject/cost/details` returned `code = 200` with `items`, `productItems`, and `returnOrders`.
+  - `/biz/saleproject/cost` returned `code = 200` with numeric aggregate `0` for the sampled historical project.
+- Browser smoke passed:
+  - `/biz/saleproject/dealProjectList` completed-project cost tab no longer renders the 500 result;
+  - the tab renders zero-value statistics and an empty product table for the sampled historical project.
+
+### Current Issues
+
+- Historical zero-amount completed projects can show `NaN%` for gross profit rate in the copied frontend cost component. This is a frontend display cleanup candidate for the next small frontend-agent slice.
+- Realtime message connection console noise remains a later test-agent task.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this route precedence fix if verification passes.
