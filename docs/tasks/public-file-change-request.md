@@ -2171,3 +2171,37 @@ No new endpoint was added.
 - Token requests to `/biz/saleproject/cost/details` should return `items`, `productItems`, and `returnOrders`.
 - Token requests to `/biz/saleproject/cost` should still return a numeric aggregate.
 - The completed sale-project cost tab should no longer render the 500 result caused by route precedence.
+
+---
+
+# Public File Change Request: Sys User Grant Read-Only Routes
+
+## Request
+
+Register protected read-only system user grant echo routes in `route/app.php`.
+
+## Reason
+
+The copied Vue system user page opens grant dialogs from `/sys/user` and reads Java-compatible `ownRole`, `ownResource`, and `ownPermission` endpoints before rendering existing grants. These reads use `sys_relation` only and do not mutate user, role, resource, permission, or data-scope state.
+
+## Applied Change
+
+`user-agent/frontend-agent` registered the following protected GET routes:
+
+- `GET /sys/user/list/detail`
+- `GET /sys/user/ownRole`
+- `GET /sys/user/ownResource`
+- `GET /sys/user/ownPermission`
+
+## Explicit Exclusions
+
+- No `/sys/user/grantRole` route was added.
+- No `/sys/user/grantResource` route was added.
+- No `/sys/user/grantPermission` route was added.
+- No user add/edit/delete, enable/disable, reset-password, import/export, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return existing grant echo data from `sys_relation`.
+- Requests without token should return `code=401`.

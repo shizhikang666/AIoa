@@ -81,7 +81,11 @@ Route::group('sys/position', function () {
 
 Route::group('sys/user', function () {
     Route::get('page', 'sys.UserController/page');
+    Route::get('list/detail', 'sys.UserController/listDetail');
     Route::get('detail', 'sys.UserController/detail');
+    Route::get('ownRole', 'sys.UserController/ownRole');
+    Route::get('ownResource', 'sys.UserController/ownResource');
+    Route::get('ownPermission', 'sys.UserController/ownPermission');
     Route::get('orgTreeSelector', 'sys.UserController/orgTreeSelector');
     Route::get('positionSelector', 'sys.UserController/positionSelector');
     Route::get('roleSelector', 'sys.UserController/roleSelector');

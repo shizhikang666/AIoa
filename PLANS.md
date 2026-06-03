@@ -4531,3 +4531,65 @@ Optional browser smoke:
 - Do not implement full realtime push in this slice.
 - Do not add message send/delete/read-state write routes.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: user-agent/frontend-agent - Sys User Grant Echo Read-Only Compatibility
+
+Status: completed on 2026-06-03 after route/service implementation and verification, pending commit.
+
+### 1. Current Goal
+
+Support the copied `/sys/user` page grant dialogs with read-only echo endpoints for existing user role, resource, and permission grants.
+
+### 2. Involved Modules
+
+- user-agent read-only directory/RBAC echo
+- frontend-agent visible system user page compatibility
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/service/user/UserDirectoryService.php`
+- `app/controller/sys/UserController.php`
+- `route/app.php`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Grant dialogs include save buttons, but this slice must only add read echo endpoints.
+- `route/app.php` is a locked public file, so the route change is recorded in `docs/tasks/public-file-change-request.md`.
+- `sys_relation.EXT_JSON` can be empty or malformed; the read response falls back to `TARGET_ID` for compatibility.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\user\UserDirectoryService.php
+php -l app\controller\sys\UserController.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /sys/user/list/detail` is registered behind token middleware.
+- `GET /sys/user/ownRole` is registered behind token middleware.
+- `GET /sys/user/ownResource` is registered behind token middleware.
+- `GET /sys/user/ownPermission` is registered behind token middleware.
+- Grant echo responses read only existing `sys_relation` records.
+- User rows continue to omit `PASSWORD`.
+
+### 7. Forbidden Scope
+
+- Do not add `/sys/user/grantRole`, `/sys/user/grantResource`, or `/sys/user/grantPermission`.
+- Do not implement user add/edit/delete, enable/disable, reset password, import/export, upload/avatar, workflow, finance, or business writes.
+- Do not modify Java source or database schema.

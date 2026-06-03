@@ -4592,3 +4592,48 @@ Agent: api-agent
 
 - Commit and push this frontend-agent compatibility fix.
 - Continue with the next safe visible page or read-only API compatibility slice.
+
+## 2026-06-03 - user-agent/frontend-agent - Sys User Grant Echo Read-Only Compatibility
+
+### Completed Content
+
+- Added read-only user grant echo support for the copied `/sys/user` grant dialogs.
+- Routed `/sys/user/list/detail`, `/sys/user/ownRole`, `/sys/user/ownResource`, and `/sys/user/ownPermission` behind token middleware.
+- Preserved Java-compatible `sys_relation.EXT_JSON` grant payloads for resource and permission echoes.
+- Kept user grant writes, user CRUD, enable/disable, reset password, import/export, Java source, database schema, Composer files, `.env`, and deployment configuration unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l app\controller\sys\UserController.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; added `/sys/user/list/detail`, `/sys/user/ownRole`, `/sys/user/ownResource`, and `/sys/user/ownPermission`.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Direct service smoke: passed on user `1543837863788879870`; role echo returned 1 row, resource/permission echoes returned stable empty lists, and `PASSWORD` was not returned.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- Grant save actions remain intentionally deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice if verification passes.
+- Continue the next safe visible read-only page/API slice.

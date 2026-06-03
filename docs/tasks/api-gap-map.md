@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 253 | From `php think route:list` after sale-project product item relation read route |
-| Endpoints already covered by route path | 247 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 91 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 257 | From `php think route:list` after sys-user grant read-only route additions |
+| Endpoints already covered by route path | 251 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 87 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -33,7 +33,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `auth` | Login, logout, current user, token/session reads |
 | `sys/index` | User info, menu, permissions, dashboard basics |
 | `sys/org` | Tree, selector, page/detail style reads |
-| `sys/user` | User page/detail/list style reads and selected permissions |
+| `sys/user` | User page/detail/list style reads, selectors, own-role, own-resource, and own-permission grant echo reads |
 | `sys/position` | Position page/list/detail/selector reads |
 | `sys/role` | Role page/list/detail/resource/menu relation reads |
 | `sys/menu` and `sys/resource` | Menu/resource tree and selector reads |
@@ -62,6 +62,7 @@ These are the highest-priority follow-ups because they affect pages the user can
 | Message SSE | Frontend components call `/dev/message/createSseConnect` | api-agent or workflow/test support | Review Java behavior before adding a safe compatibility route |
 | Upload compatibility | Frontend expects many `dev/file/upload*ReturnFile*` routes | api-agent | Do not implement storage writes until storage strategy is confirmed |
 | User profile center | Several `sys/userCenter/*` profile and password helpers are missing | user-agent | Password/profile writes need stricter validation and audit notes |
+| Sys user grant dialogs | `ownRole`, `ownResource`, and `ownPermission` read echoes are covered | user-agent/frontend-agent | Grant save endpoints remain deferred |
 
 ## Priority 2: Safe Read-Only API Candidates
 

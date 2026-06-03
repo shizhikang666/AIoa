@@ -22,6 +22,9 @@ class UserDirectoryService
     private const WORKBENCH_CATEGORY = 'SYS_USER_WORKBENCH_DATA';
     private const DEFAULT_WORKBENCH_KEY = 'SNOWY_SYS_DEFAULT_WORKBENCH_DATA';
     private const MESSAGE_TO_USER_CATEGORY = 'MSG_TO_USER';
+    private const USER_HAS_ROLE = 'SYS_USER_HAS_ROLE';
+    private const USER_HAS_RESOURCE = 'SYS_USER_HAS_RESOURCE';
+    private const USER_HAS_PERMISSION = 'SYS_USER_HAS_PERMISSION';
     private const DEFAULT_PROCESS_NAMES = [
         'Process_reimbursement',
         'Process_make_payment',
@@ -106,8 +109,24 @@ class UserDirectoryService
 
         return array_values(array_map('strval', Db::name('sys_relation')
             ->where('OBJECT_ID', $id)
-            ->where('CATEGORY', 'SYS_USER_HAS_ROLE')
+            ->where('CATEGORY', self::USER_HAS_ROLE)
             ->column('TARGET_ID')));
+    }
+
+    public function ownResource(string $id): array
+    {
+        return [
+            'id' => $id,
+            'grantInfoList' => $this->grantInfoList($id, self::USER_HAS_RESOURCE, 'menuId'),
+        ];
+    }
+
+    public function ownPermission(string $id): array
+    {
+        return [
+            'id' => $id,
+            'grantInfoList' => $this->grantInfoList($id, self::USER_HAS_PERMISSION, 'apiUrl'),
+        ];
     }
 
     /**
@@ -773,6 +792,44 @@ class UserDirectoryService
         }
 
         return $decoded['config'];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function grantInfoList(string $id, string $category, string $targetKey): array
+    {
+        $id = trim($id);
+        if ($id === '') {
+            return [];
+        }
+
+        $relations = Db::name('sys_relation')
+            ->where('OBJECT_ID', $id)
+            ->where('CATEGORY', $category)
+            ->select()
+            ->toArray();
+
+        return array_map(function (array $relation) use ($targetKey): array {
+            $decoded = $this->decodeRelationExt((string)($relation['EXT_JSON'] ?? ''));
+            if ($decoded === []) {
+                $decoded[$targetKey] = $relation['TARGET_ID'] ?? null;
+            }
+
+            return $decoded;
+        }, $relations);
+    }
+
+    private function decodeRelationExt(string $json): array
+    {
+        $json = trim($json);
+        if ($json === '') {
+            return [];
+        }
+
+        $decoded = json_decode($json, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     /**

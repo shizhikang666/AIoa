@@ -298,3 +298,23 @@ This slice adapts only the copied layout message panel's SSE client to the curre
 
 - Full Redis/queue-backed realtime push remains deferred.
 - Message send/delete/read-state write routes remain deferred.
+
+## 2026-06-03 Sys User Grant Echo Read-Only Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied `/sys/user` page grant dialogs by adding read-only grant echo endpoints. It does not implement grant save behavior.
+
+### Result
+
+- `/sys/user/list/detail` is now routed to the existing sanitized user list-detail reader.
+- `/sys/user/ownRole` is now routed for role id echo.
+- `/sys/user/ownResource` returns existing direct user menu/button resource grants from `sys_relation`.
+- `/sys/user/ownPermission` returns existing direct user API/data-scope grants from `sys_relation`.
+
+### Deferred
+
+- `/sys/user/grantRole`, `/sys/user/grantResource`, and `/sys/user/grantPermission` remain deferred.
+- User add/edit/delete, enable/disable, reset password, import/export, and profile writes remain deferred.

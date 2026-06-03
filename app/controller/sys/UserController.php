@@ -39,6 +39,16 @@ class UserController extends BaseSysController
         return $this->guard(fn () => $this->userDirectoryService->ownRole($this->requiredString($request, 'id')));
     }
 
+    public function ownResource(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->ownResource($this->requiredString($request, 'id')));
+    }
+
+    public function ownPermission(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->ownPermission($this->requiredString($request, 'id')));
+    }
+
     public function orgTreeSelector(Request $request): Response
     {
         return $this->guard(fn () => $this->orgService->selector($request->get()));
