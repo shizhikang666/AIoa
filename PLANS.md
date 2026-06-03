@@ -3538,3 +3538,70 @@ git diff --check
 - Preserved Java data-scope behavior for `page` and current-login-user filtering for `my/page`.
 - Returned frontend-compatible applicant, organization, process, date, amount, and object-id fields.
 - Kept add/edit/delete, workflow start/approval/cancel, Java source, database schema, frontend files, Composer files, and `.env` changes out of scope.
+
+## Active Plan: api-agent - Settlement Account Payment Read API Compatibility
+
+Status: completed on 2026-06-03.
+
+### 1. Current Goal
+
+Add a small read-only compatibility slice for Java `SettlementAccountStatementController` and the copied Vue settlement-account detail statement tab.
+
+This phase only implements account statement page/list reads. It does not implement settlement account payment creation, transfer, income, expenses, edit, delete, or balance mutation.
+
+### 2. Modules In Scope
+
+- `GET /biz/settlementaccountpayment/page`
+- `GET /biz/settlementaccountpayment/list`
+- Java/frontend-compatible settlement account statement fields
+- Filters for account id, payer time, create time, and sorting
+- API, public route-change, status, dashboard, and gap-map documentation
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SettlementAccountPaymentController.php`
+- `app/service/biz/SettlementAccountPaymentService.php`
+- `docs/api/biz-settlement-account-payment-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/api-gap-map.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so route changes must stay limited to two protected read-only endpoints and be recorded in the public-file change request document.
+- Java names this module `SettlementAccountStatement`, while the frontend route path is `settlementaccountpayment`; implementation must preserve the old route path.
+- The frontend detail tab recalculates `beforeAmount` and `afterAmount` client-side, so backend rows must keep amount and settlement type/category values compatible.
+- Settlement account balance mutations and transfer/payment creation remain out of scope.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SettlementAccountPaymentController.php
+php -l app\service\biz\SettlementAccountPaymentService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/settlementaccountpayment/page` and `/list` appear in `php think route:list`.
+- Both routes are protected by the existing `AuthMiddleware`.
+- `page` returns a ThinkPHP-compatible pagination object with `records`, `total`, `current`, `size`, and `pages`.
+- `list` returns rows for an `accountId`, sorted by `payerTime` when requested by the frontend.
+- Responses include frontend-compatible fields such as `id`, `accountId`, `processId`, `beforeAmount`, `amount`, `afterAmount`, `settlementType`, `settlementCategory`, `processCategory`, `payerTime`, `createTime`, and `extJson`.
+- Java source, database schema, frontend files, Composer files, `.env`, and balance mutation endpoints remain unchanged.
+
+### 7. Completion Notes
+
+- Added two protected read-only routes for settlement account statement rows.
+- Added a thin Controller and read-only Service compatible with Java `page` and `list`.
+- Supported Java `startPlayTime/endPlayTime` filters and frontend `startPayerTime/endPayerTime` aliases.
+- Returned frontend-compatible amount, settlement type/category, process id, timestamp, account, and organization display fields.
+- Kept settlement account payment creation, transfer, income/expense mutations, balance changes, Java source, database schema, frontend files, Composer files, and `.env` changes out of scope.

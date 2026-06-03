@@ -3673,3 +3673,58 @@ Agent: api-agent
 - Commit and push this leave-application read-only slice.
 - Continue with the remaining safe read-only backlog: payroll, settlement-account-payment, and remaining report reads in small slices.
 - Keep backend and frontend joint smoke in the loop for visible pages.
+
+## 2026-06-03 - api-agent - Settlement Account Payment Read-Only API Compatibility
+
+### Completed Content
+
+- Analyzed Java `SettlementAccountStatementController`, `SettlementAccountStatementServiceImpl`, entity, page param, and query param as read-only input.
+- Analyzed copied Vue `settlementAccountPaymentApi` and the settlement-account detail statement tab usage.
+- Added protected read-only routes for:
+  - `/biz/settlementaccountpayment/page`
+  - `/biz/settlementaccountpayment/list`
+- Added a thin `SettlementAccountPaymentController` adapter.
+- Added a read-only `SettlementAccountPaymentService` with Java/frontend-compatible filters and fields.
+- Supported Java `startPlayTime/endPlayTime` filters and frontend `startPayerTime/endPayerTime` aliases.
+- Added display aliases for account name, account number, organization name, creator name, and updater name.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, settlement account payment/transfer/income/expense mutations, workflow side effects, and balance changes unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SettlementAccountPaymentController.php`
+- `app/service/biz/SettlementAccountPaymentService.php`
+- `docs/api/biz-settlement-account-payment-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SettlementAccountPaymentController.php`: passed.
+- `php -l app\service\biz\SettlementAccountPaymentService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; both settlement-account-payment read routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI read-only smoke passed:
+  - `page`: returned 2 rows from total 218 for the sampled account.
+  - `list`: returned 218 rows for the sampled account with `payerTime` descending sort.
+  - `filter`: returned 1 row for sampled `startPlayTime/endPlayTime`.
+
+### Current Issues
+
+- Settlement account payment creation, transfer, income/expense mutations, workflow side effects, and balance changes remain intentionally deferred.
+- Full browser smoke for the settlement-account detail statement tab should still be run with backend and frontend servers active.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this settlement-account-payment read-only slice.
+- Continue with the remaining safe read-only backlog: payroll and remaining report reads in small slices.
+- Keep backend and frontend joint smoke in the loop for visible pages.

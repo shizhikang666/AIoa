@@ -8,7 +8,7 @@ Agent: merge-agent / main control agent
 
 Overall production-ready completion: **51%**
 
-Read-only API compatibility completion: **80%**
+Read-only API compatibility completion: **81%**
 
 This estimate uses the final goal as the denominator: one complete runnable ThinkPHP OA system with login, RBAC, user/org, workflow, business APIs, frontend adaptation, tests, deployment, and final production data sync.
 
@@ -18,16 +18,16 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | --- | ---: | --- |
 | SQL tables analyzed/imported | 121 | From `F:\AI\projects\testJava\OA\oa2026.sql` |
 | ThinkPHP Models | 67 | Database/model foundation is mostly in place |
-| ThinkPHP Controllers | 62 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
-| ThinkPHP Services | 53 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
-| Registered route entries | 235 | Most are protected read-only compatibility routes |
-| API compatibility docs | 48 | Stored under `docs/api` |
+| ThinkPHP Controllers | 63 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
+| ThinkPHP Services | 54 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
+| Registered route entries | 237 | Most are protected read-only compatibility routes |
+| API compatibility docs | 49 | Stored under `docs/api` |
 | Database docs | 10 | Stored under `docs/database` |
 | Java Controllers in original project | 84 | Read-only reference baseline |
 | Frontend API files in copied project | 76 | Static scan source: `snowy-admin-web/src/api` |
 | Unique frontend API endpoints | 545 | Normalized static wrapper paths |
-| Frontend endpoints already routed | 229 | Matched against current ThinkPHP route paths |
-| Frontend missing read/selector candidates | 109 | Priority candidates for safe compatibility slices |
+| Frontend endpoints already routed | 231 | Matched against current ThinkPHP route paths |
+| Frontend missing read/selector candidates | 107 | Priority candidates for safe compatibility slices |
 | Frontend deferred write/side-effect candidates | 207 | Do not implement without module-specific write plans |
 | Frontend baseline files copied | 908 | Copied into `snowy-admin-web`; generated/cache files excluded |
 | Current branch | `refactor/thinkphp-main` | Clean and synced with origin at last check |
@@ -43,7 +43,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | User / Org / Position | 68% | Yellow | Read-only org tree, position, user directory, user-center selectors, business-side directory aliases, camelCase display aliases for org/user/position pages | User CRUD, grants, upload/avatar, import/export, encrypted profile fields |
 | Workflow | 40% | Yellow | Runtime strategy, read-only task/process routes, process query aliases, file-list reads, runtime activity detail, variable normalization | Approval/reject/cancel/start, task SSE, side effects, workflow write runtime |
 | Dev/System/Mobile/Gen/Tenant reads | 65% | Yellow | Many read-only management endpoints added and routed | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
-| Business read-only APIs | 72% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate, sale-project product info, biz-datareport sale-project details, leave-application reads, workflow process/task reads | Remaining reports, payroll, settlement-account-payment, and detail consumers |
+| Business read-only APIs | 73% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, team project, return order, sale project, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate, sale-project product info, biz-datareport sale-project details, leave-application reads, settlement-account-payment reads, workflow process/task reads | Remaining reports, payroll, and detail consumers |
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
 | Frontend adaptation | 49% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, and minimal SSE route added; browser smoke reaches `/sys/org` and `/sys/user` | Browser-smoke SSE console, broken API method cleanup, missing read-only business routes |
 | Testing / QA | 40% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice | Automated route/API test suite, regression matrix, frontend smoke, negative tests |
@@ -68,6 +68,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Sale project product info reads | `/biz/saleprojectproductinfo/page`, `/list`, and `/detail` routed with software package/version rows and creator display names | Add/edit/delete package rows deferred |
 | Biz datareport sale-project details | `/biz/bizdatareport/saleProjectList/details` routed with sale project rows, nested product items, package children, and return orders | Other report, profit, unpaid-payment, and summary-statistics endpoints deferred |
 | Leave application reads | `/biz/bizleaveapplication/page`, `/my/page`, and `/detail` routed with applicant, organization, workflow process id, date, amount, and object id fields | Add/edit/delete and workflow start/approval side effects deferred |
+| Settlement account payment reads | `/biz/settlementaccountpayment/page` and `/list` routed with account statement amount, settlement type/category, process id, account, and timestamp fields | Account payment/transfer/income/expense mutations and balance changes deferred |
 
 ## Remaining High-Level Plan
 

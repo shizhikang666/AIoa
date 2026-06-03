@@ -1743,6 +1743,40 @@ The copied Vue leave-application page and workflow payment forms call Java-compa
 
 ---
 
+# Public File Change Request: Settlement Account Payment Read-Only Routes
+
+## Request
+
+Register protected read-only settlement account statement routes in `route/app.php`.
+
+## Reason
+
+The copied Vue settlement account detail page calls `/biz/settlementaccountpayment/list` to show account statement rows. Java implements these routes through `SettlementAccountStatementController`, but the legacy frontend path is `settlementaccountpayment`. These routes are needed for read-only account-flow browsing while settlement account balance mutations remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected routes:
+
+- `GET /biz/settlementaccountpayment/page`
+- `GET /biz/settlementaccountpayment/list`
+
+## Explicit Exclusions
+
+- No settlement account payment creation route was added.
+- No settlement account transfer route was added.
+- No settlement account income or expenses mutation route was added.
+- No account balance mutation was added.
+- No workflow side effect was added.
+- No Java source, database schema, frontend, Composer, `.env`, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return statement rows for representative accounts.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Sale Project Product Info Read-Only Routes
 
 ## Request

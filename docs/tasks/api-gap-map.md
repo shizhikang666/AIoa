@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 235 | From `php think route:list` after leave-application read aliases |
-| Endpoints already covered by route path | 229 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 109 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 237 | From `php think route:list` after settlement-account-payment read aliases |
+| Endpoints already covered by route path | 231 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 107 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -47,6 +47,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/saleprojectproductinfo` | Sale-project software package/version info reads |
 | `biz/bizdatareport` | Sale-project details report read used by product-info page |
 | `biz/bizleaveapplication` | Leave/business-trip page, my-page, and detail reads |
+| `biz/settlementaccountpayment` | Settlement account statement page/list reads |
 | `biz/teamproject`, `biz/task` | Team project and task read slices |
 | `biz/process` | Basic workflow query/read slices |
 
@@ -79,7 +80,6 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/bizpayroll` | `detail`, `mypage`, `page` |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
 | `biz/saleprojectreissueorder` | `list/query` |
-| `biz/settlementaccountpayment` | `list`, `page` |
 
 ## Deferred Write And Side-Effect Groups
 
