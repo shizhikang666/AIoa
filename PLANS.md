@@ -3998,3 +3998,64 @@ Verify the completed read-only summary-statistics route through the copied Vue f
 - Java source project.
 - Business Controller, Service, Model, Mapper, or database schema.
 - Public locked config files.
+## Active Plan: api-agent - Sale Project Cost Read
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Add a focused read-only compatibility slice for Java sale-project cost endpoints used by the copied frontend sale-project API wrapper.
+
+### 2. Involved Modules
+
+- api-agent
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SaleProjectController.php`
+- `app/service/biz/SaleProjectService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-cost-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java cost details combine sale project product items, combo-product child rows, return orders, and completed purchase order item unit amounts.
+- The endpoint must stay read-only and must not update inventory, settlement, purchase order, sale project, workflow, or account-balance state.
+- The copied frontend currently calls `cost/details`; `cost` is added only for Java route compatibility.
+- The Java `cost` aggregate uses the detail result as its source. The ThinkPHP route must remain deterministic and documented because the original aggregate expression is easy to misread.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectController.php
+php -l app\service\biz\SaleProjectService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/saleproject/cost/details` is registered behind token middleware.
+- `POST /biz/saleproject/cost` is registered behind token middleware.
+- `cost/details` returns `items`, `productItems`, and `returnOrders`.
+- Cost items include `productId`, `productName`, `amount`, and `avgUnitAmount`.
+- Product amount calculation reads sale project items, combo child rows, and return-order product rows without mutating data.
+- Average unit amount reads completed purchase-order items only.
+- Java source, database schema, frontend files, Composer files, `.env`, purchase/inventory/finance/workflow writes, and account-balance behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add sale project add/edit/delete/cancel/repeal/visibility/history/special routes.
+- Do not add purchase, inventory, delivery, settlement, payment, return-order, workflow, or account-balance mutation behavior.
+- Do not modify locked public config files other than the documented `route/app.php` route addition.
+- Do not modify `F:\AI\projects\testJava\OA`.

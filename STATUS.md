@@ -4145,3 +4145,79 @@ Agent: api-agent
 - Commit and push this browser-smoke documentation slice.
 - Continue with the next safe read-only visible business page or detail API before opening finance/workflow writes.
 - Add a later test-agent task for the realtime message/WebPush console noise.
+
+## 2026-06-03 - api-agent - Sale Project Cost Read
+
+### Completed Content
+
+- Analyzed Java `BizSaleProjectController#cost`, `BizSaleProjectController#costDetails`, `BizSaleProjectServiceImpl#calculateSaleItemCostByWeightedAverageDetail`, `BizPurchaseOrderServiceImpl#calcProductCost`, and cost result classes.
+- Added protected read-only routes:
+  - `/biz/saleproject/cost`
+  - `/biz/saleproject/cost/details`
+- Extended `SaleProjectController` with thin guarded adapters for both routes.
+- Extended `SaleProjectService` with read-only cost detail calculation:
+  - verifies sale-project access through the existing data-scope-aware query;
+  - reads sale-project product items;
+  - expands combo-product child rows;
+  - attaches return orders with `productList`;
+  - reads completed purchase order item unit amounts;
+  - returns `items`, `productItems`, and `returnOrders`.
+- Added API documentation and public-file route change request.
+- Updated the API gap map and progress dashboard.
+- Ran a browser smoke for `/biz/saleproject` after the route slice.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, purchase/inventory/finance/workflow writes, and account-balance behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/SaleProjectController.php`
+- `app/service/biz/SaleProjectService.php`
+- `docs/api/biz-saleproject-cost-readonly.md`
+- `docs/api/biz-saleproject-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectController.php`: passed.
+- `php -l app\service\biz\SaleProjectService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; both sale-project cost routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Direct service smoke passed:
+  - sample project returned `items=11`, `productItems=2`, `returnOrders=0`, and a numeric cost.
+- Authenticated route smoke passed:
+  - local login `code=200`;
+  - `/biz/saleproject/page` `code=200`;
+  - `/biz/saleproject/cost/details` `code=200` for a visible sample project;
+  - `/biz/saleproject/cost` `code=200` for a visible sample project;
+  - unauthenticated `/biz/saleproject/cost/details` returned `code=401`.
+- Browser smoke for `/biz/saleproject` passed for page load:
+  - title `销售项目管理 - 福地科技`;
+  - table header visible;
+  - no loading state after wait.
+
+### Current Issues
+
+- The browser sale-project table showed `暂无数据`, while backend API smoke returned visible project records. This should be investigated later as frontend query/filter/display compatibility.
+- The current browser-visible sale-project result did not expose a project with product items, so deep cost-tab browser smoke remains deferred.
+- Local realtime message connection console noise still appears from the layout message panel.
+- Vite still reports upstream `docx-templates` Node built-in compatibility warnings.
+- Sale project writes, purchase/inventory mutations, finance writes, workflow side effects, and account-balance updates remain deferred.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-project cost read-only slice.
+- Continue with the remaining safe read-only candidates from the refreshed frontend scan:
+  - sale-project follow-up reads;
+  - sale-project product-item relation list;
+  - draft/history/cc-record visible reads.
+- Keep finance, inventory, workflow, and account-balance writes deferred until their dedicated plans are confirmed.

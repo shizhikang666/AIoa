@@ -79,3 +79,26 @@ This smoke verifies the existing frontend page against the new ThinkPHP read-onl
 - Keep summary-statistics as browser-smoked read-only coverage.
 - Add a dedicated test-agent slice for realtime message/SSE console noise after remaining read-only pages are covered.
 - Continue joint backend/frontend smoke for the next visible business report or detail page.
+
+## 2026-06-03 Sale Project Page Smoke
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This smoke followed the sale-project cost read-only API slice. No frontend files were changed.
+
+### Result
+
+- Direct route `/biz/saleproject` loaded.
+- Browser title was `销售项目管理 - 福地科技`.
+- Visible table header content included project name/status/payment columns.
+- The page was not stuck in a loading state.
+- The current visible table showed `暂无数据`.
+- Backend API smoke with the same local login reached `/biz/saleproject/page` successfully, so the empty frontend table should be investigated later as a frontend query/filter/display compatibility issue rather than as a blocker for the cost route registration.
+
+### Observed Non-Blocking Issues
+
+- Realtime message connection console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.
+- Cost tab deep smoke needs a currently visible project with product items; the current local account/page result did not expose one in the browser flow.

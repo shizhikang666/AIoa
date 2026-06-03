@@ -23,6 +23,8 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/saleproject/list/detail` | `biz.SaleProjectController/listDetail` | Export/detail aggregate list |
 | GET | `/biz/saleproject/detail` | `biz.SaleProjectController/detail` | Single sale-project aggregate detail |
 | GET | `/biz/saleproject/product` | `biz.SaleProjectController/product` | Product items for one sale project |
+| POST | `/biz/saleproject/cost` | `biz.SaleProjectController/cost` | Read-only aggregate sale-project product cost |
+| POST | `/biz/saleproject/cost/details` | `biz.SaleProjectController/costDetails` | Read-only sale-project product cost details |
 
 ## Compatibility Notes
 
@@ -57,8 +59,6 @@ The following Java routes remain intentionally unimplemented in this slice:
 | `POST /biz/saleproject/special/add` | Special reimbursement project creation |
 | `POST /biz/saleproject/visibility/edit` | Write route requiring project field mutation |
 | `POST /biz/saleproject/amount/edit` | Amount mutation and change-log side effect |
-| `POST /biz/saleproject/cost` | Weighted-average inventory cost calculation needs a dedicated finance/inventory plan |
-| `POST /biz/saleproject/cost/details` | Same as above |
 
 ## Test Commands
 

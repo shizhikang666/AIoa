@@ -2042,3 +2042,35 @@ The copied Vue summary statistics page calls Java-compatible `/biz/bizdatareport
 - `php think route:list` must list the added route.
 - Token requests should return company summary objects with `org`, `settlementAccounts`, `paymentRecords`, `bizExpenditureRecords`, `bizSaleProjects`, and `bizDebitNotes`.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Cost Read-Only Routes
+
+## Request
+
+Register protected read-only sale-project cost routes in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-project API wrapper calls Java-compatible `/biz/saleproject/cost/details`. Java also exposes `/biz/saleproject/cost`. These routes are needed to complete sale-project read/detail compatibility while sale-project writes, inventory writes, finance writes, and workflow side effects remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected POST routes:
+
+- `POST /biz/saleproject/cost`
+- `POST /biz/saleproject/cost/details`
+
+## Explicit Exclusions
+
+- No sale project add/edit/delete/cancel/repeal route was added.
+- No sale project history/special/visibility/amount mutation route was added.
+- No purchase order, inventory, delivery, settlement, payment, return-order, workflow, or account-balance write behavior was added.
+- No Java source, database schema, frontend files, Composer files, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return a numeric aggregate for `cost` and `items`, `productItems`, `returnOrders` for `cost/details`.
+- Requests without token should return `code=401`.

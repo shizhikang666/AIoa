@@ -16,6 +16,7 @@ class SaleProjectService
     private const PROJECT_PLAY = 'PROJECT_PLAY';
     private const PUBLIC_VISIBILITY = 'PUBLIC';
     private const DISCARD_STATE = 'DISCARD';
+    private const PURCHASE_ORDER_SETTLEMENT_COMPLETED = 'COMPLETED';
 
     private const PROJECT_FIELDS = <<<SQL
 p.ID AS ID,
@@ -190,6 +191,66 @@ SQL;
         }
 
         return $this->productItemsByProjectIds([$id], $payload)[$id] ?? [];
+    }
+
+    public function cost(string $id, array $payload = []): int|float
+    {
+        $total = 0.0;
+        foreach ($this->costDetails($id, $payload)['items'] as $item) {
+            $total += $this->number($item['amount'] ?? 0) * $this->number($item['avgUnitAmount'] ?? 0);
+        }
+
+        return $this->decimal($total) ?? 0;
+    }
+
+    public function costDetails(string $id, array $payload = []): array
+    {
+        $row = $this->projectQuery(['id' => $id], $payload)
+            ->field('p.ID AS ID')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('sale project not found', 404);
+        }
+
+        $productItems = $this->productItemsByProjectIds([$id], $payload)[$id] ?? [];
+        $returnOrders = $this->returnOrdersWithProductList($id, $payload);
+        $productAmounts = [];
+        $productNames = [];
+        $projectProductItemsById = [];
+
+        foreach ($productItems as $item) {
+            $projectProductItemsById[(string)$item['id']] = $item;
+            $this->addProductCostAmount($productAmounts, $productNames, $item, 1);
+        }
+
+        foreach ($returnOrders as $returnOrder) {
+            foreach ($returnOrder['productList'] ?? [] as $returnItem) {
+                $item = $projectProductItemsById[(string)($returnItem['projectProductItemId'] ?? '')] ?? null;
+                if ($item === null) {
+                    continue;
+                }
+
+                $this->addProductCostAmount($productAmounts, $productNames, $item, -1);
+            }
+        }
+
+        $avgUnitAmounts = $this->averagePurchaseUnitAmounts(array_keys($productAmounts), $payload);
+        $items = [];
+        foreach ($productAmounts as $productId => $amount) {
+            $items[] = [
+                'transMap' => [],
+                'productId' => $productId,
+                'productName' => $productNames[$productId] ?? null,
+                'amount' => $this->decimal($amount) ?? 0,
+                'avgUnitAmount' => $this->decimal($avgUnitAmounts[$productId] ?? 0) ?? 0,
+            ];
+        }
+
+        return [
+            'items' => $items,
+            'productItems' => $productItems,
+            'returnOrders' => $returnOrders,
+        ];
     }
 
     private function pageResult(array $filters, array $payload): array
@@ -525,6 +586,155 @@ SQL;
     }
 
     /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function returnOrdersWithProductList(string $projectId, array $payload): array
+    {
+        $orders = $this->relatedRowsByIds('return_order', 'PROJECT_ID', [$projectId], $payload, 'CREATE_TIME')[$projectId] ?? [];
+        $itemsByOrderId = $this->returnOrderItemsByOrderIds(array_column($orders, 'id'), $payload);
+
+        foreach ($orders as &$order) {
+            $order['productList'] = $itemsByOrderId[(string)($order['id'] ?? '')] ?? [];
+        }
+        unset($order);
+
+        return $orders;
+    }
+
+    /**
+     * @param array<int, string|null> $orderIds
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function returnOrderItemsByOrderIds(array $orderIds, array $payload): array
+    {
+        $ids = $this->stringList($orderIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? ''));
+        $query = Db::name('return_order_item')
+            ->alias('i')
+            ->leftJoin('biz_sale_project_product_item pi', 'pi.ID = i.PROJECT_PRODUCT_ITEM_ID')
+            ->leftJoin('biz_product bp', 'bp.ID = pi.PRODUCT_ID')
+            ->field(<<<SQL
+i.ID AS ID,
+i.RETURN_ORDER_ID AS RETURN_ORDER_ID,
+i.PROJECT_PRODUCT_ITEM_ID AS PROJECT_PRODUCT_ITEM_ID,
+i.AMOUNT AS AMOUNT,
+i.DELETE_FLAG AS DELETE_FLAG,
+i.CREATE_TIME AS CREATE_TIME,
+i.CREATE_USER AS CREATE_USER,
+i.UPDATE_TIME AS UPDATE_TIME,
+i.UPDATE_USER AS UPDATE_USER,
+i.TENANT_ID AS TENANT_ID,
+pi.PROJECT_ID AS PROJECT_ID,
+pi.PRODUCT_ID AS PRODUCT_ID,
+bp.PRODUCT_NAME AS PRODUCT_NAME,
+bp.PRODUCT_CATEGORY AS PRODUCT_CATEGORY,
+bp.CATEGORY AS PRODUCT_SYS_CATEGORY,
+bp.SPECS AS SPECS,
+bp.PURCHASE_PRICE AS PURCHASE_PRICE,
+bp.SALE_PRICE AS SALE_PRICE,
+bp.MIN_PRICE AS MIN_PRICE
+SQL)
+            ->whereIn('i.RETURN_ORDER_ID', $ids);
+        $this->whereNotDeleted($query, 'i.DELETE_FLAG');
+
+        if ($tenantId !== '') {
+            $query->where('i.TENANT_ID', $tenantId);
+        }
+
+        $result = [];
+        foreach ($query->order('i.ID', 'asc')->select()->toArray() as $row) {
+            $item = $this->normalizeRow($row);
+            foreach (['amount', 'purchasePrice', 'salePrice', 'minPrice'] as $decimalField) {
+                $item[$decimalField] = $this->decimal($item[$decimalField] ?? null);
+            }
+            $result[(string)($item['returnOrderId'] ?? '')][] = $item;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<string, float> $productAmounts
+     * @param array<string, string|null> $productNames
+     */
+    private function addProductCostAmount(array &$productAmounts, array &$productNames, array $item, int $direction): void
+    {
+        $itemNumber = $this->number($item['number'] ?? 0);
+        $children = is_array($item['children'] ?? null) ? $item['children'] : [];
+
+        if ($children === []) {
+            $productId = trim((string)($item['productId'] ?? ''));
+            if ($productId === '') {
+                return;
+            }
+
+            $productAmounts[$productId] = ($productAmounts[$productId] ?? 0.0) + ($direction * $itemNumber);
+            $productNames[$productId] ??= $item['productName'] ?? null;
+
+            return;
+        }
+
+        foreach ($children as $child) {
+            $productId = trim((string)($child['targetId'] ?? ''));
+            if ($productId === '') {
+                continue;
+            }
+
+            $amount = $this->number($child['number'] ?? 0) * $itemNumber;
+            $productAmounts[$productId] = ($productAmounts[$productId] ?? 0.0) + ($direction * $amount);
+            $productNames[$productId] ??= $child['productName'] ?? null;
+        }
+    }
+
+    /**
+     * @param array<int, string> $productIds
+     * @return array<string, float>
+     */
+    private function averagePurchaseUnitAmounts(array $productIds, array $payload): array
+    {
+        $ids = $this->stringList($productIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? ''));
+        $query = Db::name('biz_purchase_order_item')
+            ->alias('i')
+            ->leftJoin('biz_purchase_order o', 'o.ID = i.PURCHASE_ORDER_ID')
+            ->field('i.PRODUCT_ID AS PRODUCT_ID, i.UNIT_AMOUNT AS UNIT_AMOUNT')
+            ->whereIn('i.PRODUCT_ID', $ids)
+            ->where('o.SETTLEMENT_STATUS', self::PURCHASE_ORDER_SETTLEMENT_COMPLETED);
+        $this->whereNotDeleted($query, 'i.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'o.DELETE_FLAG');
+
+        if ($tenantId !== '') {
+            $query->where('i.TENANT_ID', $tenantId);
+        }
+
+        $groups = [];
+        foreach ($query->select()->toArray() as $row) {
+            $productId = trim((string)($row['PRODUCT_ID'] ?? ''));
+            if ($productId === '') {
+                continue;
+            }
+
+            $groups[$productId][] = $this->number($row['UNIT_AMOUNT'] ?? 0);
+        }
+
+        $result = [];
+        foreach ($groups as $productId => $amounts) {
+            $count = count($amounts);
+            $result[$productId] = $count === 0 ? 0.0 : round(array_sum($amounts) / $count, 2);
+        }
+
+        return $result;
+    }
+
+    /**
      * @param array<int, string> $projectIds
      * @return array<string, array<int, array<string, mixed>>>
      */
@@ -845,6 +1055,15 @@ SQL;
         $number = (float)$value;
 
         return fmod($number, 1.0) === 0.0 ? (int)$number : $number;
+    }
+
+    private function number(mixed $value): float
+    {
+        if ($value === null || $value === '' || !is_numeric($value)) {
+            return 0.0;
+        }
+
+        return (float)$value;
     }
 
     private function value(array $row, string ...$keys): mixed

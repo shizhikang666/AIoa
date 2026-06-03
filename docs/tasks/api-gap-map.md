@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 248 | From `php think route:list` after summary-statistics read alias |
-| Endpoints already covered by route path | 242 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 96 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 250 | From `php think route:list` after sale-project cost read routes |
+| Endpoints already covered by route path | 244 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 94 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -69,7 +69,7 @@ These groups should be handled before business writes, because they unlock more 
 
 | Group | Missing Read/Selector/Report Candidates |
 | --- | --- |
-| `biz/saleproject` | `case/page`, `cost`, `cost/details`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page` |
+| `biz/saleproject` | Core read routes covered: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; write routes remain deferred |
 | `biz/customer` | `detail`, `detail/list`, `page` |
 | `biz/org` | `detail`, `list`, `orgTreeSelector`, `page`, `tree`, `userSelector` |
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector` |
