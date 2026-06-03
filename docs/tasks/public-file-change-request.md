@@ -1913,3 +1913,34 @@ The copied Vue data-report dashboard calls Java-compatible sale-project amount, 
 - `php think route:list` must list the added routes.
 - Token requests should return sale-project amount/list/report read data for representative data-scope payloads.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Datareport Sale Project Unpaid Payment Read-Only Route
+
+## Request
+
+Register protected read-only sale-project unpaid-payment report route in `route/app.php`.
+
+## Reason
+
+The copied Vue data-report dashboard calls Java-compatible `/biz/bizdatareport/saleproject/UnpaidPayment` for the "current month newly unpaid" card. This route is a pure read aggregation over sale projects, while profit, settlement, and summary-statistics reports remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected POST route:
+
+- `POST /biz/bizdatareport/saleproject/UnpaidPayment`
+
+## Explicit Exclusions
+
+- No sale profit report route was added.
+- No settlement income or expenses report route was added.
+- No summary-statistics route was added.
+- No Java source, database schema, frontend, Composer, `.env`, workflow, finance mutation, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return an `amount` object using Java's unpaid-payment calculation.
+- Requests without token should return `code=401`.

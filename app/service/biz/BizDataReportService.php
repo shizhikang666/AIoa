@@ -13,6 +13,7 @@ class BizDataReportService
 {
     private const NOT_DELETE = 'NOT_DELETE';
     private const DEAL_STATES = ['WAIT_DELIVER', 'SHIPPED', 'PARTIALLY_SHIPPED', 'COMPLETED'];
+    private const UNPAID_PLAY_STATES = ['PARTIALLY_PAID', 'UNPAID'];
     private const PROJECT_FIELDS = <<<SQL
 p.ID AS ID,
 p.CUSTOMER AS CUSTOMER,
@@ -184,6 +185,26 @@ SQL;
                 'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
                 'completionDate' => $this->value($row, 'COMPLETION_DATE', 'completionDate'),
             ], $rows)),
+        ];
+    }
+
+    public function saleProjectUnpaidPayment(array $filters = [], array $payload = []): array
+    {
+        $rows = $this->saleProjectQuery($filters, $payload)
+            ->whereIn('p.PLAY_STATE', self::UNPAID_PLAY_STATES)
+            ->field('p.TOTAL_PRICE AS TOTAL_PRICE, p.AMOUNT_COLLECTED AS AMOUNT_COLLECTED, p.TOTAL_RETURN_AMOUNT AS TOTAL_RETURN_AMOUNT')
+            ->select()
+            ->toArray();
+
+        $amount = array_reduce($rows, static function (float $sum, array $row): float {
+            return $sum
+                + (float)($row['TOTAL_PRICE'] ?? 0)
+                - (float)($row['AMOUNT_COLLECTED'] ?? 0)
+                + (float)($row['TOTAL_RETURN_AMOUNT'] ?? 0);
+        }, 0.0);
+
+        return [
+            'amount' => $this->decimal($amount) ?? 0,
         ];
     }
 

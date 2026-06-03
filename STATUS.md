@@ -3845,3 +3845,62 @@ Agent: api-agent
 - Commit and push this biz-datareport sale-project summary read-only slice.
 - Continue with remaining business report reads in small slices, likely unpaid payment first because it is close to the existing sale-project report query.
 - Keep backend and frontend joint smoke in the loop for visible pages.
+
+## 2026-06-03 - api-agent - Biz Datareport Sale Project Unpaid Payment Read
+
+### Completed Content
+
+- Analyzed Java `BizDataReportServiceImp#querySaleProjectUnpaidPayment` and `BizDataReportEnum` as read-only input.
+- Confirmed copied Vue dashboard calls `bizSaleProjectDataReportUnpaidPayment` for the current-month unpaid card.
+- Added protected read-only route:
+  - `/biz/bizdatareport/saleproject/UnpaidPayment`
+- Extended the existing thin `BizDataReportController` adapter.
+- Extended `BizDataReportService` with Java-compatible unpaid amount aggregation.
+- Preserved Java filter behavior:
+  - completion-date range filter;
+  -成交 project states;
+  - `UNPAID` and `PARTIALLY_PAID` play states;
+  - data-scope organization ids with current-user fallback;
+  - org subtree expansion.
+- Preserved Java calculation: `totalPrice - amountCollected + totalReturnAmount`.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, sale profit, settlement income/expenses, summary statistics, workflow, finance mutation, and business write behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `docs/api/biz-datareport-saleproject-unpaid-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizDataReportController.php`: passed.
+- `php -l app\service\biz\BizDataReportService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; the unpaid-payment report route is listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI read-only smoke passed:
+  - sampled project `2008016272152326146`;
+  - formula check returned expected `6000`;
+  - service returned `amount=6000`.
+
+### Current Issues
+
+- Sale profit, settlement income/expenses, and summary statistics remain intentionally deferred.
+- Full browser smoke for the data-report dashboard should still be run with backend and frontend servers active.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this unpaid-payment read-only slice.
+- Continue with remaining business report reads in small slices, likely settlement income/expenses next because they are pure read aggregations but touch payment/expenditure records.
+- Keep backend and frontend joint smoke in the loop for visible pages.

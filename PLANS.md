@@ -3718,3 +3718,60 @@ git diff --check
 - Do not implement `saleProfit`, `saleproject/UnpaidPayment`, `settlement/income`, `settlement/expenses`, or `summary/statistics` in this slice.
 - Do not modify locked public config files other than the documented `route/app.php` route addition.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent - Biz Datareport Sale Project Unpaid Payment Read
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Add a focused read-only compatibility slice for Java `POST /biz/bizdatareport/saleproject/UnpaidPayment`, used by the copied data-report dashboard's current-month unpaid amount card.
+
+### 2. Involved Modules
+
+- api-agent
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `route/app.php`
+- `docs/api/biz-datareport-saleproject-unpaid-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The endpoint is a financial read, so it must preserve Java data-scope and org subtree filters.
+- Java calculates unpaid amount as `totalPrice - amountCollected + totalReturnAmount`; this should not be replaced with a different finance formula.
+- More complex profit, settlement, and summary-statistics reports remain out of scope.
+
+### 5. Test Commands
+
+```powershell
+php -l app/controller/biz/BizDataReportController.php
+php -l app/service/biz/BizDataReportService.php
+php -l route/app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizdatareport/saleproject/UnpaidPayment` is registered behind token middleware.
+- The response returns an object with `amount`.
+- The calculation uses成交 project states plus `UNPAID` and `PARTIALLY_PAID` play states.
+- Java source, database schema, frontend, Composer, `.env`, and write-side business behavior remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `saleProfit`, `settlement/income`, `settlement/expenses`, or `summary/statistics` in this slice.
+- Do not modify locked public config files other than the documented `route/app.php` route addition.
+- Do not modify `F:\AI\projects\testJava\OA`.
