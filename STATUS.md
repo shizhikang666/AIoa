@@ -4480,3 +4480,35 @@ Agent: api-agent
 ### Next Plan
 
 - Commit and push this route precedence fix if verification passes.
+
+## 2026-06-03 - frontend-agent - Sale Project Cost Zero-Revenue Display Fix
+
+### Completed Content
+
+- Fixed the copied Vue completed-project cost tab so historical zero-revenue projects no longer calculate gross profit rate by dividing by zero.
+- Kept the existing Decimal.js formula for non-zero revenue projects.
+- Kept backend cost data, routes, Java source, database schema, Composer files, `.env`, sale-project writes, workflow behavior, inventory behavior, finance behavior, file upload, and account-balance behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `snowy-admin-web/src/views/biz/saleproject/saleProjectTab/cost/index.vue`
+
+### Test Results
+
+- `npm run build`: passed.
+- Source verification confirmed zero or empty sales revenue returns gross profit rate `0`.
+- Browser automation against the already-open local `/biz/saleproject/dealProjectList` tab was blocked by the browser URL policy, so no workaround was used and visual confirmation remains a manual/user smoke item.
+
+### Current Issues
+
+- Realtime message connection console noise remains a later test-agent task.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Run `git diff --check`, commit, and push this frontend display fix.
+- Continue with the next safe read-only frontend/API compatibility slice.

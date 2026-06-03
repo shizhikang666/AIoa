@@ -4352,3 +4352,58 @@ HTTP/browser smoke:
 - Do not implement sale-project writes.
 - Do not implement delivery, invoice, return, workflow, inventory, finance, or account-balance mutations.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: frontend-agent - Sale Project Cost Zero-Revenue Display Fix
+
+Status: completed on 2026-06-03 after frontend build and source verification. Browser automation for the already-open local page was blocked by the browser URL policy, so visual confirmation remains a user/manual smoke item.
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Fix the copied Vue sale-project cost tab display where imported historical projects with `totalPrice = 0` render gross profit rate as `NaN%`.
+
+### 2. Involved Modules
+
+- frontend-agent
+- ThinkPHP target frontend copy under `F:\AI\projects\testJava\OA-ThinkPHP\snowy-admin-web`
+
+### 3. Involved Files
+
+- `snowy-admin-web/src/views/biz/saleproject/saleProjectTab/cost/index.vue`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The cost tab uses Decimal.js; division by zero should be avoided without changing business totals.
+- The fix must not change backend cost data, database records, project state, finance behavior, or write-side routes.
+
+### 5. Test Commands
+
+```powershell
+npm run build
+git diff --check
+git status --short --branch
+```
+
+Browser smoke:
+
+- Open `/biz/saleproject/dealProjectList`.
+- Open a historical completed project detail.
+- Open `成本核算`.
+- Confirm gross profit rate shows a numeric zero-value display instead of `NaN%`.
+
+### 6. Acceptance Criteria
+
+- Zero or empty sales revenue returns gross profit rate `0`.
+- Non-zero sales revenue continues using the existing Decimal gross-profit-rate formula.
+- No backend, route, Java source, database schema, Composer file, `.env`, sale-project write behavior, workflow behavior, inventory behavior, finance behavior, file upload, or account-balance behavior is changed.
+
+### 7. Forbidden Scope
+
+- Do not change cost calculation data returned by ThinkPHP.
+- Do not implement sale-project writes or finance/workflow side effects.
+- Do not modify `F:\AI\projects\testJava\OA`.

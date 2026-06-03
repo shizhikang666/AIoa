@@ -226,3 +226,27 @@ This fixes the completed-project detail cost tab at `/biz/saleproject/dealProjec
 - Cost tab display for historical zero-amount projects can still show zero-value statistics, which is expected for imported history data.
 - Realtime message disconnect console noise still appears from the layout message panel.
 - Vite `docx-templates` browser compatibility warnings still appear.
+
+## 2026-06-03 Completed Sale Project Cost Zero-Revenue Display Fix
+
+Agent: frontend-agent
+
+### Scope
+
+This fixes only the copied Vue cost tab display for completed sale projects with zero sales revenue. Backend cost payloads and business calculations were not changed.
+
+### Result
+
+- `grossProfitLv` now guards zero or empty `salesRevenue` before running the Decimal.js division.
+- Zero-revenue historical projects display a numeric zero-value gross profit rate instead of `NaN%`.
+- Non-zero revenue projects continue to use the existing Decimal gross-profit-rate formula.
+
+### Verification
+
+- `npm run build` passed.
+- Browser automation against the already-open local `/biz/saleproject/dealProjectList` page was blocked by the browser URL policy; visual confirmation remains a manual/user smoke item.
+
+### Observed Non-Blocking Issues
+
+- Realtime message disconnect console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.

@@ -183,7 +183,12 @@
 	})
 
 	const grossProfitLv = computed(() => {
-		return new Decimal(grossProfit.value).dividedBy(salesRevenue.value).times(100).toDecimalPlaces(2)
+		const revenue = new Decimal(salesRevenue.value || 0)
+		if (revenue.isZero()) {
+			return 0
+		}
+
+		return new Decimal(grossProfit.value).dividedBy(revenue).times(100).toDecimalPlaces(2)
 	})
 </script>
 
