@@ -378,6 +378,12 @@ Route::group('biz/settlementaccountpayment', function () {
     Route::get('list', 'biz.SettlementAccountPaymentController/list');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizpayroll', function () {
+    Route::get('page', 'biz.BizPayrollController/page');
+    Route::get('mypage', 'biz.BizPayrollController/myPage');
+    Route::get('detail', 'biz.BizPayrollController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/projectrate', function () {
     Route::get('page', 'biz.SaleProjectRateController/page');
     Route::get('list', 'biz.SaleProjectRateController/list');

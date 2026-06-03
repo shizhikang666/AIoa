@@ -1845,3 +1845,37 @@ The copied Vue workflow pages call Java-compatible workflow query endpoints afte
 - `php think route:list` must list the added routes.
 - Token requests should return read data for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Payroll Read-Only Routes
+
+## Request
+
+Register protected read-only payroll routes in `route/app.php`.
+
+## Reason
+
+The copied Vue payroll pages call Java-compatible payroll page, personal page, and detail endpoints. These routes are needed for read-only salary browsing while payroll import/export/generate/edit/delete behavior remains deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected GET routes:
+
+- `GET /biz/bizpayroll/page`
+- `GET /biz/bizpayroll/mypage`
+- `GET /biz/bizpayroll/detail`
+
+## Explicit Exclusions
+
+- No payroll import route was added.
+- No payroll export route was added.
+- No payroll generate route was added.
+- No payroll add, edit, batch edit, or delete route was added.
+- No Java source, database schema, frontend, Composer, `.env`, workflow, finance, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return payroll rows and detail data when imported payroll data exists.
+- Requests without token should return `code=401`.

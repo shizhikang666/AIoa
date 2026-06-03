@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 237 | From `php think route:list` after settlement-account-payment read aliases |
-| Endpoints already covered by route path | 231 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 107 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 240 | From `php think route:list` after payroll read aliases |
+| Endpoints already covered by route path | 234 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 104 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -48,6 +48,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/bizdatareport` | Sale-project details report read used by product-info page |
 | `biz/bizleaveapplication` | Leave/business-trip page, my-page, and detail reads |
 | `biz/settlementaccountpayment` | Settlement account statement page/list reads |
+| `biz/bizpayroll` | Payroll page, my-page, and detail reads |
 | `biz/teamproject`, `biz/task` | Team project and task read slices |
 | `biz/process` | Basic workflow query/read slices |
 
@@ -77,7 +78,6 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/process` | Read aliases added for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and `query/list`; write/start/cancel routes remain deferred |
 | `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
 | `biz/bizdatareport` | `saleProfit`, `saleproject`, `saleproject/list`, `saleproject/report`, `saleproject/UnpaidPayment`, `summary/statistics` |
-| `biz/bizpayroll` | `detail`, `mypage`, `page` |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
 | `biz/saleprojectreissueorder` | `list/query` |
 

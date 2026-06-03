@@ -3605,3 +3605,58 @@ git diff --check
 - Supported Java `startPlayTime/endPlayTime` filters and frontend `startPayerTime/endPayerTime` aliases.
 - Returned frontend-compatible amount, settlement type/category, process id, timestamp, account, and organization display fields.
 - Kept settlement account payment creation, transfer, income/expense mutations, balance changes, Java source, database schema, frontend files, Composer files, and `.env` changes out of scope.
+## Active Plan: api-agent - Biz Payroll Read API Compatibility
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Add the next small read-only compatibility slice for the Java payroll module so the copied frontend payroll pages can load salary rows and details through ThinkPHP.
+
+### 2. Involved Modules
+
+- api-agent
+- Java read-only inputs under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizPayrollController.php`
+- `app/service/biz/BizPayrollService.php`
+- `route/app.php`
+- `docs/api/biz-payroll-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Payroll data is sensitive, so ordinary page reads must keep Java-style data-scope filtering and `mypage` must stay limited to the current user.
+- The Java table uses the `USER` column name, so SQL aliases must be explicit.
+- Write endpoints such as import, generate, add, edit, batch edit, export, and delete remain deferred.
+
+### 5. Test Commands
+
+```powershell
+php -l app/controller/biz/BizPayrollController.php
+php -l app/service/biz/BizPayrollService.php
+php -l route/app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/bizpayroll/page`, `GET /biz/bizpayroll/mypage`, and `GET /biz/bizpayroll/detail` are registered behind token middleware.
+- Page responses include Java/frontend-compatible salary fields plus `headName` and `orgName`.
+- No Java source, database schema, frontend, Composer, `.env`, or write-side business behavior is modified.
+
+### 7. Forbidden Scope
+
+- Do not add payroll import, export, generate, add, edit, batch edit, or delete behavior.
+- Do not modify locked public config files other than the documented `route/app.php` route addition.
+- Do not modify `F:\AI\projects\testJava\OA`.

@@ -3728,3 +3728,58 @@ Agent: api-agent
 - Commit and push this settlement-account-payment read-only slice.
 - Continue with the remaining safe read-only backlog: payroll and remaining report reads in small slices.
 - Keep backend and frontend joint smoke in the loop for visible pages.
+
+## 2026-06-03 - api-agent - Biz Payroll Read-Only API Compatibility
+
+### Completed Content
+
+- Analyzed Java `BizPayrollController`, `BizPayrollServiceImpl`, entity, page param, and `biz_payroll` SQL table as read-only input.
+- Analyzed copied Vue payroll page and user payroll tab usage.
+- Added protected read-only routes for:
+  - `/biz/bizpayroll/page`
+  - `/biz/bizpayroll/mypage`
+  - `/biz/bizpayroll/detail`
+- Added a thin `BizPayrollController` adapter.
+- Added a read-only `BizPayrollService` with Java/frontend-compatible salary fields, salary month filters, organization subtree filtering, current-user my-page filtering, and data-scope guards.
+- Added display aliases for `headName`, `name`, `userAccount`, `orgName`, creator name, and updater name.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, payroll import/export/generate/add/edit/batch edit/delete behavior, workflow, finance, and business write behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizPayrollController.php`
+- `app/service/biz/BizPayrollService.php`
+- `docs/api/biz-payroll-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizPayrollController.php`: passed.
+- `php -l app\service\biz\BizPayrollService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; all three payroll read routes are listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI read-only smoke passed:
+  - `biz_payroll` currently has no imported rows in the configured database.
+  - Empty page query returned `page=0` and `total=0` without SQL or service errors.
+
+### Current Issues
+
+- Payroll import, export, generate, add, edit, batch edit, and delete routes remain intentionally deferred.
+- Current database has no `biz_payroll` records, so detail-row smoke should be repeated after payroll data is imported or created by a confirmed write flow.
+- Full browser smoke for payroll pages should still be run with backend and frontend servers active.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this payroll read-only slice.
+- Continue with the remaining safe read-only backlog: business report endpoints and remaining detail consumers in small slices.
+- Keep backend and frontend joint smoke in the loop for visible pages.
