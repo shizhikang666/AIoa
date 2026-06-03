@@ -3562,3 +3562,57 @@ Agent: api-agent
 - Commit and push this sale-project-product-info read-only slice.
 - Continue with the remaining safe read-only backlog: business data reports, payroll, leave, and settlement-account-payment.
 - Keep backend and frontend joint smoke in the loop for pages the user opens in browser testing.
+
+## 2026-06-03 - api-agent - Biz Datareport Sale Project Details Read-Only API Compatibility
+
+### Completed Content
+
+- Analyzed Java `BizDataReportController`, `BizDataReportServiceImp`, and `BizDataReportQueryParam` as read-only input.
+- Analyzed copied Vue `bizDataReportApi` and the sale-project-product-info page dependency on `saleProjectList/details`.
+- Added protected read-only route:
+  - `POST /biz/bizdatareport/saleProjectList/details`
+- Added a thin `BizDataReportController` adapter.
+- Added a read-only `BizDataReportService` that returns Java/frontend-compatible sale-project rows with nested `productList`, product item `children`, and `returnOrders`.
+- Applied Java-compatible completion date, organization subtree, data-scope, and sale-project deal-state filters.
+- Preserved long ID fields as strings and only normalized known amount/quantity fields.
+- Updated API docs, gap map, public-file route request, and progress dashboard.
+- Kept Java source, database schema, frontend files, Composer files, `.env`, report/profit/unpaid-payment/summary endpoints, workflow, inventory, finance, and business write behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `docs/api/biz-datareport-saleproject-details-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizDataReportController.php`: passed.
+- `php -l app\service\biz\BizDataReportService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `POST /biz/bizdatareport/saleProjectList/details` is listed.
+- Full PHP syntax sweep for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- CLI read-only smoke passed:
+  - `details`: returned 31 sale-project rows for the sampled January 2026 scope.
+  - Response shape included `productList` and `returnOrders`.
+  - First sampled project `id` remained a string.
+
+### Current Issues
+
+- The rest of `bizdatareport` remains intentionally deferred: sale profit, saleproject summary/list/report, unpaid payment, and summary statistics.
+- The new route is used by the existing frontend sale-project-product-info page, but full browser smoke of that page should still be run with backend and frontend servers active.
+- Full online realtime data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this biz-datareport sale-project details read-only slice.
+- Continue with the remaining safe read-only backlog: payroll, leave, settlement-account-payment, and remaining report reads in small slices.
+- Keep backend and frontend joint smoke in the loop for visible pages.

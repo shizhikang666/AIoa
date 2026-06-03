@@ -1675,6 +1675,40 @@ The copied Vue frontend contains business-side wrappers under `/biz/org`, `/biz/
 
 ---
 
+# Public File Change Request: Biz Datareport Sale Project Details Read Route
+
+## Request
+
+Register the protected read-only sale-project details report route in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-project-product-info page calls `POST /biz/bizdatareport/saleProjectList/details` to load the sale projects, nested product rows, package children, and return orders that feed the package/version table. The Java `BizDataReportServiceImp#getSaleProjectList` exposes this as a read-only list method, while other report endpoints have separate financial/reporting semantics and remain deferred.
+
+## Applied Change
+
+`api-agent` registered the following protected route:
+
+- `POST /biz/bizdatareport/saleProjectList/details`
+
+## Explicit Exclusions
+
+- No `/biz/bizdatareport/saleProfit` route was added.
+- No `/biz/bizdatareport/saleproject` route was added.
+- No `/biz/bizdatareport/saleproject/list` route was added.
+- No `/biz/bizdatareport/saleproject/report` route was added.
+- No `/biz/bizdatareport/saleproject/UnpaidPayment` route was added.
+- No `/biz/bizdatareport/summary/statistics` route was added.
+- No Java source, database schema, frontend, Composer, `.env`, finance, workflow, inventory, or business write code was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return a sale-project row array with `productList` and `returnOrders`.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Sale Project Product Info Read-Only Routes
 
 ## Request

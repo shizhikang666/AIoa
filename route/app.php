@@ -363,6 +363,10 @@ Route::group('biz/saleprojectproductinfo', function () {
     Route::get('detail', 'biz.SaleProjectProductInfoController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizdatareport', function () {
+    Route::post('saleProjectList/details', 'biz.BizDataReportController/saleProjectListDetails');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/projectrate', function () {
     Route::get('page', 'biz.SaleProjectRateController/page');
     Route::get('list', 'biz.SaleProjectRateController/list');

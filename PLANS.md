@@ -3404,3 +3404,69 @@ git diff --check
 - Normalized comma-separated and array `targetIds` values for frontend compatibility.
 - Added creator/updater and product display aliases for expanded frontend rows.
 - Kept add/edit/delete, Java source, database schema, frontend, Composer, `.env`, workflow, inventory, and finance mutations out of scope.
+
+## Active Plan: api-agent - Biz Data Report Sale Project Details Read API Compatibility
+
+Status: completed on 2026-06-03.
+
+### 1. Current Goal
+
+Add the smallest read-only `bizdatareport` slice needed by the copied Vue `saleprojectproductinfo` page.
+
+This phase only implements the Java-compatible `POST /biz/bizdatareport/saleProjectList/details` endpoint. It does not implement the full reporting module.
+
+### 2. Modules In Scope
+
+- `POST /biz/bizdatareport/saleProjectList/details`
+- Sale project rows filtered by completion date, organization, token data scope, and deal-state list
+- Nested `productList` with sale-project product items and kit children
+- Nested `returnOrders`
+- API, public route-change, status, dashboard, and gap-map documentation
+
+### 3. Files In Scope
+
+- `PLANS.md`
+- `STATUS.md`
+- `route/app.php`
+- `app/controller/biz/BizDataReportController.php`
+- `app/service/biz/BizDataReportService.php`
+- `docs/api/biz-datareport-saleproject-details-readonly.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/api-gap-map.md`
+
+### 4. Risks
+
+- `route/app.php` is a locked public file, so route changes must stay limited to this one protected POST endpoint and be recorded in the public-file change request document.
+- The Java reporting service also exposes amount, list, unpaid-payment, income, expenses, sale-profit, and summary-statistics endpoints; those remain deferred because they have separate financial semantics.
+- The endpoint can return a large list when a wide date range is requested. This slice follows Java behavior and keeps pagination out of scope.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\BizDataReportController.php
+php -l app\service\biz\BizDataReportService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizdatareport/saleProjectList/details` appears in `php think route:list`.
+- The new route is protected by the existing `AuthMiddleware`.
+- The response is an array of sale project rows with `productList` and `returnOrders`.
+- Product rows include `children` arrays with `extJson` preserved or synthesized for frontend parsing.
+- Java source, database schema, frontend files, Composer files, `.env`, and other report endpoints remain unchanged.
+
+### 7. Completion Notes
+
+- Added one protected read-only route for `POST /biz/bizdatareport/saleProjectList/details`.
+- Added a thin Controller and read-only Service that preserve the Java sale-project details report shape.
+- Applied Java-compatible filters for completion date, organization subtree, token data scope, and sale-project deal states.
+- Returned sale-project rows with nested `productList`, product item `children`, and `returnOrders`.
+- Preserved long ID values as strings while normalizing known amount and quantity fields.
+- Kept all other `bizdatareport` routes, Java source, database schema, frontend files, Composer files, `.env`, workflow, inventory, finance, and business write behavior out of scope.
