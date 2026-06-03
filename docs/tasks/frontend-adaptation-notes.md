@@ -250,3 +250,25 @@ This fixes only the copied Vue cost tab display for completed sale projects with
 
 - Realtime message disconnect console noise still appears from the layout message panel.
 - Vite `docx-templates` browser compatibility warnings still appear.
+
+## 2026-06-03 Sale Project Detail Remaining Tab API Smoke
+
+Agent: test-agent / frontend-agent
+
+### Scope
+
+This smoke verifies existing read-only data paths for sale-project detail tabs beyond information, follow-up, case, pending-process, and cost. No frontend or backend business source files were changed.
+
+### Result
+
+- Sample project: `2007642126725550081`.
+- Payment tab source path `bizPaymentRecordApi.bizPaymentRecordPage` passed through `PaymentRecordService::page` with `2/2` rows.
+- Return-order tab source path `returnOrderApi.returnOrderPage` passed through `ReturnOrderService::page` with `0/0` rows for the sampled project.
+- Invoice tab source path `BizSaleProjectInvoiceApi.bizSaleProjectInvoiceList` passed through `SaleProjectBillingService::invoiceList` with `1` row.
+- File tab source path `BizFileRelationApi.bizFileRelationList` passed through `FileRelationService::list` with `2` rows.
+
+### Observed Non-Blocking Issues
+
+- Empty return-order data is valid for the sampled imported project.
+- Browser automation for the already-open local sale-project page remains blocked by URL policy in this session, so the direct service smoke was used.
+- Realtime message disconnect console noise still appears from the layout message panel.

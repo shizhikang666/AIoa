@@ -4512,3 +4512,40 @@ Agent: api-agent
 
 - Run `git diff --check`, commit, and push this frontend display fix.
 - Continue with the next safe read-only frontend/API compatibility slice.
+
+## 2026-06-03 - test-agent/frontend-agent - Sale Project Detail Remaining Tab API Smoke
+
+### Completed Content
+
+- Verified additional read-only sale-project detail tab data paths after the completed-project cost tab fixes.
+- Selected an imported sale project with payment, invoice, and file rows.
+- Direct-smoked the existing read-only services used by the copied Vue payment, return-order, invoice, and file tabs.
+- Kept Java source, database schema, backend business source, frontend component source, routes, Composer files, `.env`, sale-project writes, workflow behavior, inventory behavior, finance behavior, file upload writes, and account-balance behavior unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php think route:list`: passed.
+- Direct authenticated service smoke used project `2007642126725550081`.
+- `PaymentRecordService::page`: passed, `2/2` rows.
+- `ReturnOrderService::page`: passed, `0/0` rows for the sampled project.
+- `SaleProjectBillingService::invoiceList`: passed, `1` row.
+- `FileRelationService::list`: passed, `2` rows.
+
+### Current Issues
+
+- Browser automation for the local sale-project page remains blocked by URL policy in this session; manual browser verification is still useful.
+- Realtime message connection console noise remains a later test-agent/frontend-agent task.
+- Sale-project write actions, file upload writes, workflow transitions, inventory mutations, finance mutations, and account-balance behavior remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this documentation-only smoke record.
+- Continue with the next safe read-only visible page or the frontend SSE noise task.

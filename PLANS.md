@@ -4407,3 +4407,69 @@ Browser smoke:
 - Do not change cost calculation data returned by ThinkPHP.
 - Do not implement sale-project writes or finance/workflow side effects.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: test-agent/frontend-agent - Sale Project Detail Remaining Tab API Smoke
+
+Status: completed on 2026-06-03 with direct authenticated service smoke. No business source file changes were needed.
+
+Date: 2026-06-03
+
+### 1. Current Goal
+
+Verify the remaining read-only sale-project detail tab APIs used by the copied Vue frontend after the cost tab compatibility fixes.
+
+### 2. Involved Modules
+
+- test-agent
+- frontend-agent compatibility observation
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+No backend or frontend business source file is planned for this smoke unless a small, clearly scoped read-only compatibility bug is found.
+
+### 4. APIs To Smoke
+
+- `GET /biz/bizpaymentrecord/page`
+- `GET /biz/returnorder/page`
+- `GET /biz/saleprojectinvoice/list`
+- `GET /biz/bizfilerelation/list`
+
+### 5. Risks
+
+- Some sampled historical projects may legitimately have empty payment, return, invoice, or file rows.
+- Browser automation against the local page was blocked by URL policy in the previous slice, so this smoke uses authenticated PHP/HTTP or direct service checks unless the browser becomes available again.
+- This smoke must not click upload, edit, delete, workflow, finance, inventory, or account-balance write controls.
+
+### 6. Test Commands
+
+```powershell
+php think route:list
+git diff --check
+git status --short --branch
+```
+
+Smoke checks:
+
+- Authenticate with the local test user.
+- Select a visible completed sale project from the imported database.
+- Call the four tab APIs with that project id.
+- Confirm each route returns `code = 200` or a valid read-only service result.
+
+### 7. Acceptance Criteria
+
+- Payment, return-order, invoice, and file-relation tab reads execute without ThinkPHP runtime errors.
+- Empty datasets are accepted as valid for imported historical records.
+- No Java source, database schema, backend business source, frontend component source, Composer file, `.env`, sale-project write behavior, workflow behavior, inventory behavior, finance behavior, file upload write behavior, or account-balance behavior is changed.
+
+### 8. Forbidden Scope
+
+- Do not add or test sale-project writes.
+- Do not add or test file upload writes.
+- Do not add or test finance, inventory, workflow, return, delivery, or account-balance mutations.
+- Do not modify `F:\AI\projects\testJava\OA`.
