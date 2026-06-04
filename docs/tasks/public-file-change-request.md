@@ -2326,3 +2326,32 @@ The copied Vue page under `/biz/bizhistoryexcel` calls Java-compatible `/biz/biz
 - `php think route:list` must list the added routes.
 - Token requests should return existing non-deleted history Excel rows and detail data.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Invoice Item Read-Only Page Route
+
+## Request
+
+Register a protected read-only sale-project delivery invoice item page route in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/saleprojectinvoiceItem/page` from `BizSaleProjectInvoiceItemController`. The copied sale-project invoice/detail frontend expects to page delivery invoice child rows by `invoiceId` and optionally `warehousesId`.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected GET route:
+
+- `GET /biz/saleprojectinvoiceItem/page`
+
+## Explicit Exclusions
+
+- No invoice item add/edit/delete route was added.
+- No invoice creation/edit, delivery shipment, stock, project state, finance side effect, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return existing non-deleted invoice item rows filtered by `invoiceId` and `warehousesId` when supplied.
+- Requests without token should return `code=401`.

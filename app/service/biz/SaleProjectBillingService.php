@@ -57,6 +57,17 @@ class SaleProjectBillingService
         'tenantId' => 'v.TENANT_ID',
     ];
 
+    private const INVOICE_ITEM_SORT_FIELDS = [
+        'id' => 'item.ID',
+        'invoiceId' => 'item.INVOICE_ID',
+        'projectProductItemId' => 'item.PROJECT_PRODUCT_ITEM_ID',
+        'warehousesId' => 'item.WAREHOUSES_ID',
+        'amount' => 'item.AMOUNT',
+        'createTime' => 'item.CREATE_TIME',
+        'updateTime' => 'item.UPDATE_TIME',
+        'tenantId' => 'item.TENANT_ID',
+    ];
+
     private const RATE_SORT_FIELDS = [
         'id' => 'r.ID',
         'projectId' => 'r.PROJECT_ID',
@@ -143,6 +154,19 @@ class SaleProjectBillingService
         }
 
         return $result;
+    }
+
+    public function invoiceItemPage(array $filters = [], array $payload = []): array
+    {
+        [$page, $limit] = $this->pagination($filters);
+        $total = (int)$this->invoiceItemQuery($filters, $payload)->count('DISTINCT item.ID');
+        $rows = $this->applySort($this->invoiceItemQuery($filters, $payload), $filters, self::INVOICE_ITEM_SORT_FIELDS, 'item.PROJECT_PRODUCT_ITEM_ID')
+            ->field($this->invoiceItemFields())
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+
+        return $this->pageResponse($this->rows($rows), $total, $page, $limit);
     }
 
     /**
@@ -322,6 +346,27 @@ class SaleProjectBillingService
         return $query;
     }
 
+    private function invoiceItemQuery(array $filters, array $payload)
+    {
+        $query = Db::name('biz_sale_project_invoice_item')
+            ->alias('item')
+            ->leftJoin('biz_sale_project_product_item pi', 'pi.ID = item.PROJECT_PRODUCT_ITEM_ID')
+            ->leftJoin('biz_product product', 'product.ID = pi.PRODUCT_ID')
+            ->leftJoin('warehouses w', 'w.ID = item.WAREHOUSES_ID');
+        $this->whereNotDeleted($query, 'item.DELETE_FLAG');
+        $this->applyTenant($query, 'item', $filters, $payload);
+
+        if (!empty($filters['invoiceId'])) {
+            $query->where('item.INVOICE_ID', (string)$filters['invoiceId']);
+        }
+
+        if (!empty($filters['warehousesId'])) {
+            $query->where('item.WAREHOUSES_ID', (string)$filters['warehousesId']);
+        }
+
+        return $query;
+    }
+
     /**
      * @param array<int, string> $invoiceIds
      * @return array<string, array<int, array<string, mixed>>>
@@ -431,6 +476,11 @@ class SaleProjectBillingService
     private function invoiceFields(): string
     {
         return 'v.*, p.PROJECT_NAME AS PROJECT_NAME, p.PROJECT_STATE AS PROJECT_STATE, p.CUSTOMER AS CUSTOMER, c.NAME AS CUSTOMER_NAME, p.ORG AS ORG, org.NAME AS ORG_NAME, p.USER AS USER, u.NAME AS HEAD_NAME';
+    }
+
+    private function invoiceItemFields(): string
+    {
+        return 'item.*, pi.PROJECT_ID AS PROJECT_ID, pi.PRODUCT_ID AS PRODUCT_ID, product.PRODUCT_NAME AS PRODUCT_NAME, product.PRODUCT_CATEGORY AS PRODUCT_CATEGORY, product.CATEGORY AS PRODUCT_SYS_CATEGORY, product.SPECS AS SPECS, w.NAME AS WAREHOUSES_NAME';
     }
 
     /**

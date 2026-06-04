@@ -4817,3 +4817,50 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-04 - api-agent/frontend-agent - Sale Project Invoice Item Page Read-Only Compatibility
+
+### Completed Content
+
+- Added Java-compatible read-only delivery invoice item page endpoint for copied sale-project invoice/detail consumers.
+- Matched Java `BizSaleProjectInvoiceItemServiceImpl.page` filters for `invoiceId` and `warehousesId`.
+- Preserved Java's default `PROJECT_PRODUCT_ITEM_ID` ascending sort and added a safe sorting whitelist.
+- Returned existing product and warehouse display aliases used by sale-project invoice detail reads.
+- Kept Java source, database schema, invoice item writes, invoice/delivery/stock/project-state/finance side effects, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/SaleProjectInvoiceItemController.php`
+- `app/service/biz/SaleProjectBillingService.php`
+- `route/app.php`
+- `docs/api/sale-project-invoice-item-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectInvoiceItemController.php`: passed.
+- `php -l app\service\biz\SaleProjectBillingService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/saleprojectinvoiceItem/page` is registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Direct service smoke: passed on copied-data invoice `2008383542460407810`; total 1 row, first row `2008383542565265410`, and `productName` plus `warehousesName` keys were present.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- `biz_sale_project_product_item` read routes in Java are commented out, so they were not added even though wrappers mention them.
+- Invoice item add/edit/delete and delivery/stock/finance side effects remain deferred.
+- MySQL startup through `F:\project\socket\AI\testPhp\files\startServer1.bat` can take around 30 seconds before port 3306 listens.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.

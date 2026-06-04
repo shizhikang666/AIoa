@@ -397,3 +397,23 @@ This slice supports the copied historical EXCEL page wrapper at `snowy-admin-web
 
 - `/biz/bizhistoryexcel/add`, `/edit`, and `/delete` remain deferred.
 - Excel import/export, spreadsheet parsing changes, and storage writes remain deferred.
+
+## 2026-06-04 Sale Project Invoice Item Page Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied sale-project invoice/detail components that need Java-compatible delivery invoice item pagination.
+
+### Result
+
+- `/biz/saleprojectinvoiceItem/page` is now routed as a protected read-only GET endpoint.
+- Page filtering supports `invoiceId` and `warehousesId`, matching Java `BizSaleProjectInvoiceItemServiceImpl.page`.
+- Rows include product and warehouse display aliases already used by sale-project invoice detail reads.
+- The compatibility path keeps Java's uppercase `I` in `invoiceItem`.
+
+### Deferred
+
+- Invoice item add/edit/delete routes remain deferred.
+- Invoice creation/edit, delivery shipment, stock, project state, and finance side effects remain deferred.

@@ -4851,3 +4851,68 @@ git diff --check
 - Do not add `/biz/bizhistoryexcel/add`, `/edit`, or `/delete`.
 - Do not implement Excel import/export, spreadsheet parsing changes, storage writes, or data mutation.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent/frontend-agent - Sale Project Invoice Item Page Read-Only Compatibility
+
+Status: in progress on 2026-06-04.
+
+Date: 2026-06-04
+
+### 1. Current Goal
+
+Add Java-compatible read-only page support for sale-project delivery invoice item rows.
+
+### 2. Involved Modules
+
+- api-agent sales-project billing read adapter
+- frontend-agent copied invoice/detail page compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SaleProjectInvoiceItemController.php`
+- `app/service/biz/SaleProjectBillingService.php`
+- `route/app.php`
+- `docs/api/sale-project-invoice-item-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java exposes only `/biz/saleprojectinvoiceItem/page` for the invoice item controller; no write routes should be opened.
+- Java page filters by `invoiceId` and `warehousesId` and defaults sorting by `projectProductItemId`.
+- The route path contains an uppercase `I` in `invoiceItem`, so the ThinkPHP route must preserve that compatibility path.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectInvoiceItemController.php
+php -l app\service\biz\SaleProjectBillingService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/saleprojectinvoiceItem/page` is registered behind token middleware.
+- Page reads existing non-deleted invoice item rows.
+- Filters support `invoiceId` and `warehousesId`.
+- Sorting uses a whitelist and defaults to `PROJECT_PRODUCT_ITEM_ID` ascending.
+- Rows preserve Java item fields and include compatible product/warehouse display fields already used by sale-project invoice details.
+- Java source, database schema, invoice writes, delivery writes, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add invoice item add/edit/delete routes.
+- Do not modify invoice creation, delivery shipment, stock, project state, or finance write behavior.
+- Do not modify `F:\AI\projects\testJava\OA`.

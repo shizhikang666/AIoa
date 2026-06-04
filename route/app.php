@@ -369,6 +369,10 @@ Route::group('biz/saleprojectinvoice', function () {
     Route::get('list', 'biz.SaleProjectInvoiceController/list');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/saleprojectinvoiceItem', function () {
+    Route::get('page', 'biz.SaleProjectInvoiceItemController/page');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/saleprojectreissueorder', function () {
     Route::get('list/query', 'biz.SaleProjectReissueOrderController/listQuery');
 })->middleware(AuthMiddleware::class);
