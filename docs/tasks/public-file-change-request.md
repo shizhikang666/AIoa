@@ -2235,3 +2235,32 @@ The copied Vue copy-task page calls Java-compatible `/biz/ccrecords/page` and `/
 - `php think route:list` must list the added routes.
 - Token requests should return only existing current-user copy/CC records.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Draft Read-Only Detail Route
+
+## Request
+
+Register a protected read-only sale-project draft detail route in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-project draft flow calls Java-compatible `/biz/bizdraft/detail` to reload a saved draft by sale-project target id. This endpoint only reads `biz_draft` and preserves the raw `EXT_JSON` payload for the copied form to parse.
+
+## Applied Change
+
+`api-agent` registered the following protected GET route:
+
+- `GET /biz/bizdraft/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizdraft/saleproject/add` route was added.
+- No draft save/update, sale-project add/edit, workflow start, file upload, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should read existing non-deleted draft rows by `TARGET_ID`.
+- Requests without token should return `code=401`.

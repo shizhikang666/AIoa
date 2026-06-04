@@ -4657,3 +4657,66 @@ git diff --check
 - Do not add `/biz/ccrecords/add`, `/edit`, or `/delete`.
 - Do not implement workflow copy delegate writes, approval/reject/start/cancel actions, task SSE, or business side effects.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent - Biz Draft Read-Only Detail Compatibility
+
+Status: completed on 2026-06-04 after route, syntax, service-smoke, and baseline checks.
+
+Date: 2026-06-04
+
+### 1. Current Goal
+
+Add Java-compatible read-only detail support for sale-project draft data used by the copied Vue sale-project draft flow.
+
+### 2. Involved Modules
+
+- api-agent business read adapter
+- frontend-agent copied sale-project draft compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizDraftController.php`
+- `app/service/biz/BizDraftService.php`
+- `route/app.php`
+- `docs/api/biz-draft-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java `detail` queries by `TARGET_ID`, not by draft row `ID`.
+- The frontend expects the raw `EXT_JSON` draft payload to remain parseable.
+- `/biz/bizdraft/saleproject/add` is a write endpoint and must remain deferred.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\BizDraftController.php
+php -l app\service\biz\BizDraftService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/bizdraft/detail` is registered behind token middleware.
+- Detail reads by `TARGET_ID` and returns the matching non-deleted draft row.
+- Rows include `id`, `targetId`, `category`, `extJson`, audit fields, and tenant id.
+- Java source, database schema, sale-project draft writes, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/biz/bizdraft/saleproject/add`.
+- Do not modify sale-project add/edit, workflow start, file upload, or draft save behavior.
+- Do not modify `F:\AI\projects\testJava\OA`.

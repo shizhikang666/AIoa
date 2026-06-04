@@ -52,6 +52,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/teamproject`, `biz/task` | Team project and task read slices |
 | `biz/process` | Basic workflow query/read slices |
 | `biz/ccrecords` | Workflow copy/CC record page and detail reads |
+| `biz/bizdraft` | Sale-project draft detail read |
 
 ## Priority 1: Visible Frontend Follow-Ups
 
@@ -80,6 +81,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/process` | Read aliases added for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and `query/list`; write/start/cancel routes remain deferred |
 | `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
 | `biz/ccrecords` | `page` and `detail` covered; `delete` remains deferred |
+| `biz/bizdraft` | `detail` covered; `saleproject/add` remains deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
 | `biz/saleprojectreissueorder` | `list/query` |
 | `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
@@ -91,6 +93,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | Group | Deferred Examples | Reason |
 | --- | --- | --- |
 | `biz/saleproject` | `add`, `edit`, `delete`, `amount/edit`, `deal/edit`, `cancel`, `history/add`, `special/add`, `visibility/edit` | Project state, finance, visibility, and history side effects |
+| `biz/bizdraft` | `saleproject/add` | Draft save mutates sale-project draft state and needs validation/audit coverage |
 | `biz/saleprojectfollowup` | `add`, `edit`, `delete` | Follow-up record and attachment metadata writes |
 | `biz/saleprojectproductitemrelation` | `mark/edit` | Relation mark mutation |
 | `biz/saleprojectproductitem` | `mark/edit` | Product item mark mutation |

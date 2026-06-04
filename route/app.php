@@ -396,6 +396,10 @@ Route::group('biz/bizleaveapplication', function () {
     Route::get('detail', 'biz.BizLeaveApplicationController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizdraft', function () {
+    Route::get('detail', 'biz.BizDraftController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/settlementaccountpayment', function () {
     Route::get('page', 'biz.SettlementAccountPaymentController/page');
     Route::get('list', 'biz.SettlementAccountPaymentController/list');

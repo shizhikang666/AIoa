@@ -338,3 +338,22 @@ This slice supports the copied workflow copy-task page at `snowy-admin-web/src/v
 
 - `/biz/ccrecords/delete` remains deferred because it mutates copy/CC records.
 - Workflow copy delegate writes and approval actions remain deferred.
+
+## 2026-06-04 Biz Draft Detail Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied sale-project draft detail call in `snowy-admin-web/src/api/biz/bizDraftApi.js`.
+
+### Result
+
+- `/biz/bizdraft/detail` is now routed as a protected read-only GET endpoint.
+- The service reads by `TARGET_ID`, matching Java `BizDraftServiceImpl.detail`.
+- The raw `extJson` string is preserved for the copied sale-project form to parse saved draft form/file data.
+
+### Deferred
+
+- `/biz/bizdraft/saleproject/add` remains deferred because it writes draft state.
+- Sale-project add/edit, workflow start, and file upload side effects remain deferred.

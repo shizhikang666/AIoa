@@ -4682,3 +4682,48 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-04 - api-agent - Biz Draft Detail Read-Only Compatibility
+
+### Completed Content
+
+- Added read-only sale-project draft detail endpoint for the copied sale-project draft flow.
+- Matched Java `BizDraftServiceImpl.detail` behavior by querying `biz_draft.TARGET_ID`.
+- Preserved raw `EXT_JSON` as `extJson` so frontend form/file draft parsing remains compatible.
+- Kept draft save, sale-project add/edit, workflow start, file upload, Java source, database schema, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/BizDraftController.php`
+- `app/service/biz/BizDraftService.php`
+- `route/app.php`
+- `docs/api/biz-draft-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizDraftController.php`: passed.
+- `php -l app\service\biz\BizDraftService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/bizdraft/detail` is registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Direct service smoke: passed on copied-data target id `2007642126725550081`; detail matched draft `2007721895165038593`, `targetId` matched, and `extJson` plus `category` were present.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- `/biz/bizdraft/saleproject/add` remains intentionally deferred.
+- Sale-project add/edit, workflow start, and file upload side effects remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.
