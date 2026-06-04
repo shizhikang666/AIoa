@@ -4772,3 +4772,48 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-04 - api-agent/frontend-agent - Biz History Excel Read-Only Compatibility
+
+### Completed Content
+
+- Added read-only historical EXCEL endpoints for the copied `/biz/bizhistoryexcel` page.
+- Matched Java page/detail scope for `BizHistoryExcelController` with protected `page` and `detail` routes.
+- Preserved raw `EXT_JSON` as `extJson` for spreadsheet display and kept audit/tenant fields.
+- Kept Java source, database schema, Excel import/export, spreadsheet parsing, add/edit/delete routes, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/BizHistoryExcelController.php`
+- `app/service/biz/BizHistoryExcelService.php`
+- `route/app.php`
+- `docs/api/biz-history-excel-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizHistoryExcelController.php`: passed.
+- `php -l app\service\biz\BizHistoryExcelService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/bizhistoryexcel/page` and `/biz/bizhistoryexcel/detail` are registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Direct service smoke: passed; local `biz_history_excel` has 2 raw rows and 0 non-deleted visible rows, so page returns `total=0` under Java-compatible logical-delete filtering.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- The copied page still exposes add/edit/delete controls, but those write routes remain intentionally deferred.
+- Local imported history Excel rows are currently logical deleted, so the page can validly show an empty list.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.

@@ -4786,3 +4786,68 @@ git diff --check
 - Do not add `/biz/bizuservacation/page`, `/add`, `/edit`, or `/delete`.
 - Do not implement vacation generation, reduction, leave approval deductions, workflow writes, or payroll writes.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent/frontend-agent - Biz History Excel Read-Only Compatibility
+
+Status: completed on 2026-06-04 after route, syntax, service-smoke, and baseline checks.
+
+Date: 2026-06-04
+
+### 1. Current Goal
+
+Add Java-compatible read-only page and detail endpoints for the copied historical EXCEL data page.
+
+### 2. Involved Modules
+
+- api-agent business read adapter
+- frontend-agent copied page compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizHistoryExcelController.php`
+- `app/service/biz/BizHistoryExcelService.php`
+- `route/app.php`
+- `docs/api/biz-history-excel-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- `biz_history_excel.EXT_JSON` can be large because it stores serialized spreadsheet data.
+- The copied frontend still exposes add, edit, and delete controls, but this slice must not add write routes.
+- Java default sorting is by `ID` ascending; custom sorting must use a whitelist.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\BizHistoryExcelController.php
+php -l app\service\biz\BizHistoryExcelService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/bizhistoryexcel/page` is registered behind token middleware.
+- `GET /biz/bizhistoryexcel/detail` is registered behind token middleware.
+- Page reads preserve Java-compatible pagination and safe sorting.
+- Detail returns the matching row by `id`.
+- Rows include `id`, `name`, `remark`, `extJson`, audit fields, `deleteFlag`, and `tenantId`.
+- Java source, database schema, history Excel writes, file import/export behavior, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/biz/bizhistoryexcel/add`, `/edit`, or `/delete`.
+- Do not implement Excel import/export, spreadsheet parsing changes, storage writes, or data mutation.
+- Do not modify `F:\AI\projects\testJava\OA`.

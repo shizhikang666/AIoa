@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 259 | From `php think route:list` after CC-record read-only route additions |
-| Endpoints already covered by route path | 253 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 85 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 263 | From `php think route:list` after history Excel read-only route additions |
+| Endpoints already covered by route path | 257 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 81 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -50,6 +50,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/bizuservacation` | Current-year annual-leave balance detail read |
 | `biz/settlementaccountpayment` | Settlement account statement page/list reads |
 | `biz/bizpayroll` | Payroll page, my-page, and detail reads |
+| `biz/bizhistoryexcel` | Historical EXCEL page and detail reads |
 | `biz/teamproject`, `biz/task` | Team project and task read slices |
 | `biz/process` | Basic workflow query/read slices |
 | `biz/ccrecords` | Workflow copy/CC record page and detail reads |
@@ -84,6 +85,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/bizuservacation` | `detail` covered; `page`, `add`, `edit`, and `delete` remain deferred |
 | `biz/ccrecords` | `page` and `detail` covered; `delete` remains deferred |
 | `biz/bizdraft` | `detail` covered; `saleproject/add` remains deferred |
+| `biz/bizhistoryexcel` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
 | `biz/saleprojectreissueorder` | `list/query` |
 | `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
@@ -107,6 +109,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `dev/message` | `send`, `delete`, `createSseConnect` | Messaging/SSE behavior must match Java expectations |
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing`, `biz/saleprojectproductinfo` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
 | `biz/bizuservacation` | `page`, `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
+| `biz/bizhistoryexcel` | `add`, `edit`, `delete` | Historical spreadsheet data writes and import/export parsing need a separate plan |
 | `sys/user` and `sys/userCenter` | `import`, profile edits, password edits, grant actions | Security and audit requirements |
 
 ## Authentication And Session Gaps

@@ -377,3 +377,23 @@ This slice supports the copied leave-process pages that call `bizUserVacationApi
 
 - `/biz/bizuservacation/page`, `/add`, `/edit`, and `/delete` remain deferred.
 - Vacation generation/reduction, leave approval balance deductions, workflow writes, and payroll-facing side effects remain deferred.
+
+## 2026-06-04 Biz History Excel Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied historical EXCEL page wrapper at `snowy-admin-web/src/api/biz/bizHistoryExcelApi.js`.
+
+### Result
+
+- `/biz/bizhistoryexcel/page` is now routed as a protected read-only GET endpoint.
+- `/biz/bizhistoryexcel/detail` is now routed as a protected read-only GET endpoint.
+- Rows preserve the raw `extJson` spreadsheet payload and add camelCase aliases for the copied Vue table/detail components.
+- Logical deleted rows stay hidden.
+
+### Deferred
+
+- `/biz/bizhistoryexcel/add`, `/edit`, and `/delete` remain deferred.
+- Excel import/export, spreadsheet parsing changes, and storage writes remain deferred.

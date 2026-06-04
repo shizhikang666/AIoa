@@ -266,6 +266,11 @@ Route::group('biz/bizfilerelation', function () {
     Route::get('detail', 'biz.FileRelationController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizhistoryexcel', function () {
+    Route::get('page', 'biz.BizHistoryExcelController/page');
+    Route::get('detail', 'biz.BizHistoryExcelController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/bizteamproject', function () {
     Route::get('page', 'biz.TeamProjectController/page');
     Route::get('detail', 'biz.TeamProjectController/detail');

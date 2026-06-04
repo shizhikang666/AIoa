@@ -2294,3 +2294,35 @@ The copied leave-process pages call Java-compatible `/biz/bizuservacation/detail
 - Token requests without `userId` should read the current token user's annual-leave balance.
 - Token requests with `userId` should read that user's annual-leave balance for the current year.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz History Excel Read-Only Routes
+
+## Request
+
+Register protected read-only historical EXCEL data routes in `route/app.php`.
+
+## Reason
+
+The copied Vue page under `/biz/bizhistoryexcel` calls Java-compatible `/biz/bizhistoryexcel/page` and `/biz/bizhistoryexcel/detail`. These endpoints only read existing `biz_history_excel` rows and preserve the raw `EXT_JSON` spreadsheet payload for display.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected GET routes:
+
+- `GET /biz/bizhistoryexcel/page`
+- `GET /biz/bizhistoryexcel/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizhistoryexcel/add` route was added.
+- No `/biz/bizhistoryexcel/edit` route was added.
+- No `/biz/bizhistoryexcel/delete` route was added.
+- No Excel import/export, spreadsheet parsing changes, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return existing non-deleted history Excel rows and detail data.
+- Requests without token should return `code=401`.
