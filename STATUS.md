@@ -4910,3 +4910,50 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-04 - api-agent/frontend-agent - Team Project Task User Read-Only Compatibility
+
+### Completed Content
+
+- Added Java-compatible read-only team-project task user page and detail endpoints.
+- Reused `TeamProjectTaskReadService` and existing `TASK_USER_FIELDS`/row normalization for task assignment rows.
+- Kept existing ThinkPHP team-project visibility boundary by returning only task-user rows from projects where the current login user is a project member.
+- Returned Java-compatible translated user aliases `headName` and `avatar`.
+- Kept Java source, database schema, task-user add/edit/delete, task assignment writes, task status/progress writes, notifications, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/TeamProjectTaskUserController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/team-project-task-user-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\TeamProjectTaskUserController.php`: passed.
+- `php -l app\service\biz\TeamProjectTaskReadService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/bizteamprojecttaskuser/page` and `/biz/bizteamprojecttaskuser/detail` are registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Direct service smoke: passed on copied-data project `1903996479133360129` as member `2007699574773649410`; page returned total 7 rows, detail matched task-user `2033724343780306945`, and `headName` plus `avatar` keys were present.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- Some older imported `biz_team_project_task_user` rows point to deleted tasks or projects, so smoke tests must pick rows where task, project, and project membership are all visible.
+- `/biz/bizteamprojecttaskuser/add`, `/edit`, and `/delete` remain intentionally deferred.
+- Task assignment writes, task status/progress writes, and notifications remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.

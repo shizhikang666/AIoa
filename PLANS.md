@@ -4981,3 +4981,68 @@ git diff --check
 - Do not add `/biz/salesprojectfieldchangelog/add`, `/edit`, or `/delete`.
 - Do not modify sale-project amount/change writes, project history generation, workflow, finance, or audit side effects.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent/frontend-agent - Team Project Task User Read-Only Compatibility
+
+Status: completed on 2026-06-04 after route, syntax, service-smoke, and baseline checks.
+
+Date: 2026-06-04
+
+### 1. Current Goal
+
+Add Java-compatible read-only page and detail support for team-project task user rows.
+
+### 2. Involved Modules
+
+- api-agent team-project task read adapter
+- frontend-agent copied team-project/task compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectTaskUserController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/team-project-task-user-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java `page` defaults to `ID` ascending and exposes add/edit/delete separately; this slice must not open writes.
+- Existing ThinkPHP team-project reads guard by current user's project membership; task-user page/detail should keep that boundary.
+- Rows should keep Java task-user fields plus translated user display fields `headName` and `avatar`.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectTaskUserController.php
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/bizteamprojecttaskuser/page` is registered behind token middleware.
+- `GET /biz/bizteamprojecttaskuser/detail` is registered behind token middleware.
+- Page reads existing non-deleted task-user rows from team projects visible to the current user.
+- Detail returns the matching task-user row by `id`.
+- Rows include `id`, `userId`, `headName`, `avatar`, `teamProjectId`, `teamProjectTaskId`, `roleType`, `extJson`, audit fields, and tenant id.
+- Java source, database schema, task-user writes, team task writes, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/biz/bizteamprojecttaskuser/add`, `/edit`, or `/delete`.
+- Do not modify team task assignment writes, task status/progress writes, notifications, or workflow side effects.
+- Do not modify `F:\AI\projects\testJava\OA`.

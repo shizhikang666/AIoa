@@ -142,6 +142,18 @@ SQL;
         'createUserName' => 'creator.NAME',
     ];
 
+    private const TASK_USER_SORT_MAP = [
+        'id' => 'tu.ID',
+        'userId' => 'tu.USER_ID',
+        'teamProjectId' => 'tu.TEAM_PROJECT_ID',
+        'teamProjectTaskId' => 'tu.TEAM_PROJECT_TASK_ID',
+        'roleType' => 'tu.ROLE_TYPE',
+        'createTime' => 'tu.CREATE_TIME',
+        'updateTime' => 'tu.UPDATE_TIME',
+        'tenantId' => 'tu.TENANT_ID',
+        'headName' => 'u.NAME',
+    ];
+
     private const PROJECT_COMMENT_SORT_MAP = [
         'id' => 'pc.ID',
         'teamProjectId' => 'pc.TEAM_PROJECT_ID',
@@ -240,6 +252,31 @@ SQL;
         $task['users'] = $this->taskUsers((string)$task['id']);
 
         return $task;
+    }
+
+    public function taskUserPage(array $filters = [], array $payload = []): array
+    {
+        [$page, $limit] = $this->pagination($filters);
+        $total = $this->taskUserQuery($filters, $payload)->count();
+        $rows = $this->applySort($this->taskUserQuery($filters, $payload), $filters, self::TASK_USER_SORT_MAP, 'tu.ID')
+            ->field(self::TASK_USER_FIELDS)
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+
+        return $this->pageResult(array_map(fn (array $row): array => $this->taskUserRow($row), $rows), $total, $page, $limit);
+    }
+
+    public function taskUserDetail(string $id, array $payload = []): array
+    {
+        $row = $this->taskUserQuery(['id' => $id], $payload)
+            ->field(self::TASK_USER_FIELDS)
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('team project task user not found', 404);
+        }
+
+        return $this->taskUserRow($row);
     }
 
     public function projectCommentPage(array $filters = [], array $payload = []): array
@@ -391,6 +428,50 @@ SQL;
         }
 
         $this->applyTimeRange($query, $filters, 't.CREATE_TIME', 'startCreateTime', 'endCreateTime');
+
+        return $query;
+    }
+
+    private function taskUserQuery(array $filters, array $payload)
+    {
+        $query = Db::name('biz_team_project_task_user')
+            ->alias('tu')
+            ->leftJoin('biz_team_project_task t', 't.ID = tu.TEAM_PROJECT_TASK_ID')
+            ->leftJoin('biz_team_project p', 'p.ID = tu.TEAM_PROJECT_ID')
+            ->leftJoin('biz_team_project_user pm', 'pm.TEAM_PROJECT_ID = tu.TEAM_PROJECT_ID')
+            ->leftJoin('sys_user u', 'u.ID = tu.USER_ID')
+            ->where('pm.USER_ID', $this->currentUserId($payload))
+            ->where(function ($query): void {
+                $query->whereNull('tu.DELETE_FLAG')->whereOr('tu.DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->where(function ($query): void {
+                $query->whereNull('t.DELETE_FLAG')->whereOr('t.DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->where(function ($query): void {
+                $query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->where(function ($query): void {
+                $query->whereNull('pm.DELETE_FLAG')->whereOr('pm.DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $this->applyTenant($query, $filters, $payload, 'tu.TENANT_ID');
+        $this->applyExactFilters($query, $filters, [
+            'id' => 'tu.ID',
+            'userId' => 'tu.USER_ID',
+            'teamProjectId' => 'tu.TEAM_PROJECT_ID',
+            'teamProjectTaskId' => 'tu.TEAM_PROJECT_TASK_ID',
+            'roleType' => 'tu.ROLE_TYPE',
+        ]);
+
+        if (!empty($filters['searchKey'])) {
+            $keyword = '%' . trim((string)$filters['searchKey']) . '%';
+            $query->where(function ($query) use ($keyword): void {
+                $query->whereLike('u.NAME', $keyword)
+                    ->whereOr('tu.ROLE_TYPE', 'like', $keyword);
+            });
+        }
+
+        $this->applyTimeRange($query, $filters, 'tu.CREATE_TIME', 'startCreateTime', 'endCreateTime');
 
         return $query;
     }

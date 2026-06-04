@@ -2385,3 +2385,33 @@ Java exposes `/biz/salesprojectfieldchangelog/page` and `/biz/salesprojectfieldc
 - `php think route:list` must list the added routes.
 - Token requests should return existing non-deleted change-log rows.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Team Project Task User Read-Only Routes
+
+## Request
+
+Register protected read-only team-project task user routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizteamprojecttaskuser/page` and `/biz/bizteamprojecttaskuser/detail` from `BizTeamProjectTaskUserController`. These endpoints only read task assignment rows and preserve standalone controller-path compatibility for copied team-project task/member consumers.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected GET routes:
+
+- `GET /biz/bizteamprojecttaskuser/page`
+- `GET /biz/bizteamprojecttaskuser/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizteamprojecttaskuser/add`, `/edit`, or `/delete` route was added.
+- No task assignment write, task status/progress write, notification, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return existing non-deleted task-user rows visible to the current team-project member.
+- Requests without token should return `code=401`.

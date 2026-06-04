@@ -53,7 +53,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/bizhistoryexcel` | Historical EXCEL page and detail reads |
 | `biz/saleprojectinvoiceItem` | Sale-project delivery invoice item page reads |
 | `biz/salesprojectfieldchangelog` | Sale-project field change log page and detail reads |
-| `biz/teamproject`, `biz/task` | Team project and task read slices |
+| `biz/teamproject`, `biz/task` | Team project, task, task user, and task comment read slices |
 | `biz/process` | Basic workflow query/read slices |
 | `biz/ccrecords` | Workflow copy/CC record page and detail reads |
 | `biz/bizdraft` | Sale-project draft detail read |
@@ -93,6 +93,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/saleprojectinvoiceItem` | `page` covered; invoice item writes remain deferred |
 | `biz/saleprojectreissueorder` | `list/query` |
 | `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
+| `biz/bizteamprojecttaskuser` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 
 ## Deferred Write And Side-Effect Groups
 

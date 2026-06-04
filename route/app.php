@@ -294,6 +294,11 @@ Route::group('biz/bizteamprojecttask', function () {
     Route::get('detail', 'biz.TeamProjectTaskController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/bizteamprojecttaskuser', function () {
+    Route::get('page', 'biz.TeamProjectTaskUserController/page');
+    Route::get('detail', 'biz.TeamProjectTaskUserController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/bizteamprojectcomment', function () {
     Route::get('page', 'biz.TeamProjectCommentController/page');
     Route::get('list', 'biz.TeamProjectCommentController/list');

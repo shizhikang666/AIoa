@@ -437,3 +437,23 @@ This slice supports Java-compatible sale-project field change log browsing and k
 
 - `/biz/salesprojectfieldchangelog/add`, `/edit`, and `/delete` remain deferred.
 - Sale-project amount/change writes, workflow, finance, and audit side effects remain deferred.
+
+## 2026-06-04 Team Project Task User Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports Java-compatible team-project task user browsing and keeps standalone controller-path compatibility for copied team task/member consumers.
+
+### Result
+
+- `/biz/bizteamprojecttaskuser/page` is now routed as a protected read-only GET endpoint.
+- `/biz/bizteamprojecttaskuser/detail` is now routed as a protected read-only GET endpoint.
+- Rows expose `userId`, `headName`, `avatar`, `teamProjectId`, `teamProjectTaskId`, `roleType`, `extJson`, audit fields, and tenant id.
+- Reads keep the existing ThinkPHP team-project visibility boundary by requiring current-user project membership.
+
+### Deferred
+
+- `/biz/bizteamprojecttaskuser/add`, `/edit`, and `/delete` remain deferred.
+- Task assignment writes, task status/progress writes, notifications, and side effects remain deferred.
