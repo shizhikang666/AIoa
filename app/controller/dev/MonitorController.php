@@ -18,4 +18,9 @@ class MonitorController extends BaseSysController
     {
         return $this->guard(fn () => $this->monitorService->serverInfo());
     }
+
+    public function networkInfo(): Response
+    {
+        return $this->guard(fn () => $this->monitorService->networkInfo());
+    }
 }

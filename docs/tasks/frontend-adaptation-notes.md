@@ -457,3 +457,21 @@ This slice supports Java-compatible team-project task user browsing and keeps st
 
 - `/biz/bizteamprojecttaskuser/add`, `/edit`, and `/delete` remain deferred.
 - Task assignment writes, task status/progress writes, notifications, and side effects remain deferred.
+
+## 2026-06-04 Dev Monitor Network Info Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied monitor API wrapper `snowy-admin-web/src/api/dev/monitorApi.js`.
+
+### Result
+
+- `/dev/monitor/networkInfo` is now routed as a protected read-only GET endpoint.
+- The response includes `devMonitorNetworkInfo.upLinkRate` and `devMonitorNetworkInfo.downLinkRate`.
+- Unsupported OS counter reads degrade to `0 B/s` instead of breaking the monitor page.
+
+### Deferred
+
+- Monitor writes, server process control, and metric persistence remain out of scope.

@@ -4957,3 +4957,49 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-04 - api-agent/frontend-agent - Dev Monitor Network Info Read-Only Compatibility
+
+### Completed Content
+
+- Added Java-compatible read-only dev monitor network info endpoint.
+- Matched Java `DevMonitorController.networkInfo` response shape with `devMonitorNetworkInfo.upLinkRate` and `devMonitorNetworkInfo.downLinkRate`.
+- Sampled local OS network counters twice and formatted per-second upload/download rates.
+- Added safe fallback to `0 B/s` when OS counters are unavailable.
+- Kept Java source, database schema, monitor writes/server control, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/dev/MonitorController.php`
+- `app/service/dev/MonitorService.php`
+- `route/app.php`
+- `docs/api/dev-monitor-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\dev\MonitorController.php`: passed.
+- `php -l app\service\dev\MonitorService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; returned `devMonitorNetworkInfo` with `upLinkRate` and `downLinkRate`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/dev/monitor/networkInfo` is registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- Network rate depends on local OS counter availability; unsupported counters intentionally degrade to `0 B/s`.
+- Monitor writes, server process control, and metric persistence remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.

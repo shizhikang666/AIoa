@@ -9,6 +9,28 @@ namespace app\service\dev;
  */
 class MonitorService
 {
+    public function networkInfo(): array
+    {
+        $first = $this->networkCounters();
+        usleep(200000);
+        $second = $this->networkCounters();
+
+        $upRate = '0 B/s';
+        $downRate = '0 B/s';
+        if ($first !== null && $second !== null) {
+            $interval = max(0.2, (($second['time'] ?? microtime(true)) - ($first['time'] ?? microtime(true))));
+            $upRate = $this->formatBytesPerSecond(max(0, ($second['sent'] ?? 0) - ($first['sent'] ?? 0)), $interval);
+            $downRate = $this->formatBytesPerSecond(max(0, ($second['received'] ?? 0) - ($first['received'] ?? 0)), $interval);
+        }
+
+        return [
+            'devMonitorNetworkInfo' => [
+                'upLinkRate' => $upRate,
+                'downLinkRate' => $downRate,
+            ],
+        ];
+    }
+
     public function serverInfo(): array
     {
         $diskRoot = $this->diskRoot();
@@ -71,6 +93,73 @@ class MonitorService
         return max(1, $count);
     }
 
+    /**
+     * @return array{received:int, sent:int, time:float}|null
+     */
+    private function networkCounters(): ?array
+    {
+        return PHP_OS_FAMILY === 'Windows' ? $this->windowsNetworkCounters() : $this->unixNetworkCounters();
+    }
+
+    /**
+     * @return array{received:int, sent:int, time:float}|null
+     */
+    private function windowsNetworkCounters(): ?array
+    {
+        $output = @shell_exec('netstat -e');
+        if (!is_string($output) || $output === '') {
+            return null;
+        }
+
+        if (!preg_match('/Bytes\s+(\d+)\s+(\d+)/i', $output, $matches)) {
+            return null;
+        }
+
+        return [
+            'received' => (int)$matches[1],
+            'sent' => (int)$matches[2],
+            'time' => microtime(true),
+        ];
+    }
+
+    /**
+     * @return array{received:int, sent:int, time:float}|null
+     */
+    private function unixNetworkCounters(): ?array
+    {
+        $content = @file_get_contents('/proc/net/dev');
+        if (!is_string($content) || $content === '') {
+            return null;
+        }
+
+        $received = 0;
+        $sent = 0;
+        foreach (explode("\n", $content) as $line) {
+            if (!str_contains($line, ':')) {
+                continue;
+            }
+
+            [$interface, $data] = array_map('trim', explode(':', $line, 2));
+            if ($interface === 'lo') {
+                continue;
+            }
+
+            $columns = preg_split('/\s+/', $data);
+            if (!is_array($columns) || count($columns) < 16) {
+                continue;
+            }
+
+            $received += (int)$columns[0];
+            $sent += (int)$columns[8];
+        }
+
+        return [
+            'received' => $received,
+            'sent' => $sent,
+            'time' => microtime(true),
+        ];
+    }
+
     private function diskRoot(): ?string
     {
         $root = realpath(getcwd() ?: __DIR__);
@@ -129,5 +218,10 @@ class MonitorService
         }
 
         return round($value, 2) . ' ' . $units[$index];
+    }
+
+    private function formatBytesPerSecond(int $bytes, float $seconds): string
+    {
+        return $this->formatBytes((int)round($bytes / max(0.001, $seconds))) . '/s';
     }
 }

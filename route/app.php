@@ -180,6 +180,7 @@ Route::group('dev/job', function () {
 
 Route::group('dev/monitor', function () {
     Route::get('serverInfo', 'dev.MonitorController/serverInfo');
+    Route::get('networkInfo', 'dev.MonitorController/networkInfo');
 })->middleware(AuthMiddleware::class);
 
 Route::group('dev/log', function () {

@@ -38,7 +38,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `sys/role` | Role page/list/detail/resource/menu relation reads |
 | `sys/menu` and `sys/resource` | Menu/resource tree and selector reads |
 | `dev/config`, `dev/dict`, `dev/log` | Common management reads |
-| `dev/file`, `dev/email`, `dev/sms`, `dev/job` | Metadata/list/detail reads; mutation routes remain deferred |
+| `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | Metadata/list/detail and monitor reads; mutation routes remain deferred |
 | `mobile/menu` and `mobile/resource` | Mobile menu/resource read compatibility |
 | `gen/basic`, `gen/config`, `tenant` | Read-only compatibility routes |
 | `biz/product`, `biz/supplier`, `biz/settlementaccount` | Core master-data read adapters |
@@ -94,6 +94,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/saleprojectreissueorder` | `list/query` |
 | `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
 | `biz/bizteamprojecttaskuser` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
+| `dev/monitor` | `serverInfo` and `networkInfo` covered |
 
 ## Deferred Write And Side-Effect Groups
 

@@ -2415,3 +2415,32 @@ Java exposes `/biz/bizteamprojecttaskuser/page` and `/biz/bizteamprojecttaskuser
 - `php think route:list` must list the added routes.
 - Token requests should return existing non-deleted task-user rows visible to the current team-project member.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Dev Monitor Network Info Read-Only Route
+
+## Request
+
+Register a protected read-only dev monitor network info route in `route/app.php`.
+
+## Reason
+
+Java exposes `/dev/monitor/networkInfo` from `DevMonitorController`. The copied frontend monitor API calls this endpoint to display upload and download rates.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected GET route:
+
+- `GET /dev/monitor/networkInfo`
+
+## Explicit Exclusions
+
+- No monitor write route was added.
+- No server process control, metric persistence, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return `devMonitorNetworkInfo.upLinkRate` and `devMonitorNetworkInfo.downLinkRate`.
+- Requests without token should return `code=401`.

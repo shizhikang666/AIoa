@@ -5046,3 +5046,66 @@ git diff --check
 - Do not add `/biz/bizteamprojecttaskuser/add`, `/edit`, or `/delete`.
 - Do not modify team task assignment writes, task status/progress writes, notifications, or workflow side effects.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: api-agent/frontend-agent - Dev Monitor Network Info Read-Only Compatibility
+
+Status: completed on 2026-06-04 after route, syntax, service-smoke, and baseline checks.
+
+Date: 2026-06-04
+
+### 1. Current Goal
+
+Add Java-compatible read-only network monitor info support for the copied dev monitor page.
+
+### 2. Involved Modules
+
+- api-agent dev monitor read adapter
+- frontend-agent copied dev monitor compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/dev/MonitorController.php`
+- `app/service/dev/MonitorService.php`
+- `route/app.php`
+- `docs/api/dev-monitor-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java returns only `devMonitorNetworkInfo` with `upLinkRate` and `downLinkRate`.
+- Windows and Linux expose network counters differently; the ThinkPHP implementation should degrade to `0 B/s` instead of failing.
+- The endpoint is operational monitoring only and must not mutate runtime, database, or config.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\dev\MonitorController.php
+php -l app\service\dev\MonitorService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /dev/monitor/networkInfo` is registered behind token middleware.
+- The service returns `devMonitorNetworkInfo.upLinkRate` and `devMonitorNetworkInfo.downLinkRate`.
+- Missing or unsupported OS counters return safe zero rates instead of an exception.
+- Java source, database schema, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add monitor write routes.
+- Do not change serverInfo shape.
+- Do not modify OS services, database, config, or `F:\AI\projects\testJava\OA`.
