@@ -47,6 +47,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/saleprojectproductinfo` | Sale-project software package/version info reads |
 | `biz/bizdatareport` | Sale-project amount/list/report, unpaid-payment, settlement income/expenses, sale-profit, summary-statistics, and details reads |
 | `biz/bizleaveapplication` | Leave/business-trip page, my-page, and detail reads |
+| `biz/bizuservacation` | Current-year annual-leave balance detail read |
 | `biz/settlementaccountpayment` | Settlement account statement page/list reads |
 | `biz/bizpayroll` | Payroll page, my-page, and detail reads |
 | `biz/teamproject`, `biz/task` | Team project and task read slices |
@@ -80,6 +81,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/dict` | `page`, `tree`, `treeAll` |
 | `biz/process` | Read aliases added for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and `query/list`; write/start/cancel routes remain deferred |
 | `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
+| `biz/bizuservacation` | `detail` covered; `page`, `add`, `edit`, and `delete` remain deferred |
 | `biz/ccrecords` | `page` and `detail` covered; `delete` remains deferred |
 | `biz/bizdraft` | `detail` covered; `saleproject/add` remains deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
@@ -104,6 +106,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `dev/file` | `upload*`, `delete` | Storage provider, file persistence, and cleanup strategy |
 | `dev/message` | `send`, `delete`, `createSseConnect` | Messaging/SSE behavior must match Java expectations |
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing`, `biz/saleprojectproductinfo` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
+| `biz/bizuservacation` | `page`, `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `sys/user` and `sys/userCenter` | `import`, profile edits, password edits, grant actions | Security and audit requirements |
 
 ## Authentication And Session Gaps

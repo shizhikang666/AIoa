@@ -4720,3 +4720,69 @@ git diff --check
 - Do not add `/biz/bizdraft/saleproject/add`.
 - Do not modify sale-project add/edit, workflow start, file upload, or draft save behavior.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: workflow-agent/api-agent - Biz User Vacation Detail Read-Only Compatibility
+
+Status: completed on 2026-06-04 after route, syntax, service-smoke, and baseline checks.
+
+Date: 2026-06-04
+
+### 1. Current Goal
+
+Add Java-compatible read-only annual-leave balance detail support for copied leave-process pages.
+
+### 2. Involved Modules
+
+- workflow-agent leave-process read context
+- api-agent business read adapter
+- frontend-agent copied leave form/detail compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizUserVacationController.php`
+- `app/service/biz/BizUserVacationService.php`
+- `route/app.php`
+- `docs/api/biz-user-vacation-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java `detail` defaults to the current login user when `userId` is omitted.
+- Java `detail` defaults to `annualLeave` when `category` is omitted.
+- Java filters records by the current year using `CREATE_TIME`.
+- Leave approval later deducts vacation through separate write behavior; this slice must not mutate balances.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\BizUserVacationController.php
+php -l app\service\biz\BizUserVacationService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/bizuservacation/detail` is registered behind token middleware.
+- Detail reads by requested `userId` or current token user id.
+- Detail defaults to `annualLeave` and current-year records.
+- Missing records return a zero-balance annual-leave object compatible with the copied frontend.
+- Java source, database schema, vacation writes, leave approval deductions, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/biz/bizuservacation/page`, `/add`, `/edit`, or `/delete`.
+- Do not implement vacation generation, reduction, leave approval deductions, workflow writes, or payroll writes.
+- Do not modify `F:\AI\projects\testJava\OA`.

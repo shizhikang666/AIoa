@@ -2264,3 +2264,33 @@ The copied Vue sale-project draft flow calls Java-compatible `/biz/bizdraft/deta
 - `php think route:list` must list the added route.
 - Token requests should read existing non-deleted draft rows by `TARGET_ID`.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz User Vacation Read-Only Detail Route
+
+## Request
+
+Register a protected read-only annual-leave balance detail route in `route/app.php`.
+
+## Reason
+
+The copied leave-process pages call Java-compatible `/biz/bizuservacation/detail` to read the current or requested user's annual-leave balance. This endpoint only reads `biz_user_vacation` and is needed before leave form and process-detail screens can show remaining leave days.
+
+## Applied Change
+
+`workflow-agent/api-agent` registered the following protected GET route:
+
+- `GET /biz/bizuservacation/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizuservacation/page`, `/add`, `/edit`, or `/delete` route was added.
+- No vacation generation, vacation reduction, leave approval deduction, workflow write, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests without `userId` should read the current token user's annual-leave balance.
+- Token requests with `userId` should read that user's annual-leave balance for the current year.
+- Requests without token should return `code=401`.

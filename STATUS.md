@@ -4727,3 +4727,48 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-04 - workflow-agent/api-agent - Biz User Vacation Detail Read-Only Compatibility
+
+### Completed Content
+
+- Added read-only annual-leave balance detail endpoint for copied leave-process pages.
+- Matched Java `BizUserVacationServiceImpl.detail` defaults: current login user when `userId` is omitted, `annualLeave` when `category` is omitted, and current-year records by `CREATE_TIME`.
+- Returned a zero-balance annual-leave object when no row exists, preserving copied frontend calculations.
+- Kept vacation generation/reduction, leave approval deductions, workflow writes, Java source, database schema, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/BizUserVacationController.php`
+- `app/service/biz/BizUserVacationService.php`
+- `route/app.php`
+- `docs/api/biz-user-vacation-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizUserVacationController.php`: passed.
+- `php -l app\service\biz\BizUserVacationService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/bizuservacation/detail` is registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Direct service smoke: passed on copied-data user `1543837863788879870`; detail matched current-year annual-leave row `2006394917698801666`, `amount=5`, `usedAmount=0`, and missing-user fallback returned zero annual-leave balance.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- `/biz/bizuservacation/page`, `/add`, `/edit`, and `/delete` remain intentionally deferred.
+- Vacation generation/reduction and leave approval balance deductions remain deferred until workflow write runtime is opened.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.

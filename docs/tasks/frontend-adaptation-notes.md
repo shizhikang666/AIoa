@@ -357,3 +357,23 @@ This slice supports the copied sale-project draft detail call in `snowy-admin-we
 
 - `/biz/bizdraft/saleproject/add` remains deferred because it writes draft state.
 - Sale-project add/edit, workflow start, and file upload side effects remain deferred.
+
+## 2026-06-04 Biz User Vacation Detail Read-Only Compatibility
+
+Agent: workflow-agent / api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied leave-process pages that call `bizUserVacationApi.bizUserVacationDetail`.
+
+### Result
+
+- `/biz/bizuservacation/detail` is now routed as a protected read-only GET endpoint.
+- The service defaults to the current token user and `annualLeave`, matching Java behavior.
+- Records are filtered to the current year by `CREATE_TIME`.
+- Missing rows return a zero-balance annual-leave object so the copied leave form can still calculate remaining days.
+
+### Deferred
+
+- `/biz/bizuservacation/page`, `/add`, `/edit`, and `/delete` remain deferred.
+- Vacation generation/reduction, leave approval balance deductions, workflow writes, and payroll-facing side effects remain deferred.
