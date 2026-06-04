@@ -4854,7 +4854,7 @@ git diff --check
 
 ## Active Plan: api-agent/frontend-agent - Sale Project Invoice Item Page Read-Only Compatibility
 
-Status: in progress on 2026-06-04.
+Status: completed on 2026-06-04 after route, syntax, service-smoke, and baseline checks.
 
 Date: 2026-06-04
 
@@ -4915,4 +4915,69 @@ git diff --check
 
 - Do not add invoice item add/edit/delete routes.
 - Do not modify invoice creation, delivery shipment, stock, project state, or finance write behavior.
+- Do not modify `F:\AI\projects\testJava\OA`.
+
+## Active Plan: api-agent/frontend-agent - Sales Project Field Change Log Read-Only Compatibility
+
+Status: completed on 2026-06-04 after route, syntax, service-smoke, and baseline checks.
+
+Date: 2026-06-04
+
+### 1. Current Goal
+
+Add Java-compatible read-only page and detail support for sale-project field change log records.
+
+### 2. Involved Modules
+
+- api-agent sale-project read adapter
+- frontend-agent copied sale-project detail/history compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SalesProjectFieldChangeLogController.php`
+- `app/service/biz/SalesProjectFieldChangeLogService.php`
+- `route/app.php`
+- `docs/api/sales-project-field-change-log-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java `page` defaults to `ID` ascending and has no business write side effects.
+- The table stores project change reasons and before/after values; values should be returned without mutation.
+- The route path is `salesprojectfieldchangelog`, not `saleprojectfieldchangelog`.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SalesProjectFieldChangeLogController.php
+php -l app\service\biz\SalesProjectFieldChangeLogService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/salesprojectfieldchangelog/page` is registered behind token middleware.
+- `GET /biz/salesprojectfieldchangelog/detail` is registered behind token middleware.
+- Page reads existing non-deleted change-log rows with Java-compatible pagination and safe sorting.
+- Detail returns the matching row by `id`.
+- Rows include `id`, `objectId`, `fieldName`, `fieldLabel`, `beforeValue`, `afterValue`, `changeReason`, audit fields, and tenant id.
+- Java source, database schema, change-log writes, sale-project writes, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/biz/salesprojectfieldchangelog/add`, `/edit`, or `/delete`.
+- Do not modify sale-project amount/change writes, project history generation, workflow, finance, or audit side effects.
 - Do not modify `F:\AI\projects\testJava\OA`.

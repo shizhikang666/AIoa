@@ -4864,3 +4864,49 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-04 - api-agent/frontend-agent - Sales Project Field Change Log Read-Only Compatibility
+
+### Completed Content
+
+- Added Java-compatible read-only sale-project field change log page and detail endpoints.
+- Matched Java `SalesProjectFieldChangeLogServiceImpl.page` default sorting by `ID` ascending and used a safe sorting whitelist for requested sort fields.
+- Returned change fields, audit fields, tenant id, project display name, and creator display name for copied sale-project history/detail consumers.
+- Kept Java source, database schema, change-log add/edit/delete, sale-project amount/change writes, workflow, finance, audit side effects, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/SalesProjectFieldChangeLogController.php`
+- `app/service/biz/SalesProjectFieldChangeLogService.php`
+- `route/app.php`
+- `docs/api/sales-project-field-change-log-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SalesProjectFieldChangeLogController.php`: passed.
+- `php -l app\service\biz\SalesProjectFieldChangeLogService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/salesprojectfieldchangelog/page` and `/biz/salesprojectfieldchangelog/detail` are registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Direct service smoke: passed on copied-data change log `2016674049317908481`; page returned total 5 rows, detail matched the sample id and exposed `objectId`, `projectName`, and `createUserName`.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- Imported SQL uses mixed collations between `sales_project_field_change_log.OBJECT_ID` and `biz_sale_project.ID`; the read join uses explicit collation without changing schema.
+- `/biz/salesprojectfieldchangelog/add`, `/edit`, and `/delete` remain intentionally deferred.
+- Sale-project amount/change writes and audit side effects remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.

@@ -2355,3 +2355,33 @@ Java exposes `/biz/saleprojectinvoiceItem/page` from `BizSaleProjectInvoiceItemC
 - `php think route:list` must list the added route.
 - Token requests should return existing non-deleted invoice item rows filtered by `invoiceId` and `warehousesId` when supplied.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sales Project Field Change Log Read-Only Routes
+
+## Request
+
+Register protected read-only sale-project field change log routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/salesprojectfieldchangelog/page` and `/biz/salesprojectfieldchangelog/detail` from `SalesProjectFieldChangeLogController`. These endpoints only read existing project field change logs and help preserve standalone controller-path compatibility for copied sale-project history/detail consumers.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected GET routes:
+
+- `GET /biz/salesprojectfieldchangelog/page`
+- `GET /biz/salesprojectfieldchangelog/detail`
+
+## Explicit Exclusions
+
+- No `/biz/salesprojectfieldchangelog/add`, `/edit`, or `/delete` route was added.
+- No sale-project amount/change write, change-log generation write, workflow, finance, audit side effect, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return existing non-deleted change-log rows.
+- Requests without token should return `code=401`.

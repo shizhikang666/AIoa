@@ -358,6 +358,11 @@ Route::group('biz/saleprojectfollowup', function () {
     Route::get('detail', 'biz.SaleProjectFollowUpController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/salesprojectfieldchangelog', function () {
+    Route::get('page', 'biz.SalesProjectFieldChangeLogController/page');
+    Route::get('detail', 'biz.SalesProjectFieldChangeLogController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/saleprojectinvoicing', function () {
     Route::get('page', 'biz.SaleProjectInvoicingController/page');
     Route::get('customer', 'biz.SaleProjectInvoicingController/customer');

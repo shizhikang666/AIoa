@@ -417,3 +417,23 @@ This slice supports copied sale-project invoice/detail components that need Java
 
 - Invoice item add/edit/delete routes remain deferred.
 - Invoice creation/edit, delivery shipment, stock, project state, and finance side effects remain deferred.
+
+## 2026-06-04 Sales Project Field Change Log Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports Java-compatible sale-project field change log browsing and keeps the copied sale-project detail/history data shape available to future frontend entries.
+
+### Result
+
+- `/biz/salesprojectfieldchangelog/page` is now routed as a protected read-only GET endpoint.
+- `/biz/salesprojectfieldchangelog/detail` is now routed as a protected read-only GET endpoint.
+- Rows expose `objectId`, `fieldName`, `fieldLabel`, `beforeValue`, `afterValue`, `changeReason`, audit fields, `projectName`, and `createUserName`.
+- Existing sale-project detail still receives nested `changeLogs`; this route adds compatibility for the standalone Java controller path.
+
+### Deferred
+
+- `/biz/salesprojectfieldchangelog/add`, `/edit`, and `/delete` remain deferred.
+- Sale-project amount/change writes, workflow, finance, and audit side effects remain deferred.

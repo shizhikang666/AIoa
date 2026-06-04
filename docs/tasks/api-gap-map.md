@@ -52,6 +52,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/bizpayroll` | Payroll page, my-page, and detail reads |
 | `biz/bizhistoryexcel` | Historical EXCEL page and detail reads |
 | `biz/saleprojectinvoiceItem` | Sale-project delivery invoice item page reads |
+| `biz/salesprojectfieldchangelog` | Sale-project field change log page and detail reads |
 | `biz/teamproject`, `biz/task` | Team project and task read slices |
 | `biz/process` | Basic workflow query/read slices |
 | `biz/ccrecords` | Workflow copy/CC record page and detail reads |
@@ -76,6 +77,7 @@ These groups should be handled before business writes, because they unlock more 
 | Group | Missing Read/Selector/Report Candidates |
 | --- | --- |
 | `biz/saleproject` | Core read routes covered: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; sale-project follow-up `page/detail` covered in `biz/saleprojectfollowup`; write routes remain deferred |
+| `biz/salesprojectfieldchangelog` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `biz/customer` | `detail`, `detail/list`, `page` |
 | `biz/org` | `detail`, `list`, `orgTreeSelector`, `page`, `tree`, `userSelector` |
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector` |
