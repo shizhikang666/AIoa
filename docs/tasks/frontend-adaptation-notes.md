@@ -318,3 +318,23 @@ This slice supports the copied `/sys/user` page grant dialogs by adding read-onl
 
 - `/sys/user/grantRole`, `/sys/user/grantResource`, and `/sys/user/grantPermission` remain deferred.
 - User add/edit/delete, enable/disable, reset password, import/export, and profile writes remain deferred.
+
+## 2026-06-04 Biz CC Records Read-Only Compatibility
+
+Agent: api-agent / workflow-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied workflow copy-task page at `snowy-admin-web/src/views/biz/biztask/copytask.vue`.
+
+### Result
+
+- `/biz/ccrecords/page` is now routed as a protected read-only GET endpoint.
+- `/biz/ccrecords/detail` is now routed as a protected read-only GET endpoint.
+- Page reads are filtered to the current token user, matching Java's `USER = StpUtil.getLoginId()` behavior.
+- Rows include `promoterName`, `userName`, and `instanceId` for the copied table and process-detail drawer.
+
+### Deferred
+
+- `/biz/ccrecords/delete` remains deferred because it mutates copy/CC records.
+- Workflow copy delegate writes and approval actions remain deferred.

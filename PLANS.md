@@ -4593,3 +4593,67 @@ git diff --check
 - Do not add `/sys/user/grantRole`, `/sys/user/grantResource`, or `/sys/user/grantPermission`.
 - Do not implement user add/edit/delete, enable/disable, reset password, import/export, upload/avatar, workflow, finance, or business writes.
 - Do not modify Java source or database schema.
+
+## Active Plan: api-agent/workflow-agent - Biz CC Records Read-Only Compatibility
+
+Status: completed on 2026-06-04 after route, syntax, service-smoke, and baseline checks.
+
+Date: 2026-06-04
+
+### 1. Current Goal
+
+Add Java-compatible read-only endpoints for workflow copy/CC records used by the copied Vue copy-task page.
+
+### 2. Involved Modules
+
+- api-agent route/controller compatibility
+- workflow-agent read-only copy/CC record context
+- frontend-agent visible copied page compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/CcRecordsController.php`
+- `app/service/biz/CcRecordsService.php`
+- `route/app.php`
+- `docs/api/biz-cc-records-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The copied page still exposes delete controls, but this slice must only implement reads.
+- Java page queries restrict rows to the current login user; ThinkPHP must preserve that behavior.
+- The process-detail drawer relies on `instanceId`, so the read response must preserve it.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\CcRecordsController.php
+php -l app\service\biz\CcRecordsService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/ccrecords/page` is registered behind token middleware.
+- `GET /biz/ccrecords/detail` is registered behind token middleware.
+- Page reads filter by the current bearer token user id.
+- Rows include `id`, `title`, `processId`, `promoterId`, `promoterName`, `instanceId`, `category`, `user`, `userName`, and audit fields.
+- Java source, database schema, workflow writes, delete behavior, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/biz/ccrecords/add`, `/edit`, or `/delete`.
+- Do not implement workflow copy delegate writes, approval/reject/start/cancel actions, task SSE, or business side effects.
+- Do not modify `F:\AI\projects\testJava\OA`.

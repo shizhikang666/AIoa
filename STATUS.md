@@ -4637,3 +4637,48 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice if verification passes.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-04 - api-agent/workflow-agent - Biz CC Records Read-Only Compatibility
+
+### Completed Content
+
+- Added read-only copy/CC record endpoints for the copied workflow copy-task page.
+- Implemented current-user filtering to match Java `BizCcRecordsServiceImpl.page`.
+- Returned `promoterName`, `userName`, and `instanceId` display/detail fields.
+- Kept copy/CC delete, add/edit, workflow copy delegate writes, approval/reject/start/cancel, Java source, database schema, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/CcRecordsController.php`
+- `app/service/biz/CcRecordsService.php`
+- `route/app.php`
+- `docs/api/biz-cc-records-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CcRecordsController.php`: passed.
+- `php -l app\service\biz\CcRecordsService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/ccrecords/page` and `/biz/ccrecords/detail` are registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Direct service smoke: passed on copied-data user `2007637932689985538`; total 18 rows, first page returned 2 rows, first detail matched `2007638333690613761`, current-user filter held, and `instanceId`, `promoterName`, and `userName` keys were present.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- The copied copy-task page still exposes delete controls, but delete is intentionally deferred.
+- Full workflow write runtime remains deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.

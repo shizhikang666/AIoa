@@ -407,6 +407,11 @@ Route::group('biz/bizpayroll', function () {
     Route::get('detail', 'biz.BizPayrollController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/ccrecords', function () {
+    Route::get('page', 'biz.CcRecordsController/page');
+    Route::get('detail', 'biz.CcRecordsController/detail');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/projectrate', function () {
     Route::get('page', 'biz.SaleProjectRateController/page');
     Route::get('list', 'biz.SaleProjectRateController/list');

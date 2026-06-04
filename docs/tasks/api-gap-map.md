@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 257 | From `php think route:list` after sys-user grant read-only route additions |
-| Endpoints already covered by route path | 251 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 87 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 259 | From `php think route:list` after CC-record read-only route additions |
+| Endpoints already covered by route path | 253 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 85 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -51,6 +51,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/bizpayroll` | Payroll page, my-page, and detail reads |
 | `biz/teamproject`, `biz/task` | Team project and task read slices |
 | `biz/process` | Basic workflow query/read slices |
+| `biz/ccrecords` | Workflow copy/CC record page and detail reads |
 
 ## Priority 1: Visible Frontend Follow-Ups
 
@@ -78,6 +79,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/dict` | `page`, `tree`, `treeAll` |
 | `biz/process` | Read aliases added for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and `query/list`; write/start/cancel routes remain deferred |
 | `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
+| `biz/ccrecords` | `page` and `detail` covered; `delete` remains deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
 | `biz/saleprojectreissueorder` | `list/query` |
 | `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
