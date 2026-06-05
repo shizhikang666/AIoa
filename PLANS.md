@@ -5558,3 +5558,69 @@ git diff --check
 - Do not implement `/biz/customer/add`, `/edit`, `/delete`, or `/head/edit`.
 - Do not implement attachment upload, physical file cleanup, customer owner reassignment, workflow, finance, stock, or notification side effects.
 - Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
+
+## Completed Plan: api-agent/frontend-agent - Sale Project Follow-Up Write Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, add/edit/logical-delete service smoke with `fileList`, backend/frontend reachability, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible sale-project follow-up `add`, `edit`, and `delete` endpoints so the copied sale-project detail follow-up tab and standalone follow-up page can save records.
+
+### 2. Involved Modules
+
+- api-agent sale-project follow-up write compatibility
+- frontend-agent copied `saleProjectFollowUpApi.js` wrapper compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SaleProjectFollowUpController.php`
+- `app/service/biz/SaleProjectFollowUpService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-followup-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Sale-project follow-up forms may include `fileList`; this slice may preserve the submitted metadata in `EXT_JSON` but must not implement upload/storage behavior.
+- Java physically removes rows, while this ThinkPHP project hides deleted rows through `DELETE_FLAG`; this slice should use logical delete.
+- Write permission must be checked from the owning `biz_sale_project` row before add, edit, or delete.
+- This slice must not trigger project-state, workflow, inventory, finance, notification, or file cleanup side effects.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectFollowUpController.php
+php -l app\service\biz\SaleProjectFollowUpService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/saleprojectfollowup/add`, `/edit`, and `/delete` are registered behind token middleware.
+- Add requires `projectId`, `followUpTime`, `category`, and `content`.
+- Add stores submitted `fileList` as `{"fileList":[...]}` in `EXT_JSON`, matching the Java service behavior.
+- Edit requires `id`, `projectId`, `followUpTime`, `category`, and `content`.
+- Delete accepts Java-style `[{id: ...}]`, `idList`, `ids`, or single `id` input and performs logical deletion.
+- Each write validates sale-project visibility using admin role/account, data-scope org IDs, or project owner fallback.
+- Java source, database schema, sale-project writes, file upload/storage cleanup, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/saleproject/add`, `/edit`, `/delete`, status edits, amount edits, workflow starts, or finance/inventory side effects.
+- Do not implement file upload, physical file cleanup, notification pushes, or attachment storage changes.
+- Do not modify Java source, database schema, Composer files, `.env`, or frontend source.

@@ -4737,6 +4737,58 @@ Agent: api-agent
 - Commit and push this customer follow-up write compatibility slice.
 - Continue with the next low-risk write candidate after confirming the visible customer follow-up form in the browser.
 
+## 2026-06-05 - api-agent/frontend-agent - Sale Project Follow-Up Write Compatibility
+
+### Completed Content
+
+- Added protected Java-compatible sale-project follow-up write endpoints: `/biz/saleprojectfollowup/add`, `/edit`, and `/delete`.
+- Added transaction-wrapped write methods to the existing sale-project follow-up service.
+- Preserved Java add behavior by storing submitted `fileList` under `EXT_JSON` as `{"fileList":[...]}`.
+- Added write permission checks against the owning sale project row, using admin account/roles, data-scope org ids, or project owner fallback.
+- Tightened edit safety by validating both the existing follow-up row's project and the submitted project when they differ.
+- Implemented logical delete through `DELETE_FLAG = DELETED` instead of physical deletion.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, sale-project writes, upload/storage cleanup, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/SaleProjectFollowUpController.php`
+- `app/service/biz/SaleProjectFollowUpService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-followup-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectFollowUpController.php`: passed.
+- `php -l app\service\biz\SaleProjectFollowUpService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; route count is 287 and `/biz/saleprojectfollowup/add`, `/edit`, and `/delete` are registered.
+- Direct service write smoke: passed; created follow-up `1780627713838248763`, verified `EXT_JSON.fileList[0].name = codex-smoke.txt`, edited content/category, then logically deleted it with `DELETE_FLAG = DELETED`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend reachability: `http://127.0.0.1:82/` returned HTTP 200.
+- Frontend reachability: `http://127.0.0.1:83/` returned HTTP 200.
+
+### Current Issues
+
+- File upload/storage implementation and physical file cleanup remain deferred.
+- Sale-project add/edit/delete, amount/status edits, workflow starts, finance, inventory, and notification side effects remain deferred.
+- The service smoke leaves one logically deleted smoke row in `sale_project_follow_up`; no visible active data remains.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-project follow-up write compatibility slice.
+- Continue with another low-risk write slice or browser-smoke the sale-project detail follow-up tab before moving into heavier sale-project state changes.
+
 ## 2026-06-05 - api-agent/frontend-agent - Gen Basic Metadata Read-Only Compatibility
 
 ### Completed Content

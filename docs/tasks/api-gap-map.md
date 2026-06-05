@@ -77,7 +77,7 @@ These groups should be handled before business writes, because they unlock more 
 
 | Group | Missing Read/Selector/Report Candidates |
 | --- | --- |
-| `biz/saleproject` | Core read routes covered: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; sale-project follow-up `page/detail` covered in `biz/saleprojectfollowup`; write routes remain deferred |
+| `biz/saleproject` | Core read routes covered: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; sale-project follow-up `page/detail/add/edit/delete` covered in `biz/saleprojectfollowup`; sale-project state/write routes remain deferred |
 | `biz/salesprojectfieldchangelog` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `biz/customer` | `detail`, `detail/list`, `page` |
 | `biz/org` | `detail`, `list`, `orgTreeSelector`, `page`, `tree`, `userSelector` |
@@ -110,7 +110,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | --- | --- | --- |
 | `biz/saleproject` | `add`, `edit`, `delete`, `amount/edit`, `deal/edit`, `cancel`, `history/add`, `special/add`, `visibility/edit` | Project state, finance, visibility, and history side effects |
 | `biz/bizdraft` | `saleproject/add` | Draft save mutates sale-project draft state and needs validation/audit coverage |
-| `biz/saleprojectfollowup` | `add`, `edit`, `delete` | Follow-up record and attachment metadata writes |
+| `biz/saleprojectfollowup` | File upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file and message side effects remain deferred |
 | `biz/saleprojectproductitemrelation` | `mark/edit` | Relation mark mutation |
 | `biz/saleprojectproductitem` | `mark/edit` | Product item mark mutation |
 | `biz/customer` | `add`, `edit`, `delete`, `head/edit` | Customer ownership and possibly encrypted fields |

@@ -635,3 +635,30 @@ This slice supports the copied customer follow-up wrapper:
 
 - Customer add/edit/delete and head-owner reassignment remain deferred.
 - Follow-up attachment upload/storage cleanup, notifications, and customer encrypted-field writes remain out of scope.
+
+## 2026-06-05 Sale Project Follow-Up Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied sale-project follow-up wrapper and visible sale-project detail follow-up tab:
+
+- `snowy-admin-web/src/api/biz/saleProjectFollowUpApi.js`
+- `snowy-admin-web/src/views/biz/saleproject/saleProjectTab/followup/index.vue`
+- `snowy-admin-web/src/views/biz/saleprojectfollowup/form.vue`
+
+### Result
+
+- `/biz/saleprojectfollowup/add` is now routed as a protected POST endpoint.
+- `/biz/saleprojectfollowup/edit` is now routed as a protected POST endpoint.
+- `/biz/saleprojectfollowup/delete` is now routed as a protected POST endpoint.
+- The sale-project detail tab can submit a follow-up record with `projectId`, `followUpTime`, `category`, `content`, and optional `fileList`.
+- Submitted `fileList` is stored under `EXT_JSON` as `{"fileList":[...]}`, preserving the frontend's existing parser.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Writes validate permission through the owning sale project and use logical delete for data safety.
+
+### Deferred
+
+- File upload/storage implementation and physical file cleanup remain deferred.
+- Sale-project state, workflow, finance, inventory, and notification side effects remain out of scope.

@@ -13,6 +13,7 @@ use think\facade\Db;
 class SaleProjectFollowUpService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
 
     private const FOLLOW_UP_FIELDS = <<<SQL
 f.ID AS ID,
@@ -104,6 +105,103 @@ SQL;
         }
 
         return $result;
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $projectId = $this->requiredInput($input, 'projectId');
+        $followUpTime = $this->requiredInput($input, 'followUpTime');
+        $category = $this->requiredInput($input, 'category');
+        $content = $this->requiredInput($input, 'content');
+
+        return Db::transaction(function () use ($projectId, $followUpTime, $category, $content, $input, $payload): array {
+            $project = $this->assertProjectWritable($projectId, $payload, 'add');
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $id = $this->newId();
+            $row = [
+                'ID' => $id,
+                'PROJECT_ID' => $projectId,
+                'FOLLOW_UP_TIME' => $followUpTime,
+                'CATEGORY' => $category,
+                'CONTENT' => $content,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantId($input, $payload, $project),
+                'EXT_JSON' => $this->extJsonForAdd($input),
+            ];
+
+            Db::name('sale_project_follow_up')->insert($row);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $projectId = $this->requiredInput($input, 'projectId');
+        $followUpTime = $this->requiredInput($input, 'followUpTime');
+        $category = $this->requiredInput($input, 'category');
+        $content = $this->requiredInput($input, 'content');
+
+        return Db::transaction(function () use ($id, $projectId, $followUpTime, $category, $content, $payload): array {
+            $followUp = $this->activeFollowUp($id);
+            $this->assertProjectWritable((string)$followUp['PROJECT_ID'], $payload, 'edit');
+            if ((string)$followUp['PROJECT_ID'] !== $projectId) {
+                $this->assertProjectWritable($projectId, $payload, 'edit');
+            }
+
+            Db::name('sale_project_follow_up')
+                ->where('ID', $id)
+                ->update([
+                    'PROJECT_ID' => $projectId,
+                    'FOLLOW_UP_TIME' => $followUpTime,
+                    'CATEGORY' => $category,
+                    'CONTENT' => $content,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+                ]);
+
+            return ['id' => $id];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->stringList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $query = Db::name('sale_project_follow_up')->whereIn('ID', $idList);
+            $this->whereNotDeleted($query, 'DELETE_FLAG');
+            $rows = $query->select()->toArray();
+            if (count($rows) !== count($idList)) {
+                throw new RuntimeException('sale project follow-up not found', 404);
+            }
+
+            foreach ($rows as $row) {
+                $this->assertProjectWritable((string)$row['PROJECT_ID'], $payload, 'delete');
+            }
+
+            $updated = Db::name('sale_project_follow_up')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
     }
 
     private function followUpQuery(array $filters, array $payload, bool $applyDataScope)
@@ -246,6 +344,94 @@ SQL;
         });
     }
 
+    private function activeFollowUp(string $id): array
+    {
+        $query = Db::name('sale_project_follow_up')->where('ID', $id);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('sale project follow-up not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertProjectWritable(string $projectId, array $payload, string $action): array
+    {
+        $query = Db::name('biz_sale_project')->where('ID', $projectId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $project = $query->find();
+        if (!is_array($project) || $project === []) {
+            throw new RuntimeException('sale project not found', 404);
+        }
+
+        if ($this->canSeeAll($payload)) {
+            return $project;
+        }
+
+        $projectOrg = trim((string)($project['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== []) {
+            if (!in_array($projectOrg, $scopeOrgIds, true)) {
+                throw new RuntimeException("no permission to {$action} this sale project follow-up", 403);
+            }
+
+            return $project;
+        }
+
+        $projectUser = trim((string)($project['USER'] ?? ''));
+        $userId = $this->currentUserId($payload);
+        if ($userId === '' || $projectUser !== $userId) {
+            throw new RuntimeException("no permission to {$action} this sale project follow-up", 403);
+        }
+
+        return $project;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function extJsonForAdd(array $input): ?string
+    {
+        if (!empty($input['fileList']) && is_array($input['fileList'])) {
+            return json_encode(['fileList' => $input['fileList']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        if (array_key_exists('extJson', $input)) {
+            if (is_array($input['extJson'])) {
+                return json_encode($input['extJson'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+
+            return $input['extJson'] !== null ? (string)$input['extJson'] : null;
+        }
+
+        return null;
+    }
+
+    private function tenantId(array $input, array $payload, array $project): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? $project['TENANT_ID'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
+    }
+
     /**
      * @return array<int, string>
      */
@@ -359,7 +545,13 @@ SQL;
             return [];
         }
 
-        return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
+        return array_values(array_unique(array_filter(array_map(static function (mixed $item): string {
+            if (is_array($item)) {
+                return trim((string)($item['id'] ?? $item['ID'] ?? ''));
+            }
+
+            return trim((string)$item);
+        }, $value))));
     }
 
     private function value(array $row, string ...$keys): mixed

@@ -2664,3 +2664,35 @@ Java exposes `/biz/customerfollowup/add`, `/edit`, and `/delete`, and the copied
 - `php think route:list` must list the added routes.
 - Token requests should be able to add, edit, and logically delete a customer follow-up row when the current user can write the owning customer.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Follow-Up Write Routes
+
+## Request
+
+Register protected sale-project follow-up write routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/saleprojectfollowup/add`, `/edit`, and `/delete`, and the copied frontend `saleProjectFollowUpApi.js` calls these endpoints from the sale-project detail follow-up tab and standalone follow-up page.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/saleprojectfollowup/add`
+- `POST /biz/saleprojectfollowup/edit`
+- `POST /biz/saleprojectfollowup/delete`
+
+## Explicit Exclusions
+
+- No `/biz/saleproject/add`, `/edit`, `/delete`, status edit, amount edit, workflow start, finance, inventory, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- No file upload/storage implementation, physical file cleanup, or notification side effect was added.
+- Delete uses logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should be able to add, edit, and logically delete a sale-project follow-up row when the current user can write the owning sale project.
+- Requests without token should return `code=401`.
