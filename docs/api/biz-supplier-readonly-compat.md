@@ -1,12 +1,12 @@
-# Biz Supplier Read-Only Compatibility
+# Biz Supplier API Compatibility
 
-Date: 2026-05-29
+Date: 2026-06-05
 
-Agent: merge-agent
+Agent: api-agent / frontend-agent
 
 ## Scope
 
-This slice adds old-frontend-compatible read-only endpoints for supplier master data.
+This document maps the Java supplier master-data endpoints currently supported by the ThinkPHP compatibility layer.
 
 Java inputs:
 
@@ -21,6 +21,9 @@ ThinkPHP outputs:
 - `GET /biz/supplier/page`
 - `GET /biz/supplier/list`
 - `GET /biz/supplier/list/query/name`
+- `POST /biz/supplier/add`
+- `POST /biz/supplier/edit`
+- `POST /biz/supplier/delete`
 - `GET /biz/supplier/detail`
 
 ## Behavior
@@ -32,15 +35,67 @@ ThinkPHP outputs:
 - Supplier rows are returned in lower-camel field names to match Java JSON serialization.
 - Reads preserve the imported physical schema, including lower-case `org` in `supplier`.
 
+## Write Behavior
+
+### Supplier add
+
+`POST /biz/supplier/add`
+
+Required fields:
+
+- `name`
+- `contacts`
+- `phone`
+
+Supported mutable fields:
+
+- `aliasName`
+- `bankName`
+- `bankAccount`
+- `status`
+- `enterpriseNature`
+- `taxRegistrationNumber`
+- `paymentMethod`
+- `sortCode`
+- `extJson`
+
+If `status` is empty, the endpoint defaults it to `ENABLE`, matching Java `SupplierServiceImpl.add`. The endpoint writes `DELETE_FLAG = NOT_DELETE`, create audit fields, tenant id, and the current token user's organization into the lower-case physical `org` column.
+
+### Supplier edit
+
+`POST /biz/supplier/edit`
+
+Required fields:
+
+- `id`
+- `name`
+- `contacts`
+- `phone`
+- `status`
+
+The endpoint validates that the target supplier is active and writable by the current token user. Admin-compatible users can write all tenant rows; scoped users can write rows in their scoped organizations; otherwise the creator can write their own supplier rows.
+
+### Supplier delete
+
+`POST /biz/supplier/delete`
+
+Accepted input shapes:
+
+- `[{"id": "..."}]`
+- `{"idList": ["..."]}`
+- `{"ids": ["..."]}`
+- `{"id": "..."}`
+
+The endpoint validates every target supplier through the current user's write scope, then performs a logical delete by setting `DELETE_FLAG = DELETED`. It does not physically remove imported supplier data.
+
 ## Deferred
 
-- No `/biz/supplier/add` route.
-- No `/biz/supplier/edit` route.
-- No `/biz/supplier/delete` route.
-- No supplier validation/write behavior.
+- No supplier import/export route.
+- No purchase, payment, procurement, inventory, or workflow side effects.
 - No Java source changes.
 
 ## Notes
 
 - Java page reads apply login-user data scope. This slice applies tenant filtering from the bearer token and, when present, filters supplier `org` by token data-scope org ids.
 - If no data-scope org ids are present in the token, the slice does not add the Java fallback `CREATE_USER = loginId` constraint yet, because the current auth token stores a simplified data-scope payload and imported superadmin data may otherwise become invisible.
+- Write routes use a stricter scope: admin-compatible roles, scoped organization, or matching `CREATE_USER`.

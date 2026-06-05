@@ -3147,3 +3147,36 @@ Java exposes `/biz/customer/add`, `/edit`, and `/delete`, and the copied Vue cus
 - Add should accept the copied customer form payload and default owner/org from the current token user when absent.
 - Edit/delete should validate customer write access through owner/org data scope.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Supplier Base Maintenance Routes
+
+## Request
+
+Register protected supplier add, edit, and delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/supplier/add`, `/edit`, and `/delete`, and the copied Vue supplier page calls these endpoints from the supplier table and form. Existing ThinkPHP routes already cover supplier `page`, `list`, `list/query/name`, and `detail`; this slice opens only base supplier-row maintenance.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/supplier/add`
+- `POST /biz/supplier/edit`
+- `POST /biz/supplier/delete`
+
+## Explicit Exclusions
+
+- No supplier import/export route was added.
+- No purchase, payment, procurement, inventory, workflow, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Deletes use logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Add should validate Java-required fields and default empty `status` to `ENABLE`.
+- Edit/delete should validate supplier write access through admin, scoped organization, or creator scope.
+- Requests without token should return `code=401`.

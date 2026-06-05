@@ -1034,3 +1034,31 @@ This slice supports the copied customer maintenance wrapper and visible customer
 
 - `/biz/customer/head/edit` remains deferred.
 - SM4 plaintext phone/detail-address compatibility, file upload/storage cleanup, customer data-change events, and sale-project/customer side effects remain out of scope.
+
+## 2026-06-05 Supplier Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied supplier maintenance wrapper and visible supplier table/form consumers:
+
+- `snowy-admin-web/src/api/biz/supplierApi.js`
+- `snowy-admin-web/src/views/biz/supplier/index.vue`
+- `snowy-admin-web/src/views/biz/supplier/form.vue`
+
+### Result
+
+- `/biz/supplier/add` is now routed as a protected POST endpoint.
+- `/biz/supplier/edit` is now routed as a protected POST endpoint.
+- `/biz/supplier/delete` is now routed as a protected POST endpoint.
+- Add requires `name`, `contacts`, and `phone`; empty `status` defaults to `ENABLE`.
+- Add writes the current token user's organization to the lower-case physical `supplier.org` column.
+- Edit requires `id`, `name`, `contacts`, `phone`, and `status`, and validates supplier write scope.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED`; imported supplier rows are not physically removed.
+
+### Deferred
+
+- Supplier import/export remains deferred.
+- Purchase, payment, procurement, inventory, workflow, and other supplier side effects remain out of scope.

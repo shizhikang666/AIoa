@@ -6557,3 +6557,72 @@ git diff --check
 
 - Do not implement `/biz/customer/head/edit`.
 - Do not implement `dev/file/upload*` storage routes, customer import/export, SM4 encryption migration, Java data-change event broadcasting, sale-project/customer side effects, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: api-agent/frontend-agent - Supplier Base Maintenance Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible protected supplier base maintenance endpoints used by the copied supplier list and supplier form:
+
+- `POST /biz/supplier/add`
+- `POST /biz/supplier/edit`
+- `POST /biz/supplier/delete`
+
+This slice only maintains base `supplier` rows and keeps purchase/order/payment side effects out of scope.
+
+### 2. Involved Modules
+
+- api-agent supplier API compatibility
+- frontend-agent copied supplier page/form compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SupplierController.php`
+- `app/service/biz/SupplierService.php`
+- `route/app.php`
+- `docs/api/biz-supplier-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java uses MyBatis logic delete; this ThinkPHP slice should preserve imported data by setting `DELETE_FLAG = DELETED`.
+- Supplier table uses lower-case physical column `org`, so writes must preserve the exact column spelling.
+- Supplier data is used by purchase/payment pages, but those transactional side effects must not be introduced in this slice.
+- Java data-scope fallback filters page reads by `CREATE_USER`; this slice should conservatively validate writes against admin roles, scoped org, or current creator.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SupplierController.php
+php -l app\service\biz\SupplierService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Supplier `add`, `edit`, and `delete` routes are registered behind token middleware.
+- Add requires Java-required fields `name`, `contacts`, and `phone`, defaults empty `status` to `ENABLE`, writes `DELETE_FLAG = NOT_DELETE`, audit fields, tenant id, and current token org.
+- Edit requires `id`, `name`, `contacts`, `phone`, and `status`, validates active supplier write scope, updates only submitted base fields, and writes update audit fields.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or single `id`, validates active supplier write scope, and logically deletes selected rows with `DELETE_FLAG = DELETED`.
+- Java source, database schema, frontend source, purchase/payment side effects, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement purchase, payment, procurement, inventory, workflow, supplier import/export, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

@@ -302,3 +302,22 @@ Explicit non-goals:
 - No SM4 migration.
 - No Java source, schema, Composer, `.env`, or frontend source changes.
 
+## 2026-06-05 Supplier Base Maintenance Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SupplierController`, `SupplierServiceImpl`, supplier add/edit/delete params, copied `supplierApi.js`, and the ThinkPHP supplier read service.
+2. Added only base supplier add, edit, and logical delete handlers.
+3. Preserved the imported lower-case physical `supplier.org` column.
+4. Validated writes through admin-compatible roles, scoped organization ids, or matching `CREATE_USER`.
+5. Registered only `/biz/supplier/add`, `/edit`, and `/delete` in `route/app.php`.
+6. Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No supplier import/export.
+- No purchase, payment, procurement, inventory, or workflow side effects.
+- No Java source, schema, Composer, `.env`, or frontend source changes.
+

@@ -6175,3 +6175,53 @@ Agent: api-agent
 
 - Commit and push this customer base maintenance compatibility slice.
 - Continue the next isolated business compatibility slice, likely a safe Java-exposed frontend write with limited side effects, before opening sale-project state, finance, inventory, or workflow transition writes.
+
+## 2026-06-05 17:48 +08:00 - api-agent/frontend-agent - Supplier Base Maintenance Compatibility
+
+### Completed
+
+- Added protected compatibility routes for supplier add, edit, and delete.
+- Added `SupplierController` POST handlers with JSON/form body and Java-style delete payload compatibility.
+- Added `SupplierService` base supplier maintenance logic for Java-required validation, whitelisted field mapping, lower-case `org` column preservation, write-scope validation, audit fields, default `ENABLE` status, and logical deletion.
+- Updated supplier API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/SupplierController.php`
+- `app/service/biz/SupplierService.php`
+- `route/app.php`
+- `docs/api/biz-supplier-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SupplierController.php`: passed.
+- `php -l app\service\biz\SupplierService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; supplier `1780652856134702052` was added with default `ENABLE`, edited, and logically deleted with `DELETE_FLAG = DELETED`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 325 route entries; supplier `add`, `edit`, and `delete` listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 232 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP smoke for `POST /biz/supplier/add`: returned `code=401`.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- Supplier import/export remains deferred.
+- Purchase, payment, procurement, inventory, workflow, and other supplier side effects remain deferred.
+- The smoke test intentionally leaves a logically deleted supplier row in the local database for traceability instead of physically deleting data.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this supplier base maintenance compatibility slice.
+- Continue another isolated low-risk master-data or page-local write endpoint before opening sale-project state, finance, inventory, or workflow transition writes.

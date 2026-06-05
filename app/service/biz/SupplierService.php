@@ -13,6 +13,7 @@ use think\facade\Db;
 class SupplierService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const ENABLE = 'ENABLE';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
@@ -96,6 +97,163 @@ class SupplierService
         }
 
         return $this->supplierRows([$row])[0];
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $this->requiredInput($input, 'name');
+        $this->requiredInput($input, 'contacts');
+        $this->requiredInput($input, 'phone');
+
+        return Db::transaction(function () use ($input, $payload): array {
+            $userId = $this->currentUserId($payload);
+            $id = $this->newId();
+            $row = [
+                'ID' => $id,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => date('Y-m-d H:i:s'),
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantId($input, $payload),
+                'org' => $this->defaultOrgId($payload),
+            ];
+
+            $this->applySupplierInput($row, $input);
+            if (empty($row['STATUS'])) {
+                $row['STATUS'] = self::ENABLE;
+            }
+            $this->assertNewSupplierWritable($row, $payload);
+
+            Db::name('supplier')->insert($row);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $this->requiredInput($input, 'name');
+        $this->requiredInput($input, 'contacts');
+        $this->requiredInput($input, 'phone');
+        $this->requiredInput($input, 'status');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $this->assertSupplierWritable($id, $payload, 'edit');
+            $userId = $this->currentUserId($payload);
+            $row = [
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+            ];
+
+            $this->applySupplierInput($row, $input);
+
+            $updated = Db::name('supplier')
+                ->where('ID', $id)
+                ->update($row);
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->stringList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            foreach ($idList as $id) {
+                $this->assertSupplierWritable($id, $payload, 'delete');
+            }
+
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('supplier')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
+    }
+
+    private function applySupplierInput(array &$row, array $input): void
+    {
+        $fields = [
+            'name' => 'NAME',
+            'contacts' => 'CONTACTS',
+            'phone' => 'PHONE',
+            'bankName' => 'BANK_NAME',
+            'bankAccount' => 'BANK_ACCOUNT',
+            'status' => 'STATUS',
+            'enterpriseNature' => 'ENTERPRISE_NATURE',
+            'taxRegistrationNumber' => 'TAX_REGISTRATION_NUMBER',
+            'paymentMethod' => 'PAYMENT_METHOD',
+            'sortCode' => 'SORT_CODE',
+            'aliasName' => 'ALIAS_NAME',
+            'extJson' => 'EXT_JSON',
+        ];
+
+        foreach ($fields as $inputKey => $column) {
+            if (!array_key_exists($inputKey, $input)) {
+                continue;
+            }
+
+            $row[$column] = $inputKey === 'sortCode'
+                ? $this->nullableInt($input[$inputKey])
+                : $this->nullableString($input[$inputKey]);
+        }
+    }
+
+    private function assertSupplierWritable(string $id, array $payload, string $action): array
+    {
+        $row = $this->activeSupplier($id, $payload);
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $supplierOrg = trim((string)($row['org'] ?? $row['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && in_array($supplierOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action} this supplier", 403);
+    }
+
+    private function assertNewSupplierWritable(array $row, array $payload): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $supplierOrg = trim((string)($row['org'] ?? ''));
+        if ($scopeOrgIds !== [] && in_array($supplierOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to add this supplier', 403);
     }
 
     private function supplierQuery(array $filters, array $payload, bool $applyDataScope)
@@ -232,18 +390,168 @@ class SupplierService
      */
     private function scopeOrgIds(array $payload): array
     {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
         $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
-        if (!is_array($scopes)) {
+        if (is_array($scopes)) {
+            $ids = array_merge($ids, array_map(static function (mixed $scope): string {
+                if (!is_array($scope)) {
+                    return '';
+                }
+
+                return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            }, $scopes));
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function activeSupplier(string $id, array $payload): array
+    {
+        $query = Db::name('supplier')->where('ID', $id);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('supplier not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function whereNotDeleted($query, string $column): void
+    {
+        $query->where(function ($query) use ($column): void {
+            $query->whereNull($column)->whereOr($column, '=', self::NOT_DELETE);
+        });
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    private function tenantId(array $input, array $payload): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function defaultOrgId(array $payload): ?string
+    {
+        $orgId = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($orgId !== '') {
+            return $orgId;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId === '') {
+            return null;
+        }
+
+        $user = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->field('ORG_ID')
+            ->find();
+        if (!is_array($user) || $user === []) {
+            return null;
+        }
+
+        $orgId = trim((string)($user['ORG_ID'] ?? ''));
+
+        return $orgId !== '' ? $orgId : null;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = is_array($value) ? implode(',', array_map('strval', $value)) : (string)$value;
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        $value = trim((string)$value);
+
+        return $value !== '' ? (int)$value : null;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
             return [];
         }
 
-        return array_values(array_unique(array_filter(array_map(static function (mixed $scope): string {
-            if (!is_array($scope)) {
-                return '';
+        return array_values(array_unique(array_filter(array_map(static function (mixed $item): string {
+            if (is_array($item)) {
+                return trim((string)($item['id'] ?? $item['ID'] ?? ''));
             }
 
-            return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
-        }, $scopes))));
+            return trim((string)$item);
+        }, $value))));
     }
 
     private function pagination(array $filters): array

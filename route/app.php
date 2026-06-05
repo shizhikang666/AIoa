@@ -238,6 +238,9 @@ Route::group('biz/supplier', function () {
     Route::get('page', 'biz.SupplierController/page');
     Route::get('list', 'biz.SupplierController/list');
     Route::get('list/query/name', 'biz.SupplierController/queryByName');
+    Route::post('add', 'biz.SupplierController/add');
+    Route::post('edit', 'biz.SupplierController/edit');
+    Route::post('delete', 'biz.SupplierController/delete');
     Route::get('detail', 'biz.SupplierController/detail');
 })->middleware(AuthMiddleware::class);
 
