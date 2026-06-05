@@ -30,6 +30,16 @@ class TeamProjectTaskCommentController extends BaseSysController
         return $this->guard(fn () => $this->readService->taskCommentAdd($this->body($request), $this->authPayload($request)));
     }
 
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->readService->taskCommentEdit($this->body($request), $this->authPayload($request)));
+    }
+
+    public function delete(Request $request): Response
+    {
+        return $this->guard(fn () => $this->readService->taskCommentDelete($this->body($request), $this->authPayload($request)));
+    }
+
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->readService->taskCommentDetail($this->requiredString($request, 'id'), $this->authPayload($request)));

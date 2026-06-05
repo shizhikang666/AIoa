@@ -6207,3 +6207,73 @@ git diff --check
 - Do not implement `/biz/bizteamprojecttaskcomment/edit` or `/delete`.
 - Do not implement `/biz/bizteamprojecttask/add`, `/edit`, or `/delete`.
 - Do not implement task-category writes, task-user writes, task status/progress/content writes, notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Completed Plan: api-agent/frontend-agent - Team Project Task Comment Maintenance Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible protected task-comment maintenance endpoints for copied API wrapper completeness:
+
+- `POST /biz/bizteamprojecttaskcomment/edit`
+- `POST /biz/bizteamprojecttaskcomment/delete`
+
+This slice only maintains user comments with `CATEGORY = COMMENT`. Generated task logs with `CATEGORY = LOG` remain read-only to avoid corrupting task state/audit history.
+
+### 2. Involved Modules
+
+- api-agent team-project task comment maintenance compatibility
+- frontend-agent copied task-comment API compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectTaskCommentController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/api/team-project-comment-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java physically deletes task comments; this ThinkPHP refactor should preserve imported data with logical deletion.
+- Task logs are stored in the same table as user comments, so this slice must avoid editing or deleting `LOG` rows.
+- Maintenance writes need a narrow permission boundary: comment creator, imported project `delComment`, or task-level `MANAGE`.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectTaskCommentController.php
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizteamprojecttaskcomment/edit` and `/delete` are registered behind token middleware.
+- Edit requires `id`, validates project membership, rejects `LOG` rows, and updates only `CONTENT_TEXT`, `EXT_JSON`, and audit fields.
+- Edit accepts `files`/`file`/`fileList` and stores them as `{"file":[...]}`; if raw `extJson` is provided and no file list is provided, it may be preserved as-is.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or single `id`, validates project membership, rejects `LOG` rows, and logically deletes rows with `DELETE_FLAG = DELETED`.
+- Maintenance is allowed for the comment creator, a project user with imported `delComment`, or a task-level `MANAGE` user.
+- Java source, database schema, frontend source, task add/edit/delete, category writes, task status/progress/content writes, notifications, data-change events, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not edit or delete `CATEGORY = LOG` rows.
+- Do not implement `/biz/bizteamprojecttask/add`, `/edit`, or `/delete`.
+- Do not implement task-category writes, task-user writes, task status/progress/content writes, notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

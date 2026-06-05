@@ -892,3 +892,29 @@ This slice supports the copied team-project task detail comment submit form:
 
 - `/biz/bizteamprojecttaskcomment/edit` and `/delete` remain deferred.
 - Task add/edit/delete, task category writes, task status/progress/content writes, notification push, and data-change events remain out of scope.
+
+## 2026-06-05 Team Project Task Comment Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice completes the copied team-project task-comment wrapper maintenance endpoints:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskCommentApi.js`
+
+### Result
+
+- `/biz/bizteamprojecttaskcomment/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttaskcomment/delete` is now routed as a protected POST endpoint.
+- Edit accepts `id`, optional `contentText`, optional `files`/`file`/`fileList`, and optional raw `extJson`.
+- File lists are stored under `EXT_JSON` as `{"file":[...]}`.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Maintenance is limited to `CATEGORY = COMMENT` rows. Generated `CATEGORY = LOG` rows remain read-only.
+- Maintenance is allowed for the comment creator, a project user with imported `delComment`, or a task-level `MANAGE` user.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Generated task-log edit/delete remains deferred.
+- Task add/edit/delete, task category writes, task status/progress/content writes, notification push, and data-change events remain out of scope.

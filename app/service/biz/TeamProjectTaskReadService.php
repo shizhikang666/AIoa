@@ -655,6 +655,61 @@ SQL;
         });
     }
 
+    public function taskCommentEdit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $comment = $this->activeTaskCommentForWrite($id, $payload, 'edit task comment');
+            $this->assertTaskCommentMaintainer($comment, $payload, 'edit task comment');
+            $now = date('Y-m-d H:i:s');
+
+            $updates = [
+                'CONTENT_TEXT' => (string)($input['contentText'] ?? $comment['CONTENT_TEXT'] ?? ''),
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $this->currentUserId($payload),
+            ];
+
+            if ($this->hasFileInput($input)) {
+                $updates['EXT_JSON'] = json_encode(['file' => $this->fileList($input)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            } elseif (array_key_exists('extJson', $input)) {
+                $updates['EXT_JSON'] = (string)$input['extJson'];
+            }
+
+            $query = Db::name('biz_team_project_task_comment')->where('ID', $id);
+            $this->whereNotDeleted($query, 'DELETE_FLAG');
+            $query->update($updates);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function taskCommentDelete(array $input, array $payload = []): array
+    {
+        $ids = $this->idList($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $affected = 0;
+
+            foreach ($ids as $id) {
+                $comment = $this->activeTaskCommentForWrite($id, $payload, 'delete task comment');
+                $this->assertTaskCommentMaintainer($comment, $payload, 'delete task comment');
+
+                $query = Db::name('biz_team_project_task_comment')->where('ID', $id);
+                $this->whereNotDeleted($query, 'DELETE_FLAG');
+                $affected += $query->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId,
+                ]);
+            }
+
+            return ['ids' => $ids, 'count' => $affected];
+        });
+    }
+
     private function categoryQuery(array $filters, array $payload)
     {
         $query = Db::name('biz_team_project_task_category')
@@ -973,6 +1028,35 @@ SQL;
         return $task;
     }
 
+    private function activeTaskCommentForWrite(string $commentId, array $payload, string $action): array
+    {
+        $query = Db::name('biz_team_project_task_comment')
+            ->alias('tc')
+            ->leftJoin('biz_team_project_task t', 't.ID = tc.TEAM_PROJECT_TASK_ID')
+            ->leftJoin('biz_team_project p', 'p.ID = tc.TEAM_PROJECT_ID')
+            ->where('tc.ID', $commentId);
+        $this->whereNotDeleted($query, 'tc.DELETE_FLAG');
+        $this->whereNotDeleted($query, 't.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+
+        $comment = $query
+            ->field('tc.*, t.TEAM_PROJECT_ID AS TASK_TEAM_PROJECT_ID, p.TENANT_ID AS PROJECT_TENANT_ID')
+            ->find();
+        if (!is_array($comment) || $comment === []) {
+            throw new RuntimeException('team project task comment not found', 404);
+        }
+        if ((string)($comment['CATEGORY'] ?? '') !== 'COMMENT') {
+            throw new RuntimeException('task log maintenance is read-only', 403);
+        }
+
+        $teamProjectId = (string)($comment['TEAM_PROJECT_ID'] ?? $comment['TASK_TEAM_PROJECT_ID'] ?? '');
+        $project = $this->assertTeamProjectMember($teamProjectId, $payload, $action);
+        $comment['TEAM_PROJECT_ID'] = $teamProjectId;
+        $comment['TENANT_ID'] = $comment['TENANT_ID'] ?? ($comment['PROJECT_TENANT_ID'] ?? $project['TENANT_ID'] ?? null);
+
+        return $comment;
+    }
+
     private function assertTeamProjectMember(string $teamProjectId, array $payload, string $action): array
     {
         $userId = $this->currentUserId($payload);
@@ -1043,6 +1127,37 @@ SQL;
         }
 
         throw new RuntimeException('no permission to edit task users on this team project', 403);
+    }
+
+    private function assertTaskCommentMaintainer(array $comment, array $payload, string $action): void
+    {
+        $userId = $this->currentUserId($payload);
+        if ((string)($comment['CREATE_USER'] ?? '') === $userId) {
+            return;
+        }
+
+        $teamProjectId = (string)$comment['TEAM_PROJECT_ID'];
+        if ($this->hasTeamProjectPermission($teamProjectId, $payload, 'delComment')) {
+            return;
+        }
+
+        if ($this->hasTaskManageRole((string)$comment['TEAM_PROJECT_TASK_ID'], $teamProjectId, $payload)) {
+            return;
+        }
+
+        throw new RuntimeException("no permission to {$action} on this team project", 403);
+    }
+
+    private function hasTaskManageRole(string $taskId, string $teamProjectId, array $payload): bool
+    {
+        $query = Db::name('biz_team_project_task_user')
+            ->where('TEAM_PROJECT_TASK_ID', $taskId)
+            ->where('TEAM_PROJECT_ID', $teamProjectId)
+            ->where('USER_ID', $this->currentUserId($payload))
+            ->where('ROLE_TYPE', 'MANAGE');
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        return $query->count() > 0;
     }
 
     /**
@@ -1465,6 +1580,11 @@ SQL;
         $raw = $input['files'] ?? $input['file'] ?? $input['fileList'] ?? [];
 
         return is_array($raw) ? array_values($raw) : [];
+    }
+
+    private function hasFileInput(array $input): bool
+    {
+        return array_key_exists('files', $input) || array_key_exists('file', $input) || array_key_exists('fileList', $input);
     }
 
     private function tenantIdFromProject(array $payload, array $project): string

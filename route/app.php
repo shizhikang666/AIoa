@@ -337,6 +337,8 @@ Route::group('biz/bizteamprojecttaskcomment', function () {
     Route::get('page', 'biz.TeamProjectTaskCommentController/page');
     Route::get('list', 'biz.TeamProjectTaskCommentController/list');
     Route::post('add', 'biz.TeamProjectTaskCommentController/add');
+    Route::post('edit', 'biz.TeamProjectTaskCommentController/edit');
+    Route::post('delete', 'biz.TeamProjectTaskCommentController/delete');
     Route::get('detail', 'biz.TeamProjectTaskCommentController/detail');
 })->middleware(AuthMiddleware::class);
 

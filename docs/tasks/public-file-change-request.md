@@ -2978,3 +2978,36 @@ Java exposes `/biz/bizteamprojecttaskcomment/add`, and the copied Vue task detai
 - `php think route:list` must list the added route.
 - Token requests should be able to add a task comment only when the current user is a non-deleted member of the owning team project.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Team Project Task Comment Maintenance Routes
+
+## Request
+
+Register protected team-project task comment edit and delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizteamprojecttaskcomment/edit` and `/biz/bizteamprojecttaskcomment/delete`, and the copied Vue API wrapper includes both maintenance calls. Existing ThinkPHP routes now cover task-comment reads and add; this slice completes base user-comment maintenance without opening task state or generated-log mutations.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/bizteamprojecttaskcomment/edit`
+- `POST /biz/bizteamprojecttaskcomment/delete`
+
+## Explicit Exclusions
+
+- No generated `CATEGORY = LOG` task-comment maintenance was added.
+- No task add/edit/delete route was added.
+- No task-category write, task-user standalone write, task status/progress/content write, notification push, data-change event, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Deletes use logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should be able to maintain only `CATEGORY = COMMENT` rows when the current user is the comment creator, has imported project `delComment`, or has task-level `MANAGE`.
+- Generated `CATEGORY = LOG` rows should remain read-only.
+- Requests without token should return `code=401`.

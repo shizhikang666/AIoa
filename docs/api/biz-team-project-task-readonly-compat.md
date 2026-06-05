@@ -43,6 +43,8 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizteamprojecttaskcomment/page` | Task comment/log page. |
 | GET | `/biz/bizteamprojecttaskcomment/list` | Task comment/log list for the task detail drawer. |
 | POST | `/biz/bizteamprojecttaskcomment/add` | Add a user comment to an existing team-project task. |
+| POST | `/biz/bizteamprojecttaskcomment/edit` | Edit a user task comment. |
+| POST | `/biz/bizteamprojecttaskcomment/delete` | Logically delete user task comments. |
 | GET | `/biz/bizteamprojecttaskcomment/detail` | Task comment/log detail by id. |
 
 ## Access Rules
@@ -57,6 +59,8 @@ All routes are protected by `AuthMiddleware`.
 - Task assignee sync requires the current user to be a non-deleted member of the owning team project and to have imported `addUser` project permission or task-level `MANAGE` role.
 - Task assignee sync only accepts users who are already non-deleted members of the same team project. Removed assignees are logically deleted to preserve imported data during refactor testing.
 - Task comment add requires current-user membership of the owning team project and stores submitted files under `EXT_JSON` as `{"file":[...]}` for the copied task detail parser.
+- Task comment edit/delete only applies to user comments with `CATEGORY = COMMENT`; generated `LOG` rows remain read-only.
+- Task comment maintenance is allowed for the comment creator, a project user with imported `delComment`, or a task-level `MANAGE` user.
 
 ## Deferred Routes
 
@@ -67,9 +71,7 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/bizteamprojecttaskcategory/edit`
 - `/biz/bizteamprojecttaskcategory/sort/edit`
 - `/biz/bizteamprojecttaskcategory/delete`
-- `/biz/bizteamprojecttaskcomment/edit`
-- `/biz/bizteamprojecttaskcomment/delete`
-These routes mutate task state, category order, memberships, task-comment maintenance, and data-change events. They need a later write-flow design.
+These routes mutate task state, category order, memberships, and data-change events. They need a later write-flow design.
 
 ## Verification Scope
 
