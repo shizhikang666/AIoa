@@ -29,6 +29,10 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizteamprojecttaskcategory/page` | Category page for one project. |
 | GET | `/biz/bizteamprojecttaskcategory/list` | Category list for one project, ordered by `sortCode`. |
 | GET | `/biz/bizteamprojecttaskcategory/detail` | Category detail by id. |
+| POST | `/biz/bizteamprojecttaskcategory/add` | Add a task category to an existing team project. |
+| POST | `/biz/bizteamprojecttaskcategory/edit` | Edit task category title, `extJson`, or `sortCode`. |
+| POST | `/biz/bizteamprojecttaskcategory/sort/edit` | Reorder categories for one team project. |
+| POST | `/biz/bizteamprojecttaskcategory/delete` | Logically delete empty task categories. |
 | GET | `/biz/bizteamprojecttask/page` | Task page scoped to projects visible to the current user. |
 | GET | `/biz/bizteamprojecttask/list` | Task list for the project kanban view. |
 | GET | `/biz/bizteamprojecttask/detail` | Task detail by id with `users`. |
@@ -58,6 +62,8 @@ All routes are protected by `AuthMiddleware`.
 - Reply edit/delete allows the reply creator or a project user with imported `delComment` resource permission.
 - Task assignee sync requires the current user to be a non-deleted member of the owning team project and to have imported `addUser` project permission or task-level `MANAGE` role.
 - Task assignee sync only accepts users who are already non-deleted members of the same team project. Removed assignees are logically deleted to preserve imported data during refactor testing.
+- Task category add/edit/sort/delete requires a project maintainer boundary: team-project `LEADER`, team-project `MANAGE`, or imported `addUser` project resource permission.
+- Task category delete rejects categories that still contain active tasks, and uses `DELETE_FLAG = DELETED` instead of physical removal.
 - Task comment add requires current-user membership of the owning team project and stores submitted files under `EXT_JSON` as `{"file":[...]}` for the copied task detail parser.
 - Task comment edit/delete only applies to user comments with `CATEGORY = COMMENT`; generated `LOG` rows remain read-only.
 - Task comment maintenance is allowed for the comment creator, a project user with imported `delComment`, or a task-level `MANAGE` user.
@@ -67,11 +73,7 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/bizteamprojecttask/add`
 - `/biz/bizteamprojecttask/edit`
 - `/biz/bizteamprojecttask/delete`
-- `/biz/bizteamprojecttaskcategory/add`
-- `/biz/bizteamprojecttaskcategory/edit`
-- `/biz/bizteamprojecttaskcategory/sort/edit`
-- `/biz/bizteamprojecttaskcategory/delete`
-These routes mutate task state, category order, memberships, and data-change events. They need a later write-flow design.
+These routes mutate task state, memberships, and data-change events. They need a later write-flow design.
 
 ## Verification Scope
 
@@ -79,5 +81,5 @@ These routes mutate task state, category order, memberships, and data-change eve
 - Baseline `composer dump-autoload`.
 - Baseline `php think`.
 - `php think route:list` route registration.
-- Runtime smoke tests for representative category, task, project-comment, task-comment reads, task comment add, task assignee sync, and project-comment/reply base writes.
+- Runtime smoke tests for representative category, task, project-comment, task-comment reads, category maintenance, task comment add, task assignee sync, and project-comment/reply base writes.
 - No-token check for a protected route.

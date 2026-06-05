@@ -5963,3 +5963,60 @@ Agent: api-agent
 
 - Commit and push this task comment maintenance compatibility slice.
 - Continue another isolated frontend-visible write/read gap before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.
+
+## 2026-06-05 - api-agent/frontend-agent - Team Project Task Category Maintenance Compatibility
+
+### Completed Content
+
+- Added Java-compatible protected `POST /biz/bizteamprojecttaskcategory/add`.
+- Added Java-compatible protected `POST /biz/bizteamprojecttaskcategory/edit`.
+- Added Java-compatible protected `POST /biz/bizteamprojecttaskcategory/sort/edit`.
+- Added Java-compatible protected `POST /biz/bizteamprojecttaskcategory/delete`.
+- Preserved existing task-category `page`, `list`, and `detail` read behavior.
+- Required project maintainer permission for category maintenance: team-project `LEADER`, team-project `MANAGE`, or imported `addUser` project resource permission.
+- Defaulted new category `SORT_CODE` to `99`.
+- Allowed category edit to update only `TITLE`, optional `EXT_JSON`, optional `SORT_CODE`, and audit fields.
+- Reordered submitted categories by Java-style ordered `[{id: ...}]` payloads.
+- Rejected deletion of categories that still contain active tasks.
+- Used logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, frontend source, task add/edit/delete, task drag-to-category, task status/progress/content writes, notification push, data-change events, Composer files, and `.env` unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/TeamProjectTaskCategoryController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\TeamProjectTaskCategoryController.php`: passed.
+- `php -l app\service\biz\TeamProjectTaskReadService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed on team project `1903996479133360129`, current user `1543837863788879873`; category `1780648771828319110` was added with default `SORT_CODE = 99`, edited, sorted to `SORT_CODE = 0`, and logically deleted with `DELETE_FLAG = DELETED`.
+- Direct service negative smoke: passed; existing non-empty category `2032372934740733953` with 4 active tasks was rejected for deletion.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; route entry rows = 312 and the four task-category maintenance routes are registered.
+- Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP check for `/biz/bizteamprojecttaskcategory/add`: returned HTTP 200 envelope with `code=401`.
+- Backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
+
+### Current Issues
+
+- The smoke test intentionally leaves a logically deleted task-category test row for traceability instead of physically deleting imported-style data.
+- Task add/edit/delete, task drag-to-category, task status/progress/content writes, notification push, and data-change events remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this task category maintenance compatibility slice.
+- Continue another isolated frontend-visible gap before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.

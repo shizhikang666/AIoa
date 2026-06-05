@@ -226,6 +226,125 @@ SQL;
         return $this->categoryRow($row);
     }
 
+    public function categoryAdd(array $input, array $payload = []): array
+    {
+        $teamProjectId = $this->requiredInput($input, 'teamProjectId');
+        $title = $this->requiredInput($input, 'title');
+
+        return Db::transaction(function () use ($teamProjectId, $title, $input, $payload): array {
+            $project = $this->assertTeamProjectMaintainer($teamProjectId, $payload, 'add task category');
+            $id = $this->newId();
+            $now = date('Y-m-d H:i:s');
+
+            Db::name('biz_team_project_task_category')->insert([
+                'ID' => $id,
+                'TEAM_PROJECT_ID' => $teamProjectId,
+                'TITLE' => $title,
+                'EXT_JSON' => array_key_exists('extJson', $input) ? (string)$input['extJson'] : null,
+                'SORT_CODE' => array_key_exists('sortCode', $input) ? (int)$input['sortCode'] : 99,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $this->currentUserId($payload),
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantIdFromProject($payload, $project),
+            ]);
+
+            return $this->categoryDetail($id, $payload);
+        });
+    }
+
+    public function categoryEdit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $title = $this->requiredInput($input, 'title');
+
+        return Db::transaction(function () use ($id, $title, $input, $payload): array {
+            $category = $this->activeCategoryForWrite($id, $payload, 'edit task category');
+            if (!empty($input['teamProjectId']) && (string)$input['teamProjectId'] !== (string)$category['TEAM_PROJECT_ID']) {
+                throw new RuntimeException('teamProjectId does not match category', 400);
+            }
+            $this->assertTeamProjectMaintainer((string)$category['TEAM_PROJECT_ID'], $payload, 'edit task category');
+
+            $updates = [
+                'TITLE' => $title,
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $this->currentUserId($payload),
+            ];
+            if (array_key_exists('extJson', $input)) {
+                $updates['EXT_JSON'] = (string)$input['extJson'];
+            }
+            if (array_key_exists('sortCode', $input)) {
+                $updates['SORT_CODE'] = (int)$input['sortCode'];
+            }
+
+            $query = Db::name('biz_team_project_task_category')->where('ID', $id);
+            $this->whereNotDeleted($query, 'DELETE_FLAG');
+            $query->update($updates);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function categorySortEdit(array $input, array $payload = []): array
+    {
+        $ids = $this->idList($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $rows = $this->activeCategoryRows($ids);
+            if (count($rows) !== count($ids)) {
+                throw new RuntimeException('team project task category not found', 404);
+            }
+
+            $teamProjectIds = array_values(array_unique(array_map(static fn (array $row): string => (string)$row['TEAM_PROJECT_ID'], $rows)));
+            if (count($teamProjectIds) !== 1) {
+                throw new RuntimeException('categories must belong to the same team project', 400);
+            }
+            $this->assertTeamProjectMaintainer($teamProjectIds[0], $payload, 'sort task categories');
+
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            foreach ($ids as $index => $id) {
+                $query = Db::name('biz_team_project_task_category')->where('ID', $id);
+                $this->whereNotDeleted($query, 'DELETE_FLAG');
+                $query->update([
+                    'SORT_CODE' => $index,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId,
+                ]);
+            }
+
+            return ['ids' => $ids, 'count' => count($ids)];
+        });
+    }
+
+    public function categoryDelete(array $input, array $payload = []): array
+    {
+        $ids = $this->idList($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $affected = 0;
+
+            foreach ($ids as $id) {
+                $category = $this->activeCategoryForWrite($id, $payload, 'delete task category');
+                $this->assertTeamProjectMaintainer((string)$category['TEAM_PROJECT_ID'], $payload, 'delete task category');
+                $this->assertCategoryEmpty($id);
+
+                $query = Db::name('biz_team_project_task_category')->where('ID', $id);
+                $this->whereNotDeleted($query, 'DELETE_FLAG');
+                $affected += $query->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId,
+                ]);
+            }
+
+            return ['ids' => $ids, 'count' => $affected];
+        });
+    }
+
     public function taskPage(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
@@ -1028,6 +1147,44 @@ SQL;
         return $task;
     }
 
+    private function activeCategoryForWrite(string $categoryId, array $payload, string $action): array
+    {
+        $query = Db::name('biz_team_project_task_category')
+            ->alias('c')
+            ->leftJoin('biz_team_project p', 'p.ID = c.TEAM_PROJECT_ID')
+            ->where('c.ID', $categoryId);
+        $this->whereNotDeleted($query, 'c.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+
+        $category = $query
+            ->field('c.*, p.TENANT_ID AS PROJECT_TENANT_ID')
+            ->find();
+        if (!is_array($category) || $category === []) {
+            throw new RuntimeException('team project task category not found', 404);
+        }
+
+        $project = $this->assertTeamProjectMember((string)$category['TEAM_PROJECT_ID'], $payload, $action);
+        $category['TENANT_ID'] = $category['TENANT_ID'] ?? ($category['PROJECT_TENANT_ID'] ?? $project['TENANT_ID'] ?? null);
+
+        return $category;
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<int, array<string, mixed>>
+     */
+    private function activeCategoryRows(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+
+        $query = Db::name('biz_team_project_task_category')->whereIn('ID', $ids);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        return $query->field('ID, TEAM_PROJECT_ID')->select()->toArray();
+    }
+
     private function activeTaskCommentForWrite(string $commentId, array $payload, string $action): array
     {
         $query = Db::name('biz_team_project_task_comment')
@@ -1081,6 +1238,20 @@ SQL;
         return $row;
     }
 
+    private function assertTeamProjectMaintainer(string $teamProjectId, array $payload, string $action): array
+    {
+        $project = $this->assertTeamProjectMember($teamProjectId, $payload, $action);
+        $roleType = strtoupper((string)($project['ROLE_TYPE'] ?? ''));
+        if (in_array($roleType, ['LEADER', 'MANAGE'], true)) {
+            return $project;
+        }
+        if ($this->hasTeamProjectPermission($teamProjectId, $payload, 'addUser')) {
+            return $project;
+        }
+
+        throw new RuntimeException("no permission to {$action} on this team project", 403);
+    }
+
     private function assertTeamProjectPermission(string $teamProjectId, array $payload, string $code, string $action): void
     {
         if ($this->hasTeamProjectPermission($teamProjectId, $payload, $code)) {
@@ -1127,6 +1298,15 @@ SQL;
         }
 
         throw new RuntimeException('no permission to edit task users on this team project', 403);
+    }
+
+    private function assertCategoryEmpty(string $categoryId): void
+    {
+        $query = Db::name('biz_team_project_task')->where('TEAM_PROJECT_TASK_CATEGORY_ID', $categoryId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($query->count() > 0) {
+            throw new RuntimeException('cannot delete a category that still has tasks', 400);
+        }
     }
 
     private function assertTaskCommentMaintainer(array $comment, array $payload, string $action): void

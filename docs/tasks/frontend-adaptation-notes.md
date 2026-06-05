@@ -918,3 +918,32 @@ This slice completes the copied team-project task-comment wrapper maintenance en
 
 - Generated task-log edit/delete remains deferred.
 - Task add/edit/delete, task category writes, task status/progress/content writes, notification push, and data-change events remain out of scope.
+
+## 2026-06-05 Team Project Task Category Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project kanban category wrapper:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskCategoryApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/index.vue`
+
+### Result
+
+- `/biz/bizteamprojecttaskcategory/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttaskcategory/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttaskcategory/sort/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttaskcategory/delete` is now routed as a protected POST endpoint.
+- Add accepts `teamProjectId`, `title`, optional `extJson`, and optional `sortCode`; default `SORT_CODE` is `99`.
+- Edit accepts `id`, `title`, optional `teamProjectId`, optional `extJson`, and optional `sortCode`.
+- Sort accepts Java-style ordered `[{id: ...}]` bodies and rewrites `SORT_CODE` by submitted order.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Maintenance requires team-project `LEADER`, team-project `MANAGE`, or imported `addUser` project resource permission.
+- Deletes use `DELETE_FLAG = DELETED`, and categories containing active tasks are rejected.
+
+### Deferred
+
+- Task add/edit/delete remains deferred.
+- Task drag-to-category, task status/progress/content writes, notification push, and data-change events remain out of scope.

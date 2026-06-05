@@ -6277,3 +6277,73 @@ git diff --check
 - Do not edit or delete `CATEGORY = LOG` rows.
 - Do not implement `/biz/bizteamprojecttask/add`, `/edit`, or `/delete`.
 - Do not implement task-category writes, task-user writes, task status/progress/content writes, notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: api-agent/frontend-agent - Team Project Task Category Maintenance Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible protected team-project task category maintenance endpoints used by the copied kanban view:
+
+- `POST /biz/bizteamprojecttaskcategory/add`
+- `POST /biz/bizteamprojecttaskcategory/edit`
+- `POST /biz/bizteamprojecttaskcategory/sort/edit`
+- `POST /biz/bizteamprojecttaskcategory/delete`
+
+This slice only maintains task category columns. It does not implement task add/edit/delete, task drag-to-category writes, task status/progress/content changes, notifications, or Java data-change events.
+
+### 2. Involved Modules
+
+- api-agent team-project task category compatibility
+- frontend-agent copied kanban category API compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectTaskCategoryController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java physically deletes categories; this refactor should preserve imported data with logical deletion.
+- Deleting a category that still has tasks can orphan task cards, so this slice must reject non-empty category deletion.
+- Category writes affect the kanban layout, so they should require a project maintainer boundary instead of plain read membership.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectTaskCategoryController.php
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Category `add`, `edit`, `sort/edit`, and `delete` routes are registered behind token middleware.
+- Add requires `teamProjectId` and `title`, validates project maintainer permission, inserts `SORT_CODE = 99` by default, and returns the created category row.
+- Edit requires `id` and `title`, validates the owning project, and updates only title/extJson/sortCode when submitted plus audit fields.
+- Sort accepts Java-style ordered `[{id: ...}]` payloads, validates all categories belong to the same active project, and updates `SORT_CODE` by submitted order.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or single `id`, validates project maintainer permission, rejects categories that still contain active tasks, and logically deletes categories with `DELETE_FLAG = DELETED`.
+- Java source, database schema, frontend source, task writes, notification push, data-change events, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/bizteamprojecttask/add`, `/edit`, or `/delete`.
+- Do not implement task drag-to-category writes, task-user standalone writes, task status/progress/content writes, notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

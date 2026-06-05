@@ -302,6 +302,10 @@ Route::group('biz/bizteamprojectuser', function () {
 Route::group('biz/bizteamprojecttaskcategory', function () {
     Route::get('page', 'biz.TeamProjectTaskCategoryController/page');
     Route::get('list', 'biz.TeamProjectTaskCategoryController/list');
+    Route::post('add', 'biz.TeamProjectTaskCategoryController/add');
+    Route::post('edit', 'biz.TeamProjectTaskCategoryController/edit');
+    Route::post('sort/edit', 'biz.TeamProjectTaskCategoryController/sortEdit');
+    Route::post('delete', 'biz.TeamProjectTaskCategoryController/delete');
     Route::get('detail', 'biz.TeamProjectTaskCategoryController/detail');
 })->middleware(AuthMiddleware::class);
 
