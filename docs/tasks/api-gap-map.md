@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 274 | From `php think route:list` after team-project comment/reply read route addition |
-| Endpoints already covered by route path | 262 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 76 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 278 | From `php think route:list` after sys-field read route addition |
+| Endpoints already covered by route path | 266 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 72 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -36,7 +36,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `sys/user` | User page/detail/list style reads, selectors, own-role, own-resource, and own-permission grant echo reads |
 | `sys/position` | Position page/list/detail/selector reads |
 | `sys/role` | Role page/list/detail/resource/menu relation reads |
-| `sys/menu` and `sys/resource` | Menu/resource tree and selector reads |
+| `sys/menu`, `sys/field`, and `sys/resource` | Menu/resource tree, field page/tree/detail, and selector reads |
 | `dev/config`, `dev/dict`, `dev/log` | Common management reads |
 | `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | Metadata/list/detail and monitor reads; mutation routes remain deferred |
 | `mobile/menu` and `mobile/resource` | Mobile menu/resource read compatibility |
@@ -99,6 +99,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/bizteamprojectcommentreply` | `page` and `detail` covered; add/edit/delete remain deferred |
 | `biz/bizteamprojecttaskuser` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `dev/monitor` | `serverInfo` and `networkInfo` covered |
+| `sys/field` | `page`, `tree`, `detail`, and `MenuTreeSelector` covered; add/edit/delete remain deferred |
 
 ## Deferred Write And Side-Effect Groups
 

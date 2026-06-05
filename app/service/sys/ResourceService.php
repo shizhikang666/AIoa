@@ -15,6 +15,7 @@ class ResourceService
     private const CATEGORY_MODULE = 'MODULE';
     private const CATEGORY_MENU = 'MENU';
     private const CATEGORY_BUTTON = 'BUTTON';
+    private const CATEGORY_FIELD = 'FIELD';
     private const ROOT_PARENT_ID = '0';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
@@ -42,6 +43,11 @@ class ResourceService
     public function buttonPage(array $filters = []): array
     {
         return $this->page(self::CATEGORY_BUTTON, $filters);
+    }
+
+    public function fieldPage(array $filters = []): array
+    {
+        return $this->page(self::CATEGORY_FIELD, $filters);
     }
 
     public function detail(string $id, string $category): ?array
@@ -95,6 +101,19 @@ class ResourceService
             ->toArray();
 
         return $this->buildTree($rows, true);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function fieldTree(array $filters = []): array
+    {
+        $rows = $this->resourceQuery(self::CATEGORY_FIELD, $filters, false)
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->select()
+            ->toArray();
+
+        return $this->buildTree($rows);
     }
 
     private function page(string $category, array $filters): array

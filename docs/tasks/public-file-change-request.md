@@ -629,6 +629,40 @@ The copied Vue API wrappers call these endpoints from team-project comment and r
 
 ---
 
+# Public File Change Request: Sys Field Read-Only Routes
+
+## Request
+
+Register protected read-only system field routes in `route/app.php`.
+
+## Reason
+
+The copied Vue system resource field drawer calls `/sys/field/page`, `/tree`, `/detail`, and `/MenuTreeSelector` to display field-level resource permissions under menus. The current ThinkPHP resource service already reads `sys_resource`; this change only exposes read paths for `CATEGORY = FIELD` while field mutations remain deferred.
+
+## Applied Change
+
+`user-agent/api-agent/frontend-agent` registered the following protected routes:
+
+- `GET /sys/field/page`
+- `GET /sys/field/tree`
+- `GET /sys/field/detail`
+- `GET /sys/field/MenuTreeSelector`
+
+## Explicit Exclusions
+
+- No `/sys/field/add` route was added.
+- No `/sys/field/edit` route was added.
+- No `/sys/field/delete` route was added.
+- No menu, button, module, field, permission, database schema, Java source, frontend source, `.env`, Composer file, or public config mutation was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Index Read-Only Compatibility Routes
 
 ## Request

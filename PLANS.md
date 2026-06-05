@@ -5301,3 +5301,68 @@ git diff --check
 - Do not add `/biz/bizteamprojectcomment/add` or `/delete`.
 - Do not add `/biz/bizteamprojectcommentreply/add`, `/edit`, or `/delete`.
 - Do not modify task comments, team-project writes, notifications, file upload behavior, or `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: user-agent/api-agent/frontend-agent - Sys Field Read-Only Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, database smoke, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Close the copied frontend system-resource field page read gap by adding read-only `sys/field` routes backed by `sys_resource.CATEGORY = FIELD`.
+
+### 2. Involved Modules
+
+- user-agent system resource read compatibility
+- api-agent route/controller mapping
+- frontend-agent copied `sys/resource/fieldApi.js` compatibility
+- Java/read-only frontend input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/FieldController.php`
+- `app/service/sys/ResourceService.php`
+- `route/app.php`
+- `docs/api/sys-field-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The copied frontend has `sys/field` API wrappers and views, but the current imported database has no `FIELD` rows in `sys_resource`.
+- Java backend field controller was not found in the current source scan; behavior is inferred from the copied frontend and `sys_resource` category convention.
+- `MenuTreeSelector` uses uppercase `M` in the frontend wrapper, so route registration must preserve that compatibility path.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\FieldController.php
+php -l app\service\sys\ResourceService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /sys/field/page`, `/tree`, `/detail`, and `/MenuTreeSelector` are registered behind token middleware.
+- Field page and tree read only `sys_resource` rows with category `FIELD`.
+- Empty `FIELD` data returns stable page/tree structures rather than errors.
+- `MenuTreeSelector` delegates to existing menu tree selector data for the field form.
+- Java source, database schema, field writes, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/sys/field/add`, `/edit`, or `/delete`.
+- Do not modify menu/button/module write behavior.
+- Do not modify `F:\AI\projects\testJava\OA`.

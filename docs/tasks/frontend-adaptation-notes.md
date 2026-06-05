@@ -539,3 +539,29 @@ This slice supports copied team-project comment wrappers:
 - `/biz/bizteamprojectcomment/add` and `/delete` remain deferred.
 - `/biz/bizteamprojectcommentreply/add`, `/edit`, and `/delete` remain deferred.
 - Notifications, data-change events, file uploads, and team-project write behavior remain out of scope.
+
+## 2026-06-05 Sys Field Read-Only Compatibility
+
+Agent: user-agent / api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied system-resource field wrapper and drawer:
+
+- `snowy-admin-web/src/api/sys/resource/fieldApi.js`
+- `snowy-admin-web/src/views/sys/resource/field/index.vue`
+- `snowy-admin-web/src/views/sys/resource/field/form.vue`
+
+### Result
+
+- `/sys/field/page` is now routed as a protected read-only GET endpoint.
+- `/sys/field/tree` is now routed as a protected read-only GET endpoint.
+- `/sys/field/detail` is now routed as a protected read-only GET endpoint.
+- `/sys/field/MenuTreeSelector` is now routed to the existing menu tree selector data.
+- Field page/tree read `sys_resource` with `CATEGORY = FIELD`.
+- The imported local database currently has no `FIELD` resource rows, so field reads return stable empty page/tree structures.
+
+### Deferred
+
+- `/sys/field/add`, `/edit`, and `/delete` remain deferred.
+- Menu, button, module, and field write behavior remains out of scope.

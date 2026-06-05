@@ -4775,6 +4775,55 @@ Agent: api-agent
 - Commit and push this read-only compatibility slice.
 - Continue the next safe frontend-visible read-only route gap, likely system field reads or generator metadata reads, before opening write APIs.
 
+## 2026-06-05 - user-agent/api-agent/frontend-agent - Sys Field Read-Only Compatibility
+
+### Completed Content
+
+- Added protected read-only system field resource endpoints for the copied field drawer.
+- Added `FieldController` with page, tree, detail, and menu tree selector reads.
+- Extended `ResourceService` with `FIELD` category page/tree readers.
+- Routed frontend-compatible `/sys/field/MenuTreeSelector` to existing menu tree selector data.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, field add/edit/delete, menu/button/module writes, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/FieldController.php`
+- `app/service/sys/ResourceService.php`
+- `route/app.php`
+- `docs/api/sys-field-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\FieldController.php`: passed.
+- `php -l app\service\sys\ResourceService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; `fieldPageTotal=0`, `fieldPageCount=0`, `fieldTreeCount=0`, `menuSelectorCount=20`, and page result contains `records`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/sys/field/page`, `/tree`, `/detail`, and `/MenuTreeSelector` are registered.
+- Route count check: passed with 278 registered routes.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- The imported local database currently has no `FIELD` rows in `sys_resource`, so field detail could not be smoke-tested against a real row; empty page/tree and menu selector behavior were verified.
+- Java backend field controller was not found in the current source scan; this compatibility route is inferred from the copied Vue field wrapper and `sys_resource.CATEGORY = FIELD` convention.
+- `/sys/field/add`, `/edit`, and `/delete` remain intentionally deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe frontend-visible read-only route gap, likely generator metadata reads or system field/detail follow-up if FIELD data appears later.
+
 ## 2026-06-05 - workflow-agent/api-agent/frontend-agent - Biz User Vacation Page Read-Only Compatibility
 
 ### Completed Content

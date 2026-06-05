@@ -125,6 +125,13 @@ Route::group('sys/button', function () {
     Route::get('detail', 'sys.ButtonController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('sys/field', function () {
+    Route::get('page', 'sys.FieldController/page');
+    Route::get('tree', 'sys.FieldController/tree');
+    Route::get('detail', 'sys.FieldController/detail');
+    Route::get('MenuTreeSelector', 'sys.FieldController/menuTreeSelector');
+})->middleware(AuthMiddleware::class);
+
 Route::group('mobile/module', function () {
     Route::get('page', 'mobile.ModuleController/page');
     Route::get('detail', 'mobile.ModuleController/detail');
