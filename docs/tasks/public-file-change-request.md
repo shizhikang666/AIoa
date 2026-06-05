@@ -2880,3 +2880,38 @@ Java exposes `/biz/bizteamprojectcomment/add` and `/biz/bizteamprojectcommentrep
 - `php think route:list` must list the added routes.
 - Token requests should be able to add a project timeline comment or reply only when the current user is a non-deleted member of the owning team project.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Team Project Comment Maintenance Routes
+
+## Request
+
+Register protected team-project timeline comment delete, comment-reply edit, and comment-reply delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizteamprojectcomment/delete`, `/biz/bizteamprojectcommentreply/edit`, and `/biz/bizteamprojectcommentreply/delete`. The copied frontend API wrappers include these maintenance calls, and the ThinkPHP route group already covers read and add compatibility for the same comment module.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/bizteamprojectcomment/delete`
+- `POST /biz/bizteamprojectcommentreply/edit`
+- `POST /biz/bizteamprojectcommentreply/delete`
+
+## Explicit Exclusions
+
+- No team-project add/edit/delete route was added.
+- No task/category/task-user add/edit/delete route was added.
+- No task comment add/edit/delete route was added.
+- No task state/progress write, notification push, data-change event, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Deletes use logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Comment delete should require imported `delComment` project resource permission.
+- Reply edit/delete should allow the reply creator or a project user with imported `delComment` permission.
+- Requests without token should return `code=401`.

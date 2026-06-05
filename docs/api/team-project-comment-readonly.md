@@ -19,9 +19,12 @@ The Java source remains read-only under `F:\AI\projects\testJava\OA`.
 | --- | --- | --- |
 | GET | `/biz/bizteamprojectcomment/detail` | `biz.TeamProjectCommentController/detail` |
 | POST | `/biz/bizteamprojectcomment/add` | `biz.TeamProjectCommentController/add` |
+| POST | `/biz/bizteamprojectcomment/delete` | `biz.TeamProjectCommentController/delete` |
 | GET | `/biz/bizteamprojectcommentreply/page` | `biz.TeamProjectCommentReplyController/page` |
 | GET | `/biz/bizteamprojectcommentreply/detail` | `biz.TeamProjectCommentReplyController/detail` |
 | POST | `/biz/bizteamprojectcommentreply/add` | `biz.TeamProjectCommentReplyController/add` |
+| POST | `/biz/bizteamprojectcommentreply/edit` | `biz.TeamProjectCommentReplyController/edit` |
+| POST | `/biz/bizteamprojectcommentreply/delete` | `biz.TeamProjectCommentReplyController/delete` |
 
 Existing covered routes remain:
 
@@ -43,6 +46,10 @@ Existing covered routes remain:
 - Project comment add stores `mentionableUsers` in `EXT_JSON` as `{"mentionableUsers":[...]}`.
 - Project comment reply add requires `targetId` and `contentText`.
 - Project comment and reply writes keep the same project-member boundary as the read routes.
+- Project comment delete accepts Java-style array bodies, `idList`, `ids`, or single `id`, requires imported project resource permission `delComment`, and sets `DELETE_FLAG = DELETED`.
+- Project comment reply edit requires `id`, `targetId`, and `contentText`; it validates both the existing reply and requested target comment through the project-member boundary.
+- Project comment reply delete accepts Java-style array bodies, `idList`, `ids`, or single `id` and sets `DELETE_FLAG = DELETED`.
+- Reply edit/delete is allowed for the reply creator or a project user with imported `delComment` resource permission.
 
 ## Response Fields
 
@@ -81,8 +88,5 @@ Reply rows include:
 
 ## Deferred
 
-- `/biz/bizteamprojectcomment/delete`
-- `/biz/bizteamprojectcommentreply/edit`
-- `/biz/bizteamprojectcommentreply/delete`
 - Notifications and data-change events
-- Team-project, task, existing-comment, or existing-reply mutations beyond add
+- Team-project, task, task-comment, category, and task-user mutations

@@ -14,6 +14,10 @@ class TeamProjectTaskReadService
 {
     private const NOT_DELETE = 'NOT_DELETE';
 
+    private const DELETED = 'DELETED';
+
+    private const TEAM_PROJECT_PERMISSION_CATEGORY = 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION';
+
     private const CATEGORY_FIELDS = <<<SQL
 c.ID AS ID,
 c.TEAM_PROJECT_ID AS TEAM_PROJECT_ID,
@@ -369,6 +373,32 @@ SQL;
         });
     }
 
+    public function projectCommentDelete(array $input, array $payload = []): array
+    {
+        $ids = $this->idList($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $affected = 0;
+
+            foreach ($ids as $id) {
+                $comment = $this->activeProjectCommentForWrite($id, $payload, 'delete comment');
+                $this->assertTeamProjectPermission((string)$comment['TEAM_PROJECT_ID'], $payload, 'delComment', 'delete comment');
+
+                $query = Db::name('biz_team_project_comment')->where('ID', $id);
+                $this->whereNotDeleted($query, 'DELETE_FLAG');
+                $affected += $query->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId,
+                ]);
+            }
+
+            return ['ids' => $ids, 'count' => $affected];
+        });
+    }
+
     public function projectReplyPage(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
@@ -419,6 +449,59 @@ SQL;
             ]);
 
             return ['id' => $id];
+        });
+    }
+
+    public function projectReplyEdit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $targetId = $this->requiredInput($input, 'targetId');
+        $contentText = $this->requiredInput($input, 'contentText');
+
+        return Db::transaction(function () use ($id, $targetId, $contentText, $payload): array {
+            $reply = $this->activeProjectReplyForWrite($id, $payload, 'edit reply');
+            $this->assertReplyMaintainer($reply, $payload, 'edit reply');
+            $comment = $this->activeProjectCommentForWrite($targetId, $payload, 'edit reply target');
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+
+            $query = Db::name('biz_team_project_comment_reply')->where('ID', $id);
+            $this->whereNotDeleted($query, 'DELETE_FLAG');
+            $query->update([
+                'TARGET_ID' => $targetId,
+                'CONTENT_TEXT' => $contentText,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId,
+                'TENANT_ID' => $this->tenantIdFromProject($payload, $comment),
+            ]);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function projectReplyDelete(array $input, array $payload = []): array
+    {
+        $ids = $this->idList($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $affected = 0;
+
+            foreach ($ids as $id) {
+                $reply = $this->activeProjectReplyForWrite($id, $payload, 'delete reply');
+                $this->assertReplyMaintainer($reply, $payload, 'delete reply');
+
+                $query = Db::name('biz_team_project_comment_reply')->where('ID', $id);
+                $this->whereNotDeleted($query, 'DELETE_FLAG');
+                $affected += $query->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId,
+                ]);
+            }
+
+            return ['ids' => $ids, 'count' => $affected];
         });
     }
 
@@ -719,7 +802,7 @@ SQL;
         return $query;
     }
 
-    private function activeProjectCommentForWrite(string $commentId, array $payload): array
+    private function activeProjectCommentForWrite(string $commentId, array $payload, string $action = 'write comment'): array
     {
         $query = Db::name('biz_team_project_comment')->where('ID', $commentId);
         $this->whereNotDeleted($query, 'DELETE_FLAG');
@@ -728,10 +811,32 @@ SQL;
             throw new RuntimeException('team project comment not found', 404);
         }
 
-        $project = $this->assertTeamProjectMember((string)$comment['TEAM_PROJECT_ID'], $payload, 'reply comment');
+        $project = $this->assertTeamProjectMember((string)$comment['TEAM_PROJECT_ID'], $payload, $action);
         $comment['TENANT_ID'] = $comment['TENANT_ID'] ?? ($project['TENANT_ID'] ?? null);
 
         return $comment;
+    }
+
+    private function activeProjectReplyForWrite(string $replyId, array $payload, string $action): array
+    {
+        $query = Db::name('biz_team_project_comment_reply')
+            ->alias('r')
+            ->leftJoin('biz_team_project_comment pc', 'pc.ID = r.TARGET_ID')
+            ->where('r.ID', $replyId);
+        $this->whereNotDeleted($query, 'r.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'pc.DELETE_FLAG');
+
+        $reply = $query
+            ->field('r.*, pc.TEAM_PROJECT_ID AS TEAM_PROJECT_ID, pc.TENANT_ID AS COMMENT_TENANT_ID')
+            ->find();
+        if (!is_array($reply) || $reply === []) {
+            throw new RuntimeException('team project comment reply not found', 404);
+        }
+
+        $project = $this->assertTeamProjectMember((string)$reply['TEAM_PROJECT_ID'], $payload, $action);
+        $reply['TENANT_ID'] = $reply['TENANT_ID'] ?? ($reply['COMMENT_TENANT_ID'] ?? $project['TENANT_ID'] ?? null);
+
+        return $reply;
     }
 
     private function assertTeamProjectMember(string $teamProjectId, array $payload, string $action): array
@@ -756,6 +861,45 @@ SQL;
         }
 
         return $row;
+    }
+
+    private function assertTeamProjectPermission(string $teamProjectId, array $payload, string $code, string $action): void
+    {
+        if ($this->hasTeamProjectPermission($teamProjectId, $payload, $code)) {
+            return;
+        }
+
+        throw new RuntimeException("no permission to {$action} on this team project", 403);
+    }
+
+    private function hasTeamProjectPermission(string $teamProjectId, array $payload, string $code): bool
+    {
+        $userId = $this->currentUserId($payload);
+        $relation = Db::name('biz_relation')
+            ->where('OBJECT_ID', $teamProjectId)
+            ->where('TARGET_ID', $userId)
+            ->where('CATEGORY', self::TEAM_PROJECT_PERMISSION_CATEGORY)
+            ->find();
+
+        $permissions = [];
+        if (is_array($relation) && !empty($relation['EXT_JSON'])) {
+            $decoded = json_decode((string)$relation['EXT_JSON'], true);
+            if (is_array($decoded)) {
+                $permissions = array_values(array_map(static fn (mixed $item): string => (string)$item, $decoded));
+            }
+        }
+
+        return in_array($code, $permissions, true);
+    }
+
+    private function assertReplyMaintainer(array $reply, array $payload, string $action): void
+    {
+        $userId = $this->currentUserId($payload);
+        if ((string)($reply['CREATE_USER'] ?? '') === $userId) {
+            return;
+        }
+
+        $this->assertTeamProjectPermission((string)$reply['TEAM_PROJECT_ID'], $payload, 'delComment', $action);
     }
 
     /**
@@ -1041,6 +1185,41 @@ SQL;
         }
 
         return $value;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function idList(array $input): array
+    {
+        $raw = [];
+        if (array_is_list($input)) {
+            $raw = $input;
+        } elseif (isset($input['idList']) && is_array($input['idList'])) {
+            $raw = $input['idList'];
+        } elseif (isset($input['ids']) && is_array($input['ids'])) {
+            $raw = $input['ids'];
+        } elseif (isset($input['ids']) && is_string($input['ids'])) {
+            $raw = explode(',', $input['ids']);
+        } elseif (isset($input['id'])) {
+            $raw = [$input['id']];
+        }
+
+        $ids = [];
+        foreach ($raw as $item) {
+            $id = is_array($item) ? (string)($item['id'] ?? '') : (string)$item;
+            $id = trim($id);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        $ids = array_values(array_unique($ids));
+        if ($ids === []) {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        return $ids;
     }
 
     /**

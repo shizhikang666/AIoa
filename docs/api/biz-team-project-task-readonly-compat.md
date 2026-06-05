@@ -35,7 +35,10 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizteamprojectcomment/page` | Project timeline comment page. |
 | GET | `/biz/bizteamprojectcomment/list` | Project timeline comment list with nested replies. |
 | POST | `/biz/bizteamprojectcomment/add` | Project timeline comment add with member guard. |
+| POST | `/biz/bizteamprojectcomment/delete` | Project timeline comment logical delete with `delComment` resource permission guard. |
 | POST | `/biz/bizteamprojectcommentreply/add` | Project timeline comment reply add with member guard. |
+| POST | `/biz/bizteamprojectcommentreply/edit` | Project timeline comment reply content/target edit with maintainer guard. |
+| POST | `/biz/bizteamprojectcommentreply/delete` | Project timeline comment reply logical delete with maintainer guard. |
 | GET | `/biz/bizteamprojecttaskcomment/page` | Task comment/log page. |
 | GET | `/biz/bizteamprojecttaskcomment/list` | Task comment/log list for the task detail drawer. |
 | GET | `/biz/bizteamprojecttaskcomment/detail` | Task comment/log detail by id. |
@@ -47,6 +50,8 @@ All routes are protected by `AuthMiddleware`.
 - Task detail and task-comment detail resolve access through the task/project relationship, so a direct id cannot bypass project membership.
 - Comment and reply writes are limited to non-deleted members of the owning team project.
 - Comment add stores `mentionableUsers` in `EXT_JSON`; notification push and data-change events remain deferred.
+- Comment delete requires the current user to have imported project resource permission `delComment`.
+- Reply edit/delete allows the reply creator or a project user with imported `delComment` resource permission.
 
 ## Deferred Routes
 
@@ -58,11 +63,7 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/bizteamprojecttaskcategory/edit`
 - `/biz/bizteamprojecttaskcategory/sort/edit`
 - `/biz/bizteamprojecttaskcategory/delete`
-- `/biz/bizteamprojectcomment/delete`
-- `/biz/bizteamprojectcommentreply/edit`
-- `/biz/bizteamprojectcommentreply/delete`
-
-These routes mutate task state, category order, memberships, existing comments, existing replies, and data-change events. They need a later write-flow design.
+These routes mutate task state, category order, memberships, task comments, and data-change events. They need a later write-flow design.
 
 ## Verification Scope
 
@@ -70,5 +71,5 @@ These routes mutate task state, category order, memberships, existing comments, 
 - Baseline `composer dump-autoload`.
 - Baseline `php think`.
 - `php think route:list` route registration.
-- Runtime smoke tests for representative category, task, project-comment, and task-comment reads.
+- Runtime smoke tests for representative category, task, project-comment, task-comment reads, and project-comment/reply base writes.
 - No-token check for a protected route.

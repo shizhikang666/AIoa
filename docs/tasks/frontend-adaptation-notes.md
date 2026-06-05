@@ -814,3 +814,31 @@ This slice supports copied team-project timeline comment and reply submission:
 - `/biz/bizteamprojectcomment/delete` remains deferred.
 - `/biz/bizteamprojectcommentreply/edit` and `/delete` remain deferred.
 - Notification push, data-change events, team-project mutations, task mutations, and task state/progress writes remain out of scope.
+
+## 2026-06-05 Team Project Comment Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice completes the remaining copied team-project comment/reply wrapper maintenance endpoints:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentApi.js`
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentReplyApi.js`
+
+### Result
+
+- `/biz/bizteamprojectcomment/delete` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectcommentreply/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectcommentreply/delete` is now routed as a protected POST endpoint.
+- Comment delete accepts Java-style array bodies, `idList`, `ids`, or single `id` payloads.
+- Reply edit requires `id`, `targetId`, and `contentText`.
+- Reply delete accepts Java-style array bodies, `idList`, `ids`, or single `id` payloads.
+- Comment delete requires imported project resource permission `delComment`.
+- Reply edit/delete allows the reply creator or a project user with imported `delComment` permission.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Notification push and data-change events remain deferred.
+- Team-project mutations, task/category/task-user writes, task comment writes, and task state/progress writes remain out of scope.

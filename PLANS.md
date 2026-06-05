@@ -6005,3 +6005,69 @@ git diff --check
 - Do not implement `/biz/bizteamprojectcomment/delete`.
 - Do not implement `/biz/bizteamprojectcommentreply/edit` or `/delete`.
 - Do not implement notification push, data-change events, task state/progress writes, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Completed Plan: api-agent/frontend-agent - Team Project Comment Maintenance Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible team-project timeline comment `delete`, comment-reply `edit`, and comment-reply `delete` endpoints as a narrow maintenance slice.
+
+### 2. Involved Modules
+
+- api-agent team-project comment maintenance compatibility
+- frontend-agent copied team-project comment/reply wrappers
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectCommentController.php`
+- `app/controller/biz/TeamProjectCommentReplyController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/api/team-project-comment-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java physically deletes comment/reply rows; this project should use logical deletion to preserve imported data during refactor testing.
+- Reply edit can theoretically move a reply to another target comment, so this slice must validate both the existing reply and requested target comment through the same team-project membership boundary.
+- Notification push and data-change events remain side-effect-heavy and must stay deferred.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectCommentController.php
+php -l app\controller\biz\TeamProjectCommentReplyController.php
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizteamprojectcomment/delete`, `/biz/bizteamprojectcommentreply/edit`, and `/biz/bizteamprojectcommentreply/delete` are registered behind token middleware.
+- Comment delete accepts Java-style `[{id: ...}]`, `idList`, `ids`, or single `id` input and logically deletes only visible non-deleted comments.
+- Reply edit requires `id`, `targetId`, and `contentText`, validates project membership for both existing reply and target comment, and updates only the reply target/content/audit fields.
+- Reply delete accepts Java-style `[{id: ...}]`, `idList`, `ids`, or single `id` input and logically deletes only visible non-deleted replies.
+- Java source, database schema, team-project mutations, task/category/task-user writes, notification push, data-change events, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement team-project add/edit/delete.
+- Do not implement task/category/task-user add/edit/delete or task state/progress writes.
+- Do not implement notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

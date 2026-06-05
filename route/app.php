@@ -320,12 +320,15 @@ Route::group('biz/bizteamprojectcomment', function () {
     Route::get('page', 'biz.TeamProjectCommentController/page');
     Route::get('list', 'biz.TeamProjectCommentController/list');
     Route::post('add', 'biz.TeamProjectCommentController/add');
+    Route::post('delete', 'biz.TeamProjectCommentController/delete');
     Route::get('detail', 'biz.TeamProjectCommentController/detail');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizteamprojectcommentreply', function () {
     Route::get('page', 'biz.TeamProjectCommentReplyController/page');
     Route::post('add', 'biz.TeamProjectCommentReplyController/add');
+    Route::post('edit', 'biz.TeamProjectCommentReplyController/edit');
+    Route::post('delete', 'biz.TeamProjectCommentReplyController/delete');
     Route::get('detail', 'biz.TeamProjectCommentReplyController/detail');
 })->middleware(AuthMiddleware::class);
 

@@ -25,6 +25,16 @@ class TeamProjectCommentReplyController extends BaseSysController
         return $this->guard(fn () => $this->readService->projectReplyAdd($this->body($request), $this->authPayload($request)));
     }
 
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->readService->projectReplyEdit($this->body($request), $this->authPayload($request)));
+    }
+
+    public function delete(Request $request): Response
+    {
+        return $this->guard(fn () => $this->readService->projectReplyDelete($this->body($request), $this->authPayload($request)));
+    }
+
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->readService->projectReplyDetail($this->requiredString($request, 'id'), $this->authPayload($request)));
