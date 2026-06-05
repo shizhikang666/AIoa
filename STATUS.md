@@ -5802,3 +5802,55 @@ Agent: api-agent
 
 - Commit and push this maintenance compatibility slice.
 - Continue another isolated low-risk frontend-visible write endpoint before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.
+
+## 2026-06-05 - api-agent/frontend-agent - Team Project Task User Edit Compatibility
+
+### Completed Content
+
+- Added Java-compatible protected `POST /biz/bizteamprojecttask/user/edit`.
+- Preserved existing task `page`, `list`, and `detail` read behavior.
+- Accepted frontend task-detail assignee payloads as id strings, comma-separated ids, or user objects with `id`, `userId`, or `value`.
+- Required current-user membership of the owning team project plus imported `addUser` project permission or task-level `MANAGE` role.
+- Required submitted assignees to already be non-deleted members of the same team project.
+- Inserted new assignees as task-user `MEMBER` rows and logically deleted removed assignees with `DELETE_FLAG = DELETED`.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, frontend source, task add/edit/delete, category writes, task comments, task status/progress/content writes, notification push, data-change events, Composer files, and `.env` unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/TeamProjectTaskController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\TeamProjectTaskController.php`: passed.
+- `php -l app\service\biz\TeamProjectTaskReadService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed on team project `1903996479133360129`, task `2033724343755141122`, current user `1543837863788879873`; candidate assignee `1543837863788879873` was added through object-shaped frontend payload and then restored to the original task-user list.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; route entry rows = 305 and `/biz/bizteamprojecttask/user/edit` is registered.
+- Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP check for `/biz/bizteamprojecttask/user/edit`: returned HTTP 200 envelope with `code=401`.
+- MySQL 3306, Redis 6379, backend 82, and frontend 83 were listening.
+- Backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
+
+### Current Issues
+
+- The smoke test intentionally leaves logically deleted task-user test rows for traceability instead of physically deleting imported-style data.
+- Task add/edit/delete, category writes, task comment writes, task status/progress/content writes, notification push, and data-change events remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this task assignee compatibility slice.
+- Continue another isolated frontend-visible write/read gap, likely task comment maintenance or a low-risk customer/sale-project helper, before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.

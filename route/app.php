@@ -309,6 +309,7 @@ Route::group('biz/bizteamprojecttask', function () {
     Route::get('page', 'biz.TeamProjectTaskController/page');
     Route::get('list', 'biz.TeamProjectTaskController/list');
     Route::get('detail', 'biz.TeamProjectTaskController/detail');
+    Route::post('user/edit', 'biz.TeamProjectTaskController/userEdit');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizteamprojecttaskuser', function () {

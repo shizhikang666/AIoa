@@ -6071,3 +6071,71 @@ git diff --check
 - Do not implement team-project add/edit/delete.
 - Do not implement task/category/task-user add/edit/delete or task state/progress writes.
 - Do not implement notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Completed Plan: api-agent/frontend-agent - Team Project Task User Edit Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add the Java-compatible task assignee synchronization endpoint used by the copied team-project task detail drawer:
+
+- `POST /biz/bizteamprojecttask/user/edit`
+
+This slice only syncs task-user assignment rows. It does not implement task add/edit/delete, task category writes, task comments, status/progress changes, notifications, or data-change side effects.
+
+### 2. Involved Modules
+
+- api-agent team-project task assignment compatibility
+- frontend-agent copied task-detail API compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectTaskController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The frontend selector can submit either user id strings or user objects, so input normalization must accept both shapes.
+- Java physically deletes removed task-user rows; this ThinkPHP refactor keeps imported data safer by using logical deletion for removed assignments.
+- Task assignment affects collaboration visibility, so the write must validate project membership and imported project permission before syncing rows.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectTaskController.php
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizteamprojecttask/user/edit` is registered behind token middleware.
+- Request body accepts `id` plus `user` values as ids, comma-separated ids, or user objects containing `id`/`userId`/`value`.
+- The current token user must be a non-deleted member of the owning team project and must have imported `addUser` project permission or task-level `MANAGE` role.
+- Submitted assignees must already be non-deleted members of the same team project.
+- Missing assignees are logically deleted; new assignees are inserted as `MEMBER` rows with audit fields.
+- Java source, database schema, frontend source, task add/edit/delete, category writes, comments, notifications, data-change events, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/bizteamprojecttask/add`, `/edit`, or `/delete`.
+- Do not implement `/biz/bizteamprojecttaskcategory/add`, `/edit`, `/sort/edit`, or `/delete`.
+- Do not implement task comment writes, status/progress/content writes, notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

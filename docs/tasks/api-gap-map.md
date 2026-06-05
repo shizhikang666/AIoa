@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 304 | From `php think route:list` after team-project comment maintenance route addition |
-| Endpoints already covered by route path | 292 | Includes read adapters, auth/system routes, and selected low-risk writes |
+| Current ThinkPHP routes | 305 | From `php think route:list` after team-project task-user edit route addition |
+| Endpoints already covered by route path | 293 | Includes read adapters, auth/system routes, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 184 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
+| Deferred write/side-effect candidates | 183 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
 
@@ -54,7 +54,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/bizhistoryexcel` | Historical EXCEL page and detail reads |
 | `biz/saleprojectinvoiceItem` | Sale-project delivery invoice item page reads |
 | `biz/salesprojectfieldchangelog` | Sale-project field change log page and detail reads |
-| `biz/teamproject`, `biz/task` | Team project, task, task user, project comment, project comment reply, task comment read slices, and project comment/reply base write compatibility |
+| `biz/teamproject`, `biz/task` | Team project, task, task user, project comment, project comment reply, task comment read slices, task assignee sync, and project comment/reply base write compatibility |
 | `biz/process` | Basic workflow query/read slices |
 | `biz/ccrecords` | Workflow copy/CC record page and detail reads |
 | `biz/bizdraft` | Sale-project draft detail read |
@@ -97,7 +97,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
 | `biz/bizteamprojectcomment` | `page`, `list`, `detail`, `add`, and `delete` covered; notification/data-change side effects remain deferred |
 | `biz/bizteamprojectcommentreply` | `page`, `detail`, `add`, `edit`, and `delete` covered |
-| `biz/bizteamprojecttaskuser` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
+| `biz/bizteamprojecttaskuser` | `page` and `detail` covered; task-detail assignment sync is covered through `/biz/bizteamprojecttask/user/edit`; standalone `add`, `edit`, and `delete` remain deferred |
 | `dev/monitor` | `serverInfo` and `networkInfo` covered |
 | `sys/field` | `page`, `tree`, `detail`, and `MenuTreeSelector` covered; add/edit/delete remain deferred |
 | `gen/basic` | `page`, `detail`, `tables`, `tableColumns`, and `mobileModuleSelector` covered; add/edit/delete/previewGen/execGen routes remain deferred |
@@ -124,7 +124,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
 | `biz/salesprojectfieldchangelog` | Sale-project amount/change generation, workflow, finance, audit side effects | Add/edit/delete base log-row writes are covered |
 | `biz/ccrecords` | `add`, `edit`, workflow copy-user delegate writes | Delete is covered as current-user logical delete; generation still belongs to workflow write runtime |
-| `biz/teamproject comments` | notification push, data-change events | Comment/reply base writes are covered with member/resource-permission guards; push side effects remain deferred |
+| `biz/teamproject comments and tasks` | notification push, data-change events, full task/category mutations | Comment/reply base writes and task assignee sync are covered with member/resource-permission guards; push and data-change side effects remain deferred |
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `biz/bizhistoryexcel` | Import/export parsing, `biz_history_excel_row` writes | Base add/edit/delete writes are covered; parser/storage changes remain deferred |
 | `biz/projectrate` | `edit`, image upload/storage cleanup | Add/delete base row writes are covered; Java controller does not expose edit in the current reference |

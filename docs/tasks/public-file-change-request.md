@@ -2915,3 +2915,35 @@ Java exposes `/biz/bizteamprojectcomment/delete`, `/biz/bizteamprojectcommentrep
 - Comment delete should require imported `delComment` project resource permission.
 - Reply edit/delete should allow the reply creator or a project user with imported `delComment` permission.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Team Project Task User Edit Route
+
+## Request
+
+Register the protected team-project task assignee synchronization route in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizteamprojecttask/user/edit` from `BizTeamProjectTaskController`, and the copied Vue task detail drawer calls it when a user changes task assignees through `bizTeamProjectTaskApi.bizTeamProjectTaskUserEdit`.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST route:
+
+- `POST /biz/bizteamprojecttask/user/edit`
+
+## Explicit Exclusions
+
+- No `/biz/bizteamprojecttask/add`, `/edit`, or `/delete` route was added.
+- No task-category add/edit/sort/delete route was added.
+- No task-comment write, task status/progress/content write, notification push, data-change event, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Removed task-user rows use logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should be able to sync task assignees only when the current user is a non-deleted project member and has imported `addUser` project permission or task-level `MANAGE` role.
+- Submitted assignees should be rejected when they are not non-deleted members of the same team project.
+- Requests without token should return `code=401`.

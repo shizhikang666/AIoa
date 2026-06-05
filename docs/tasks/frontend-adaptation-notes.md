@@ -842,3 +842,28 @@ This slice completes the remaining copied team-project comment/reply wrapper mai
 
 - Notification push and data-change events remain deferred.
 - Team-project mutations, task/category/task-user writes, task comment writes, and task state/progress writes remain out of scope.
+
+## 2026-06-05 Team Project Task User Edit Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project task detail assignee selector:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/taskDetail.vue`
+
+### Result
+
+- `/biz/bizteamprojecttask/user/edit` is now routed as a protected POST endpoint.
+- The endpoint accepts `id` plus `user`, `users`, or `userIds`.
+- Submitted assignees may be id strings, comma-separated ids, or user objects containing `id`, `userId`, or `value`.
+- Assignment writes require current-user membership of the owning team project plus imported `addUser` project permission or task-level `MANAGE` role.
+- Submitted assignees must already be non-deleted members of the same team project.
+- Removed task-user rows use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- `/biz/bizteamprojecttask/add`, `/edit`, and `/delete` remain deferred.
+- Task category writes, task comments, task status/progress/content writes, notification push, and data-change events remain out of scope.

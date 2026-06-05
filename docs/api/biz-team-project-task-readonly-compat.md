@@ -32,6 +32,7 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizteamprojecttask/page` | Task page scoped to projects visible to the current user. |
 | GET | `/biz/bizteamprojecttask/list` | Task list for the project kanban view. |
 | GET | `/biz/bizteamprojecttask/detail` | Task detail by id with `users`. |
+| POST | `/biz/bizteamprojecttask/user/edit` | Sync task assignees from the task detail drawer. |
 | GET | `/biz/bizteamprojectcomment/page` | Project timeline comment page. |
 | GET | `/biz/bizteamprojectcomment/list` | Project timeline comment list with nested replies. |
 | POST | `/biz/bizteamprojectcomment/add` | Project timeline comment add with member guard. |
@@ -52,13 +53,14 @@ All routes are protected by `AuthMiddleware`.
 - Comment add stores `mentionableUsers` in `EXT_JSON`; notification push and data-change events remain deferred.
 - Comment delete requires the current user to have imported project resource permission `delComment`.
 - Reply edit/delete allows the reply creator or a project user with imported `delComment` resource permission.
+- Task assignee sync requires the current user to be a non-deleted member of the owning team project and to have imported `addUser` project permission or task-level `MANAGE` role.
+- Task assignee sync only accepts users who are already non-deleted members of the same team project. Removed assignees are logically deleted to preserve imported data during refactor testing.
 
 ## Deferred Routes
 
 - `/biz/bizteamprojecttask/add`
 - `/biz/bizteamprojecttask/edit`
 - `/biz/bizteamprojecttask/delete`
-- `/biz/bizteamprojecttask/user/edit`
 - `/biz/bizteamprojecttaskcategory/add`
 - `/biz/bizteamprojecttaskcategory/edit`
 - `/biz/bizteamprojecttaskcategory/sort/edit`
@@ -71,5 +73,5 @@ These routes mutate task state, category order, memberships, task comments, and 
 - Baseline `composer dump-autoload`.
 - Baseline `php think`.
 - `php think route:list` route registration.
-- Runtime smoke tests for representative category, task, project-comment, task-comment reads, and project-comment/reply base writes.
+- Runtime smoke tests for representative category, task, project-comment, task-comment reads, task assignee sync, and project-comment/reply base writes.
 - No-token check for a protected route.
