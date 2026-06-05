@@ -20,10 +20,11 @@ Read-only SQL reference:
 
 - PHP has `pdo_mysql`, `mysqli`, and `redis` extensions enabled.
 - `F:\AI\projects\testJava\OA\oa2026.sql` exists and is about 390 MB.
-- No `.env` file exists in the ThinkPHP project root.
-- `mysql` CLI is not available in the current PATH.
-- `redis-cli` is not available in the current PATH.
-- Windows service `MySQL80` exists but is currently stopped.
+- A local `.env` file exists in the ThinkPHP project root and is ignored by Git; it contains local-only runtime secrets and must not be staged or committed.
+- MySQL CLI is available through `F:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe`.
+- Redis CLI is available through `F:\project\socket\AI\testPhp\files\tools\redis\redis-cli.exe`.
+- MySQL listens on `127.0.0.1:3306` after the helper startup script is running.
+- Redis listens on `127.0.0.1:6379` after the helper startup script is running.
 - `config/cache.php` now supports a Redis store, while defaulting to `file` until `CACHE_DRIVER=redis` is set.
 
 ## Safe Local Database Setup
@@ -86,14 +87,19 @@ For legacy Vue login compatibility, `AUTH_SM2_PRIVATE_KEY` may be configured loc
 
 The user-designated runtime targets for this project are:
 
+- Startup script: `F:\project\socket\AI\testPhp\files\startServer1.bat`
 - MySQL host: `127.0.0.1`
 - MySQL port: `3306`
 - MySQL database: `phpoa20026`
+- MySQL account: local-only value from ignored `.env`
 - Redis host: `127.0.0.1`
 - Redis port: `6379`
+- Redis password: local-only value from ignored `.env`
 - Redis expire setting: `11`
 
 If a later phase needs to change the database name, database account, Redis host, Redis port, Redis password variable, or Redis expiration setting, stop and ask the user to confirm before applying the change.
+
+Do not write the actual MySQL password or Redis password into repository files, commit messages, logs, screenshots, or GitHub comments.
 
 ## Smoke Checks
 
@@ -164,6 +170,19 @@ After the fix:
 - `GET /biz/task/page`: `code=200` with token.
 - `GET /biz/process/page`: `code=200` with token.
 - The same protected routes return `code=401` without token.
+
+## 2026-06-05 Runtime Target Confirmation
+
+The user reconfirmed that this project must continue using the designated local database and Redis runtime for future backend and frontend testing.
+
+- Startup script confirmed: `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- MySQL port check: `127.0.0.1:3306` reachable.
+- MySQL database check: `phpoa20026` exists; it was created with `CREATE DATABASE IF NOT EXISTS` if missing.
+- Redis port check: `127.0.0.1:6379` reachable.
+- Redis authentication check: `PING` returned `PONG` through the bundled Redis CLI.
+- `.env` check: local `.env` is ignored by Git and contains the actual local-only passwords.
+
+Future phases must use this target unless the user explicitly confirms a change. If any later task needs to change database name, database account, database password, Redis host, Redis port, Redis password, or Redis expiration, stop and ask first.
 
 ## Stop Conditions
 

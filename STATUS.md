@@ -4683,6 +4683,44 @@ Agent: api-agent
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
 
+## 2026-06-05 - main-control-agent - Runtime Database And Redis Target Confirmation
+
+### Completed Content
+
+- Accepted the user-confirmed runtime rule that this project must continue using the designated local MySQL database and Redis runtime.
+- Verified local `.env` is ignored by Git and contains local-only runtime secrets.
+- Verified the MySQL/Redis helper startup script exists at `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Verified MySQL is reachable on `127.0.0.1:3306`.
+- Verified `phpoa20026` exists, creating it with `CREATE DATABASE IF NOT EXISTS` if it was missing.
+- Verified Redis is reachable on `127.0.0.1:6379` and authenticated `PING` returns `PONG`.
+- Updated runtime verification documentation without writing MySQL or Redis passwords to repository files.
+
+### Modified Files
+
+- `STATUS.md`
+- `docs/tasks/runtime-verification-plan.md`
+
+### Test Results
+
+- `git status --short --branch`: clean before documentation update.
+- MySQL port probe: passed.
+- Startup script path probe: passed.
+- MySQL database probe/create-if-missing: passed; `phpoa20026` returned from `INFORMATION_SCHEMA.SCHEMATA`.
+- Redis port probe: passed.
+- Redis authenticated `PING`: passed with `PONG`.
+
+### Current Issues
+
+- Do not commit local `.env` because it contains database and Redis passwords.
+- If any later phase needs to change database name, account, password, Redis host, Redis port, Redis password, or Redis expiration, stop and ask the user to confirm.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Run documentation-scope baseline checks.
+- Commit and push this runtime target confirmation.
+- Continue the next planned safe read-only compatibility slice after the runtime rule is recorded.
+
 ## 2026-06-05 - workflow-agent/api-agent/frontend-agent - Biz User Vacation Page Read-Only Compatibility
 
 ### Completed Content

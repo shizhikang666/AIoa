@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-05 11:05 +08:00
+Last updated: 2026-06-05 11:25 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -47,7 +47,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Business write APIs | 10% | Red | Mostly deferred by design | Add/edit/delete/audit/status/stock/payment/refund flows with transactions and side effects |
 | Frontend adaptation | 65% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, sys-user grant echo reads added, copy-task CC record reads added, sale-project draft detail read added, annual-leave balance page/detail read added, sale-project invoice item page read added, sale-project field change log reads added, team-project task user reads added, dev monitor network read added, sale-project rating detail read added, minimal SSE route added, short-lived SSE client fallback added; browser smoke reaches `/sys/org`, `/sys/user`, `/biz/bizdatareport/summaryStatistics`, `/biz/saleproject` with visible pagination, sale-project detail read tabs, and cost tab zero-revenue display is guarded | Broken API method cleanup, remaining read-only business routes |
 | Testing / QA | 43% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice, backend/frontend browser smoke for summary-statistics, sale-project detail tab service smoke | Automated route/API test suite, regression matrix, broader frontend smoke, negative tests |
-| Deployment | 15% | Red | Local MySQL/Redis startup method known; env is local | Production config, queue/runtime/log permissions, Nginx/PHP deployment checks |
+| Deployment | 16% | Red | Local MySQL/Redis startup method and user-designated runtime target confirmed; env is local and ignored by Git | Production config, queue/runtime/log permissions, Nginx/PHP deployment checks |
 | Final online data sync | 0% | Red | Requirement recorded as final-stage reminder | Must design and confirm after project completion; do not start early |
 
 ## Completed Compatibility Slices
