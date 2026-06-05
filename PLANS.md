@@ -6418,3 +6418,72 @@ git diff --check
 - Do not implement standalone `/biz/bizteamprojecttaskuser/add`, `/edit`, or `/delete`.
 - Do not generate `CATEGORY = LOG` task comments.
 - Do not implement notification push, data-change event broadcasting, workflow actions, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: api-agent/frontend-agent - Team Project Member Maintenance Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible protected team-project member maintenance endpoints used by the copied team-project detail view:
+
+- `POST /biz/bizteamprojectuser/add`
+- `POST /biz/bizteamprojectuser/manage/add`
+- `POST /biz/bizteamprojectuser/delete`
+
+This slice only handles team-project member add/remove compatibility. It does not implement member role edit, notification push, Java data-change events, or unrelated team-project writes.
+
+### 2. Involved Modules
+
+- api-agent team-project member compatibility
+- frontend-agent copied team-project detail API compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectUserController.php`
+- `app/service/biz/TeamProjectService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java add emits data-change events after member changes; this slice intentionally leaves those side effects deferred.
+- Java delete physically removes member rows; this refactor should preserve imported data with logical deletion.
+- Project member permissions are stored both as role defaults and imported relation rows, so new member writes must keep relation permission JSON compatible.
+- Removing project leaders or the current user could lock users out of project management, so this slice rejects those operations.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectUserController.php
+php -l app\service\biz\TeamProjectService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Member `add`, `manage/add`, and `delete` routes are registered behind token middleware.
+- Add requires `teamProjectId` and `users`, validates submitted users exist, validates current-user project permission `addUser`, rejects active duplicates, restores previously deleted member rows when safe, and writes compatible relation permission JSON.
+- Manage add requires current-user project permission `addManage` and creates or restores members with `ROLE_TYPE = MANAGE`.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or single `id`, validates current-user project permission, rejects leader/current-user removal, and logically deletes selected member rows with `DELETE_FLAG = DELETED`.
+- Java source, database schema, frontend source, notification push, data-change events, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/bizteamprojectuser/edit`.
+- Do not implement notification push, Java data-change event broadcasting, team-project base writes, task writes, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

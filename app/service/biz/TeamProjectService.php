@@ -13,6 +13,8 @@ use think\facade\Db;
 class TeamProjectService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
+    private const TEAM_PROJECT_PERMISSION_CATEGORY = 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION';
     private const PROJECT_FIELDS = <<<SQL
 p.ID AS ID,
 p.NAME AS NAME,
@@ -174,6 +176,108 @@ SQL;
         return $this->memberRow($row);
     }
 
+    public function memberAdd(array $input, array $payload = [], string $roleType = 'MEMBER'): array
+    {
+        $teamProjectId = $this->requiredInput($input, 'teamProjectId');
+        $roleType = $this->normalizeMemberRole($roleType);
+        $userIds = $this->userIdList($input);
+        if ($userIds === []) {
+            throw new RuntimeException('missing user', 400);
+        }
+
+        return Db::transaction(function () use ($teamProjectId, $roleType, $userIds, $payload): array {
+            $requiredPermission = $roleType === 'MANAGE' ? 'addManage' : 'addUser';
+            $project = $this->assertProjectPermission($teamProjectId, $payload, $requiredPermission, 'add team project users');
+            $this->assertUsersExist($userIds);
+            $this->assertNoActiveProjectMembers($teamProjectId, $userIds);
+
+            $tenantId = $this->tenantIdFromProject($payload, $project);
+            $currentUserId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $deletedRows = $this->deletedMemberRowsByUser($teamProjectId, $userIds);
+            $ids = [];
+
+            foreach ($userIds as $userId) {
+                $deletedRow = $deletedRows[$userId] ?? null;
+                if (is_array($deletedRow)) {
+                    $id = (string)$deletedRow['ID'];
+                    Db::name('biz_team_project_user')->where('ID', $id)->update([
+                        'ROLE_TYPE' => $roleType,
+                        'DELETE_FLAG' => self::NOT_DELETE,
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $currentUserId,
+                        'TENANT_ID' => $tenantId,
+                    ]);
+                } else {
+                    $id = $this->newId();
+                    Db::name('biz_team_project_user')->insert([
+                        'ID' => $id,
+                        'TEAM_PROJECT_ID' => $teamProjectId,
+                        'USER_ID' => $userId,
+                        'ROLE_TYPE' => $roleType,
+                        'DELETE_FLAG' => self::NOT_DELETE,
+                        'CREATE_TIME' => $now,
+                        'CREATE_USER' => $currentUserId,
+                        'UPDATE_TIME' => null,
+                        'UPDATE_USER' => null,
+                        'TENANT_ID' => $tenantId,
+                    ]);
+                }
+
+                $this->syncMemberRelation($teamProjectId, $userId, $roleType, $tenantId);
+                $ids[] = $id;
+            }
+
+            return [
+                'teamProjectId' => $teamProjectId,
+                'roleType' => $roleType,
+                'ids' => $ids,
+                'count' => count($ids),
+            ];
+        });
+    }
+
+    public function memberDelete(array $input, array $payload = []): array
+    {
+        $ids = $this->idList($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $rows = $this->activeMemberRowsByIds($ids, $payload);
+            if (count($rows) !== count($ids)) {
+                throw new RuntimeException('team project user not found', 404);
+            }
+
+            $currentUserId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $affected = 0;
+
+            foreach ($rows as $row) {
+                $targetUserId = (string)$row['USER_ID'];
+                $teamProjectId = (string)$row['TEAM_PROJECT_ID'];
+                $targetRoleType = strtoupper((string)$row['ROLE_TYPE']);
+                if ($targetUserId === $currentUserId) {
+                    throw new RuntimeException('cannot remove yourself from team project', 400);
+                }
+                if ($targetRoleType === 'LEADER') {
+                    throw new RuntimeException('cannot remove team project leader', 400);
+                }
+
+                $requiredPermission = $targetRoleType === 'MANAGE' ? 'addManage' : 'addUser';
+                $this->assertProjectPermission($teamProjectId, $payload, $requiredPermission, 'delete team project users');
+
+                $query = Db::name('biz_team_project_user')->where('ID', (string)$row['ID']);
+                $this->whereNotDeleted($query, 'DELETE_FLAG');
+                $affected += $query->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId,
+                ]);
+            }
+
+            return ['ids' => $ids, 'count' => $affected];
+        });
+    }
+
     private function projectQuery(array $filters, array $payload)
     {
         $currentUserId = $this->currentUserId($payload);
@@ -281,6 +385,170 @@ SQL;
         ], $payload)[0] ?? throw new RuntimeException('team project user not found', 404);
     }
 
+    private function assertProjectPermission(string $teamProjectId, array $payload, string $code, string $action): array
+    {
+        $project = $this->activeProjectForWrite($teamProjectId, $payload);
+        $member = $this->activeCurrentMemberForWrite($teamProjectId, $payload, $action);
+        $permissions = $this->memberPermissionCodes($teamProjectId, $this->currentUserId($payload), (string)$member['ROLE_TYPE']);
+        if (!in_array($code, $permissions, true)) {
+            throw new RuntimeException("no permission to {$action} on this team project", 403);
+        }
+
+        return $project;
+    }
+
+    private function activeProjectForWrite(string $teamProjectId, array $payload): array
+    {
+        $query = Db::name('biz_team_project')->where('ID', $teamProjectId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('team project not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function activeCurrentMemberForWrite(string $teamProjectId, array $payload, string $action): array
+    {
+        $query = Db::name('biz_team_project_user')
+            ->where('TEAM_PROJECT_ID', $teamProjectId)
+            ->where('USER_ID', $this->currentUserId($payload));
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException("no permission to {$action} on this team project", 403);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function memberPermissionCodes(string $teamProjectId, string $userId, string $roleType): array
+    {
+        $relation = Db::name('biz_relation')
+            ->where('OBJECT_ID', $teamProjectId)
+            ->where('TARGET_ID', $userId)
+            ->where('CATEGORY', self::TEAM_PROJECT_PERMISSION_CATEGORY)
+            ->find();
+
+        if (is_array($relation) && !empty($relation['EXT_JSON'])) {
+            $decoded = json_decode((string)$relation['EXT_JSON'], true);
+            if (is_array($decoded)) {
+                return array_values(array_unique(array_map(static fn (mixed $item): string => (string)$item, $decoded)));
+            }
+        }
+
+        return self::ROLE_META[$roleType]['permissionCode'] ?? [];
+    }
+
+    /**
+     * @param array<int, string> $userIds
+     */
+    private function assertUsersExist(array $userIds): void
+    {
+        $query = Db::name('sys_user')->whereIn('ID', $userIds);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ((int)$query->count() !== count($userIds)) {
+            throw new RuntimeException('selected user not found', 400);
+        }
+    }
+
+    /**
+     * @param array<int, string> $userIds
+     */
+    private function assertNoActiveProjectMembers(string $teamProjectId, array $userIds): void
+    {
+        $query = Db::name('biz_team_project_user')
+            ->where('TEAM_PROJECT_ID', $teamProjectId)
+            ->whereIn('USER_ID', $userIds);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ((int)$query->count() > 0) {
+            throw new RuntimeException('selected user is already in this team project', 400);
+        }
+    }
+
+    /**
+     * @param array<int, string> $userIds
+     * @return array<string, array<string, mixed>>
+     */
+    private function deletedMemberRowsByUser(string $teamProjectId, array $userIds): array
+    {
+        $rows = Db::name('biz_team_project_user')
+            ->where('TEAM_PROJECT_ID', $teamProjectId)
+            ->whereIn('USER_ID', $userIds)
+            ->where('DELETE_FLAG', self::DELETED)
+            ->select()
+            ->toArray();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $userId = (string)($row['USER_ID'] ?? '');
+            if ($userId !== '' && !isset($map[$userId])) {
+                $map[$userId] = $row;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<int, array<string, mixed>>
+     */
+    private function activeMemberRowsByIds(array $ids, array $payload): array
+    {
+        $query = Db::name('biz_team_project_user')->whereIn('ID', $ids);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return $query->select()->toArray();
+    }
+
+    private function syncMemberRelation(string $teamProjectId, string $userId, string $roleType, string $tenantId): void
+    {
+        $permissions = self::ROLE_META[$roleType]['permissionCode'] ?? [];
+        $extJson = json_encode(array_values(array_unique($permissions)), JSON_UNESCAPED_UNICODE);
+        $relation = Db::name('biz_relation')
+            ->where('OBJECT_ID', $teamProjectId)
+            ->where('TARGET_ID', $userId)
+            ->where('CATEGORY', self::TEAM_PROJECT_PERMISSION_CATEGORY)
+            ->find();
+
+        if (is_array($relation) && !empty($relation['ID'])) {
+            Db::name('biz_relation')->where('ID', (string)$relation['ID'])->update([
+                'EXT_JSON' => $extJson,
+                'TENANT_ID' => $tenantId,
+            ]);
+
+            return;
+        }
+
+        Db::name('biz_relation')->insert([
+            'ID' => $this->newId(),
+            'OBJECT_ID' => $teamProjectId,
+            'TARGET_ID' => $userId,
+            'CATEGORY' => self::TEAM_PROJECT_PERMISSION_CATEGORY,
+            'EXT_JSON' => $extJson,
+            'TENANT_ID' => $tenantId,
+        ]);
+    }
+
     private function currentUserId(array $payload): string
     {
         $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
@@ -289,6 +557,114 @@ SQL;
         }
 
         return $userId;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function idList(array $input): array
+    {
+        $raw = [];
+        if (array_is_list($input)) {
+            $raw = $input;
+        } elseif (isset($input['idList']) && is_array($input['idList'])) {
+            $raw = $input['idList'];
+        } elseif (isset($input['ids']) && is_array($input['ids'])) {
+            $raw = $input['ids'];
+        } elseif (isset($input['ids']) && is_string($input['ids'])) {
+            $raw = explode(',', $input['ids']);
+        } elseif (isset($input['id'])) {
+            $raw = [$input['id']];
+        }
+
+        $ids = [];
+        foreach ($raw as $item) {
+            $id = is_array($item) ? (string)($item['id'] ?? '') : (string)$item;
+            $id = trim($id);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        $ids = array_values(array_unique($ids));
+        if ($ids === []) {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function userIdList(array $input): array
+    {
+        if (!array_key_exists('user', $input) && !array_key_exists('users', $input) && !array_key_exists('userIds', $input)) {
+            throw new RuntimeException('missing user', 400);
+        }
+
+        $raw = $input['user'] ?? $input['users'] ?? $input['userIds'] ?? [];
+        if (is_string($raw)) {
+            $raw = explode(',', $raw);
+        }
+        if (!is_array($raw)) {
+            $raw = [];
+        }
+
+        $ids = [];
+        foreach ($raw as $item) {
+            if (is_array($item)) {
+                $id = (string)($item['id'] ?? $item['userId'] ?? $item['value'] ?? '');
+            } else {
+                $id = (string)$item;
+            }
+
+            $id = trim($id);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function normalizeMemberRole(string $roleType): string
+    {
+        $roleType = strtoupper(trim($roleType));
+        if (!in_array($roleType, ['MEMBER', 'MANAGE'], true)) {
+            throw new RuntimeException('invalid team project member role', 400);
+        }
+
+        return $roleType;
+    }
+
+    private function tenantIdFromProject(array $payload, array $project): string
+    {
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? $project['TENANT_ID'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function whereNotDeleted($query, string $column): void
+    {
+        $query->where(function ($query) use ($column): void {
+            $query->whereNull($column)->whereOr($column, '=', self::NOT_DELETE);
+        });
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function applyTimeRange($query, array $filters, string $column, string $startKey, string $endKey): void

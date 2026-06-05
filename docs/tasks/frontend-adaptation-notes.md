@@ -978,3 +978,32 @@ This slice supports the copied team-project kanban task wrappers:
 
 - Generated task `CATEGORY = LOG` comments remain deferred.
 - Notification push, data-change events, workflow actions, and full drag ordering remain out of scope.
+
+## 2026-06-05 Team Project Member Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project member wrappers:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectUserApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/addUserForm.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/composables/index.js`
+
+### Result
+
+- `/biz/bizteamprojectuser/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectuser/manage/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectuser/delete` is now routed as a protected POST endpoint.
+- Add accepts `teamProjectId` and `users`/`user`/`userIds`, rejects users already active in the same project, and creates `ROLE_TYPE = MEMBER`.
+- Manage add uses the same payload shape but creates `ROLE_TYPE = MANAGE`.
+- Previously deleted member rows are restored instead of creating another duplicate active row.
+- Member relation permissions are synchronized under `TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` to match Java role defaults.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED`, and rejects project leader or current-user removal.
+
+### Deferred
+
+- `/biz/bizteamprojectuser/edit` remains deferred.
+- Notification push, data-change events, team-project base writes, and frontend source changes remain out of scope.

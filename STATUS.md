@@ -6076,3 +6076,51 @@ Agent: api-agent
 
 - Commit and push this task base maintenance compatibility slice.
 - Continue another isolated frontend-visible gap, likely team-project member maintenance or a low-risk profile/selector helper, before opening workflow, finance, inventory, or sale-project state flows.
+
+## 2026-06-05 17:20 +08:00 - api-agent/frontend-agent - Team Project Member Maintenance Compatibility
+
+### Completed
+
+- Added protected compatibility routes for team-project member add, manager add, and delete.
+- Added `TeamProjectUserController` POST handlers with JSON/form body compatibility.
+- Added `TeamProjectService` member maintenance logic for active duplicate detection, deleted-row restore, project permission checks, relation permission JSON sync, and logical deletion.
+- Updated team-project API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and active plan status.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/TeamProjectUserController.php`
+- `app/service/biz/TeamProjectService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\TeamProjectUserController.php`: passed.
+- `php -l app\service\biz\TeamProjectService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 318 route entries; member `add`, `manage/add`, and `delete` listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 232 files.
+- `git diff --check`: passed.
+- Service smoke: passed for add member, duplicate rejection, delete, restore as manager, relation permission sync, final delete, and leader-delete rejection.
+- No-token HTTP smoke for `POST /biz/bizteamprojectuser/add`: returned `code=401`.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- Java notification push and data-change event side effects remain deferred by design.
+- `/biz/bizteamprojectuser/edit` remains deferred.
+- The local service smoke leaves a logically deleted test member row in the local database, preserving imported data by avoiding physical cleanup.
+
+### Next Plan
+
+- Continue the next small frontend-visible business compatibility slice.
+- Candidate next slice: team-project member role edit only if the copied frontend exposes it during browser testing; otherwise return to remaining sale/customer/finance write gaps.

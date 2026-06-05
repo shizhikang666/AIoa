@@ -296,6 +296,9 @@ Route::group('biz/bizteamproject', function () {
 Route::group('biz/bizteamprojectuser', function () {
     Route::get('page', 'biz.TeamProjectUserController/page');
     Route::get('list', 'biz.TeamProjectUserController/list');
+    Route::post('add', 'biz.TeamProjectUserController/add');
+    Route::post('manage/add', 'biz.TeamProjectUserController/manageAdd');
+    Route::post('delete', 'biz.TeamProjectUserController/delete');
     Route::get('detail', 'biz.TeamProjectUserController/detail');
 })->middleware(AuthMiddleware::class);
 

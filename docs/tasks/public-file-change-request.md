@@ -3080,3 +3080,37 @@ Java exposes `/biz/bizteamprojecttask/add`, `/edit`, and `/delete`, and the copi
 - Add should validate current-user project membership, category/project match, and selected task users as project members.
 - Edit/delete should allow only the task creator, a task-level `MANAGE` user, or a project maintainer.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Team Project Member Maintenance Routes
+
+## Request
+
+Register protected team-project member add, manage/add, and delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizteamprojectuser/add`, `/manage/add`, and `/delete`, and the copied Vue team-project detail page calls these endpoints when adding normal members, adding project managers, and removing members from a project. Existing ThinkPHP routes already cover member `page`, `list`, and `detail`; this slice opens only member maintenance.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/bizteamprojectuser/add`
+- `POST /biz/bizteamprojectuser/manage/add`
+- `POST /biz/bizteamprojectuser/delete`
+
+## Explicit Exclusions
+
+- No `/biz/bizteamprojectuser/edit` route was added.
+- No notification push, data-change event, team-project base write, task write, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Deletes use logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Add should validate current-user project resource permission `addUser`, selected user existence, and active duplicate membership.
+- Manage add should validate current-user project resource permission `addManage`.
+- Delete should reject leader/current-user removal and require `addManage` when removing a project manager.
+- Requests without token should return `code=401`.

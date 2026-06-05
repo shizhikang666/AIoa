@@ -1,8 +1,8 @@
-# Biz Team Project Read-Only Compatibility
+# Biz Team Project Compatibility
 
 ## Scope
 
-This slice adds read-only ThinkPHP compatibility endpoints for the old Java team-project APIs used by the Vue OA frontend.
+This document tracks ThinkPHP compatibility endpoints for the old Java team-project APIs used by the Vue OA frontend. It started as a read-only slice and now also records isolated member/comment/task maintenance routes that have been opened in later small slices.
 
 Java source analyzed:
 
@@ -33,6 +33,9 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizteamproject/detail` | Project detail plus current member role. |
 | GET | `/biz/bizteamprojectuser/page` | Paginated team-member list. |
 | GET | `/biz/bizteamprojectuser/list` | Non-paginated members for a project. |
+| POST | `/biz/bizteamprojectuser/add` | Add normal project members after `addUser` resource permission check. |
+| POST | `/biz/bizteamprojectuser/manage/add` | Add project managers after `addManage` resource permission check. |
+| POST | `/biz/bizteamprojectuser/delete` | Logically remove non-leader, non-current-user project members. |
 | GET | `/biz/bizteamprojectuser/detail` | Read-only member detail lookup. |
 
 ## Explicitly Deferred Routes
@@ -42,10 +45,7 @@ These Java/frontend routes are not implemented in this slice because they mutate
 - `POST /biz/bizteamproject/add`
 - `POST /biz/bizteamproject/edit`
 - `POST /biz/bizteamproject/delete`
-- `POST /biz/bizteamprojectuser/add`
-- `POST /biz/bizteamprojectuser/manage/add`
 - `POST /biz/bizteamprojectuser/edit`
-- `POST /biz/bizteamprojectuser/delete`
 
 ## Query Compatibility
 
@@ -108,4 +108,6 @@ Member rows return:
 - Java project page joins `biz_team_project_user` and only lists projects that include the current login user. This ThinkPHP query preserves that gate.
 - Java project detail loads the current user's `BizTeamProjectUser` record and returns it as `user`; this slice mirrors that shape.
 - Role permission codes are mapped from Java `BizTeamProjectUserRoleEnum`.
-- This slice does not modify Java source, database schema, Composer files, `.env`, or any write endpoint.
+- Member add/manage-add writes `biz_team_project_user` rows and keeps `biz_relation.CATEGORY = TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` JSON compatible with Java role defaults.
+- Member delete uses logical deletion through `DELETE_FLAG = DELETED` instead of Java's physical remove, and it rejects leader/current-user removal.
+- This slice does not modify Java source, database schema, Composer files, `.env`, notification push, data-change events, or frontend source.
