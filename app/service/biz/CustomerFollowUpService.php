@@ -13,6 +13,7 @@ use think\facade\Db;
 class CustomerFollowUpService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
 
     private const FOLLOW_UP_FIELDS = <<<SQL
 f.ID AS ID,
@@ -99,6 +100,103 @@ SQL;
         }
 
         return $result;
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $customerId = $this->requiredInput($input, 'customerId');
+        $followUpTime = $this->requiredInput($input, 'followUpTime');
+        $content = $this->requiredInput($input, 'content');
+
+        return Db::transaction(function () use ($customerId, $followUpTime, $content, $input, $payload): array {
+            $customer = $this->assertCustomerWritable($customerId, $payload, 'add');
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $id = $this->newId();
+            $row = [
+                'ID' => $id,
+                'CUSTOMER_ID' => $customerId,
+                'FOLLOW_UP_TIME' => $followUpTime,
+                'CONTENT' => $content,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantId($input, $payload, $customer),
+            ];
+
+            if (array_key_exists('extJson', $input)) {
+                $row['EXT_JSON'] = $this->nullableString($input['extJson']);
+            }
+
+            Db::name('customer_follow_up')->insert($row);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $followUp = $this->activeFollowUp($id);
+            $this->assertCustomerWritable((string)$followUp['CUSTOMER_ID'], $payload, 'edit');
+
+            $row = [
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+            ];
+
+            if (array_key_exists('followUpTime', $input)) {
+                $row['FOLLOW_UP_TIME'] = $this->requiredInput($input, 'followUpTime');
+            }
+            if (array_key_exists('content', $input)) {
+                $row['CONTENT'] = $this->requiredInput($input, 'content');
+            }
+            if (array_key_exists('extJson', $input)) {
+                $row['EXT_JSON'] = $this->nullableString($input['extJson']);
+            }
+
+            Db::name('customer_follow_up')->where('ID', $id)->update($row);
+
+            return ['id' => $id];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->stringList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $query = Db::name('customer_follow_up')->whereIn('ID', $idList);
+            $this->whereNotDeleted($query, 'DELETE_FLAG');
+            $rows = $query->select()->toArray();
+            if (count($rows) !== count($idList)) {
+                throw new RuntimeException('customer follow-up not found', 404);
+            }
+
+            foreach ($rows as $row) {
+                $this->assertCustomerWritable((string)$row['CUSTOMER_ID'], $payload, 'delete');
+            }
+
+            $updated = Db::name('customer_follow_up')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
     }
 
     private function followUpQuery(array $filters, array $payload, bool $applyDataScope)
@@ -234,6 +332,86 @@ SQL;
         });
     }
 
+    private function activeFollowUp(string $id): array
+    {
+        $query = Db::name('customer_follow_up')->where('ID', $id);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('customer follow-up not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertCustomerWritable(string $customerId, array $payload, string $action): array
+    {
+        $query = Db::name('customer')->where('ID', $customerId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $customer = $query->find();
+        if (!is_array($customer) || $customer === []) {
+            throw new RuntimeException('customer not found', 404);
+        }
+
+        if ($this->canSeeAll($payload)) {
+            return $customer;
+        }
+
+        $customerOrg = trim((string)($customer['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== []) {
+            if (!in_array($customerOrg, $scopeOrgIds, true)) {
+                throw new RuntimeException("no permission to {$action} this customer follow-up", 403);
+            }
+
+            return $customer;
+        }
+
+        $customerUser = trim((string)($customer['USER'] ?? ''));
+        $userId = $this->currentUserId($payload);
+        if ($userId === '' || $customerUser !== $userId) {
+            throw new RuntimeException("no permission to {$action} this customer follow-up", 403);
+        }
+
+        return $customer;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        return (string)$value;
+    }
+
+    private function tenantId(array $input, array $payload, array $customer): ?string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? $customer['TENANT_ID'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : null;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
+    }
+
     /**
      * @return array<int, string>
      */
@@ -347,7 +525,13 @@ SQL;
             return [];
         }
 
-        return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
+        return array_values(array_unique(array_filter(array_map(static function (mixed $item): string {
+            if (is_array($item)) {
+                return trim((string)($item['id'] ?? $item['ID'] ?? ''));
+            }
+
+            return trim((string)$item);
+        }, $value))));
     }
 
     private function value(array $row, string ...$keys): mixed

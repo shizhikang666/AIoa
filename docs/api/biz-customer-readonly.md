@@ -1,4 +1,4 @@
-# Biz Customer Read-Only API Compatibility
+# Biz Customer API Compatibility
 
 Date: 2026-06-02
 
@@ -13,6 +13,9 @@ This slice maps the read-only Java customer and customer-follow-up endpoints nee
 - `POST /biz/customer/detail/list`
 - `GET /biz/customerfollowup/page`
 - `GET /biz/customerfollowup/detail`
+- `POST /biz/customerfollowup/add`
+- `POST /biz/customerfollowup/edit`
+- `POST /biz/customerfollowup/delete`
 
 All routes are protected by the existing `AuthMiddleware`.
 
@@ -116,6 +119,52 @@ Returned display fields include:
 
 Returns one customer follow-up row with Java/frontend-compatible camelCase fields.
 
+### Customer follow-up add
+
+`POST /biz/customerfollowup/add`
+
+Required fields:
+
+- `customerId`
+- `followUpTime`
+- `content`
+
+Optional fields:
+
+- `extJson`
+- `tenantId`
+
+The endpoint validates that the target customer is writable by the current token user before inserting. It writes `CREATE_TIME`, `CREATE_USER`, `TENANT_ID`, and `DELETE_FLAG = NOT_DELETE`.
+
+### Customer follow-up edit
+
+`POST /biz/customerfollowup/edit`
+
+Required fields:
+
+- `id`
+
+Mutable fields when present:
+
+- `followUpTime`
+- `content`
+- `extJson`
+
+The endpoint loads the existing non-deleted follow-up row, validates write permission from the owning customer, and updates only submitted mutable fields plus update audit columns.
+
+### Customer follow-up delete
+
+`POST /biz/customerfollowup/delete`
+
+Accepted input shapes:
+
+- `[{"id": "..."}]`
+- `{"idList": ["..."]}`
+- `{"ids": ["..."]}`
+- `{"id": "..."}`
+
+The endpoint validates every target row through the owning customer, then performs a logical delete by setting `DELETE_FLAG = DELETED`. It does not physically remove imported data.
+
 ## Data Scope
 
 The slice applies the following conservative visibility order:
@@ -139,11 +188,10 @@ The following Java/frontend routes remain intentionally unregistered:
 - `/biz/customer/edit`
 - `/biz/customer/delete`
 - `/biz/customer/head/edit`
-- `/biz/customerfollowup/add`
-- `/biz/customerfollowup/edit`
-- `/biz/customerfollowup/delete`
 
-These routes require validation, mutation permissions, SM4 handling, audit fields, and side-effect review before implementation.
+Customer write routes require validation, mutation permissions, SM4 handling, audit fields, and side-effect review before implementation.
+
+Customer follow-up attachment uploads, file cleanup, and notification side effects remain deferred.
 
 ## Verification
 

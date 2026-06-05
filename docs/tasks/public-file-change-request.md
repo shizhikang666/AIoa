@@ -2632,3 +2632,35 @@ Java exposes `/auth/third/page` from `AuthThirdController`, and the copied front
 - `php think route:list` must list the added route.
 - Token requests should return `auth_third_user` page data or a stable empty page.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Customer Follow-Up Write Routes
+
+## Request
+
+Register protected customer follow-up write routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/customerfollowup/add`, `/edit`, and `/delete`, and the copied frontend `customerFollowUpApi.js` calls these endpoints from the customer follow-up form and table actions.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/customerfollowup/add`
+- `POST /biz/customerfollowup/edit`
+- `POST /biz/customerfollowup/delete`
+
+## Explicit Exclusions
+
+- No `/biz/customer/add`, `/edit`, `/delete`, or `/head/edit` route was added.
+- No file upload/storage cleanup, notification, workflow, finance, stock, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Delete uses logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should be able to add, edit, and logically delete a customer follow-up row when the current user can write the owning customer.
+- Requests without token should return `code=401`.

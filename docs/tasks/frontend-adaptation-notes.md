@@ -611,3 +611,27 @@ This slice supports the copied third-party user binding wrapper:
 
 - `/auth/third/render` and `/auth/third/callback` remain deferred.
 - Third-party OAuth provider configuration, login callback binding, user creation, token issuing, and frontend source changes remain out of scope.
+
+## 2026-06-05 Customer Follow-Up Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied customer follow-up wrapper:
+
+- `snowy-admin-web/src/api/biz/customerFollowUpApi.js`
+
+### Result
+
+- `/biz/customerfollowup/add` is now routed as a protected POST endpoint.
+- `/biz/customerfollowup/edit` is now routed as a protected POST endpoint.
+- `/biz/customerfollowup/delete` is now routed as a protected POST endpoint.
+- The backend accepts the frontend submit-form wrapper without changing copied frontend source.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Writes validate permission through the owning customer and use logical delete for data safety.
+
+### Deferred
+
+- Customer add/edit/delete and head-owner reassignment remain deferred.
+- Follow-up attachment upload/storage cleanup, notifications, and customer encrypted-field writes remain out of scope.

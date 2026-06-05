@@ -375,6 +375,9 @@ Route::group('biz/customer', function () {
 
 Route::group('biz/customerfollowup', function () {
     Route::get('page', 'biz.CustomerFollowUpController/page');
+    Route::post('add', 'biz.CustomerFollowUpController/add');
+    Route::post('edit', 'biz.CustomerFollowUpController/edit');
+    Route::post('delete', 'biz.CustomerFollowUpController/delete');
     Route::get('detail', 'biz.CustomerFollowUpController/detail');
 })->middleware(AuthMiddleware::class);
 

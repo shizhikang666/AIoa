@@ -4683,6 +4683,60 @@ Agent: api-agent
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
 
+## 2026-06-05 - api-agent/frontend-agent - Customer Follow-Up Write Compatibility
+
+### Completed Content
+
+- Added protected Java-compatible customer follow-up write endpoints: `/biz/customerfollowup/add`, `/edit`, and `/delete`.
+- Reused the existing customer follow-up read service boundaries and added transaction-wrapped write methods.
+- Added write permission checks against the owning customer row, matching the Java rule of data-scope org IDs first and customer owner fallback.
+- Implemented logical delete through `DELETE_FLAG = DELETED` instead of physical deletion.
+- Preserved optional `extJson` submitted by the copied frontend form without implementing file upload/storage cleanup.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Started local ThinkPHP service on `http://127.0.0.1:82/` and Vue frontend on `http://127.0.0.1:83/` for follow-up browser testing.
+- Kept Java source, database schema, customer writes, attachment upload/storage, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/CustomerFollowUpController.php`
+- `app/service/biz/CustomerFollowUpService.php`
+- `route/app.php`
+- `docs/api/biz-customer-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CustomerFollowUpController.php`: passed.
+- `php -l app\service\biz\CustomerFollowUpService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; route count is 284 and `/biz/customerfollowup/add`, `/edit`, and `/delete` are registered.
+- Direct service write smoke: passed; created follow-up `1780626570481441402`, edited content, then logically deleted it with `DELETE_FLAG = DELETED`.
+- MySQL `127.0.0.1:3306`: listening.
+- Redis `127.0.0.1:6379`: listening.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend reachability: `http://127.0.0.1:82/` returned HTTP 200.
+- Frontend reachability: `http://127.0.0.1:83/` returned HTTP 200.
+
+### Current Issues
+
+- Customer add/edit/delete and head-owner reassignment remain deferred.
+- Follow-up attachment upload/storage cleanup and notifications remain deferred.
+- The service smoke leaves one logically deleted smoke row in `customer_follow_up`; no visible active data remains.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this customer follow-up write compatibility slice.
+- Continue with the next low-risk write candidate after confirming the visible customer follow-up form in the browser.
+
 ## 2026-06-05 - api-agent/frontend-agent - Gen Basic Metadata Read-Only Compatibility
 
 ### Completed Content

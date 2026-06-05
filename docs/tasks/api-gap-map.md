@@ -114,6 +114,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleprojectproductitemrelation` | `mark/edit` | Relation mark mutation |
 | `biz/saleprojectproductitem` | `mark/edit` | Product item mark mutation |
 | `biz/customer` | `add`, `edit`, `delete`, `head/edit` | Customer ownership and possibly encrypted fields |
+| `biz/customerfollowup` | Attachment upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file side effects remain deferred |
 | `biz/org`, `biz/user`, `biz/position` | `add`, `edit`, `delete`, grants, enable/disable, reset password | Permission and organization-state side effects |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |

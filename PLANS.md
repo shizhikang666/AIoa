@@ -5493,3 +5493,68 @@ git diff --check
 - Do not add `/auth/third/render` or `/auth/third/callback`.
 - Do not add third-party login, OAuth binding, user creation, or token issuance behavior.
 - Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
+
+## Completed Plan: api-agent/frontend-agent - Customer Follow-Up Write Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, add/edit/logical-delete service smoke, backend/frontend reachability, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Open the first low-risk business write slice by adding Java-compatible customer follow-up `add`, `edit`, and `delete` endpoints for the copied frontend wrapper.
+
+### 2. Involved Modules
+
+- api-agent customer follow-up write compatibility
+- frontend-agent copied `customerFollowUpApi.js` wrapper compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/CustomerFollowUpController.php`
+- `app/service/biz/CustomerFollowUpService.php`
+- `route/app.php`
+- `docs/api/biz-customer-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- This is the first visible business write slice; validation and rollback checks must be tighter than read-only endpoints.
+- Java physically removes rows through MyBatis, while the ThinkPHP project uses `DELETE_FLAG` visibility conventions; this slice uses logical delete to avoid unsafe data loss.
+- Customer data-scope must be checked from the owning customer row before every write.
+- Attachment file upload/storage remains deferred; this slice only preserves `extJson` when the frontend submits it.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\CustomerFollowUpController.php
+php -l app\service\biz\CustomerFollowUpService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/customerfollowup/add`, `/edit`, and `/delete` are registered behind token middleware.
+- Add requires `customerId`, `followUpTime`, and `content`.
+- Edit requires `id` and only updates submitted mutable fields.
+- Delete accepts Java-style `[{id: ...}]`, `idList`, `ids`, or single `id` input and performs logical deletion.
+- Each write validates customer visibility using admin role/account, data-scope org IDs, or customer owner fallback.
+- Java source, database schema, customer writes, file upload/storage, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/customer/add`, `/edit`, `/delete`, or `/head/edit`.
+- Do not implement attachment upload, physical file cleanup, customer owner reassignment, workflow, finance, stock, or notification side effects.
+- Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
