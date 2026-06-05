@@ -5645,3 +5645,53 @@ Agent: api-agent
 
 - Commit and push this write compatibility slice.
 - Continue another isolated low-risk write endpoint before opening finance, inventory, workflow, or sale-project state flows.
+
+## 2026-06-05 - api-agent/frontend-agent/workflow-agent - CC Records Delete Compatibility
+
+### Completed Content
+
+- Added Java-compatible protected workflow copy/CC record `delete` endpoint.
+- Preserved existing `page` and `detail` read behavior.
+- Matched Java's delete guard by requiring `USER` to equal the current token user id.
+- Added optional tenant guard when the token payload includes `tenantId` or `tenant_id`.
+- Used `DELETE_FLAG = DELETED` for delete safety instead of physical removal.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, `/biz/ccrecords/add`, `/edit`, workflow copy-user delegate writes, approval/reject/start/cancel flows, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/CcRecordsController.php`
+- `app/service/biz/CcRecordsService.php`
+- `route/app.php`
+- `docs/api/biz-cc-records-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CcRecordsController.php`: passed.
+- `php -l app\service\biz\CcRecordsService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; inserted local test row `1780638742848257170` for user `1543837863788879870`, detail read succeeded, and delete set `DELETE_FLAG=DELETED`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/ccrecords/delete` is registered.
+- Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- MySQL TCP check returned OK; backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
+
+### Current Issues
+
+- `/biz/ccrecords/add` and `/edit` remain deferred.
+- Workflow copy-user delegate writes and approval/reject/start/cancel side effects remain deferred.
+- Delete intentionally leaves a logically deleted local test row for traceability instead of physically removing data.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this write compatibility slice.
+- Continue another isolated low-risk write endpoint before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.

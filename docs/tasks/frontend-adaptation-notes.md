@@ -764,3 +764,26 @@ This slice supports the copied sale-project case/rating tab wrapper:
 
 - `/biz/projectrate/edit` remains deferred because the Java controller does not expose it in the current reference.
 - Image upload/storage, sale-project state, workflow, finance, inventory, and notification side effects remain out of scope.
+
+## 2026-06-05 CC Records Delete Compatibility
+
+Agent: api-agent / frontend-agent / workflow-agent
+
+### Scope
+
+This slice supports the copied workflow copy-task page delete action:
+
+- `snowy-admin-web/src/api/biz/bizCcRecordsApi.js`
+- `snowy-admin-web/src/views/biz/biztask/copytask.vue`
+
+### Result
+
+- `/biz/ccrecords/delete` is now routed as a protected POST endpoint.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Delete is guarded by the current token user id, matching Java's `USER = StpUtil.getLoginId()` behavior.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- `/biz/ccrecords/add` and `/edit` remain deferred.
+- Workflow copy-user delegate writes, approval/reject/start/cancel side effects, and notification behavior remain out of scope.

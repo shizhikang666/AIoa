@@ -13,6 +13,7 @@ use think\facade\Db;
 class CcRecordsService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const SORT_FIELD_MAP = [
         'id' => 'c.ID',
         'title' => 'c.TITLE',
@@ -75,6 +76,55 @@ SQL;
         }
 
         return $this->recordRow($row);
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->normalizeIdList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        if ($currentUserId === '') {
+            throw new RuntimeException('missing current user', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload, $currentUserId): array {
+            $query = Db::name('biz_cc_records')
+                ->whereIn('ID', $idList)
+                ->where('USER', $currentUserId)
+                ->where('DELETE_FLAG', self::NOT_DELETE);
+
+            $tenantId = $this->tenantId($payload);
+            if ($tenantId !== '') {
+                $query->where('TENANT_ID', $tenantId);
+            }
+
+            $rows = $query->select()->toArray();
+            if (count($rows) !== count($idList)) {
+                throw new RuntimeException('cc record not found', 404);
+            }
+
+            $update = Db::name('biz_cc_records')
+                ->whereIn('ID', $idList)
+                ->where('USER', $currentUserId)
+                ->where('DELETE_FLAG', self::NOT_DELETE);
+            if ($tenantId !== '') {
+                $update->where('TENANT_ID', $tenantId);
+            }
+
+            $updated = $update->update([
+                'DELETE_FLAG' => self::DELETED,
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $currentUserId,
+            ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
     }
 
     private function baseQuery(array $filters, array $payload)
@@ -177,6 +227,28 @@ SQL;
     private function tenantId(array $payload): string
     {
         return (string)($payload['tenantId'] ?? $payload['tenant_id'] ?? '');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function normalizeIdList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(static function (mixed $item): string {
+            if (is_array($item)) {
+                return trim((string)($item['id'] ?? $item['ID'] ?? ''));
+            }
+
+            return trim((string)$item);
+        }, $value))));
     }
 
     private function pagination(array $filters): array

@@ -472,6 +472,7 @@ Route::group('biz/bizpayroll', function () {
 
 Route::group('biz/ccrecords', function () {
     Route::get('page', 'biz.CcRecordsController/page');
+    Route::post('delete', 'biz.CcRecordsController/delete');
     Route::get('detail', 'biz.CcRecordsController/detail');
 })->middleware(AuthMiddleware::class);
 

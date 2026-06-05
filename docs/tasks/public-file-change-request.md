@@ -2819,3 +2819,32 @@ Java exposes `/biz/projectrate/add` and `/delete`, and the copied frontend `sale
 - `php think route:list` must list the added routes.
 - Token requests should be able to add and logically delete a sale-project rating row when the current user can write the owning sale project.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: CC Records Delete Route
+
+## Request
+
+Register the protected workflow copy/CC record delete route in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/ccrecords/delete`, and the copied Vue `biz/biztask/copytask.vue` page calls it for single and batch delete actions. Existing ThinkPHP routes already covered `page` and `detail`; this slice completes the Java-exposed delete endpoint while preserving the current-user guard.
+
+## Applied Change
+
+`api-agent/frontend-agent/workflow-agent` registered the following protected POST route:
+
+- `POST /biz/ccrecords/delete`
+
+## Explicit Exclusions
+
+- No `/biz/ccrecords/add`, `/biz/ccrecords/edit`, workflow copy-user delegate write, approval/reject/start/cancel route, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Delete requires the row `USER` to match the current token user id and uses logical deletion through `DELETE_FLAG = DELETED`.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should be able to logically delete only the current user's copy/CC rows.
+- Requests without token should return `code=401`.

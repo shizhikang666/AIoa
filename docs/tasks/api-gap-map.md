@@ -87,7 +87,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/process` | Read aliases added for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and `query/list`; write/start/cancel routes remain deferred |
 | `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
 | `biz/bizuservacation` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
-| `biz/ccrecords` | `page` and `detail` covered; `delete` remains deferred |
+| `biz/ccrecords` | `page`, `detail`, and `delete` covered; add/edit and workflow copy-generation remain deferred |
 | `biz/bizdraft` | `detail` covered; `saleproject/add` remains deferred |
 | `biz/bizhistoryexcel` | `page`, `detail`, `add`, `edit`, and `delete` covered; import/export parsing and row-table storage remain deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
@@ -123,6 +123,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
 | `biz/salesprojectfieldchangelog` | Sale-project amount/change generation, workflow, finance, audit side effects | Add/edit/delete base log-row writes are covered |
+| `biz/ccrecords` | `add`, `edit`, workflow copy-user delegate writes | Delete is covered as current-user logical delete; generation still belongs to workflow write runtime |
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `biz/bizhistoryexcel` | Import/export parsing, `biz_history_excel_row` writes | Base add/edit/delete writes are covered; parser/storage changes remain deferred |
 | `biz/projectrate` | `edit`, image upload/storage cleanup | Add/delete base row writes are covered; Java controller does not expose edit in the current reference |

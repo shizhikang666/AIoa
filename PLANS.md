@@ -5875,3 +5875,66 @@ git diff --check
 - Do not implement `/biz/projectrate/edit` in this slice.
 - Do not implement file upload/storage, sale-project state changes, workflow, finance, inventory, or notification side effects.
 - Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
+
+## Completed Plan: api-agent/frontend-agent - CC Records Delete Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, current-user logical-delete service smoke, backend/frontend reachability, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible workflow copy/CC record `delete` endpoint for the copied copy-task page.
+
+### 2. Involved Modules
+
+- api-agent CC records delete compatibility
+- frontend-agent copied `bizCcRecordsApi.js` delete wrapper compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/CcRecordsController.php`
+- `app/service/biz/CcRecordsService.php`
+- `route/app.php`
+- `docs/api/biz-cc-records-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java physically removes rows through MyBatis, while this ThinkPHP project should use logical delete for imported-data safety.
+- Java filters delete by `USER = StpUtil.getLoginId()`; this slice must preserve the current-user guard so one user cannot delete another user's copy record.
+- Workflow copy-user generation and approval actions must remain untouched.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\CcRecordsController.php
+php -l app\service\biz\CcRecordsService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/ccrecords/delete` is registered behind token middleware.
+- Delete accepts Java-style `[{id: ...}]`, `idList`, `ids`, or single `id` input.
+- Delete only affects rows where `USER` equals the current token user id and optional `TENANT_ID` matches the token tenant id.
+- Delete performs logical deletion through `DELETE_FLAG = DELETED`.
+- Java source, database schema, add/edit CC writes, workflow copy delegate writes, approval/reject/start/cancel flows, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/ccrecords/add` or `/edit` in this slice.
+- Do not implement workflow copy-user delegate writes or approval/reject/start/cancel side effects.
+- Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
