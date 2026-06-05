@@ -25,6 +25,21 @@ class TeamProjectTaskController extends BaseSysController
         return $this->guard(fn () => $this->readService->taskList($request->get(), $this->authPayload($request)));
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->readService->taskAdd($this->body($request), $this->authPayload($request)));
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->readService->taskEdit($this->body($request), $this->authPayload($request)));
+    }
+
+    public function delete(Request $request): Response
+    {
+        return $this->guard(fn () => $this->readService->taskDelete($this->body($request), $this->authPayload($request)));
+    }
+
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->readService->taskDetail($this->requiredString($request, 'id'), $this->authPayload($request)));

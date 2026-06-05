@@ -6020,3 +6020,59 @@ Agent: api-agent
 
 - Commit and push this task category maintenance compatibility slice.
 - Continue another isolated frontend-visible gap before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.
+
+## 2026-06-05 - api-agent/frontend-agent - Team Project Task Base Maintenance Compatibility
+
+### Completed Content
+
+- Added Java-compatible protected `POST /biz/bizteamprojecttask/add`.
+- Added Java-compatible protected `POST /biz/bizteamprojecttask/edit`.
+- Added Java-compatible protected `POST /biz/bizteamprojecttask/delete`.
+- Preserved existing task `page`, `list`, `detail`, and `user/edit` behavior.
+- Add now validates current-user project membership and category/project match.
+- Add stores new tasks with `STATUS = TODO`, `PROGRESS = 0`, `DELETE_FLAG = NOT_DELETE`, `VERSION = 0`, current-user audit fields, and tenant id.
+- Add creates the current token user as task `MANAGE`, and submitted project users as task `MEMBER`.
+- Edit updates only submitted base task fields: `TITLE`, `STATUS`, `CONTENT_TEXT`, `PROGRESS`, `TEAM_PROJECT_TASK_CATEGORY_ID`, `SORT_CODE`, `EXT_JSON`, audit fields, and `VERSION`.
+- Edit validates task status values against `TODO`, `CANCEL`, and `COMPLETE`.
+- Edit/delete are allowed for the task creator, a task-level `MANAGE` user, or a project maintainer.
+- Delete uses logical deletion through `DELETE_FLAG = DELETED` for the task and active task-user rows.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, frontend source, standalone task-user CRUD, generated task `LOG` comments, notification push, data-change events, Composer files, and `.env` unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/TeamProjectTaskController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\TeamProjectTaskController.php`: passed.
+- `php -l app\service\biz\TeamProjectTaskReadService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed on team project `1903996479133360129`, category `2032372934740733953`, current user `1543837863788879873`; task `1780649358908519769` was added, assigned current-user `MANAGE` plus submitted member `2007632954432819201`, edited to `STATUS = COMPLETE`, `PROGRESS = 55`, `SORT_CODE = 12`, `VERSION = 1`, rejected invalid status `BROKEN`, and logically deleted with active task-user rows also deleted.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; route entry rows = 315 and `/biz/bizteamprojecttask/add`, `/edit`, and `/delete` are registered.
+- Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP check for `/biz/bizteamprojecttask/add`: returned HTTP 200 envelope with `code=401`.
+- Backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
+
+### Current Issues
+
+- The smoke test intentionally leaves a logically deleted task and task-user rows for traceability instead of physically deleting imported-style data.
+- Java-generated task `LOG` comments, notification push, data-change events, workflow actions, and full drag ordering remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this task base maintenance compatibility slice.
+- Continue another isolated frontend-visible gap, likely team-project member maintenance or a low-risk profile/selector helper, before opening workflow, finance, inventory, or sale-project state flows.

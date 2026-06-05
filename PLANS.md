@@ -6347,3 +6347,74 @@ git diff --check
 
 - Do not implement `/biz/bizteamprojecttask/add`, `/edit`, or `/delete`.
 - Do not implement task drag-to-category writes, task-user standalone writes, task status/progress/content writes, notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: api-agent/frontend-agent - Team Project Task Base Maintenance Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible protected team-project task base maintenance endpoints used by the copied kanban view and task detail drawer:
+
+- `POST /biz/bizteamprojecttask/add`
+- `POST /biz/bizteamprojecttask/edit`
+- `POST /biz/bizteamprojecttask/delete`
+
+This slice only maintains base task rows and task-user rows needed by task creation. It does not implement notification push, Java data-change events, generated `LOG` task comments, workflow actions, or standalone task-user CRUD routes.
+
+### 2. Involved Modules
+
+- api-agent team-project task base compatibility
+- frontend-agent copied kanban task API compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectTaskController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java edit emits data-change events that create task `LOG` comments; this slice intentionally leaves those side effects deferred.
+- Java delete physically deletes tasks; this refactor should preserve imported data with logical deletion.
+- Task add creates task-user rows, so submitted users must already be non-deleted members of the same team project.
+- Frontend drag-to-category uses the same edit endpoint; this slice supports category id changes but does not add full drag ordering or event broadcast behavior.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectTaskController.php
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Task `add`, `edit`, and `delete` routes are registered behind token middleware.
+- Add requires `teamProjectId` and `teamProjectTaskCategoryId`, validates category/project match, validates current-user project membership, inserts task with `STATUS = TODO`, `PROGRESS = 0`, `DELETE_FLAG = NOT_DELETE`, and creates current-user `MANAGE` task-user row.
+- Add accepts optional `users`, validates each selected user is a project member, and creates those task-user rows as `MEMBER`.
+- Edit requires `id`, validates task visibility and maintainer permission, updates only submitted base task fields: `TITLE`, `STATUS`, `CONTENT_TEXT`, `PROGRESS`, `TEAM_PROJECT_TASK_CATEGORY_ID`, `SORT_CODE`, `EXT_JSON`, audit fields, and increments `VERSION`.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or single `id`, validates maintainer permission, logically deletes task and task-user rows with `DELETE_FLAG = DELETED`.
+- Java source, database schema, frontend source, notification push, generated task `LOG` comments, data-change events, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement standalone `/biz/bizteamprojecttaskuser/add`, `/edit`, or `/delete`.
+- Do not generate `CATEGORY = LOG` task comments.
+- Do not implement notification push, data-change event broadcasting, workflow actions, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

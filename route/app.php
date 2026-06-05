@@ -312,6 +312,9 @@ Route::group('biz/bizteamprojecttaskcategory', function () {
 Route::group('biz/bizteamprojecttask', function () {
     Route::get('page', 'biz.TeamProjectTaskController/page');
     Route::get('list', 'biz.TeamProjectTaskController/list');
+    Route::post('add', 'biz.TeamProjectTaskController/add');
+    Route::post('edit', 'biz.TeamProjectTaskController/edit');
+    Route::post('delete', 'biz.TeamProjectTaskController/delete');
     Route::get('detail', 'biz.TeamProjectTaskController/detail');
     Route::post('user/edit', 'biz.TeamProjectTaskController/userEdit');
 })->middleware(AuthMiddleware::class);

@@ -947,3 +947,34 @@ This slice supports the copied team-project kanban category wrapper:
 
 - Task add/edit/delete remains deferred.
 - Task drag-to-category, task status/progress/content writes, notification push, and data-change events remain out of scope.
+
+## 2026-06-05 Team Project Task Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project kanban task wrappers:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/addTaskForm.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/taskDetail.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/taskItemListView.vue`
+
+### Result
+
+- `/biz/bizteamprojecttask/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttask/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttask/delete` is now routed as a protected POST endpoint.
+- Add accepts `teamProjectId`, `teamProjectTaskCategoryId`, optional `contentText`, optional `title`, optional `users`, optional `sortCode`, and optional `extJson`.
+- Add inserts `STATUS = TODO`, `PROGRESS = 0`, `DELETE_FLAG = NOT_DELETE`, and `VERSION = 0`.
+- Add creates the current user as task `MANAGE`, and submitted project members as task `MEMBER`.
+- Edit accepts `id` and submitted base task fields: `title`, `status`, `contentText`, `progress`, `teamProjectTaskCategoryId`, `sortCode`, and `extJson`.
+- Edit validates status values against `TODO`, `CANCEL`, and `COMPLETE`.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED` for the task and active task-user rows.
+
+### Deferred
+
+- Generated task `CATEGORY = LOG` comments remain deferred.
+- Notification push, data-change events, workflow actions, and full drag ordering remain out of scope.

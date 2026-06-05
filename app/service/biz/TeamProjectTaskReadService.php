@@ -386,6 +386,176 @@ SQL;
         return $task;
     }
 
+    public function taskAdd(array $input, array $payload = []): array
+    {
+        $teamProjectId = $this->requiredInput($input, 'teamProjectId');
+        $categoryId = $this->requiredInput($input, 'teamProjectTaskCategoryId');
+        $userIds = $this->optionalUserIdList($input);
+
+        return Db::transaction(function () use ($teamProjectId, $categoryId, $userIds, $input, $payload): array {
+            $project = $this->assertTeamProjectMember($teamProjectId, $payload, 'add task');
+            $category = $this->activeCategoryForWrite($categoryId, $payload, 'add task');
+            if ((string)$category['TEAM_PROJECT_ID'] !== $teamProjectId) {
+                throw new RuntimeException('teamProjectTaskCategoryId does not belong to teamProjectId', 400);
+            }
+            $this->assertProjectUsers($teamProjectId, $userIds);
+
+            $id = $this->newId();
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            Db::name('biz_team_project_task')->insert([
+                'ID' => $id,
+                'TEAM_PROJECT_ID' => $teamProjectId,
+                'TEAM_PROJECT_TASK_CATEGORY_ID' => $categoryId,
+                'STATUS' => 'TODO',
+                'TITLE' => array_key_exists('title', $input) ? (string)$input['title'] : null,
+                'PROGRESS' => 0,
+                'CONTENT_TEXT' => array_key_exists('contentText', $input) ? (string)$input['contentText'] : null,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'SORT_CODE' => array_key_exists('sortCode', $input) ? (int)$input['sortCode'] : null,
+                'EXT_JSON' => array_key_exists('extJson', $input) ? (string)$input['extJson'] : null,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $currentUserId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantIdFromProject($payload, $project),
+                'VERSION' => 0,
+            ]);
+
+            $taskUsers = [[
+                'ID' => $this->newId(),
+                'USER_ID' => $currentUserId,
+                'TEAM_PROJECT_ID' => $teamProjectId,
+                'TEAM_PROJECT_TASK_ID' => $id,
+                'ROLE_TYPE' => 'MANAGE',
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'EXT_JSON' => null,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $currentUserId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantIdFromProject($payload, $project),
+            ]];
+
+            foreach ($userIds as $userId) {
+                if ($userId === $currentUserId) {
+                    continue;
+                }
+                $taskUsers[] = [
+                    'ID' => $this->newId(),
+                    'USER_ID' => $userId,
+                    'TEAM_PROJECT_ID' => $teamProjectId,
+                    'TEAM_PROJECT_TASK_ID' => $id,
+                    'ROLE_TYPE' => 'MEMBER',
+                    'DELETE_FLAG' => self::NOT_DELETE,
+                    'EXT_JSON' => null,
+                    'CREATE_TIME' => $now,
+                    'CREATE_USER' => $currentUserId,
+                    'UPDATE_TIME' => null,
+                    'UPDATE_USER' => null,
+                    'TENANT_ID' => $this->tenantIdFromProject($payload, $project),
+                ];
+            }
+
+            Db::name('biz_team_project_task_user')->insertAll($taskUsers);
+
+            return $this->taskDetail($id, $payload);
+        });
+    }
+
+    public function taskEdit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $task = $this->activeTaskForWrite($id, $payload, 'edit task');
+            $this->assertTaskMaintainer($task, $payload, 'edit task');
+            if (!empty($input['teamProjectId']) && (string)$input['teamProjectId'] !== (string)$task['TEAM_PROJECT_ID']) {
+                throw new RuntimeException('teamProjectId does not match task', 400);
+            }
+
+            $updates = [];
+            if (array_key_exists('title', $input)) {
+                $updates['TITLE'] = (string)$input['title'];
+            }
+            if (array_key_exists('status', $input)) {
+                $updates['STATUS'] = $this->normalizeTaskStatus((string)$input['status']);
+            }
+            if (array_key_exists('contentText', $input)) {
+                $updates['CONTENT_TEXT'] = (string)$input['contentText'];
+            }
+            if (array_key_exists('progress', $input)) {
+                $updates['PROGRESS'] = (int)$input['progress'];
+            }
+            if (array_key_exists('teamProjectTaskCategoryId', $input)) {
+                $categoryId = trim((string)$input['teamProjectTaskCategoryId']);
+                if ($categoryId === '') {
+                    throw new RuntimeException('missing teamProjectTaskCategoryId', 400);
+                }
+                $category = $this->activeCategoryForWrite($categoryId, $payload, 'edit task category');
+                if ((string)$category['TEAM_PROJECT_ID'] !== (string)$task['TEAM_PROJECT_ID']) {
+                    throw new RuntimeException('teamProjectTaskCategoryId does not belong to task teamProjectId', 400);
+                }
+                $updates['TEAM_PROJECT_TASK_CATEGORY_ID'] = $categoryId;
+            }
+            if (array_key_exists('sortCode', $input)) {
+                $updates['SORT_CODE'] = (int)$input['sortCode'];
+            }
+            if (array_key_exists('extJson', $input)) {
+                $updates['EXT_JSON'] = (string)$input['extJson'];
+            }
+
+            if ($updates === []) {
+                return ['id' => $id, 'count' => 0];
+            }
+
+            $updates['UPDATE_TIME'] = date('Y-m-d H:i:s');
+            $updates['UPDATE_USER'] = $this->currentUserId($payload);
+            $updates['VERSION'] = Db::raw('VERSION + 1');
+
+            $query = Db::name('biz_team_project_task')->where('ID', $id);
+            $this->whereNotDeleted($query, 'DELETE_FLAG');
+            $affected = $query->update($updates);
+
+            return ['id' => $id, 'count' => $affected];
+        });
+    }
+
+    public function taskDelete(array $input, array $payload = []): array
+    {
+        $ids = $this->idList($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            $affected = 0;
+
+            foreach ($ids as $id) {
+                $task = $this->activeTaskForWrite($id, $payload, 'delete task');
+                $this->assertTaskMaintainer($task, $payload, 'delete task');
+
+                $query = Db::name('biz_team_project_task')->where('ID', $id);
+                $this->whereNotDeleted($query, 'DELETE_FLAG');
+                $affected += $query->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId,
+                    'VERSION' => Db::raw('VERSION + 1'),
+                ]);
+
+                $taskUserQuery = Db::name('biz_team_project_task_user')->where('TEAM_PROJECT_TASK_ID', $id);
+                $this->whereNotDeleted($taskUserQuery, 'DELETE_FLAG');
+                $taskUserQuery->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId,
+                ]);
+            }
+
+            return ['ids' => $ids, 'count' => $affected];
+        });
+    }
+
     public function taskUserEdit(array $input, array $payload = []): array
     {
         $taskId = $this->requiredInput($input, 'id');
@@ -1300,6 +1470,21 @@ SQL;
         throw new RuntimeException('no permission to edit task users on this team project', 403);
     }
 
+    private function assertTaskMaintainer(array $task, array $payload, string $action): void
+    {
+        $currentUserId = $this->currentUserId($payload);
+        if ((string)($task['CREATE_USER'] ?? '') === $currentUserId) {
+            return;
+        }
+
+        $teamProjectId = (string)$task['TEAM_PROJECT_ID'];
+        if ($this->hasTaskManageRole((string)$task['ID'], $teamProjectId, $payload)) {
+            return;
+        }
+
+        $this->assertTeamProjectMaintainer($teamProjectId, $payload, $action);
+    }
+
     private function assertCategoryEmpty(string $categoryId): void
     {
         $query = Db::name('biz_team_project_task')->where('TEAM_PROJECT_TASK_CATEGORY_ID', $categoryId);
@@ -1743,6 +1928,18 @@ SQL;
     /**
      * @return array<int, string>
      */
+    private function optionalUserIdList(array $input): array
+    {
+        if (!array_key_exists('user', $input) && !array_key_exists('users', $input) && !array_key_exists('userIds', $input)) {
+            return [];
+        }
+
+        return $this->userIdList($input);
+    }
+
+    /**
+     * @return array<int, string>
+     */
     private function mentionableUsers(array $input): array
     {
         if (!array_key_exists('mentionableUsers', $input) || !is_array($input['mentionableUsers'])) {
@@ -1765,6 +1962,16 @@ SQL;
     private function hasFileInput(array $input): bool
     {
         return array_key_exists('files', $input) || array_key_exists('file', $input) || array_key_exists('fileList', $input);
+    }
+
+    private function normalizeTaskStatus(string $status): string
+    {
+        $status = strtoupper(trim($status));
+        if (!in_array($status, ['TODO', 'CANCEL', 'COMPLETE'], true)) {
+            throw new RuntimeException('invalid task status', 400);
+        }
+
+        return $status;
     }
 
     private function tenantIdFromProject(array $payload, array $project): string

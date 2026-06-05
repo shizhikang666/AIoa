@@ -3046,3 +3046,37 @@ Java exposes `/biz/bizteamprojecttaskcategory/add`, `/edit`, `/sort/edit`, and `
 - Token requests should be able to maintain categories only when the current user is a team-project `LEADER`, team-project `MANAGE`, or has imported project `addUser` permission.
 - Delete should reject non-empty categories.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Team Project Task Base Maintenance Routes
+
+## Request
+
+Register protected team-project task add, edit, and delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizteamprojecttask/add`, `/edit`, and `/delete`, and the copied Vue kanban task view calls these endpoints for adding tasks, toggling task status, editing task content/progress/category, and deleting tasks from the detail drawer. Existing ThinkPHP routes already cover task `page`, `list`, `detail`, and `user/edit`; this slice opens only base task-row maintenance.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/bizteamprojecttask/add`
+- `POST /biz/bizteamprojecttask/edit`
+- `POST /biz/bizteamprojecttask/delete`
+
+## Explicit Exclusions
+
+- No standalone `/biz/bizteamprojecttaskuser/add`, `/edit`, or `/delete` route was added.
+- No generated `CATEGORY = LOG` task comments were added.
+- No notification push, data-change event, workflow action, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Deletes use logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Add should validate current-user project membership, category/project match, and selected task users as project members.
+- Edit/delete should allow only the task creator, a task-level `MANAGE` user, or a project maintainer.
+- Requests without token should return `code=401`.
