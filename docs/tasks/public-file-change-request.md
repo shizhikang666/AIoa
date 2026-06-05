@@ -2848,3 +2848,35 @@ Java exposes `/biz/ccrecords/delete`, and the copied Vue `biz/biztask/copytask.v
 - `php think route:list` must list the added route.
 - Token requests should be able to logically delete only the current user's copy/CC rows.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Team Project Comment Add Routes
+
+## Request
+
+Register protected team-project timeline comment add and comment-reply add routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizteamprojectcomment/add` and `/biz/bizteamprojectcommentreply/add`, and the copied Vue team-project detail page calls both endpoints when a user submits a project timeline comment or replies to an existing comment.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/bizteamprojectcomment/add`
+- `POST /biz/bizteamprojectcommentreply/add`
+
+## Explicit Exclusions
+
+- No `/biz/bizteamprojectcomment/delete` route was added.
+- No `/biz/bizteamprojectcommentreply/edit` or `/delete` route was added.
+- No notification push, data-change event, task state/progress write, team-project mutation, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Comment add stores mentioned users in `EXT_JSON`; notification delivery remains deferred.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should be able to add a project timeline comment or reply only when the current user is a non-deleted member of the owning team project.
+- Requests without token should return `code=401`.

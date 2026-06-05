@@ -5695,3 +5695,56 @@ Agent: api-agent
 
 - Commit and push this write compatibility slice.
 - Continue another isolated low-risk write endpoint before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.
+
+## 2026-06-05 - api-agent/frontend-agent - Team Project Comment Add Compatibility
+
+### Completed Content
+
+- Added Java-compatible protected team-project timeline comment `add` endpoint.
+- Added Java-compatible protected team-project comment-reply `add` endpoint.
+- Preserved existing `page`, `list`, and `detail` read behavior.
+- Required current-user membership of the owning team project before either write.
+- Stored submitted `mentionableUsers` under `EXT_JSON` as `{"mentionableUsers":[...]}`.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, frontend source, comment delete, reply edit/delete, notification push, data-change events, task state/progress writes, Composer files, and `.env` unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/TeamProjectCommentController.php`
+- `app/controller/biz/TeamProjectCommentReplyController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/api/team-project-comment-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\TeamProjectCommentController.php`: passed.
+- `php -l app\controller\biz\TeamProjectCommentReplyController.php`: passed.
+- `php -l app\service\biz\TeamProjectTaskReadService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed on team project `1903996479133360129` for user `1543837863788879873`; comment `1780639737042353386` and reply `1780639737256204805` were inserted, read back, and then marked `DELETE_FLAG=DELETED`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; route entry rows = 301 and `/biz/bizteamprojectcomment/add`, `/biz/bizteamprojectcommentreply/add` are registered.
+- Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
+- MySQL/Redis were started through `F:\project\socket\AI\testPhp\files\startServer1.bat`; `netstat` showed MySQL 3306 and Redis 6379 listening.
+- Backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200 after Vite startup finished.
+
+### Current Issues
+
+- `/biz/bizteamprojectcomment/delete` remains deferred.
+- `/biz/bizteamprojectcommentreply/edit` and `/delete` remain deferred.
+- Notification push, data-change events, team-project mutations, task mutations, and task state/progress writes remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this write compatibility slice.
+- Continue another isolated low-risk frontend-visible write endpoint before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.

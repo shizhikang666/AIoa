@@ -5938,3 +5938,70 @@ git diff --check
 - Do not implement `/biz/ccrecords/add` or `/edit` in this slice.
 - Do not implement workflow copy-user delegate writes or approval/reject/start/cancel side effects.
 - Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
+
+## Completed Plan: api-agent/frontend-agent - Team Project Comment Add Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible team-project timeline comment `add` and comment-reply `add` endpoints used by the copied team-project detail page.
+
+### 2. Involved Modules
+
+- api-agent team-project comment write compatibility
+- frontend-agent copied team-project detail timeline/comment wrappers
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectCommentController.php`
+- `app/controller/biz/TeamProjectCommentReplyController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/api/team-project-comment-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java comment add can trigger notification strategies through mentioned users; this slice must store mention metadata only and keep notifications deferred.
+- Java uses resource permission checks for `teamProjectId`; this slice should preserve the existing member-visibility guard through `biz_team_project_user`.
+- Delete/edit routes remain more sensitive because they affect existing timeline history, so this slice should not add them.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectCommentController.php
+php -l app\controller\biz\TeamProjectCommentReplyController.php
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizteamprojectcomment/add` and `/biz/bizteamprojectcommentreply/add` are registered behind token middleware.
+- Comment add requires `teamProjectId`, `status`, `statusColor`, `contentText`, and `mentionableUsers`.
+- Comment add stores `mentionableUsers` in `EXT_JSON` as `{"mentionableUsers":[...]}`.
+- Reply add requires `targetId` and `contentText`.
+- Both writes only allow a current token user who is a non-deleted member of the owning team project.
+- Java source, database schema, comment delete, reply edit/delete, notification push, task state/progress writes, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/bizteamprojectcomment/delete`.
+- Do not implement `/biz/bizteamprojectcommentreply/edit` or `/delete`.
+- Do not implement notification push, data-change events, task state/progress writes, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

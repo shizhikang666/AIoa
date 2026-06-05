@@ -319,11 +319,13 @@ Route::group('biz/bizteamprojecttaskuser', function () {
 Route::group('biz/bizteamprojectcomment', function () {
     Route::get('page', 'biz.TeamProjectCommentController/page');
     Route::get('list', 'biz.TeamProjectCommentController/list');
+    Route::post('add', 'biz.TeamProjectCommentController/add');
     Route::get('detail', 'biz.TeamProjectCommentController/detail');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizteamprojectcommentreply', function () {
     Route::get('page', 'biz.TeamProjectCommentReplyController/page');
+    Route::post('add', 'biz.TeamProjectCommentReplyController/add');
     Route::get('detail', 'biz.TeamProjectCommentReplyController/detail');
 })->middleware(AuthMiddleware::class);
 

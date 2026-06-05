@@ -1,4 +1,4 @@
-# Team Project Comment Read-Only Compatibility
+# Team Project Comment Compatibility
 
 Date: 2026-06-05
 
@@ -6,7 +6,7 @@ Agent: api-agent / frontend-agent
 
 ## Scope
 
-This slice supports the copied team-project comment and comment-reply API wrappers:
+This document tracks the copied team-project comment and comment-reply API wrappers:
 
 - `snowy-admin-web/src/api/biz/bizTeamProjectCommentApi.js`
 - `snowy-admin-web/src/api/biz/bizTeamProjectCommentReplyApi.js`
@@ -18,8 +18,10 @@ The Java source remains read-only under `F:\AI\projects\testJava\OA`.
 | Method | Path | Controller |
 | --- | --- | --- |
 | GET | `/biz/bizteamprojectcomment/detail` | `biz.TeamProjectCommentController/detail` |
+| POST | `/biz/bizteamprojectcomment/add` | `biz.TeamProjectCommentController/add` |
 | GET | `/biz/bizteamprojectcommentreply/page` | `biz.TeamProjectCommentReplyController/page` |
 | GET | `/biz/bizteamprojectcommentreply/detail` | `biz.TeamProjectCommentReplyController/detail` |
+| POST | `/biz/bizteamprojectcommentreply/add` | `biz.TeamProjectCommentReplyController/add` |
 
 Existing covered routes remain:
 
@@ -37,6 +39,10 @@ Existing covered routes remain:
 - Comment-reply detail reads one visible non-deleted reply by `id`.
 - Standalone reply reads keep the same team-project membership boundary by joining the reply target comment, owning team project, and current-user project membership.
 - Sorting uses a whitelist and defaults to `ID` ascending.
+- Project comment add requires `teamProjectId`, `status`, `statusColor`, `contentText`, and `mentionableUsers`.
+- Project comment add stores `mentionableUsers` in `EXT_JSON` as `{"mentionableUsers":[...]}`.
+- Project comment reply add requires `targetId` and `contentText`.
+- Project comment and reply writes keep the same project-member boundary as the read routes.
 
 ## Response Fields
 
@@ -75,10 +81,8 @@ Reply rows include:
 
 ## Deferred
 
-- `/biz/bizteamprojectcomment/add`
 - `/biz/bizteamprojectcomment/delete`
-- `/biz/bizteamprojectcommentreply/add`
 - `/biz/bizteamprojectcommentreply/edit`
 - `/biz/bizteamprojectcommentreply/delete`
 - Notifications and data-change events
-- Team-project, task, comment, or reply mutations
+- Team-project, task, existing-comment, or existing-reply mutations beyond add

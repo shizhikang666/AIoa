@@ -787,3 +787,30 @@ This slice supports the copied workflow copy-task page delete action:
 
 - `/biz/ccrecords/add` and `/edit` remain deferred.
 - Workflow copy-user delegate writes, approval/reject/start/cancel side effects, and notification behavior remain out of scope.
+
+## 2026-06-05 Team Project Comment Add Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied team-project timeline comment and reply submission:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentApi.js`
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentReplyApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/composables/index.js`
+
+### Result
+
+- `/biz/bizteamprojectcomment/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectcommentreply/add` is now routed as a protected POST endpoint.
+- Comment add accepts `teamProjectId`, `status`, `statusColor`, `contentText`, and `mentionableUsers`.
+- Submitted `mentionableUsers` is stored under `EXT_JSON` as `{"mentionableUsers":[...]}`.
+- Reply add accepts `targetId` and `contentText`.
+- Both writes are guarded by current-user membership of the owning team project.
+
+### Deferred
+
+- `/biz/bizteamprojectcomment/delete` remains deferred.
+- `/biz/bizteamprojectcommentreply/edit` and `/delete` remain deferred.
+- Notification push, data-change events, team-project mutations, task mutations, and task state/progress writes remain out of scope.

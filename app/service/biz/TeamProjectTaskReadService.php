@@ -8,7 +8,7 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only team-project task/category/comment queries compatible with the Java controllers.
+ * Team-project task/category/comment queries compatible with the Java controllers.
  */
 class TeamProjectTaskReadService
 {
@@ -336,6 +336,39 @@ SQL;
         return $this->projectCommentRows([$row], [])[0];
     }
 
+    public function projectCommentAdd(array $input, array $payload = []): array
+    {
+        $teamProjectId = $this->requiredInput($input, 'teamProjectId');
+        $status = $this->requiredInput($input, 'status');
+        $statusColor = $this->requiredInput($input, 'statusColor');
+        $contentText = $this->requiredInput($input, 'contentText');
+        $mentionableUsers = $this->mentionableUsers($input);
+
+        return Db::transaction(function () use ($teamProjectId, $status, $statusColor, $contentText, $mentionableUsers, $payload): array {
+            $project = $this->assertTeamProjectMember($teamProjectId, $payload, 'add comment');
+            $id = $this->newId();
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+
+            Db::name('biz_team_project_comment')->insert([
+                'ID' => $id,
+                'TEAM_PROJECT_ID' => $teamProjectId,
+                'STATUS' => $status,
+                'STATUS_COLOR' => $statusColor,
+                'CONTENT_TEXT' => $contentText,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'EXT_JSON' => json_encode(['mentionableUsers' => $mentionableUsers], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantIdFromProject($payload, $project),
+            ]);
+
+            return ['id' => $id];
+        });
+    }
+
     public function projectReplyPage(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
@@ -359,6 +392,34 @@ SQL;
         }
 
         return $this->projectReplyRow($row);
+    }
+
+    public function projectReplyAdd(array $input, array $payload = []): array
+    {
+        $targetId = $this->requiredInput($input, 'targetId');
+        $contentText = $this->requiredInput($input, 'contentText');
+
+        return Db::transaction(function () use ($targetId, $contentText, $payload): array {
+            $comment = $this->activeProjectCommentForWrite($targetId, $payload);
+            $id = $this->newId();
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+
+            Db::name('biz_team_project_comment_reply')->insert([
+                'ID' => $id,
+                'TARGET_ID' => $targetId,
+                'CONTENT_TEXT' => $contentText,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'EXT_JSON' => null,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantIdFromProject($payload, $comment),
+            ]);
+
+            return ['id' => $id];
+        });
     }
 
     public function taskCommentPage(array $filters = [], array $payload = []): array
@@ -658,6 +719,45 @@ SQL;
         return $query;
     }
 
+    private function activeProjectCommentForWrite(string $commentId, array $payload): array
+    {
+        $query = Db::name('biz_team_project_comment')->where('ID', $commentId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $comment = $query->find();
+        if (!is_array($comment) || $comment === []) {
+            throw new RuntimeException('team project comment not found', 404);
+        }
+
+        $project = $this->assertTeamProjectMember((string)$comment['TEAM_PROJECT_ID'], $payload, 'reply comment');
+        $comment['TENANT_ID'] = $comment['TENANT_ID'] ?? ($project['TENANT_ID'] ?? null);
+
+        return $comment;
+    }
+
+    private function assertTeamProjectMember(string $teamProjectId, array $payload, string $action): array
+    {
+        $userId = $this->currentUserId($payload);
+        $query = Db::name('biz_team_project')
+            ->alias('p')
+            ->join('biz_team_project_user pm', 'pm.TEAM_PROJECT_ID = p.ID', 'INNER')
+            ->where('p.ID', $teamProjectId)
+            ->where('pm.USER_ID', $userId);
+        $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'pm.DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('p.TENANT_ID', $tenantId);
+        }
+
+        $row = $query->field('p.ID AS ID, p.TENANT_ID AS TENANT_ID, pm.ROLE_TYPE AS ROLE_TYPE')->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException("no permission to {$action} on this team project", 403);
+        }
+
+        return $row;
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
@@ -734,6 +834,13 @@ SQL;
         if ($start !== '' && $end !== '') {
             $query->whereBetweenTime($column, $start, $end);
         }
+    }
+
+    private function whereNotDeleted($query, string $column): void
+    {
+        $query->where(function ($query) use ($column): void {
+            $query->whereNull($column)->whereOr($column, '=', self::NOT_DELETE);
+        });
     }
 
     private function applySort($query, array $filters, array $map, string $defaultColumn)
@@ -924,6 +1031,40 @@ SQL;
         }
 
         return $userId;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function mentionableUsers(array $input): array
+    {
+        if (!array_key_exists('mentionableUsers', $input) || !is_array($input['mentionableUsers'])) {
+            throw new RuntimeException('missing mentionableUsers', 400);
+        }
+
+        return array_values(array_unique(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $input['mentionableUsers']))));
+    }
+
+    private function tenantIdFromProject(array $payload, array $project): string
+    {
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? $project['TENANT_ID'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function pagination(array $filters): array

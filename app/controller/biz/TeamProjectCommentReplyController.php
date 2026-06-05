@@ -20,6 +20,11 @@ class TeamProjectCommentReplyController extends BaseSysController
         return $this->guard(fn () => $this->readService->projectReplyPage($request->get(), $this->authPayload($request)));
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->readService->projectReplyAdd($this->body($request), $this->authPayload($request)));
+    }
+
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->readService->projectReplyDetail($this->requiredString($request, 'id'), $this->authPayload($request)));
@@ -30,5 +35,29 @@ class TeamProjectCommentReplyController extends BaseSysController
         $payload = $request->middleware('auth_payload', []);
 
         return is_array($payload) ? $payload : [];
+    }
+
+    private function body(Request $request): array
+    {
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $request->param();
     }
 }
