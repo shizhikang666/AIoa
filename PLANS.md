@@ -5624,3 +5624,66 @@ git diff --check
 - Do not implement `/biz/saleproject/add`, `/edit`, `/delete`, status edits, amount edits, workflow starts, or finance/inventory side effects.
 - Do not implement file upload, physical file cleanup, notification pushes, or attachment storage changes.
 - Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
+
+## Completed Plan: api-agent/frontend-agent - Sale Project Product Info Write Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, add/edit/logical-delete service smoke, strict full lint rerun, backend/frontend reachability, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible software package/version info `add`, `edit`, and `delete` endpoints for the copied `/biz/saleprojectproductinfo` page.
+
+### 2. Involved Modules
+
+- api-agent sale-project product info CRUD compatibility
+- frontend-agent copied `bizSaleProjectProductInfoApi.js` wrapper compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SaleProjectProductInfoController.php`
+- `app/service/biz/SaleProjectProductInfoService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-product-info-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- This module is a low-risk standalone package/version info table, but writes should remain transactional and avoid sale-project state side effects.
+- Java physically removes rows through MyBatis, while this ThinkPHP project hides deleted rows through `DELETE_FLAG`; this slice should use logical delete.
+- Add requires `productId`, `targetId`, and `contentText`; edit should preserve Java's loose optional-field behavior and only require `id`.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectProductInfoController.php
+php -l app\service\biz\SaleProjectProductInfoService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/saleprojectproductinfo/add`, `/edit`, and `/delete` are registered behind token middleware.
+- Add requires `productId`, `targetId`, and `contentText`.
+- Edit requires `id` and updates only submitted mutable fields.
+- Delete accepts Java-style `[{id: ...}]`, `idList`, `ids`, or single `id` input and performs logical deletion.
+- Java source, database schema, sale-project state, workflow, finance, inventory, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not modify sale-project orders, product items, inventory, delivery, workflow, finance, or report generation logic.
+- Do not implement import/export changes or product master-data writes.
+- Do not modify Java source, database schema, Composer files, `.env`, or frontend source.

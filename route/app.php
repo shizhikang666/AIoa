@@ -416,6 +416,9 @@ Route::group('biz/saleprojectreissueorder', function () {
 Route::group('biz/saleprojectproductinfo', function () {
     Route::get('page', 'biz.SaleProjectProductInfoController/page');
     Route::get('list', 'biz.SaleProjectProductInfoController/list');
+    Route::post('add', 'biz.SaleProjectProductInfoController/add');
+    Route::post('edit', 'biz.SaleProjectProductInfoController/edit');
+    Route::post('delete', 'biz.SaleProjectProductInfoController/delete');
     Route::get('detail', 'biz.SaleProjectProductInfoController/detail');
 })->middleware(AuthMiddleware::class);
 

@@ -1,4 +1,4 @@
-# Biz Sale Project Product Info Read-Only Compatibility
+# Biz Sale Project Product Info Compatibility
 
 Date: 2026-06-03
 
@@ -6,7 +6,7 @@ Agent: api-agent
 
 ## Scope
 
-This slice maps the Java `BizSaleProjectProductInfoController` read APIs used by the copied Vue page `biz/saleprojectproductinfo`.
+This document maps the Java `BizSaleProjectProductInfoController` APIs used by the copied Vue page `biz/saleprojectproductinfo`.
 
 Java source remains read-only at `F:\AI\projects\testJava\OA`.
 
@@ -17,6 +17,9 @@ Java source remains read-only at `F:\AI\projects\testJava\OA`.
 | GET | `/biz/saleprojectproductinfo/page` | `SaleProjectProductInfoController::page` | Paged read. |
 | GET | `/biz/saleprojectproductinfo/list` | `SaleProjectProductInfoController::list` | Supports `targetIds` as comma-separated string or array. |
 | GET | `/biz/saleprojectproductinfo/detail` | `SaleProjectProductInfoController::detail` | Reads one row by `id`. |
+| POST | `/biz/saleprojectproductinfo/add` | `SaleProjectProductInfoController::add` | Creates one package/version row. |
+| POST | `/biz/saleprojectproductinfo/edit` | `SaleProjectProductInfoController::edit` | Updates submitted mutable fields. |
+| POST | `/biz/saleprojectproductinfo/delete` | `SaleProjectProductInfoController::delete` | Logically deletes rows. |
 
 All routes are protected by `AuthMiddleware`.
 
@@ -47,15 +50,59 @@ Rows include these Java/frontend-compatible fields:
 - `productName`
 - `targetProductName`
 
+## Write Compatibility
+
+### Add
+
+`POST /biz/saleprojectproductinfo/add`
+
+Required fields:
+
+- `productId`
+- `targetId`
+- `contentText`
+
+Optional fields:
+
+- `remark`
+- `alias`
+- `versionType`
+- `versionRemark`
+- `abbreviation`
+- `hardware`
+- `oldCode`
+- `extJson`
+- `tenantId`
+
+The endpoint writes create audit columns, `TENANT_ID`, and `DELETE_FLAG = NOT_DELETE`.
+
+### Edit
+
+`POST /biz/saleprojectproductinfo/edit`
+
+Required fields:
+
+- `id`
+
+Mutable fields are updated only when submitted. This preserves the Java edit parameter behavior, where package/version fields are optional.
+
+### Delete
+
+`POST /biz/saleprojectproductinfo/delete`
+
+Accepted input shapes:
+
+- `[{"id": "..."}]`
+- `{"idList": ["..."]}`
+- `{"ids": ["..."]}`
+- `{"id": "..."}`
+
+The endpoint performs a logical delete by setting `DELETE_FLAG = DELETED`. It does not physically remove imported rows.
+
 ## Deferred
 
-The following Java endpoints remain deferred:
-
-- `POST /biz/saleprojectproductinfo/add`
-- `POST /biz/saleprojectproductinfo/edit`
-- `POST /biz/saleprojectproductinfo/delete`
-
-They write business data and should wait for a dedicated validation, audit, transaction, and permission plan.
+- Product master-data writes remain out of scope.
+- Sale-project order/product-item, inventory, delivery, finance, workflow, import/export, and report-generation side effects remain out of scope.
 
 ## Test Commands
 

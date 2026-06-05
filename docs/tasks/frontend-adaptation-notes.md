@@ -662,3 +662,29 @@ This slice supports the copied sale-project follow-up wrapper and visible sale-p
 
 - File upload/storage implementation and physical file cleanup remain deferred.
 - Sale-project state, workflow, finance, inventory, and notification side effects remain out of scope.
+
+## 2026-06-05 Sale Project Product Info Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied software package/version info page:
+
+- `snowy-admin-web/src/api/biz/bizSaleProjectProductInfoApi.js`
+- `snowy-admin-web/src/views/biz/saleprojectproductinfo/index.vue`
+- `snowy-admin-web/src/views/biz/saleprojectproductinfo/form.vue`
+
+### Result
+
+- `/biz/saleprojectproductinfo/add` is now routed as a protected POST endpoint.
+- `/biz/saleprojectproductinfo/edit` is now routed as a protected POST endpoint.
+- `/biz/saleprojectproductinfo/delete` is now routed as a protected POST endpoint.
+- Add requires `productId`, `targetId`, and `contentText`.
+- Edit only requires `id` and updates submitted fields.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Product master-data writes, sale-project product-item changes, inventory, delivery, workflow, finance, import/export, and report-generation side effects remain out of scope.

@@ -2696,3 +2696,34 @@ Java exposes `/biz/saleprojectfollowup/add`, `/edit`, and `/delete`, and the cop
 - `php think route:list` must list the added routes.
 - Token requests should be able to add, edit, and logically delete a sale-project follow-up row when the current user can write the owning sale project.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Product Info Write Routes
+
+## Request
+
+Register protected sale-project product-info write routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/saleprojectproductinfo/add`, `/edit`, and `/delete`, and the copied frontend `bizSaleProjectProductInfoApi.js` calls these endpoints from the software package/version info page.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/saleprojectproductinfo/add`
+- `POST /biz/saleprojectproductinfo/edit`
+- `POST /biz/saleprojectproductinfo/delete`
+
+## Explicit Exclusions
+
+- No sale-project order/product-item, product master-data, inventory, delivery, workflow, finance, import/export, report generation, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Delete uses logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should be able to add, edit, and logically delete package/version info rows.
+- Requests without token should return `code=401`.

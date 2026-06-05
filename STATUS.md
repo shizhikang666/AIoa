@@ -4789,6 +4789,56 @@ Agent: api-agent
 - Commit and push this sale-project follow-up write compatibility slice.
 - Continue with another low-risk write slice or browser-smoke the sale-project detail follow-up tab before moving into heavier sale-project state changes.
 
+## 2026-06-05 - api-agent/frontend-agent - Sale Project Product Info Write Compatibility
+
+### Completed Content
+
+- Added protected Java-compatible software package/version info write endpoints: `/biz/saleprojectproductinfo/add`, `/edit`, and `/delete`.
+- Added transaction-wrapped add/edit/logical-delete methods to `SaleProjectProductInfoService`.
+- Kept Java add validation shape by requiring `productId`, `targetId`, and `contentText`.
+- Kept Java edit flexibility by requiring only `id` and updating submitted mutable fields.
+- Implemented logical delete through `DELETE_FLAG = DELETED` instead of physical deletion.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, product master data, sale-project product-item data, inventory, delivery, workflow, finance, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/SaleProjectProductInfoController.php`
+- `app/service/biz/SaleProjectProductInfoService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-product-info-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectProductInfoController.php`: passed.
+- `php -l app\service\biz\SaleProjectProductInfoService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service write smoke: passed; created info `1780630026237839440`, edited `contentText` and `alias`, then logically deleted it with `DELETE_FLAG = DELETED`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; route count is 290 and `/biz/saleprojectproductinfo/add`, `/edit`, and `/delete` are registered.
+- Initial broad PHP lint emitted a local PHP startup/pagefile warning near the end; strict rerun over 232 PHP files passed with `STRICT_LINT_OK`.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend reachability: `http://127.0.0.1:82/` returned HTTP 200.
+- Frontend reachability: `http://127.0.0.1:83/` returned HTTP 200.
+
+### Current Issues
+
+- Product master-data writes, sale-project product-item changes, import/export, report generation, inventory, delivery, workflow, and finance side effects remain deferred.
+- The service smoke leaves one logically deleted smoke row in `biz_sale_project_product_info`; no visible active data remains.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-project product-info write compatibility slice.
+- Continue with another isolated low-risk write route, or browser-smoke `/biz/saleprojectproductinfo` add/edit/delete before entering heavier sale-project state writes.
+
 ## 2026-06-05 - api-agent/frontend-agent - Gen Basic Metadata Read-Only Compatibility
 
 ### Completed Content

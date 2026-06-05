@@ -44,7 +44,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/product`, `biz/supplier`, `biz/settlementaccount` | Core master-data read adapters |
 | `biz/bizpaymentrecord`, `biz/bizexpenditurerecord`, `biz/bizdebitnote` | Finance read adapters |
 | `biz/bizpurchaserequest`, `biz/bizpurchaseorder`, `biz/warehouses`, `biz/inventory`, `biz/delivery`, `biz/returnorder` | Purchase, warehouse, inventory, delivery, return read slices |
-| `biz/saleprojectproductinfo` | Sale-project software package/version info reads |
+| `biz/saleprojectproductinfo` | Sale-project software package/version info reads and base add/edit/delete writes |
 | `biz/bizdatareport` | Sale-project amount/list/report, unpaid-payment, settlement income/expenses, sale-profit, summary-statistics, and details reads |
 | `biz/projectrate` | Project rating page, list, and detail reads |
 | `biz/bizleaveapplication` | Leave/business-trip page, my-page, and detail reads |
@@ -120,7 +120,8 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
 | `dev/file` | `upload*`, `delete` | Storage provider, file persistence, and cleanup strategy |
 | `dev/message` | `send`, `delete`, `createSseConnect` | Messaging/SSE behavior must match Java expectations |
-| `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing`, `biz/saleprojectproductinfo` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
+| `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
+| `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `biz/bizhistoryexcel` | `add`, `edit`, `delete` | Historical spreadsheet data writes and import/export parsing need a separate plan |
 | `sys/user` and `sys/userCenter` | `import`, profile edits, password edits, grant actions | Security and audit requirements |
