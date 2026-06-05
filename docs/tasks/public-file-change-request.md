@@ -2727,3 +2727,34 @@ Java exposes `/biz/saleprojectproductinfo/add`, `/edit`, and `/delete`, and the 
 - `php think route:list` must list the added routes.
 - Token requests should be able to add, edit, and logically delete package/version info rows.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Field Change Log Write Routes
+
+## Request
+
+Register protected sale-project field-change-log write routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/salesprojectfieldchangelog/add`, `/edit`, and `/delete`, and the imported permission data includes these API permission points. The existing ThinkPHP implementation already had read-only `page` and `detail`; this slice completes the narrow base log-table CRUD route group without implementing sale-project amount/history generation side effects.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/salesprojectfieldchangelog/add`
+- `POST /biz/salesprojectfieldchangelog/edit`
+- `POST /biz/salesprojectfieldchangelog/delete`
+
+## Explicit Exclusions
+
+- No `/biz/saleproject/history/add`, amount edit, deal edit, visibility edit, sale-project state transition, workflow, finance, inventory, notification, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Delete uses logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should be able to add, edit, and logically delete a sale-project field change log row when the current user can write the owning sale project.
+- Requests without token should return `code=401`.

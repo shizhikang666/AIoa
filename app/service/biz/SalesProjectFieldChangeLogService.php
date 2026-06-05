@@ -7,12 +7,10 @@ namespace app\service\biz;
 use RuntimeException;
 use think\facade\Db;
 
-/**
- * Read-only sale-project field change log queries compatible with Java.
- */
 class SalesProjectFieldChangeLogService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
 
     private const FIELDS = <<<SQL
 l.ID AS ID,
@@ -65,6 +63,109 @@ SQL;
         }
 
         return $this->row($row);
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $objectId = $this->requiredInput($input, 'objectId');
+        $fieldName = $this->requiredInput($input, 'fieldName');
+        $fieldLabel = $this->requiredInput($input, 'fieldLabel');
+        $beforeValue = $this->requiredInput($input, 'beforeValue');
+        $afterValue = $this->requiredInput($input, 'afterValue');
+        $changeReason = $this->requiredInput($input, 'changeReason');
+
+        return Db::transaction(function () use ($objectId, $fieldName, $fieldLabel, $beforeValue, $afterValue, $changeReason, $input, $payload): array {
+            $project = $this->assertProjectWritable($objectId, $payload, 'add');
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $id = $this->newId();
+
+            Db::name('sales_project_field_change_log')->insert([
+                'ID' => $id,
+                'OBJECT_ID' => $objectId,
+                'FIELD_NAME' => $fieldName,
+                'FIELD_LABEL' => $fieldLabel,
+                'BEFORE_VALUE' => $beforeValue,
+                'AFTER_VALUE' => $afterValue,
+                'CHANGE_REASON' => $changeReason,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantId($input, $payload, $project),
+            ]);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $objectId = $this->requiredInput($input, 'objectId');
+        $fieldName = $this->requiredInput($input, 'fieldName');
+        $fieldLabel = $this->requiredInput($input, 'fieldLabel');
+        $beforeValue = $this->requiredInput($input, 'beforeValue');
+        $afterValue = $this->requiredInput($input, 'afterValue');
+        $changeReason = $this->requiredInput($input, 'changeReason');
+
+        return Db::transaction(function () use ($id, $objectId, $fieldName, $fieldLabel, $beforeValue, $afterValue, $changeReason, $payload): array {
+            $log = $this->activeLog($id);
+            $this->assertProjectWritable((string)$log['OBJECT_ID'], $payload, 'edit');
+            if ((string)$log['OBJECT_ID'] !== $objectId) {
+                $this->assertProjectWritable($objectId, $payload, 'edit');
+            }
+
+            Db::name('sales_project_field_change_log')
+                ->where('ID', $id)
+                ->update([
+                    'OBJECT_ID' => $objectId,
+                    'FIELD_NAME' => $fieldName,
+                    'FIELD_LABEL' => $fieldLabel,
+                    'BEFORE_VALUE' => $beforeValue,
+                    'AFTER_VALUE' => $afterValue,
+                    'CHANGE_REASON' => $changeReason,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+                ]);
+
+            return ['id' => $id];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->stringList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $query = Db::name('sales_project_field_change_log')->whereIn('ID', $idList);
+            $this->whereNotDeleted($query, 'DELETE_FLAG');
+            $rows = $query->select()->toArray();
+            if (count($rows) !== count($idList)) {
+                throw new RuntimeException('sales project field change log not found', 404);
+            }
+
+            foreach ($rows as $row) {
+                $this->assertProjectWritable((string)$row['OBJECT_ID'], $payload, 'delete');
+            }
+
+            $updated = Db::name('sales_project_field_change_log')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
     }
 
     private function query(array $filters, array $payload)
@@ -176,6 +277,151 @@ SQL;
         $query->where(function ($query) use ($column): void {
             $query->whereNull($column)->whereOr($column, '=', self::NOT_DELETE);
         });
+    }
+
+    private function activeLog(string $id): array
+    {
+        $query = Db::name('sales_project_field_change_log')->where('ID', $id);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('sales project field change log not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertProjectWritable(string $projectId, array $payload, string $action): array
+    {
+        $query = Db::name('biz_sale_project')->where('ID', $projectId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $project = $query->find();
+        if (!is_array($project) || $project === []) {
+            throw new RuntimeException('sale project not found', 404);
+        }
+
+        if ($this->canSeeAll($payload)) {
+            return $project;
+        }
+
+        $projectOrg = trim((string)($project['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== []) {
+            if (!in_array($projectOrg, $scopeOrgIds, true)) {
+                throw new RuntimeException("no permission to {$action} this sales project field change log", 403);
+            }
+
+            return $project;
+        }
+
+        $projectUser = trim((string)($project['USER'] ?? ''));
+        $userId = $this->currentUserId($payload);
+        if ($userId === '' || $projectUser !== $userId) {
+            throw new RuntimeException("no permission to {$action} this sales project field change log", 403);
+        }
+
+        return $project;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function tenantId(array $input, array $payload, array $project): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? $project['TENANT_ID'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(static function (mixed $item): string {
+            if (is_array($item)) {
+                return trim((string)($item['id'] ?? $item['ID'] ?? ''));
+            }
+
+            return trim((string)$item);
+        }, $value))));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function scopeOrgIds(array $payload): array
+    {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            foreach ($scopes as $scope) {
+                if (is_array($scope)) {
+                    $ids[] = $scope['orgId'] ?? $scope['org_id'] ?? '';
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $ids))));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
     }
 
     private function normalizeRow(array $row): array

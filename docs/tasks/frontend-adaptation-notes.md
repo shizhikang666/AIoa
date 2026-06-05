@@ -688,3 +688,28 @@ This slice supports the copied software package/version info page:
 ### Deferred
 
 - Product master-data writes, sale-project product-item changes, inventory, delivery, workflow, finance, import/export, and report-generation side effects remain out of scope.
+
+## 2026-06-05 Sale Project Field Change Log Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports Java-compatible field-change-log writes for the sale-project history/change log route group:
+
+- `/biz/salesprojectfieldchangelog/add`
+- `/biz/salesprojectfieldchangelog/edit`
+- `/biz/salesprojectfieldchangelog/delete`
+
+### Result
+
+- `/biz/salesprojectfieldchangelog/add` is now routed as a protected POST endpoint.
+- `/biz/salesprojectfieldchangelog/edit` is now routed as a protected POST endpoint.
+- `/biz/salesprojectfieldchangelog/delete` is now routed as a protected POST endpoint.
+- Add and edit require `objectId`, `fieldName`, `fieldLabel`, `beforeValue`, `afterValue`, and `changeReason`, matching Java parameter validation.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Sale-project amount/change writes, generated history creation from main project forms, workflow, finance, and audit side effects remain out of scope.

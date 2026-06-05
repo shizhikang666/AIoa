@@ -391,6 +391,9 @@ Route::group('biz/saleprojectfollowup', function () {
 
 Route::group('biz/salesprojectfieldchangelog', function () {
     Route::get('page', 'biz.SalesProjectFieldChangeLogController/page');
+    Route::post('add', 'biz.SalesProjectFieldChangeLogController/add');
+    Route::post('edit', 'biz.SalesProjectFieldChangeLogController/edit');
+    Route::post('delete', 'biz.SalesProjectFieldChangeLogController/delete');
     Route::get('detail', 'biz.SalesProjectFieldChangeLogController/detail');
 })->middleware(AuthMiddleware::class);
 

@@ -5494,3 +5494,53 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-05 - api-agent/frontend-agent - Sale Project Field Change Log Write Compatibility
+
+### Completed Content
+
+- Added Java-compatible protected sale-project field change log `add`, `edit`, and `delete` endpoints.
+- Matched Java validation requirements for `objectId`, `fieldName`, `fieldLabel`, `beforeValue`, `afterValue`, and `changeReason`.
+- Kept existing `page` and `detail` read behavior, including project and creator display aliases.
+- Added transactional write methods with audit fields and tenant preservation from the owning sale project.
+- Used `DELETE_FLAG = DELETED` for delete safety instead of physical removal.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, sale-project main writes, workflow, finance, inventory, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/SalesProjectFieldChangeLogController.php`
+- `app/service/biz/SalesProjectFieldChangeLogService.php`
+- `route/app.php`
+- `docs/api/sales-project-field-change-log-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SalesProjectFieldChangeLogController.php`: passed.
+- `php -l app\service\biz\SalesProjectFieldChangeLogService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/salesprojectfieldchangelog/add`, `/edit`, and `/delete` are registered.
+- Direct service smoke: passed on copied-data project `2007642126725550081`; add returned test row `1780634305327997228`, edit changed `afterValue`, and delete set `DELETE_FLAG=DELETED`.
+- Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- MySQL started through `F:\project\socket\AI\testPhp\files\startServer1.bat`; backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
+
+### Current Issues
+
+- Sale-project generated history creation from amount/change edit flows remains deferred.
+- Workflow, finance, inventory, notifications, and audit side effects remain deferred.
+- Delete intentionally leaves a logically deleted local test row for traceability instead of physically removing data.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this write compatibility slice.
+- Continue the next isolated low-risk write endpoint before opening side-effect-heavy sale-project, finance, stock, or workflow flows.
