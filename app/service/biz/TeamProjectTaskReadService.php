@@ -620,6 +620,41 @@ SQL;
         return $this->taskCommentRow($row);
     }
 
+    public function taskCommentAdd(array $input, array $payload = []): array
+    {
+        $taskId = $this->requiredInput($input, 'teamProjectTaskId');
+        $contentText = (string)($input['contentText'] ?? '');
+        $files = $this->fileList($input);
+
+        return Db::transaction(function () use ($taskId, $contentText, $files, $payload): array {
+            $task = $this->activeTaskForWrite($taskId, $payload, 'add task comment');
+            $id = $this->newId();
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+
+            Db::name('biz_team_project_task_comment')->insert([
+                'ID' => $id,
+                'TEAM_PROJECT_TASK_ID' => $taskId,
+                'TEAM_PROJECT_ID' => (string)$task['TEAM_PROJECT_ID'],
+                'CONTENT_TEXT' => $contentText,
+                'CATEGORY' => 'COMMENT',
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'EXT_JSON' => json_encode(['file' => $files], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $currentUserId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantIdFromProject($payload, $task),
+            ]);
+
+            return [
+                'id' => $id,
+                'teamProjectTaskId' => $taskId,
+                'teamProjectId' => (string)$task['TEAM_PROJECT_ID'],
+            ];
+        });
+    }
+
     private function categoryQuery(array $filters, array $payload)
     {
         $query = Db::name('biz_team_project_task_category')
@@ -1420,6 +1455,16 @@ SQL;
         }
 
         return array_values(array_unique(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $input['mentionableUsers']))));
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function fileList(array $input): array
+    {
+        $raw = $input['files'] ?? $input['file'] ?? $input['fileList'] ?? [];
+
+        return is_array($raw) ? array_values($raw) : [];
     }
 
     private function tenantIdFromProject(array $payload, array $project): string

@@ -32,6 +32,7 @@ Existing covered routes remain:
 - `GET /biz/bizteamprojectcomment/list`
 - `GET /biz/bizteamprojecttaskcomment/page`
 - `GET /biz/bizteamprojecttaskcomment/list`
+- `POST /biz/bizteamprojecttaskcomment/add`
 - `GET /biz/bizteamprojecttaskcomment/detail`
 
 ## Behavior
@@ -50,6 +51,7 @@ Existing covered routes remain:
 - Project comment reply edit requires `id`, `targetId`, and `contentText`; it validates both the existing reply and requested target comment through the project-member boundary.
 - Project comment reply delete accepts Java-style array bodies, `idList`, `ids`, or single `id` and sets `DELETE_FLAG = DELETED`.
 - Reply edit/delete is allowed for the reply creator or a project user with imported `delComment` resource permission.
+- Task comment add requires `teamProjectTaskId`, keeps the same project-member boundary as task-comment reads, writes `CATEGORY = COMMENT`, and stores submitted `files` in `EXT_JSON` as `{"file":[...]}`.
 
 ## Response Fields
 
@@ -89,4 +91,4 @@ Reply rows include:
 ## Deferred
 
 - Notifications and data-change events
-- Team-project, task, task-comment, category, and task-user mutations
+- Team-project, task, task-comment edit/delete, category, and task-user mutations

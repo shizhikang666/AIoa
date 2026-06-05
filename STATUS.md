@@ -5854,3 +5854,56 @@ Agent: api-agent
 
 - Commit and push this task assignee compatibility slice.
 - Continue another isolated frontend-visible write/read gap, likely task comment maintenance or a low-risk customer/sale-project helper, before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.
+
+## 2026-06-05 - api-agent/frontend-agent - Team Project Task Comment Add Compatibility
+
+### Completed Content
+
+- Added Java-compatible protected `POST /biz/bizteamprojecttaskcomment/add`.
+- Preserved existing task-comment `page`, `list`, and `detail` read behavior.
+- Required current-user membership of the owning team project before adding a task comment.
+- Derived `TEAM_PROJECT_ID` and tenant id from the existing task/project instead of trusting the request body.
+- Stored new task comments with `CATEGORY = COMMENT`, `DELETE_FLAG = NOT_DELETE`, current-user audit fields, and raw `CONTENT_TEXT`.
+- Stored submitted `files` under `EXT_JSON` as `{"file":[...]}` for compatibility with the copied task detail drawer.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, frontend source, task comment edit/delete, task add/edit/delete, category writes, task status/progress/content writes, notification push, data-change events, Composer files, and `.env` unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/TeamProjectTaskCommentController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/api/team-project-comment-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\TeamProjectTaskCommentController.php`: passed.
+- `php -l app\service\biz\TeamProjectTaskReadService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed on team project `1903996479133360129`, task `2033724343755141122`, current user `1543837863788879873`; comment `1780647300714334323` was inserted with `CATEGORY = COMMENT`, `EXT_JSON.file[0].name = smoke.txt`, read back, and then logically marked `DELETE_FLAG = DELETED`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; route entry rows = 306 and `/biz/bizteamprojecttaskcomment/add` is registered.
+- Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP check for `/biz/bizteamprojecttaskcomment/add`: returned HTTP 200 envelope with `code=401`.
+- MySQL 3306, Redis 6379, backend 82, and frontend 83 were listening.
+- Backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
+
+### Current Issues
+
+- The smoke test intentionally leaves a logically deleted task-comment test row for traceability instead of physically deleting imported-style data.
+- Task comment edit/delete, task add/edit/delete, category writes, task status/progress/content writes, notification push, and data-change events remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this task comment add compatibility slice.
+- Continue another isolated frontend-visible write/read gap before opening side-effect-heavy workflow, finance, inventory, or sale-project state flows.

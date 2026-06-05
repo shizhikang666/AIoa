@@ -2947,3 +2947,34 @@ Java exposes `/biz/bizteamprojecttask/user/edit` from `BizTeamProjectTaskControl
 - Token requests should be able to sync task assignees only when the current user is a non-deleted project member and has imported `addUser` project permission or task-level `MANAGE` role.
 - Submitted assignees should be rejected when they are not non-deleted members of the same team project.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Team Project Task Comment Add Route
+
+## Request
+
+Register the protected team-project task comment add route in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizteamprojecttaskcomment/add`, and the copied Vue task detail drawer calls `bizTeamProjectTaskCommentSubmitForm` when a user submits a task comment. Existing ThinkPHP routes already cover task-comment `page`, `list`, and `detail`; this slice opens only the frontend-visible base add route.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST route:
+
+- `POST /biz/bizteamprojecttaskcomment/add`
+
+## Explicit Exclusions
+
+- No `/biz/bizteamprojecttaskcomment/edit` or `/delete` route was added.
+- No task add/edit/delete route was added.
+- No task-category write, task-user standalone write, task status/progress/content write, notification push, data-change event, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Submitted `files` are stored in `EXT_JSON` as `{"file":[...]}` for compatibility with the copied frontend parser.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should be able to add a task comment only when the current user is a non-deleted member of the owning team project.
+- Requests without token should return `code=401`.

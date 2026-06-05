@@ -42,6 +42,7 @@ All routes are protected by `AuthMiddleware`.
 | POST | `/biz/bizteamprojectcommentreply/delete` | Project timeline comment reply logical delete with maintainer guard. |
 | GET | `/biz/bizteamprojecttaskcomment/page` | Task comment/log page. |
 | GET | `/biz/bizteamprojecttaskcomment/list` | Task comment/log list for the task detail drawer. |
+| POST | `/biz/bizteamprojecttaskcomment/add` | Add a user comment to an existing team-project task. |
 | GET | `/biz/bizteamprojecttaskcomment/detail` | Task comment/log detail by id. |
 
 ## Access Rules
@@ -55,6 +56,7 @@ All routes are protected by `AuthMiddleware`.
 - Reply edit/delete allows the reply creator or a project user with imported `delComment` resource permission.
 - Task assignee sync requires the current user to be a non-deleted member of the owning team project and to have imported `addUser` project permission or task-level `MANAGE` role.
 - Task assignee sync only accepts users who are already non-deleted members of the same team project. Removed assignees are logically deleted to preserve imported data during refactor testing.
+- Task comment add requires current-user membership of the owning team project and stores submitted files under `EXT_JSON` as `{"file":[...]}` for the copied task detail parser.
 
 ## Deferred Routes
 
@@ -65,7 +67,9 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/bizteamprojecttaskcategory/edit`
 - `/biz/bizteamprojecttaskcategory/sort/edit`
 - `/biz/bizteamprojecttaskcategory/delete`
-These routes mutate task state, category order, memberships, task comments, and data-change events. They need a later write-flow design.
+- `/biz/bizteamprojecttaskcomment/edit`
+- `/biz/bizteamprojecttaskcomment/delete`
+These routes mutate task state, category order, memberships, task-comment maintenance, and data-change events. They need a later write-flow design.
 
 ## Verification Scope
 
@@ -73,5 +77,5 @@ These routes mutate task state, category order, memberships, task comments, and 
 - Baseline `composer dump-autoload`.
 - Baseline `php think`.
 - `php think route:list` route registration.
-- Runtime smoke tests for representative category, task, project-comment, task-comment reads, task assignee sync, and project-comment/reply base writes.
+- Runtime smoke tests for representative category, task, project-comment, task-comment reads, task comment add, task assignee sync, and project-comment/reply base writes.
 - No-token check for a protected route.

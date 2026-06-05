@@ -867,3 +867,28 @@ This slice supports the copied team-project task detail assignee selector:
 
 - `/biz/bizteamprojecttask/add`, `/edit`, and `/delete` remain deferred.
 - Task category writes, task comments, task status/progress/content writes, notification push, and data-change events remain out of scope.
+
+## 2026-06-05 Team Project Task Comment Add Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project task detail comment submit form:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskCommentApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/taskDetail.vue`
+
+### Result
+
+- `/biz/bizteamprojecttaskcomment/add` is now routed as a protected POST endpoint.
+- Add accepts `teamProjectTaskId`, optional `contentText`, and optional `files`.
+- The owning `teamProjectId` is derived from the existing task row.
+- Submitted `files` are stored under `EXT_JSON` as `{"file":[...]}`, matching the copied task detail drawer parser.
+- The row is stored with `CATEGORY = COMMENT` and `DELETE_FLAG = NOT_DELETE`.
+- The write is guarded by current-user membership of the owning team project.
+
+### Deferred
+
+- `/biz/bizteamprojecttaskcomment/edit` and `/delete` remain deferred.
+- Task add/edit/delete, task category writes, task status/progress/content writes, notification push, and data-change events remain out of scope.

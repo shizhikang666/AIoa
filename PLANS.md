@@ -6139,3 +6139,71 @@ git diff --check
 - Do not implement `/biz/bizteamprojecttask/add`, `/edit`, or `/delete`.
 - Do not implement `/biz/bizteamprojecttaskcategory/add`, `/edit`, `/sort/edit`, or `/delete`.
 - Do not implement task comment writes, status/progress/content writes, notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Completed Plan: api-agent/frontend-agent - Team Project Task Comment Add Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add the Java-compatible task comment submit endpoint used by the copied team-project task detail drawer:
+
+- `POST /biz/bizteamprojecttaskcomment/add`
+
+This slice only adds user comments for an existing team-project task. It does not implement task comment edit/delete, task status/progress/content changes, task/category mutations, notifications, or Java data-change events.
+
+### 2. Involved Modules
+
+- api-agent team-project task comment compatibility
+- frontend-agent copied task-detail API compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectTaskCommentController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/biz-team-project-task-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The frontend stores uploaded attachment metadata under `files`, while existing task comments expose raw `extJson`; this slice must preserve the Java-compatible `{"file":[...]}` shape for the copied parser.
+- Java emits data-change events after task-comment add; this refactor intentionally defers those push/notification side effects.
+- Comment writes must be limited to users who can see the owning task through team-project membership.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectTaskCommentController.php
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizteamprojecttaskcomment/add` is registered behind token middleware.
+- Request body requires `teamProjectTaskId`.
+- The current token user must be a non-deleted member of the owning team project.
+- The inserted row uses `CATEGORY = COMMENT`, `DELETE_FLAG = NOT_DELETE`, task-derived `TEAM_PROJECT_ID`, current-user audit fields, and tenant id.
+- Submitted `files` are stored in `EXT_JSON` as `{"file":[...]}` so the copied task detail drawer can parse them.
+- Java source, database schema, frontend source, task comment edit/delete, task/category writes, task status/progress/content writes, notifications, data-change events, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/bizteamprojecttaskcomment/edit` or `/delete`.
+- Do not implement `/biz/bizteamprojecttask/add`, `/edit`, or `/delete`.
+- Do not implement task-category writes, task-user writes, task status/progress/content writes, notification push, data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
