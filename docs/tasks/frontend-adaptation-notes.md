@@ -713,3 +713,29 @@ This slice supports Java-compatible field-change-log writes for the sale-project
 ### Deferred
 
 - Sale-project amount/change writes, generated history creation from main project forms, workflow, finance, and audit side effects remain out of scope.
+
+## 2026-06-05 Biz History Excel Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied historical Excel page wrapper:
+
+- `snowy-admin-web/src/api/biz/bizHistoryExcelApi.js`
+- `snowy-admin-web/src/views/biz/bizhistoryexcel/index.vue`
+- `snowy-admin-web/src/views/biz/bizhistoryexcel/form.vue`
+
+### Result
+
+- `/biz/bizhistoryexcel/add` is now routed as a protected POST endpoint.
+- `/biz/bizhistoryexcel/edit` is now routed as a protected POST endpoint.
+- `/biz/bizhistoryexcel/delete` is now routed as a protected POST endpoint.
+- Add stores frontend-submitted `name` and `extJson` into `biz_history_excel`.
+- Edit updates submitted `extJson`, matching the Java edit parameter shape.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Frontend Excel parser changes, import/export, file storage, and `biz_history_excel_row` row-table writes remain out of scope.

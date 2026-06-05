@@ -5750,3 +5750,66 @@ git diff --check
 - Do not implement `/biz/saleproject/history/add`, amount edit, deal edit, visibility edit, or any sale-project state transition.
 - Do not implement workflow, finance, inventory, file storage, or notification side effects.
 - Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
+
+## Completed Plan: api-agent/frontend-agent - Biz History Excel Write Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, add/edit/logical-delete service smoke, backend/frontend reachability, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible historical Excel data `add`, `edit`, and `delete` endpoints for the copied `/biz/bizhistoryexcel` page.
+
+### 2. Involved Modules
+
+- api-agent historical Excel CRUD compatibility
+- frontend-agent copied `bizHistoryExcelApi.js` wrapper compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/BizHistoryExcelController.php`
+- `app/service/biz/BizHistoryExcelService.php`
+- `route/app.php`
+- `docs/api/biz-history-excel-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The frontend parses Excel locally and submits a large JSON payload; this slice should preserve submitted `extJson` rather than changing parser behavior.
+- Java physically removes rows through MyBatis, while this ThinkPHP project hides deleted rows with `DELETE_FLAG`; this slice should use logical delete.
+- `biz_history_excel_row` exists in SQL, but Java `BizHistoryExcelController` writes only `biz_history_excel`; this slice must not invent row-table parsing or storage.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\BizHistoryExcelController.php
+php -l app\service\biz\BizHistoryExcelService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizhistoryexcel/add`, `/edit`, and `/delete` are registered behind token middleware.
+- Add requires `name` and stores submitted `extJson`.
+- Edit requires `id` and updates submitted `extJson` only, matching the Java edit parameter.
+- Delete accepts Java-style `[{id: ...}]`, `idList`, `ids`, or single `id` input and performs logical deletion.
+- Java source, database schema, row-table parsing, file upload/storage, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not modify Excel parsing in `snowy-admin-web`.
+- Do not write `biz_history_excel_row` rows or implement import/export/storage changes.
+- Do not modify Java source, database schema, Composer files, `.env`, or frontend source.

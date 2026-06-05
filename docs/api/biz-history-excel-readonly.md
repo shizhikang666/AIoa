@@ -1,6 +1,6 @@
-# Biz History Excel Read-Only API
+# Biz History Excel API
 
-Date: 2026-06-04
+Updated: 2026-06-05
 
 Agent: api-agent / frontend-agent
 
@@ -19,11 +19,17 @@ Protected by `AuthMiddleware`:
 
 - `GET /biz/bizhistoryexcel/page`
 - `GET /biz/bizhistoryexcel/detail`
+- `POST /biz/bizhistoryexcel/add`
+- `POST /biz/bizhistoryexcel/edit`
+- `POST /biz/bizhistoryexcel/delete`
 
 ## Behavior
 
 - `page` reads `biz_history_excel` rows with Java-compatible pagination.
 - `detail` reads one row by `id`.
+- `add` creates one history Excel row with `name` and submitted `extJson`.
+- `edit` requires `id` and updates submitted `extJson`, matching Java `BizHistoryExcelEditParam`.
+- `delete` accepts Java-style array bodies, `idList`, `ids`, or a single `id` and sets `DELETE_FLAG = DELETED`.
 - Sorting is restricted to a whitelist matching known frontend fields.
 - Logical deleted rows are excluded by `DELETE_FLAG IS NULL OR DELETE_FLAG = NOT_DELETE`.
 - Response rows keep original database keys and add frontend-friendly camelCase aliases.
@@ -43,11 +49,10 @@ Protected by `AuthMiddleware`:
 
 ## Deferred
 
-- `/biz/bizhistoryexcel/add`
-- `/biz/bizhistoryexcel/edit`
-- `/biz/bizhistoryexcel/delete`
 - Excel import/export parsing changes
 - Spreadsheet storage writes
+- `biz_history_excel_row` row-table parsing/writes
+- frontend Excel parser changes
 
 ## Verification
 
@@ -61,5 +66,8 @@ Expected:
 
 - `biz/bizhistoryexcel/page`
 - `biz/bizhistoryexcel/detail`
+- `biz/bizhistoryexcel/add`
+- `biz/bizhistoryexcel/edit`
+- `biz/bizhistoryexcel/delete`
 
 Requests without a bearer token should return `code = 401`.

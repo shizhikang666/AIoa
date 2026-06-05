@@ -5544,3 +5544,54 @@ Agent: api-agent
 
 - Commit and push this write compatibility slice.
 - Continue the next isolated low-risk write endpoint before opening side-effect-heavy sale-project, finance, stock, or workflow flows.
+
+## 2026-06-05 - api-agent/frontend-agent - Biz History Excel Write Compatibility
+
+### Completed Content
+
+- Added Java-compatible protected historical Excel data `add`, `edit`, and `delete` endpoints.
+- Matched Java parameter shape: add stores `name` and `extJson`; edit requires `id` and updates submitted `extJson`.
+- Kept existing `page` and `detail` read behavior and raw `EXT_JSON` payload preservation.
+- Added transactional writes with audit fields and tenant id defaults.
+- Used `DELETE_FLAG = DELETED` for delete safety instead of physical removal.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, `biz_history_excel_row`, frontend Excel parser, file storage/import/export, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/BizHistoryExcelController.php`
+- `app/service/biz/BizHistoryExcelService.php`
+- `route/app.php`
+- `docs/api/biz-history-excel-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizHistoryExcelController.php`: passed.
+- `php -l app\service\biz\BizHistoryExcelService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/bizhistoryexcel/add`, `/edit`, and `/delete` are registered.
+- Direct service smoke: passed; add returned test row `1780635064432452528`, edit changed `extJson`, and delete set `DELETE_FLAG=DELETED`.
+- Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- MySQL was already listening; backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
+
+### Current Issues
+
+- Frontend Excel parsing remains unchanged and still submits the whole parsed payload as `extJson`.
+- `biz_history_excel_row` row-table parsing/writes remain deferred because Java controller does not use it in this CRUD flow.
+- Import/export and physical file storage changes remain deferred.
+- Delete intentionally leaves a logically deleted local test row for traceability instead of physically removing data.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this write compatibility slice.
+- Continue another isolated low-risk write endpoint before opening finance, inventory, workflow, or sale-project state flows.

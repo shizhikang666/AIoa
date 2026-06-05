@@ -282,6 +282,9 @@ Route::group('biz/bizfilerelation', function () {
 
 Route::group('biz/bizhistoryexcel', function () {
     Route::get('page', 'biz.BizHistoryExcelController/page');
+    Route::post('add', 'biz.BizHistoryExcelController/add');
+    Route::post('edit', 'biz.BizHistoryExcelController/edit');
+    Route::post('delete', 'biz.BizHistoryExcelController/delete');
     Route::get('detail', 'biz.BizHistoryExcelController/detail');
 })->middleware(AuthMiddleware::class);
 

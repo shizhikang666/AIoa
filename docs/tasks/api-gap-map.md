@@ -89,7 +89,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/bizuservacation` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `biz/ccrecords` | `page` and `detail` covered; `delete` remains deferred |
 | `biz/bizdraft` | `detail` covered; `saleproject/add` remains deferred |
-| `biz/bizhistoryexcel` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
+| `biz/bizhistoryexcel` | `page`, `detail`, `add`, `edit`, and `delete` covered; import/export parsing and row-table storage remain deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
 | `biz/saleprojectinvoiceItem` | `page` covered; invoice item writes remain deferred |
 | `biz/projectrate` | `page`, `list`, and `detail` covered; add/edit/delete remain deferred |
@@ -124,7 +124,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
 | `biz/salesprojectfieldchangelog` | Sale-project amount/change generation, workflow, finance, audit side effects | Add/edit/delete base log-row writes are covered |
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
-| `biz/bizhistoryexcel` | `add`, `edit`, `delete` | Historical spreadsheet data writes and import/export parsing need a separate plan |
+| `biz/bizhistoryexcel` | Import/export parsing, `biz_history_excel_row` writes | Base add/edit/delete writes are covered; parser/storage changes remain deferred |
 | `sys/user` and `sys/userCenter` | `import`, profile edits, password edits, grant actions | Security and audit requirements |
 | `gen/basic` | `add`, `edit`, `delete`, `previewGen`, `execGenZip`, `execGenPro` | Generator writes or code generation output require a separate module plan |
 
