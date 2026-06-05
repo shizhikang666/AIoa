@@ -2603,3 +2603,32 @@ Java exposes `/gen/basic/tables` and `/gen/basic/tableColumns` from `GenBasicCon
 - Token requests to `/gen/basic/tables` should return current database table metadata and exclude `ACT_` workflow engine tables.
 - Token requests to `/gen/basic/tableColumns?tableName=<table>` should return current database column metadata.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Auth Third User Page Read-Only Route
+
+## Request
+
+Register a protected read-only third-party user binding page route in `route/app.php`.
+
+## Reason
+
+Java exposes `/auth/third/page` from `AuthThirdController`, and the copied frontend `thirdApi.js` calls this endpoint for third-party user binding pagination.
+
+## Applied Change
+
+`auth-agent/frontend-agent` registered the following protected GET route:
+
+- `GET /auth/third/page`
+
+## Explicit Exclusions
+
+- No `/auth/third/render` or `/auth/third/callback` route was added.
+- No third-party OAuth provider configuration, login callback binding, user creation, token issuance, Java source, database schema, Composer, `.env`, frontend source, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return `auth_third_user` page data or a stable empty page.
+- Requests without token should return `code=401`.

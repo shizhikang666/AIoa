@@ -4732,6 +4732,55 @@ Agent: api-agent
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only frontend/API gap, likely another selector/detail consumer before write endpoints.
 
+## 2026-06-05 - auth-agent/frontend-agent - Auth Third User Page Read-Only Compatibility
+
+### Completed Content
+
+- Added protected read-only third-party user binding pagination endpoint.
+- Implemented `/auth/third/page` against `auth_third_user` with Java-compatible filters: `category`, `searchKey`, pagination, and safe sort fields.
+- Returned Java-compatible camelCase binding fields including `thirdId`, `userId`, `avatar`, `name`, `nickname`, `gender`, `category`, `extJson`, and audit fields.
+- Re-scanned copied frontend API wrappers: 224 explicit safe page/list/detail/query/selector wrappers now have 0 missing backend routes.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, OAuth render/callback, user binding writes, user creation, token issuance, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/auth/ThirdController.php`
+- `app/service/auth/ThirdService.php`
+- `route/app.php`
+- `docs/api/auth-third-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\auth\ThirdController.php`: passed.
+- `php -l app\service\auth\ThirdService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; imported local database has 0 `auth_third_user` rows and the endpoint service returned a stable empty page.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; route count is 281 and `/auth/third/page` is registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Explicit safe frontend wrapper scan: passed; 224 wrappers scanned, 0 missing routes.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- This slice diff added no database, Redis, or super-admin secrets.
+
+### Current Issues
+
+- `/auth/third/render` and `/auth/third/callback` remain deferred until OAuth provider configuration and security review are planned.
+- Third-party login binding, user creation, and token issuing are not implemented in this slice.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Move from read-only wrapper closure into a dedicated write-readiness plan before adding the first low-risk write endpoint.
+
 ## 2026-06-05 - main-control-agent - Runtime Database And Redis Target Confirmation
 
 ### Completed Content

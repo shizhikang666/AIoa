@@ -135,7 +135,8 @@ The frontend still references several auth monitoring and third-party routes:
 | `auth/session/c/exit` | Defer unless client session pages become active |
 | `auth/token/b/exit` | Defer unless token-monitor pages become active |
 | `auth/token/c/exit` | Defer unless client token pages become active |
-| `auth/third/page`, `auth/third/render`, `auth/third/callback` | Defer third-party login until provider config and security review |
+| `auth/third/page` | Covered as protected read-only third-party user binding pagination |
+| `auth/third/render`, `auth/third/callback` | Defer third-party login until provider config and security review |
 
 ## Next Execution Order
 

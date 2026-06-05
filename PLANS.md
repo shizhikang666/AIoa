@@ -5430,3 +5430,66 @@ git diff --check
 - Do not add `/gen/basic/add`, `/edit`, `/delete`, `/previewGen`, `/execGenZip`, or `/execGenPro`.
 - Do not generate or write business code.
 - Do not modify generator templates, Java source, database schema, Composer files, or `.env`.
+
+## Completed Plan: auth-agent/frontend-agent - Third-Party User Page Read-Only Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, database smoke, frontend-wrapper gap scan, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Close the final explicit frontend read-only wrapper gap by adding Java-compatible `GET /auth/third/page` for third-party user binding pagination.
+
+### 2. Involved Modules
+
+- auth-agent third-party user binding read compatibility
+- frontend-agent copied `auth/third` API compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/auth/ThirdController.php`
+- `app/service/auth/ThirdService.php`
+- `route/app.php`
+- `docs/api/auth-third-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Third-party OAuth render/callback flows need provider configuration and security review; this slice must not implement them.
+- `auth_third_user` may be empty in the imported local database, so smoke tests should accept a stable empty page.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\auth\ThirdController.php
+php -l app\service\auth\ThirdService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /auth/third/page` is registered behind token middleware.
+- Page reads only `auth_third_user` rows and supports `category`, `searchKey`, pagination, and safe sort fields.
+- Rows return Java-compatible camelCase fields for third-party user bindings.
+- `render` and `callback` remain unimplemented/deferred.
+- Java source, database schema, OAuth provider configuration, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/auth/third/render` or `/auth/third/callback`.
+- Do not add third-party login, OAuth binding, user creation, or token issuance behavior.
+- Do not modify Java source, database schema, Composer files, `.env`, or frontend source.

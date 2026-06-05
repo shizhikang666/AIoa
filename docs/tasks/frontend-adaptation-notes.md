@@ -590,3 +590,24 @@ This slice supports copied generator form metadata calls:
 - `/gen/basic/add`, `/edit`, and `/delete` remain deferred.
 - `/gen/basic/previewGen`, `/execGenZip`, and `/execGenPro` remain deferred because they generate or write code.
 - Generator templates, generated code output, and frontend source remain unchanged.
+
+## 2026-06-05 Auth Third User Page Read-Only Compatibility
+
+Agent: auth-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied third-party user binding wrapper:
+
+- `snowy-admin-web/src/api/auth/thirdApi.js`
+
+### Result
+
+- `/auth/third/page` is now routed as a protected read-only GET endpoint.
+- Page reads `auth_third_user` rows and returns Java-compatible third-party binding fields.
+- The endpoint supports `category`, `searchKey`, pagination, and safe sort fields.
+
+### Deferred
+
+- `/auth/third/render` and `/auth/third/callback` remain deferred.
+- Third-party OAuth provider configuration, login callback binding, user creation, token issuing, and frontend source changes remain out of scope.

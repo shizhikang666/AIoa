@@ -32,6 +32,10 @@ Route::group('auth/session', function () {
     Route::get('c/page', 'auth.SessionController/pageForC');
 })->middleware(AuthMiddleware::class);
 
+Route::group('auth/third', function () {
+    Route::get('page', 'auth.ThirdController/page');
+})->middleware(AuthMiddleware::class);
+
 Route::get('dev/config/sysBaseList', 'dev.ConfigController/sysBaseList');
 
 Route::group('sys/userCenter', function () {
