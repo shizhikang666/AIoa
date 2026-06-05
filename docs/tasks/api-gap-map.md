@@ -92,7 +92,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/bizhistoryexcel` | `page`, `detail`, `add`, `edit`, and `delete` covered; import/export parsing and row-table storage remain deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
 | `biz/saleprojectinvoiceItem` | `page` covered; invoice item writes remain deferred |
-| `biz/projectrate` | `page`, `list`, and `detail` covered; add/edit/delete remain deferred |
+| `biz/projectrate` | `page`, `list`, `detail`, `add`, and `delete` covered; edit and file upload/storage remain deferred |
 | `biz/saleprojectreissueorder` | `list/query` |
 | `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
 | `biz/bizteamprojectcomment` | `page`, `list`, and `detail` covered; add/delete remain deferred |
@@ -125,6 +125,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/salesprojectfieldchangelog` | Sale-project amount/change generation, workflow, finance, audit side effects | Add/edit/delete base log-row writes are covered |
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `biz/bizhistoryexcel` | Import/export parsing, `biz_history_excel_row` writes | Base add/edit/delete writes are covered; parser/storage changes remain deferred |
+| `biz/projectrate` | `edit`, image upload/storage cleanup | Add/delete base row writes are covered; Java controller does not expose edit in the current reference |
 | `sys/user` and `sys/userCenter` | `import`, profile edits, password edits, grant actions | Security and audit requirements |
 | `gen/basic` | `add`, `edit`, `delete`, `previewGen`, `execGenZip`, `execGenPro` | Generator writes or code generation output require a separate module plan |
 

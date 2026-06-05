@@ -14,6 +14,7 @@ use think\facade\Db;
 class SaleProjectBillingService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
 
     /**
      * Java BizSaleProjectStateEnum.getInvoiceableStates().
@@ -231,6 +232,72 @@ class SaleProjectBillingService
         return $this->rows([$row])[0];
     }
 
+    public function rateAdd(array $input, array $payload = []): array
+    {
+        $projectId = $this->requiredInput($input, 'projectId');
+        $subject = $this->requiredInput($input, 'subject');
+        $content = array_key_exists('content', $input) ? (string)($input['content'] ?? '') : '';
+        $rateAmount = $this->rateAmount($input['rateAmount'] ?? 0);
+
+        return Db::transaction(function () use ($projectId, $subject, $content, $rateAmount, $input, $payload): array {
+            $project = $this->assertRateProjectWritable($projectId, $payload, 'add');
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $id = $this->newId();
+
+            Db::name('sale_project_rate')->insert([
+                'ID' => $id,
+                'PROJECT_ID' => $projectId,
+                'RATE_AMOUNT' => $rateAmount,
+                'CONTENT' => $content,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantId($input, $payload, $project),
+                'EXT_JSON' => $this->rateExtJson($input),
+                'SUBJECT' => $subject,
+            ]);
+
+            return ['id' => $id];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function rateDelete(array $ids, array $payload = []): array
+    {
+        $idList = $this->normalizeIdList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $query = Db::name('sale_project_rate')->whereIn('ID', $idList);
+            $this->whereNotDeleted($query, 'DELETE_FLAG');
+            $rows = $query->select()->toArray();
+            if (count($rows) !== count($idList)) {
+                throw new RuntimeException('sale project rate not found', 404);
+            }
+
+            foreach ($rows as $row) {
+                $this->assertRateProjectWritable((string)$row['PROJECT_ID'], $payload, 'delete');
+            }
+
+            $updated = Db::name('sale_project_rate')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
+    }
+
     private function invoicingQuery(array $filters, array $payload, bool $onlyInvoiceable)
     {
         $query = Db::name('biz_sale_project_invoicing')
@@ -356,6 +423,42 @@ class SaleProjectBillingService
         $this->applyProjectScope($query, $filters, $payload, 'p');
 
         return $query;
+    }
+
+    private function assertRateProjectWritable(string $projectId, array $payload, string $action): array
+    {
+        $query = Db::name('biz_sale_project')->where('ID', $projectId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $project = $query->find();
+        if (!is_array($project) || $project === []) {
+            throw new RuntimeException('sale project not found', 404);
+        }
+
+        if ($this->canSeeAll($payload)) {
+            return $project;
+        }
+
+        $projectOrg = trim((string)($project['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== []) {
+            if (!in_array($projectOrg, $scopeOrgIds, true)) {
+                throw new RuntimeException("no permission to {$action} this sale project rate", 403);
+            }
+
+            return $project;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId === '' || trim((string)($project['USER'] ?? '')) !== $userId) {
+            throw new RuntimeException("no permission to {$action} this sale project rate", 403);
+        }
+
+        return $project;
     }
 
     private function invoiceItemQuery(array $filters, array $payload)
@@ -696,6 +799,84 @@ class SaleProjectBillingService
         }
 
         return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function normalizeIdList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(static function (mixed $item): string {
+            if (is_array($item)) {
+                return trim((string)($item['id'] ?? $item['ID'] ?? ''));
+            }
+
+            return trim((string)$item);
+        }, $value))));
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function rateAmount(mixed $value): string
+    {
+        $amount = trim((string)$value);
+        if ($amount === '') {
+            return '0.00';
+        }
+
+        if (!is_numeric($amount)) {
+            throw new RuntimeException('invalid rateAmount', 400);
+        }
+
+        return number_format((float)$amount, 2, '.', '');
+    }
+
+    private function rateExtJson(array $input): ?string
+    {
+        if (!empty($input['imgList']) && is_array($input['imgList'])) {
+            $imgList = array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $input['imgList'])));
+            if ($imgList !== []) {
+                return json_encode(['imgList' => $imgList], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+        }
+
+        if (array_key_exists('extJson', $input)) {
+            if (is_array($input['extJson'])) {
+                return json_encode($input['extJson'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+
+            return $input['extJson'] !== null ? (string)$input['extJson'] : null;
+        }
+
+        return null;
+    }
+
+    private function tenantId(array $input, array $payload, array $project): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? $project['TENANT_ID'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function normalizeRow(array $row): array

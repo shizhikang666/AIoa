@@ -5595,3 +5595,53 @@ Agent: api-agent
 
 - Commit and push this write compatibility slice.
 - Continue another isolated low-risk write endpoint before opening finance, inventory, workflow, or sale-project state flows.
+
+## 2026-06-05 - api-agent/frontend-agent - Sale Project Rate Write Compatibility
+
+### Completed Content
+
+- Added Java-compatible protected sale-project rating `add` and `delete` endpoints.
+- Matched the Java-exposed controller surface: `/biz/projectrate/add` and `/delete`; `/edit` remains deferred because the Java controller does not expose it in the current reference.
+- Preserved existing `page`, `list`, and `detail` read behavior.
+- Stored submitted `imgList` under `EXT_JSON` as `{"imgList":[...]}` for the copied frontend parser.
+- Added transactional writes with audit fields, project write-scope checks, tenant id defaults, and logical delete.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, frontend source, file upload/storage, sale-project state, workflow, finance, inventory, Composer files, and `.env` unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/SaleProjectRateController.php`
+- `app/service/biz/SaleProjectBillingService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-billing-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectRateController.php`: passed.
+- `php -l app\service\biz\SaleProjectBillingService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed on copied-data project `2007642126725550081`; add returned test row `1780638185496634189`, detail returned `imgList`, and delete set `DELETE_FLAG=DELETED`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/projectrate/add` and `/delete` are registered.
+- Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- MySQL TCP check returned OK; backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
+
+### Current Issues
+
+- `/biz/projectrate/edit` remains deferred.
+- Image upload/storage cleanup, sale-project state, workflow, finance, inventory, and notifications remain deferred.
+- Delete intentionally leaves a logically deleted local test row for traceability instead of physically removing data.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this write compatibility slice.
+- Continue another isolated low-risk write endpoint before opening finance, inventory, workflow, or sale-project state flows.

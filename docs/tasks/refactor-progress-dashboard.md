@@ -1,12 +1,12 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-05 12:48 +08:00
+Last updated: 2026-06-05 13:37 +08:00
 
 Agent: merge-agent / main control agent
 
 ## Current Estimate
 
-Overall production-ready completion: **59%**
+Overall production-ready completion: **60%**
 
 Read-only API compatibility completion: **90%**
 
@@ -20,19 +20,19 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | ThinkPHP Models | 67 | Database/model foundation is mostly in place |
 | ThinkPHP Controllers | 69 | Includes auth, sys, dev, biz, mobile, gen, tenant, workflow read adapters |
 | ThinkPHP Services | 60 | Includes auth/RBAC, user directory, workflow reads, and business read-only services |
-| Registered route entries | 296 | Most are protected compatibility routes; customer, sale-project follow-up, product-info, field-change-log, and history-Excel writes are now open |
+| Registered route entries | 298 | Most are protected compatibility routes; customer, sale-project follow-up, product-info, field-change-log, history-Excel, and project-rate writes are now open |
 | API compatibility docs | 65 | Stored under `docs/api` |
 | Database docs | 10 | Stored under `docs/database` |
 | Java Controllers in original project | 84 | Read-only reference baseline |
 | Frontend API files in copied project | 76 | Static scan source: `snowy-admin-web/src/api` |
 | Unique frontend API endpoints | 545 | Normalized static wrapper paths |
-| Frontend endpoints already routed | 284 | Matched against current ThinkPHP route paths |
+| Frontend endpoints already routed | 286 | Matched against current ThinkPHP route paths |
 | Explicit safe frontend read wrappers missing | 0 | Static scan of concrete page/list/detail/query/selector wrappers after `/auth/third/page` |
 | Frontend missing read/selector candidates | 69 | Priority candidates for safe compatibility slices |
-| Frontend deferred write/side-effect candidates | 192 | Do not implement without module-specific write plans |
+| Frontend deferred write/side-effect candidates | 190 | Do not implement without module-specific write plans |
 | Frontend baseline files copied | 908 | Copied into `snowy-admin-web`; generated/cache files excluded |
 | Current branch | `refactor/thinkphp-main` | Clean and synced with origin at last check |
-| Latest frontend-slice commit | See latest Git log | Current dashboard records history-Excel write compatibility |
+| Latest frontend-slice commit | See latest Git log | Current dashboard records sale-project rating write compatibility |
 
 ## Module Progress
 
@@ -45,8 +45,8 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Workflow | 44% | Yellow | Runtime strategy, read-only task/process routes, process query aliases, file-list reads, runtime activity detail, variable normalization, copy/CC record reads, annual-leave balance page/detail reads | Approval/reject/cancel/start, task SSE, vacation deductions, side effects, workflow write runtime |
 | Dev/System/Mobile/Gen/Tenant reads | 68% | Yellow | Many read-only management endpoints added and routed, including server monitor, network monitor, sys-field resource reads, and gen basic metadata reads | Write routes, provider actions, code generation, scheduler execution are intentionally deferred |
 | Business read-only APIs | 92% | Yellow | Product, supplier, warehouse, inventory, delivery, purchase, settlement, payment, expenditure, collection, debit, file relation, history Excel, team project, team-project task user, team-project comment/reply, return order, sale project including cost details, sale-project follow-up, sale-project field change log, sale-project product item relation list, sale-project invoice item page, sale-project draft detail, customer, customer follow-up, sale-project invoicing, invoice, reissue, project-rate page/list/detail, sale-project product info, biz-datareport sale-project summaries/unpaid/details/settlement/sale-profit/summary-statistics reads, leave-application reads, annual-leave balance page/detail, settlement-account-payment reads, payroll reads, workflow process/task reads | Remaining detail consumers |
-| Business write APIs | 20% | Red | Customer follow-up, sale-project follow-up, sale-project product-info, sale-project field-change-log, and history-Excel base add/edit/logical-delete writes are now covered; most writes remain deferred by design | Customer writes, sale-project state writes, audit/status/stock/payment/refund flows with transactions and side effects |
-| Frontend adaptation | 73% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, sys-user grant echo reads added, sys-field reads added, gen basic metadata reads added, auth third user page read added, copy-task CC record reads added, sale-project draft detail read added, annual-leave balance page/detail read added, sale-project invoice item page read added, sale-project field change log reads/writes added, history-Excel reads/writes added, team-project task user reads added, team-project comment/reply reads added, dev monitor network read added, sale-project rating detail read added, customer follow-up writes added, sale-project follow-up writes added, sale-project product-info writes added, minimal SSE route added, short-lived SSE client fallback added; browser smoke reaches `/sys/org`, `/sys/user`, `/biz/bizdatareport/summaryStatistics`, `/biz/saleproject` with visible pagination, sale-project detail read tabs, and cost tab zero-revenue display is guarded | Broken API method cleanup, remaining read-only business routes |
+| Business write APIs | 21% | Red | Customer follow-up, sale-project follow-up, sale-project product-info, sale-project field-change-log, history-Excel, and project-rate base add/delete/logical-delete writes are now covered; most writes remain deferred by design | Customer writes, sale-project state writes, audit/status/stock/payment/refund flows with transactions and side effects |
+| Frontend adaptation | 74% | Yellow | Original Vue project copied into target repo; request prefix, Bearer token, upload/SSE token headers, local SM2 fallback, double-prefix fix, menu leaf handling adapted, API gap map generated, org/user display aliases added, sys-user grant echo reads added, sys-field reads added, gen basic metadata reads added, auth third user page read added, copy-task CC record reads added, sale-project draft detail read added, annual-leave balance page/detail read added, sale-project invoice item page read added, sale-project field change log reads/writes added, history-Excel reads/writes added, team-project task user reads added, team-project comment/reply reads added, dev monitor network read added, sale-project rating detail/add/delete added, customer follow-up writes added, sale-project follow-up writes added, sale-project product-info writes added, minimal SSE route added, short-lived SSE client fallback added; browser smoke reaches `/sys/org`, `/sys/user`, `/biz/bizdatareport/summaryStatistics`, `/biz/saleproject` with visible pagination, sale-project detail read tabs, and cost tab zero-revenue display is guarded | Broken API method cleanup, remaining read-only business routes |
 | Testing / QA | 43% | Yellow | Composer, `php think`, route list, PHP lint, smoke tests per slice, backend/frontend browser smoke for summary-statistics, sale-project detail tab service smoke | Automated route/API test suite, regression matrix, broader frontend smoke, negative tests |
 | Deployment | 16% | Red | Local MySQL/Redis startup method and user-designated runtime target confirmed; env is local and ignored by Git | Production config, queue/runtime/log permissions, Nginx/PHP deployment checks |
 | Final online data sync | 0% | Red | Requirement recorded as final-stage reminder | Must design and confirm after project completion; do not start early |
@@ -59,7 +59,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | User directory | Org/user/position selectors and read-only directory | Deferred |
 | Workflow reads | Task count/list/page/history, process page/detail/variable reads | Deferred |
 | System/dev/mobile/gen reads | Config, dict, file, email/sms records, job metadata, logs, messages, monitor, resource/menu/mobile resource, gen metadata, gen basic database metadata, tenant reads | Deferred |
-| Business reads/writes | Product, supplier, settlement account, payment record, expenditure record, collection receipt, debit note, file relation, team project, task/comments, warehouses, inventory, delivery, purchase order, return order, sale project reads; customer follow-up, sale-project follow-up, product-info, field-change-log, and history-Excel base writes | Most business writes deferred |
+| Business reads/writes | Product, supplier, settlement account, payment record, expenditure record, collection receipt, debit note, file relation, team project, task/comments, warehouses, inventory, delivery, purchase order, return order, sale project reads; customer follow-up, sale-project follow-up, product-info, field-change-log, history-Excel, and project-rate base writes | Most business writes deferred |
 | SSE compatibility | `/dev/message/createSseConnect` Java/frontend behavior mapped, minimal protected ThinkPHP route added, and frontend short-lived reconnect fallback added | Full realtime push deferred |
 | Sys field reads | `/sys/field/page`, `/tree`, `/detail`, and `/MenuTreeSelector` routed for copied system field resource drawers, reading `sys_resource.CATEGORY = FIELD` | Field add/edit/delete and resource writes deferred |
 | Gen basic metadata reads | `/gen/basic/tables` and `/tableColumns` routed for copied generator form database metadata, reading MySQL `information_schema` and excluding `ACT_` workflow engine tables | Generator add/edit/delete, preview, execution, templates, and generated code output deferred |
@@ -71,7 +71,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Sale project cost frontend display | Completed-project cost tab guards zero-revenue gross profit rate and displays numeric zero instead of `NaN%` | Backend cost payloads and sale-project/finance writes unchanged |
 | Sale project remaining tab smoke | Payment, return-order, invoice, and file-relation tab read services verified against one imported project | Browser visual confirmation and all write controls deferred |
 | Customer reads and follow-up writes | `/biz/customer/page`, `/detail`, `/detail/list`, `/biz/customerfollowup/page`, `/detail`, `/add`, `/edit`, and `/delete` routed with customer owner/org/file, follow-up creator display fields, data-scope write guarding, and logical delete | Customer writes, owner reassignment, attachment upload/storage cleanup, notifications, and SM4 plaintext search deferred |
-| Sale project billing reads | `/biz/saleprojectinvoicing/page`, `/customer`, `/detail`, `/biz/saleprojectinvoice/page`, `/list`, `/biz/saleprojectreissueorder/list/query`, `/biz/projectrate/page`, `/list`, and `/detail` routed with nested invoice/reissue structures and rating detail reads | Invoice, invoicing, reissue, rating, workflow, inventory, and finance writes deferred |
+| Sale project billing reads/writes | `/biz/saleprojectinvoicing/page`, `/customer`, `/detail`, `/biz/saleprojectinvoice/page`, `/list`, `/biz/saleprojectreissueorder/list/query`, `/biz/projectrate/page`, `/list`, `/detail`, `/add`, and `/delete` routed with nested invoice/reissue structures, rating detail reads, and base rating logical delete | Invoice, invoicing, reissue, rating edit, image storage, workflow, inventory, and finance writes deferred |
 | Biz directory aliases | `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict` read paths routed to existing system/dev read services | User/org/position/dict writes, role grants, password actions, import/export deferred |
 | Workflow read aliases | `/biz/process/all/page`, `/query`, `/query/list`, `/project/runtime/query/list`, `/fileList`, and `/biz/task/runtime/activity/detail` routed through Camunda-table read services | Task approve/reject, task SSE, process starts/cancel, and Java delegate side effects deferred |
 | Sale project product info reads and writes | `/biz/saleprojectproductinfo/page`, `/list`, `/detail`, `/add`, `/edit`, and `/delete` routed with software package/version rows, creator display names, audit writes, and logical delete | Product master-data, product-item, import/export, report, workflow, finance, inventory, and delivery side effects deferred |
@@ -93,7 +93,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Team project task user reads | `/biz/bizteamprojecttaskuser/page` and `/detail` routed for copied team-task member browsing, with user display aliases and project-member visibility guard | Add/edit/delete, task assignment writes, task status/progress writes, and notifications deferred |
 | Team project comment reply reads | `/biz/bizteamprojectcomment/detail`, `/biz/bizteamprojectcommentreply/page`, and `/detail` routed for copied project timeline comment/reply consumers, preserving project-member visibility guard | Comment/reply add/edit/delete, notifications, and data-change events deferred |
 | Dev monitor network read | `/dev/monitor/networkInfo` routed for copied monitor pages, returning `upLinkRate` and `downLinkRate` with safe zero fallback | Monitor writes, server control, and metric persistence deferred |
-| Sale project rating detail read | `/biz/projectrate/detail` routed for copied sale-project rating detail consumers, returning `projectName`, `customerName`, and raw `extJson` | Rating add/edit/delete, image upload, sale-project writes, and file storage deferred |
+| Sale project rating reads and writes | `/biz/projectrate/page`, `/list`, `/detail`, `/add`, and `/delete` routed for copied sale-project rating consumers, returning `projectName`, `customerName`, raw `extJson`, preserving `imgList`, and using logical delete | Rating edit, image upload/storage, sale-project writes, workflow, finance, and notifications deferred |
 | Biz user vacation page read | `/biz/bizuservacation/page` routed for copied vacation-balance management wrappers, returning user display names and balance fields | Vacation writes, generation/reduction, and leave approval deductions deferred |
 
 ## Remaining High-Level Plan

@@ -477,7 +477,9 @@ Route::group('biz/ccrecords', function () {
 
 Route::group('biz/projectrate', function () {
     Route::get('page', 'biz.SaleProjectRateController/page');
+    Route::post('add', 'biz.SaleProjectRateController/add');
     Route::get('list', 'biz.SaleProjectRateController/list');
+    Route::post('delete', 'biz.SaleProjectRateController/delete');
     Route::get('detail', 'biz.SaleProjectRateController/detail');
 })->middleware(AuthMiddleware::class);
 

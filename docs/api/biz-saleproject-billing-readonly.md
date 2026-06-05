@@ -1,12 +1,12 @@
-# Biz Sale Project Billing Read-Only API
+# Biz Sale Project Billing Compatibility API
 
-Date: 2026-06-02
+Date: 2026-06-05
 
-Agent: api-agent
+Agent: api-agent / frontend-agent
 
 ## Scope
 
-This document records the ThinkPHP read-only compatibility slice for Java sales-project billing-adjacent endpoints.
+This document records the ThinkPHP compatibility slice for Java sales-project billing-adjacent endpoints. Most endpoints remain read-only; project rating now includes narrow `add` and logical `delete` support for the copied sale-project case/rating tab.
 
 Implemented routes:
 
@@ -19,7 +19,9 @@ Implemented routes:
 | GET | `/biz/saleprojectinvoice/list` | `BizSaleProjectInvoiceController.list` | Delivery invoices grouped with invoice items by project |
 | GET | `/biz/saleprojectreissueorder/list/query` | `BizSaleProjectReissueOrderController.listQuery` | Reissue orders with nested product items |
 | GET | `/biz/projectrate/page` | `SaleProjectRateController.page` | Project rating page list |
+| POST | `/biz/projectrate/add` | `SaleProjectRateController.add` | Add a project rating row |
 | GET | `/biz/projectrate/list` | `SaleProjectRateController.list` | Project rating list by project |
+| POST | `/biz/projectrate/delete` | `SaleProjectRateController.delete` | Logically delete project rating rows |
 | GET | `/biz/projectrate/detail` | `SaleProjectRateService.detail/queryEntity` | Project rating detail by id |
 
 All routes are protected by `AuthMiddleware`.
@@ -32,6 +34,8 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/saleprojectreissueorder/list/query` returns Java-compatible entries with `order` and `productItemList`.
 - Reissue product items include `children`; child `extJson` is preserved, and if missing a minimal product JSON payload is synthesized for the frontend parser.
 - `/biz/projectrate/detail` keeps the same normalized row shape as `/page` and `/list`, including raw `extJson`.
+- `/biz/projectrate/add` requires `projectId` and `subject`, defaults missing `rateAmount` to `0.00`, defaults missing `content` to an empty string, and stores submitted `imgList` under `EXT_JSON` as `{"imgList":[...]}`.
+- `/biz/projectrate/delete` accepts Java-style `[{id: ...}]`, `idList`, `ids`, or a single `id`; it uses `DELETE_FLAG = DELETED` instead of physical removal.
 - Query responses include project/customer display aliases where useful, such as `projectName`, `customerName`, `orgName`, and `headName`.
 
 ## Deferred
@@ -41,7 +45,8 @@ The following endpoints and behaviors are intentionally not implemented in this 
 - Invoice application add/edit/complete
 - Delivery invoice add/edit/delete
 - Reissue order add/start process
-- Project rate add/edit/delete
+- Project rate edit
+- Project rate file upload/storage cleanup
 - Workflow side effects
 - Inventory stock mutations
 - Finance, settlement, payment, refund, or cost mutations

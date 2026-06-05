@@ -2789,3 +2789,33 @@ Java exposes `/biz/bizhistoryexcel/add`, `/edit`, and `/delete`, and the copied 
 - `php think route:list` must list the added routes.
 - Token requests should be able to add, edit, and logically delete a historical Excel row.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Rate Write Routes
+
+## Request
+
+Register protected sale-project rating write routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/projectrate/add` and `/delete`, and the copied frontend `saleProjectRateApi.js` calls `add` from the sale-project case/rating tab. The existing ThinkPHP implementation already covered `page`, `list`, and `detail`; this slice completes the Java-exposed base rating row writes without implementing file storage or rating edit.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/projectrate/add`
+- `POST /biz/projectrate/delete`
+
+## Explicit Exclusions
+
+- No `/biz/projectrate/edit`, image upload/storage cleanup, sale-project state, workflow, finance, inventory, notification, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Delete uses logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should be able to add and logically delete a sale-project rating row when the current user can write the owning sale project.
+- Requests without token should return `code=401`.

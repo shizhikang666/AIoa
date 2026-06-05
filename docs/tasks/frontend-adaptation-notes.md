@@ -739,3 +739,28 @@ This slice supports the copied historical Excel page wrapper:
 ### Deferred
 
 - Frontend Excel parser changes, import/export, file storage, and `biz_history_excel_row` row-table writes remain out of scope.
+
+## 2026-06-05 Sale Project Rate Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied sale-project case/rating tab wrapper:
+
+- `snowy-admin-web/src/api/biz/saleProjectRateApi.js`
+- `snowy-admin-web/src/views/biz/saleproject/saleProjectTab/projectCase/index.vue`
+
+### Result
+
+- `/biz/projectrate/add` is now routed as a protected POST endpoint.
+- `/biz/projectrate/delete` is now routed as a protected POST endpoint.
+- Add accepts the frontend's `projectId`, `subject`, optional `content`, optional `rateAmount`, and `imgList`.
+- Submitted `imgList` is stored under `EXT_JSON` as `{"imgList":[...]}`, preserving the frontend's existing parser.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- `/biz/projectrate/edit` remains deferred because the Java controller does not expose it in the current reference.
+- Image upload/storage, sale-project state, workflow, finance, inventory, and notification side effects remain out of scope.

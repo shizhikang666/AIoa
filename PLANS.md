@@ -5813,3 +5813,65 @@ git diff --check
 - Do not modify Excel parsing in `snowy-admin-web`.
 - Do not write `biz_history_excel_row` rows or implement import/export/storage changes.
 - Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
+
+## Completed Plan: api-agent/frontend-agent - Sale Project Rate Write Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, add/logical-delete service smoke, backend/frontend reachability, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible sale-project customer rating `add` and `delete` endpoints for the copied sale-project case/rating tab.
+
+### 2. Involved Modules
+
+- api-agent sale-project rating write compatibility
+- frontend-agent copied `saleProjectRateApi.js` wrapper compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SaleProjectRateController.php`
+- `app/service/biz/SaleProjectBillingService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-billing-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java exposes `add` and `delete` for `/biz/projectrate`; `edit` exists in the service layer/front-end wrapper but is not exposed by the Java controller, so this slice should not add edit.
+- Rating image paths are submitted as `imgList`; this slice should store them in `EXT_JSON` as `{ "imgList": [...] }` without implementing file upload/storage.
+- Java physical delete is converted to the project-standard logical delete so imported rows remain recoverable during refactor testing.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectRateController.php
+php -l app\service\biz\SaleProjectBillingService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/projectrate/add` and `/delete` are registered behind token middleware.
+- Add requires `projectId` and `subject`, defaults missing `rateAmount` to `0.00`, defaults missing `content` to an empty string, and stores `imgList` in `EXT_JSON`.
+- Delete accepts Java-style `[{id: ...}]`, `idList`, `ids`, or single `id` input and performs logical deletion.
+- Java source, database schema, file upload/storage, sale-project state, workflow, finance, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/projectrate/edit` in this slice.
+- Do not implement file upload/storage, sale-project state changes, workflow, finance, inventory, or notification side effects.
+- Do not modify Java source, database schema, Composer files, `.env`, or frontend source.
