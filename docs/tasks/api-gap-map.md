@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 315 | From `php think route:list` after team-project task base maintenance route addition |
-| Endpoints already covered by route path | 303 | Includes read adapters, auth/system routes, and selected low-risk writes |
+| Current ThinkPHP routes | 322 | From `php think route:list` after customer base maintenance route addition |
+| Endpoints already covered by route path | 309 | Includes read adapters, auth/system routes, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 173 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
+| Deferred write/side-effect candidates | 167 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
 
@@ -79,7 +79,7 @@ These groups should be handled before business writes, because they unlock more 
 | --- | --- |
 | `biz/saleproject` | Core read routes covered: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; sale-project follow-up `page/detail/add/edit/delete` covered in `biz/saleprojectfollowup`; sale-project state/write routes remain deferred |
 | `biz/salesprojectfieldchangelog` | `page`, `detail`, `add`, `edit`, and `delete` covered; sale-project change-generation side effects remain deferred |
-| `biz/customer` | `detail`, `detail/list`, `page` |
+| `biz/customer` | `add`, `edit`, `delete`, `detail`, `detail/list`, `page`; `head/edit` remains deferred |
 | `biz/org` | `detail`, `list`, `orgTreeSelector`, `page`, `tree`, `userSelector` |
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector` |
 | `biz/position` | `detail`, `list`, `orgTreeSelector`, `page`, `positionSelector` |
@@ -116,7 +116,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleprojectfollowup` | File upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file and message side effects remain deferred |
 | `biz/saleprojectproductitemrelation` | `mark/edit` | Relation mark mutation |
 | `biz/saleprojectproductitem` | `mark/edit` | Product item mark mutation |
-| `biz/customer` | `add`, `edit`, `delete`, `head/edit` | Customer ownership and possibly encrypted fields |
+| `biz/customer` | `head/edit` | Customer ownership reassignment, SM4 plaintext search, file upload/storage, and related side effects |
 | `biz/customerfollowup` | Attachment upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file side effects remain deferred |
 | `biz/org`, `biz/user`, `biz/position` | `add`, `edit`, `delete`, grants, enable/disable, reset password | Permission and organization-state side effects |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |

@@ -13,6 +13,7 @@ use think\facade\Db;
 class CustomerService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
 
     private const CUSTOMER_FIELDS = <<<SQL
 c.ID AS ID,
@@ -119,6 +120,172 @@ SQL;
             'customer' => $customer,
             'customerFollowUps' => $followUps[(string)$customer['id']] ?? [],
         ], $customers);
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $fileId = $this->requiredInput($input, 'fileId');
+
+        return Db::transaction(function () use ($input, $payload, $fileId): array {
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $id = $this->newId();
+            $row = [
+                'ID' => $id,
+                'FILE_ID' => $fileId,
+                'ORG' => $this->defaultOrgId($input, $payload),
+                'USER' => $this->defaultUserId($input, $payload),
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantId($input, $payload),
+                'VERSION' => 0,
+                'DEAL_AMOUNT' => 0,
+            ];
+
+            $this->applyCustomerInput($row, $input, false);
+            $this->assertNewCustomerWritable($row, $payload);
+
+            Db::name('customer')->insert($row);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $this->assertCustomerWritable($id, $payload, 'edit');
+            $userId = $this->currentUserId($payload);
+            $row = [
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'VERSION' => Db::raw('IFNULL(VERSION, 0) + 1'),
+            ];
+
+            $this->applyCustomerInput($row, $input, true);
+
+            $updated = Db::name('customer')
+                ->where('ID', $id)
+                ->update($row);
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->stringList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            foreach ($idList as $id) {
+                $this->assertCustomerWritable($id, $payload, 'delete');
+            }
+
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('customer')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    'VERSION' => Db::raw('IFNULL(VERSION, 0) + 1'),
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
+    }
+
+    private function applyCustomerInput(array &$row, array $input, bool $partial): void
+    {
+        $fields = [
+            'name' => 'NAME',
+            'contacts' => 'CONTACTS',
+            'phone' => 'PHONE',
+            'detailsAddress' => 'DETAILS_ADDRESS',
+            'address' => 'ADDRESS',
+            'sourceType' => 'SOURCE_TYPE',
+            'customType' => 'CUSTOM_TYPE',
+            'status' => 'STATUS',
+            'sortCode' => 'SORT_CODE',
+            'fileId' => 'FILE_ID',
+            'remark' => 'remark',
+            'firstContactTime' => 'FIRST_CONTACT_TIME',
+            'extJson' => 'EXT_JSON',
+        ];
+
+        foreach ($fields as $inputKey => $column) {
+            if (!array_key_exists($inputKey, $input)) {
+                continue;
+            }
+
+            $row[$column] = match ($inputKey) {
+                'address' => $this->addressValue($input[$inputKey]),
+                'sortCode' => $this->nullableInt($input[$inputKey]),
+                'fileId' => $partial ? $this->requiredInput($input, 'fileId') : (string)$input[$inputKey],
+                'firstContactTime' => $this->nullableString($input[$inputKey]),
+                default => $this->nullableString($input[$inputKey]),
+            };
+        }
+    }
+
+    private function assertCustomerWritable(string $customerId, array $payload, string $action): array
+    {
+        $row = $this->customerQuery(['id' => $customerId], $payload, true)
+            ->field('c.ID, c.ORG, c.USER AS USER_ID, c.TENANT_ID')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('customer not found', 404);
+        }
+
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $customerOrg = trim((string)($row['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && in_array($customerOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $customerUser = trim((string)($row['USER_ID'] ?? ''));
+        $userId = $this->currentUserId($payload);
+        if ($userId !== '' && $customerUser === $userId) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action} this customer", 403);
+    }
+
+    private function assertNewCustomerWritable(array $row, array $payload): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $orgId = trim((string)($row['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && in_array($orgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $ownerUserId = trim((string)($row['USER'] ?? ''));
+        if ($currentUserId !== '' && $ownerUserId === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to add this customer', 403);
     }
 
     private function customerQuery(array $filters, array $payload, bool $applyDataScope)
@@ -424,6 +591,114 @@ SQL;
         }
 
         return in_array(strtolower(trim((string)$value)), ['1', 'true', 'yes', 'y', 'on'], true);
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = is_array($value) ? implode(',', array_map('strval', $value)) : (string)$value;
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        $value = trim((string)$value);
+
+        return $value !== '' ? (int)$value : null;
+    }
+
+    private function addressValue(mixed $value): ?string
+    {
+        if (is_array($value)) {
+            $value = implode('/', array_filter(array_map(static fn (mixed $part): string => trim((string)$part), $value)));
+        }
+
+        return $this->nullableString($value);
+    }
+
+    private function defaultUserId(array $input, array $payload): ?string
+    {
+        $userId = trim((string)($input['user'] ?? $input['userId'] ?? ''));
+        if ($userId !== '') {
+            return $userId;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+
+        return $currentUserId !== '' ? $currentUserId : null;
+    }
+
+    private function defaultOrgId(array $input, array $payload): ?string
+    {
+        $orgId = trim((string)($input['org'] ?? $input['orgId'] ?? $payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($orgId !== '') {
+            return $orgId;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId === '') {
+            return null;
+        }
+
+        $user = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->field('ORG_ID')
+            ->find();
+        if (!is_array($user) || $user === []) {
+            return null;
+        }
+
+        $orgId = trim((string)($user['ORG_ID'] ?? ''));
+
+        return $orgId !== '' ? $orgId : null;
+    }
+
+    private function tenantId(array $input, array $payload): ?string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(static function (mixed $item): string {
+            if (is_array($item)) {
+                return trim((string)($item['id'] ?? $item['ID'] ?? ''));
+            }
+
+            return trim((string)$item);
+        }, $value))));
     }
 
     private function integer(mixed $value): ?int

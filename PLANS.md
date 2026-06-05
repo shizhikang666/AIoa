@@ -6487,3 +6487,73 @@ git diff --check
 
 - Do not implement `/biz/bizteamprojectuser/edit`.
 - Do not implement notification push, Java data-change event broadcasting, team-project base writes, task writes, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: api-agent/frontend-agent - Customer Base Maintenance Compatibility
+
+Status: completed on 2026-06-05.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add Java-compatible protected customer base maintenance endpoints used by the copied customer list and customer form:
+
+- `POST /biz/customer/add`
+- `POST /biz/customer/edit`
+- `POST /biz/customer/delete`
+
+This slice only maintains base `customer` rows and keeps customer follow-up writes unchanged.
+
+### 2. Involved Modules
+
+- api-agent customer API compatibility
+- frontend-agent copied customer form compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/CustomerController.php`
+- `app/service/biz/CustomerService.php`
+- `route/app.php`
+- `docs/api/biz-customer-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java emits customer data-change events on add/edit/delete; this slice intentionally leaves those side effects deferred.
+- Java physical delete is replaced with logical deletion to preserve imported data.
+- Imported customer phones are encrypted in the original data; this slice stores submitted values as received and does not introduce a new encryption strategy.
+- The copied form requires `fileId`, but file upload/storage compatibility remains a separate slice.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\CustomerController.php
+php -l app\service\biz\CustomerService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Customer `add`, `edit`, and `delete` routes are registered behind token middleware.
+- Add accepts copied form fields: `name`, `contacts`, `phone`, `detailsAddress`, `address`, `sourceType`, `customType`, `status`, `sortCode`, `fileId`, `remark`, `firstContactTime`, and optional `extJson`.
+- Add fills `DELETE_FLAG = NOT_DELETE`, audit fields, tenant id, `VERSION = 0`, and `DEAL_AMOUNT = 0`, and validates submitted owner/org against token write scope.
+- Edit requires `id`, validates active customer visibility, updates only submitted base fields, audit fields, and increments `VERSION`.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or single `id`, validates active customer visibility, and logically deletes selected rows with `DELETE_FLAG = DELETED`.
+- Java source, database schema, frontend source, file upload/storage, customer-head transfer, data-change events, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/customer/head/edit`.
+- Do not implement `dev/file/upload*` storage routes, customer import/export, SM4 encryption migration, Java data-change event broadcasting, sale-project/customer side effects, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

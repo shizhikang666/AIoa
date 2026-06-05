@@ -391,6 +391,9 @@ Route::get('biz/saleproject/list/detail', 'biz.SaleProjectController/listDetail'
 
 Route::group('biz/customer', function () {
     Route::get('page', 'biz.CustomerController/page');
+    Route::post('add', 'biz.CustomerController/add');
+    Route::post('edit', 'biz.CustomerController/edit');
+    Route::post('delete', 'biz.CustomerController/delete');
     Route::get('detail', 'biz.CustomerController/detail');
     Route::post('detail/list', 'biz.CustomerController/detailList');
 })->middleware(AuthMiddleware::class);

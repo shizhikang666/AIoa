@@ -283,3 +283,22 @@ Report:
 If route registration is needed, document it in `docs/tasks/public-file-change-request.md` and wait for confirmation.
 If a later test phase requires changing any locked file, create `docs/tasks/public-file-change-request.md` and wait for confirmation.
 
+## 2026-06-05 Customer Base Maintenance Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `CustomerController`, `CustomerServiceImpl`, customer add/edit/delete params, copied `customerApi.js`, and the ThinkPHP customer read service.
+2. Added only base customer add, edit, and logical delete handlers.
+3. Reused existing customer owner/org data-scope for write validation.
+4. Registered only `/biz/customer/add`, `/edit`, and `/delete` in `route/app.php`.
+5. Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No `/biz/customer/head/edit`.
+- No file upload/storage implementation.
+- No SM4 migration.
+- No Java source, schema, Composer, `.env`, or frontend source changes.
+

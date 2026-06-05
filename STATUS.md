@@ -6124,3 +6124,54 @@ Agent: api-agent
 
 - Continue the next small frontend-visible business compatibility slice.
 - Candidate next slice: team-project member role edit only if the copied frontend exposes it during browser testing; otherwise return to remaining sale/customer/finance write gaps.
+
+## 2026-06-05 17:33 +08:00 - api-agent/frontend-agent - Customer Base Maintenance Compatibility
+
+### Completed
+
+- Added protected compatibility routes for customer add, edit, and delete.
+- Added `CustomerController` POST handlers with JSON/form body and Java-style delete payload compatibility.
+- Added `CustomerService` base customer maintenance logic for whitelisted field mapping, owner/org defaults, write-scope validation, audit fields, version increments, and logical deletion.
+- Updated customer API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/CustomerController.php`
+- `app/service/biz/CustomerService.php`
+- `route/app.php`
+- `docs/api/biz-customer-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CustomerController.php`: passed.
+- `php -l app\service\biz\CustomerService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; customer `1780652225237444593` was added, edited, version-incremented, and logically deleted with `DELETE_FLAG = DELETED`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 322 route entries; customer `add`, `edit`, and `delete` listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 232 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP smoke for `POST /biz/customer/add`: returned `code=401`.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- `/biz/customer/head/edit` remains deferred.
+- SM4 plaintext phone/detail-address compatibility remains deferred pending an approved crypto compatibility plan.
+- File upload/storage cleanup, Java data-change events, sale-project/customer side effects, and customer ownership reassignment remain deferred.
+- The smoke test intentionally leaves a logically deleted customer row in the local database for traceability instead of physically deleting data.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this customer base maintenance compatibility slice.
+- Continue the next isolated business compatibility slice, likely a safe Java-exposed frontend write with limited side effects, before opening sale-project state, finance, inventory, or workflow transition writes.

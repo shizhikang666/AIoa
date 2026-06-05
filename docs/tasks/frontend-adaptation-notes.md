@@ -1007,3 +1007,30 @@ This slice supports the copied team-project member wrappers:
 
 - `/biz/bizteamprojectuser/edit` remains deferred.
 - Notification push, data-change events, team-project base writes, and frontend source changes remain out of scope.
+
+## 2026-06-05 Customer Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied customer maintenance wrapper and visible customer table/form consumers:
+
+- `snowy-admin-web/src/api/biz/customerApi.js`
+- `snowy-admin-web/src/views/biz/customer/index.vue`
+- `snowy-admin-web/src/views/biz/customer/form.vue`
+
+### Result
+
+- `/biz/customer/add` is now routed as a protected POST endpoint.
+- `/biz/customer/edit` is now routed as a protected POST endpoint.
+- `/biz/customer/delete` is now routed as a protected POST endpoint.
+- Add accepts the copied form fields, requires `fileId`, defaults owner/user plus organization from the current token user when the payload does not submit them, and rejects submitted owner/org values outside the token user's write scope.
+- Edit validates write scope through the existing customer owner/org data-scope and updates only submitted mutable fields.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED`; imported customer rows are not physically removed.
+
+### Deferred
+
+- `/biz/customer/head/edit` remains deferred.
+- SM4 plaintext phone/detail-address compatibility, file upload/storage cleanup, customer data-change events, and sale-project/customer side effects remain out of scope.

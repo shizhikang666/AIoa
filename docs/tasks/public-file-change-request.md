@@ -3114,3 +3114,36 @@ Java exposes `/biz/bizteamprojectuser/add`, `/manage/add`, and `/delete`, and th
 - Manage add should validate current-user project resource permission `addManage`.
 - Delete should reject leader/current-user removal and require `addManage` when removing a project manager.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Customer Base Maintenance Routes
+
+## Request
+
+Register protected customer add, edit, and delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/customer/add`, `/edit`, and `/delete`, and the copied Vue customer page calls these endpoints from the customer table and form. Existing ThinkPHP routes already cover customer `page`, `detail`, and `detail/list`; this slice opens only base customer-row maintenance.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/customer/add`
+- `POST /biz/customer/edit`
+- `POST /biz/customer/delete`
+
+## Explicit Exclusions
+
+- No `/biz/customer/head/edit` route was added.
+- No file upload/storage cleanup, customer ownership reassignment, SM4 crypto implementation, data-change event, sale-project/customer side effect, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Deletes use logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Add should accept the copied customer form payload and default owner/org from the current token user when absent.
+- Edit/delete should validate customer write access through owner/org data scope.
+- Requests without token should return `code=401`.

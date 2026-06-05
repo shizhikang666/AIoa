@@ -1,14 +1,17 @@
 # Biz Customer API Compatibility
 
-Date: 2026-06-02
+Date: 2026-06-05
 
 Agent: api-agent
 
 ## Scope
 
-This slice maps the read-only Java customer and customer-follow-up endpoints needed by the copied Vue frontend:
+This document maps the Java customer and customer-follow-up endpoints currently supported by the ThinkPHP compatibility layer:
 
 - `GET /biz/customer/page`
+- `POST /biz/customer/add`
+- `POST /biz/customer/edit`
+- `POST /biz/customer/delete`
 - `GET /biz/customer/detail`
 - `POST /biz/customer/detail/list`
 - `GET /biz/customerfollowup/page`
@@ -88,6 +91,54 @@ Returns export-compatible rows:
 ```
 
 The frontend export page uses this shape to combine customer base information and follow-up records.
+
+### Customer add
+
+`POST /biz/customer/add`
+
+Required fields:
+
+- `fileId`
+
+Supported mutable fields:
+
+- `name`
+- `contacts`
+- `phone`
+- `detailsAddress`
+- `address`
+- `sourceType`
+- `customType`
+- `status`
+- `sortCode`
+- `remark`
+- `firstContactTime`
+- `extJson`
+
+The endpoint inserts a new active customer row with `DELETE_FLAG = NOT_DELETE`, `VERSION = 0`, and audit fields. If `user`/`org` are not submitted, it defaults the owner and organization from the current token user. Submitted owner/organization values are still checked against the current token user's write scope.
+
+### Customer edit
+
+`POST /biz/customer/edit`
+
+Required fields:
+
+- `id`
+
+The endpoint validates that the current token user can write the customer through the same conservative owner/org data-scope used by customer follow-up writes. It updates only submitted mutable fields plus `UPDATE_TIME`, `UPDATE_USER`, and `VERSION`.
+
+### Customer delete
+
+`POST /biz/customer/delete`
+
+Accepted input shapes:
+
+- `[{"id": "..."}]`
+- `{"idList": ["..."]}`
+- `{"ids": ["..."]}`
+- `{"id": "..."}`
+
+The endpoint validates every target customer through the current user's write scope, then performs a logical delete by setting `DELETE_FLAG = DELETED`. It does not physically remove imported customer data.
 
 ### Customer follow-up page
 
@@ -182,16 +233,15 @@ This slice does not implement SM4 encryption/decryption. It preserves stored val
 
 ## Deferred Routes
 
-The following Java/frontend routes remain intentionally unregistered:
+The following Java/frontend route remains intentionally unregistered:
 
-- `/biz/customer/add`
-- `/biz/customer/edit`
-- `/biz/customer/delete`
 - `/biz/customer/head/edit`
 
-Customer write routes require validation, mutation permissions, SM4 handling, audit fields, and side-effect review before implementation.
+Customer owner reassignment requires a dedicated permission and relation strategy before implementation.
 
 Customer follow-up attachment uploads, file cleanup, and notification side effects remain deferred.
+
+Customer write routes store submitted `PHONE` and `DETAILS_ADDRESS` values as received. A full Java-compatible SM4 encryption/decryption strategy remains deferred until approved.
 
 ## Verification
 
