@@ -28,6 +28,39 @@ v.TENANT_ID AS TENANT_ID,
 v.VERSION AS VERSION,
 u.NAME AS USER_NAME
 SQL;
+    private const SORT_FIELD_MAP = [
+        'id' => 'v.ID',
+        'userId' => 'v.USER_ID',
+        'userName' => 'u.NAME',
+        'amount' => 'v.AMOUNT',
+        'usedAmount' => 'v.USED_AMOUNT',
+        'category' => 'v.CATEGORY',
+        'createTime' => 'v.CREATE_TIME',
+        'updateTime' => 'v.UPDATE_TIME',
+        'tenantId' => 'v.TENANT_ID',
+        'version' => 'v.VERSION',
+    ];
+
+    public function page(array $filters = [], array $payload = []): array
+    {
+        [$page, $limit] = $this->pagination($filters);
+        $total = $this->vacationQuery($filters, $payload)->count();
+        $rows = $this->applySort($this->vacationQuery($filters, $payload), $filters)
+            ->field(self::FIELDS)
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+
+        return [
+            'records' => array_map(fn (array $row): array => $this->vacationRow($row), $rows),
+            'total' => $total,
+            'page' => $page,
+            'current' => $page,
+            'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
+        ];
+    }
 
     public function detail(array $filters = [], array $payload = []): array
     {
@@ -64,6 +97,57 @@ SQL;
         }
 
         return $this->vacationRow($row);
+    }
+
+    private function vacationQuery(array $filters, array $payload)
+    {
+        $query = Db::name('biz_user_vacation')
+            ->alias('v')
+            ->leftJoin('sys_user u', 'u.ID = v.USER_ID')
+            ->where('v.DELETE_FLAG', self::NOT_DELETE);
+
+        $tenantId = trim((string)($filters['tenantId'] ?? $filters['tenant_id'] ?? $this->tenantId($payload)));
+        if ($tenantId !== '') {
+            $query->where('v.TENANT_ID', $tenantId);
+        }
+
+        foreach ([
+            'id' => 'v.ID',
+            'userId' => 'v.USER_ID',
+            'category' => 'v.CATEGORY',
+        ] as $filter => $column) {
+            if (!empty($filters[$filter])) {
+                $query->where($column, (string)$filters[$filter]);
+            }
+        }
+
+        if (!empty($filters['userName'])) {
+            $query->whereLike('u.NAME', '%' . trim((string)$filters['userName']) . '%');
+        }
+
+        if (!empty($filters['searchKey'])) {
+            $keyword = '%' . trim((string)$filters['searchKey']) . '%';
+            $query->where(function ($query) use ($keyword): void {
+                $query->whereLike('u.NAME', $keyword)
+                    ->whereOr('v.USER_ID', 'like', $keyword)
+                    ->whereOr('v.CATEGORY', 'like', $keyword);
+            });
+        }
+
+        return $query;
+    }
+
+    private function applySort($query, array $filters)
+    {
+        $sortField = (string)($filters['sortField'] ?? '');
+        $sortOrder = strtolower((string)($filters['sortOrder'] ?? ''));
+        if ($sortField !== '' && isset(self::SORT_FIELD_MAP[$sortField])) {
+            $direction = in_array($sortOrder, ['desc', 'descend', 'descending'], true) ? 'desc' : 'asc';
+
+            return $query->order(self::SORT_FIELD_MAP[$sortField], $direction)->order('v.ID', 'asc');
+        }
+
+        return $query->order('v.ID', 'asc');
     }
 
     private function vacationRow(array $row): array
@@ -112,6 +196,14 @@ SQL;
     private function tenantId(array $payload): string
     {
         return (string)($payload['tenantId'] ?? $payload['tenant_id'] ?? '');
+    }
+
+    private function pagination(array $filters): array
+    {
+        $page = max(1, (int)($filters['current'] ?? $filters['page'] ?? $filters['pageNo'] ?? 1));
+        $limit = max(1, min(200, (int)($filters['size'] ?? $filters['limit'] ?? $filters['pageSize'] ?? 20)));
+
+        return [$page, $limit];
     }
 
     private function decimal(mixed $value): string

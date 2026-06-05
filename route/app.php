@@ -417,6 +417,7 @@ Route::group('biz/bizleaveapplication', function () {
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizuservacation', function () {
+    Route::get('page', 'biz.BizUserVacationController/page');
     Route::get('detail', 'biz.BizUserVacationController/detail');
 })->middleware(AuthMiddleware::class);
 

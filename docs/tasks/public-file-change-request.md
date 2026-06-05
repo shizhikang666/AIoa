@@ -2285,7 +2285,8 @@ The copied leave-process pages call Java-compatible `/biz/bizuservacation/detail
 
 ## Explicit Exclusions
 
-- No `/biz/bizuservacation/page`, `/add`, `/edit`, or `/delete` route was added.
+- No `/biz/bizuservacation/add`, `/edit`, or `/delete` route was added.
+- `/biz/bizuservacation/page` was added later as a separate protected read-only slice.
 - No vacation generation, vacation reduction, leave approval deduction, workflow write, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
 
 ## Verification
@@ -2293,6 +2294,35 @@ The copied leave-process pages call Java-compatible `/biz/bizuservacation/detail
 - `php think route:list` must list the added route.
 - Token requests without `userId` should read the current token user's annual-leave balance.
 - Token requests with `userId` should read that user's annual-leave balance for the current year.
+- Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz User Vacation Page Read-Only Route
+
+## Request
+
+Register a protected read-only vacation-balance page route in `route/app.php`.
+
+## Reason
+
+The copied frontend wrapper calls `/biz/bizuservacation/page` for vacation-balance management pages. Java service code exposes a read-only `page` method, while vacation writes and leave approval deductions remain separate high-risk flows.
+
+## Applied Change
+
+`workflow-agent/api-agent/frontend-agent` registered the following protected GET route:
+
+- `GET /biz/bizuservacation/page`
+
+## Explicit Exclusions
+
+- No `/biz/bizuservacation/add`, `/edit`, or `/delete` route was added.
+- No vacation generation, vacation reduction, leave approval deduction, workflow write, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return existing non-deleted vacation-balance rows with pagination.
 - Requests without token should return `code=401`.
 
 ---

@@ -4683,6 +4683,54 @@ Agent: api-agent
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
 
+## 2026-06-05 - workflow-agent/api-agent/frontend-agent - Biz User Vacation Page Read-Only Compatibility
+
+### Completed Content
+
+- Added protected read-only annual-leave/vacation balance page endpoint.
+- Preserved existing `detail` behavior and kept the new page route behind token middleware.
+- Page reads non-deleted `biz_user_vacation` rows, joins `sys_user` for `userName`, and supports pagination plus safe whitelisted sorting.
+- Returned rows with `id`, `userId`, `userName`, `amount`, `usedAmount`, `category`, audit fields, tenant id, and version for copied frontend compatibility.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, vacation generation/reduction, leave approval deductions, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/BizUserVacationController.php`
+- `app/service/biz/BizUserVacationService.php`
+- `route/app.php`
+- `docs/api/biz-user-vacation-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizUserVacationController.php`: passed.
+- `php -l app\service\biz\BizUserVacationService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; returned 3 copied-data rows, exposed `userName` and `amount`, and existing detail still returned the sample user/category.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/bizuservacation/page` and `/biz/bizuservacation/detail` are registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- Route count check: passed with 271 registered routes.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- Java controller wires only `detail`, while Java service and copied frontend wrapper expose `page`; this ThinkPHP endpoint is intentionally read-only compatibility.
+- `/biz/bizuservacation/add`, `/edit`, `/delete`, generation/reduction helpers, and approval-time vacation deductions remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.
+
 ## 2026-06-04 - api-agent - Biz Draft Detail Read-Only Compatibility
 
 ### Completed Content

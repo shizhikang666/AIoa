@@ -1,6 +1,6 @@
 # Biz User Vacation Read-Only Compatibility
 
-Date: 2026-06-04
+Date: 2026-06-05
 
 Agent: workflow-agent / api-agent
 
@@ -16,6 +16,7 @@ The Java source project remains read-only:
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| GET | `/biz/bizuservacation/page` | Page existing vacation-balance rows. |
 | GET | `/biz/bizuservacation/detail` | Read the annual-leave balance for the requested user or current login user. |
 
 The route is protected by `AuthMiddleware`.
@@ -26,12 +27,13 @@ The route is protected by `AuthMiddleware`.
 - It defaults to category `annualLeave` when `category` is omitted.
 - It filters records to the current year using `CREATE_TIME`.
 - When no row exists, Java returns a new annual-leave object with zero amount. This ThinkPHP endpoint returns a zero-balance object with `amount` and `usedAmount` set to `0` for copied frontend compatibility.
+- Java `BizUserVacationServiceImpl.page` exposes read-only pagination behavior; the copied frontend wrapper also calls `/biz/bizuservacation/page`.
+- The ThinkPHP page endpoint returns `records`, `total`, `page`, `current`, `limit`, `size`, and `pages`.
 
 ## Deferred
 
 The following remain intentionally deferred:
 
-- `/biz/bizuservacation/page`
 - `/biz/bizuservacation/add`
 - `/biz/bizuservacation/edit`
 - `/biz/bizuservacation/delete`

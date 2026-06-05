@@ -15,6 +15,14 @@ class BizUserVacationController extends BaseSysController
     {
     }
 
+    public function page(Request $request): Response
+    {
+        return $this->guard(fn () => $this->vacationService->page(
+            $request->get(),
+            $this->authPayload($request)
+        ));
+    }
+
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->vacationService->detail(

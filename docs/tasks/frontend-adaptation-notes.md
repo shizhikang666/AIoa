@@ -375,8 +375,28 @@ This slice supports the copied leave-process pages that call `bizUserVacationApi
 
 ### Deferred
 
-- `/biz/bizuservacation/page`, `/add`, `/edit`, and `/delete` remain deferred.
+- `/biz/bizuservacation/page` was deferred in this slice and is handled by the later page-read slice.
+- `/biz/bizuservacation/add`, `/edit`, and `/delete` remain deferred.
 - Vacation generation/reduction, leave approval balance deductions, workflow writes, and payroll-facing side effects remain deferred.
+
+## 2026-06-05 Biz User Vacation Page Read-Only Compatibility
+
+Agent: workflow-agent / api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied vacation-balance API wrapper `snowy-admin-web/src/api/biz/bizUserVacationApi.js`.
+
+### Result
+
+- `/biz/bizuservacation/page` is now routed as a protected read-only GET endpoint.
+- Page reads existing non-deleted vacation-balance rows with pagination.
+- Rows expose `userId`, `userName`, `amount`, `usedAmount`, `category`, audit fields, tenant id, and version.
+
+### Deferred
+
+- `/biz/bizuservacation/add`, `/edit`, and `/delete` remain deferred.
+- Vacation generation/reduction, leave approval deductions, workflow writes, and payroll-facing side effects remain out of scope.
 
 ## 2026-06-04 Biz History Excel Read-Only Compatibility
 
