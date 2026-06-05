@@ -219,6 +219,18 @@ class SaleProjectBillingService
         return $this->rows($rows);
     }
 
+    public function rateDetail(string $id, array $payload = []): array
+    {
+        $row = $this->rateQuery(['id' => $id], $payload)
+            ->field('r.*, p.PROJECT_NAME AS PROJECT_NAME, c.NAME AS CUSTOMER_NAME')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('sale project rate not found', 404);
+        }
+
+        return $this->rows([$row])[0];
+    }
+
     private function invoicingQuery(array $filters, array $payload, bool $onlyInvoiceable)
     {
         $query = Db::name('biz_sale_project_invoicing')

@@ -2444,3 +2444,32 @@ Java exposes `/dev/monitor/networkInfo` from `DevMonitorController`. The copied 
 - `php think route:list` must list the added route.
 - Token requests should return `devMonitorNetworkInfo.upLinkRate` and `devMonitorNetworkInfo.downLinkRate`.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Sale Project Rate Detail Read-Only Route
+
+## Request
+
+Register a protected read-only sale-project customer rating detail route in `route/app.php`.
+
+## Reason
+
+The copied frontend rating API wrapper exposes `saleProjectRateDetail`, and the Java service has `detail/queryEntity` read logic even though the Java controller did not wire a concrete detail mapping. This route preserves safe frontend compatibility for detail consumers without opening rating writes.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected GET route:
+
+- `GET /biz/projectrate/detail`
+
+## Explicit Exclusions
+
+- No `/biz/projectrate/add`, `/edit`, or `/delete` route was added.
+- No rating image upload, project state, sale-project write, file storage, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Token requests should return one non-deleted rating row by `id`.
+- Requests without token should return `code=401`.

@@ -5109,3 +5109,65 @@ git diff --check
 - Do not add monitor write routes.
 - Do not change serverInfo shape.
 - Do not modify OS services, database, config, or `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: api-agent/frontend-agent - Sale Project Rate Detail Read-Only Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, database smoke, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Add read-only detail compatibility for the copied sale-project customer rating API wrapper.
+
+### 2. Involved Modules
+
+- api-agent sale-project rating read adapter
+- frontend-agent copied sale-project/project-case rating compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SaleProjectRateController.php`
+- `app/service/biz/SaleProjectBillingService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-billing-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java controller exposes `page` and `list`; Java service still has `detail/queryEntity`. The copied frontend wrapper includes `detail`, so this slice only exposes a protected read-only detail endpoint.
+- Project rating rows include raw `extJson`; this slice must return it without mutation so the copied frontend can parse image lists.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectRateController.php
+php -l app\service\biz\SaleProjectBillingService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/projectrate/detail` is registered behind token middleware.
+- Detail reads one non-deleted rating row by `id`.
+- Detail returns the same normalized rating shape used by `page` and `list`, including `projectName`, `customerName`, and raw `extJson`.
+- Java source, database schema, rating writes, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/biz/projectrate/add`, `/edit`, or `/delete`.
+- Do not modify rating image upload, project state, sale-project writes, or file storage behavior.
+- Do not modify `F:\AI\projects\testJava\OA`.

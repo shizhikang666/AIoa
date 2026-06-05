@@ -20,6 +20,7 @@ Implemented routes:
 | GET | `/biz/saleprojectreissueorder/list/query` | `BizSaleProjectReissueOrderController.listQuery` | Reissue orders with nested product items |
 | GET | `/biz/projectrate/page` | `SaleProjectRateController.page` | Project rating page list |
 | GET | `/biz/projectrate/list` | `SaleProjectRateController.list` | Project rating list by project |
+| GET | `/biz/projectrate/detail` | `SaleProjectRateService.detail/queryEntity` | Project rating detail by id |
 
 All routes are protected by `AuthMiddleware`.
 
@@ -30,6 +31,7 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/saleprojectinvoice/list` returns Java-compatible entries with `bizSaleProjectInvoice` and `invoiceItems`.
 - `/biz/saleprojectreissueorder/list/query` returns Java-compatible entries with `order` and `productItemList`.
 - Reissue product items include `children`; child `extJson` is preserved, and if missing a minimal product JSON payload is synthesized for the frontend parser.
+- `/biz/projectrate/detail` keeps the same normalized row shape as `/page` and `/list`, including raw `extJson`.
 - Query responses include project/customer display aliases where useful, such as `projectName`, `customerName`, `orgName`, and `headName`.
 
 ## Deferred

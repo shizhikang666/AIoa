@@ -5003,3 +5003,51 @@ Agent: api-agent
 
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
+
+## 2026-06-05 - api-agent/frontend-agent - Sale Project Rate Detail Read-Only Compatibility
+
+### Completed Content
+
+- Added protected read-only sale-project customer rating detail endpoint.
+- Reused existing `SaleProjectBillingService::rateQuery` so detail keeps the same tenant, delete-flag, and project-scope boundaries as rating page/list reads.
+- Returned the same normalized rating shape used by page/list, including `projectName`, `customerName`, and raw `extJson`.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, rating add/edit/delete, rating image upload, sale-project writes, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/SaleProjectRateController.php`
+- `app/service/biz/SaleProjectBillingService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-billing-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectRateController.php`: passed.
+- `php -l app\service\biz\SaleProjectBillingService.php`: passed.
+- `php -l route\app.php`: passed.
+- MySQL was not listening at first; started it through `F:\project\socket\AI\testPhp\files\startServer1.bat`, then port 3306 listened.
+- Direct service smoke: passed on copied-data rating `2009867439677366274`; detail matched the sample id and exposed `projectName`, `customerName`, and `extJson`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/projectrate/detail` is registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- Java controller does not wire a concrete `/biz/projectrate/detail` mapping, but the Java service has `detail/queryEntity` and the copied frontend wrapper exposes `saleProjectRateDetail`; this ThinkPHP route is kept read-only for frontend compatibility.
+- `/biz/projectrate/add`, `/edit`, and `/delete` remain intentionally deferred.
+- Rating image upload, sale-project writes, file storage, workflow, finance, and project-state side effects remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only page/API slice.

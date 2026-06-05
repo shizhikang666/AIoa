@@ -443,6 +443,7 @@ Route::group('biz/ccrecords', function () {
 Route::group('biz/projectrate', function () {
     Route::get('page', 'biz.SaleProjectRateController/page');
     Route::get('list', 'biz.SaleProjectRateController/list');
+    Route::get('detail', 'biz.SaleProjectRateController/detail');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/org', function () {

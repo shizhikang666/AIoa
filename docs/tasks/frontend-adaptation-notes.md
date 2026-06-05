@@ -475,3 +475,22 @@ This slice supports the copied monitor API wrapper `snowy-admin-web/src/api/dev/
 ### Deferred
 
 - Monitor writes, server process control, and metric persistence remain out of scope.
+
+## 2026-06-05 Sale Project Rate Detail Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied rating API wrapper `snowy-admin-web/src/api/biz/saleProjectRateApi.js`.
+
+### Result
+
+- `/biz/projectrate/detail` is now routed as a protected read-only GET endpoint.
+- Detail reads a single non-deleted rating row by `id`.
+- The row keeps the same normalized shape used by `/biz/projectrate/page` and `/biz/projectrate/list`, including `projectName`, `customerName`, and raw `extJson`.
+
+### Deferred
+
+- `/biz/projectrate/add`, `/edit`, and `/delete` remain deferred.
+- Rating image upload, sale-project writes, file storage, project state, and workflow/finance side effects remain out of scope.

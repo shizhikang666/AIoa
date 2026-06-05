@@ -1,6 +1,6 @@
 # Frontend API Gap Map
 
-Date: 2026-06-03
+Date: 2026-06-05
 
 Agent: frontend-agent / main control agent
 
@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 263 | From `php think route:list` after history Excel read-only route additions |
-| Endpoints already covered by route path | 257 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 81 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 270 | From `php think route:list` after sale-project rating detail route addition |
+| Endpoints already covered by route path | 258 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 80 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -46,6 +46,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/bizpurchaserequest`, `biz/bizpurchaseorder`, `biz/warehouses`, `biz/inventory`, `biz/delivery`, `biz/returnorder` | Purchase, warehouse, inventory, delivery, return read slices |
 | `biz/saleprojectproductinfo` | Sale-project software package/version info reads |
 | `biz/bizdatareport` | Sale-project amount/list/report, unpaid-payment, settlement income/expenses, sale-profit, summary-statistics, and details reads |
+| `biz/projectrate` | Project rating page, list, and detail reads |
 | `biz/bizleaveapplication` | Leave/business-trip page, my-page, and detail reads |
 | `biz/bizuservacation` | Current-year annual-leave balance detail read |
 | `biz/settlementaccountpayment` | Settlement account statement page/list reads |
@@ -91,6 +92,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/bizhistoryexcel` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
 | `biz/saleprojectinvoiceItem` | `page` covered; invoice item writes remain deferred |
+| `biz/projectrate` | `page`, `list`, and `detail` covered; add/edit/delete remain deferred |
 | `biz/saleprojectreissueorder` | `list/query` |
 | `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
 | `biz/bizteamprojecttaskuser` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
