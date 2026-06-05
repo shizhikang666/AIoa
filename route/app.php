@@ -208,6 +208,8 @@ Route::group('dev/message', function () {
 Route::group('gen/basic', function () {
     Route::get('page', 'gen.BasicController/page');
     Route::get('detail', 'gen.BasicController/detail');
+    Route::get('tables', 'gen.BasicController/tables');
+    Route::get('tableColumns', 'gen.BasicController/tableColumns');
     Route::get('mobileModuleSelector', 'gen.BasicController/mobileModuleSelector');
 })->middleware(AuthMiddleware::class);
 

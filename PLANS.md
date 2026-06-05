@@ -5366,3 +5366,67 @@ git diff --check
 - Do not add `/sys/field/add`, `/edit`, or `/delete`.
 - Do not modify menu/button/module write behavior.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: api-agent/frontend-agent - Gen Basic Database Metadata Reads
+
+Status: completed on 2026-06-05 after route, syntax, database smoke, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Close the copied generator basic form read gap by adding the two Java-compatible, read-only database metadata endpoints used when opening the generator form.
+
+### 2. Involved Modules
+
+- api-agent route/controller mapping
+- frontend-agent copied `gen/basic` API compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/gen/BasicController.php`
+- `app/service/gen/BasicService.php`
+- `route/app.php`
+- `docs/api/gen-basic-metadata-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Metadata reads depend on the configured MySQL database and `information_schema` availability.
+- Java returns upper-case column names from JDBC metadata; ThinkPHP must preserve that shape for copied frontend primary-key selectors.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+- Code generation preview and execution routes are side-effect/generation flows and remain out of scope.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\gen\BasicController.php
+php -l app\service\gen\BasicService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /gen/basic/tables` is registered behind token middleware.
+- `GET /gen/basic/tableColumns` is registered behind token middleware.
+- `tables` returns Java-compatible `tableName` and `tableRemark` values and excludes `ACT_` workflow engine tables.
+- `tableColumns` requires `tableName` and returns Java-compatible `columnName`, `typeName`, and `columnRemark` values.
+- Java source, database schema, generator writes, code generation preview/execution, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/gen/basic/add`, `/edit`, `/delete`, `/previewGen`, `/execGenZip`, or `/execGenPro`.
+- Do not generate or write business code.
+- Do not modify generator templates, Java source, database schema, Composer files, or `.env`.

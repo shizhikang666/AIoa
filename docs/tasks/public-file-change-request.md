@@ -2572,3 +2572,34 @@ The copied frontend rating API wrapper exposes `saleProjectRateDetail`, and the 
 - `php think route:list` must list the added route.
 - Token requests should return one non-deleted rating row by `id`.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Gen Basic Metadata Read-Only Routes
+
+## Request
+
+Register protected read-only generator database metadata routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/gen/basic/tables` and `/gen/basic/tableColumns` from `GenBasicController`. The copied generator basic form calls both endpoints when opening the form and choosing a database table.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected GET routes:
+
+- `GET /gen/basic/tables`
+- `GET /gen/basic/tableColumns`
+
+## Explicit Exclusions
+
+- No `/gen/basic/add`, `/edit`, `/delete`, `/previewGen`, `/execGenZip`, or `/execGenPro` route was added.
+- No generated code output, generator template, Java source, database schema, Composer, `.env`, frontend source, or deployment configuration was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests to `/gen/basic/tables` should return current database table metadata and exclude `ACT_` workflow engine tables.
+- Token requests to `/gen/basic/tableColumns?tableName=<table>` should return current database column metadata.
+- Requests without token should return `code=401`.

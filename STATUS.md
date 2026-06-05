@@ -4683,6 +4683,55 @@ Agent: api-agent
 - Commit and push this read-only compatibility slice.
 - Continue the next safe visible read-only page/API slice.
 
+## 2026-06-05 - api-agent/frontend-agent - Gen Basic Metadata Read-Only Compatibility
+
+### Completed Content
+
+- Added protected read-only generator database metadata endpoints for the copied generator form.
+- Implemented `/gen/basic/tables` using MySQL `information_schema.TABLES`, returning Java-compatible `tableName` and `tableRemark`.
+- Implemented `/gen/basic/tableColumns` using MySQL `information_schema.COLUMNS`, returning Java-compatible upper-case `columnName`, upper-case `typeName`, and `columnRemark`.
+- Preserved the Java behavior that excludes `ACT_` workflow engine tables from generator table options.
+- Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, generator writes, code generation preview/execution, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/gen/BasicController.php`
+- `app/service/gen/BasicService.php`
+- `route/app.php`
+- `docs/api/gen-basic-metadata-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\gen\BasicController.php`: passed.
+- `php -l app\service\gen\BasicService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; `tables(searchKey=sys_user)` returned `sys_user` metadata and `tableColumns(sys_user)` returned 71 columns.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; route count is 280 and `/gen/basic/tables` plus `/gen/basic/tableColumns` are registered.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Full secret scan found only pre-existing default-password compatibility references; this slice diff added no database, Redis, or super-admin secrets.
+
+### Current Issues
+
+- `/gen/basic/previewGen`, `/execGenZip`, and `/execGenPro` remain deferred because they generate or write code.
+- `/gen/basic/add`, `/edit`, and `/delete` remain deferred until the generator module is explicitly opened for write work.
+- Generator metadata reads depend on the configured MySQL database being available.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe visible read-only frontend/API gap, likely another selector/detail consumer before write endpoints.
+
 ## 2026-06-05 - main-control-agent - Runtime Database And Redis Target Confirmation
 
 ### Completed Content

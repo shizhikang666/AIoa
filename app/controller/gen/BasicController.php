@@ -25,6 +25,16 @@ class BasicController extends BaseSysController
         return $this->guard(fn () => $this->basicService->detail($this->requiredString($request, 'id')));
     }
 
+    public function tables(Request $request): Response
+    {
+        return $this->guard(fn () => $this->basicService->tables($request->get()));
+    }
+
+    public function tableColumns(Request $request): Response
+    {
+        return $this->guard(fn () => $this->basicService->tableColumns($this->requiredString($request, 'tableName')));
+    }
+
     public function mobileModuleSelector(Request $request): Response
     {
         return $this->guard(fn () => $this->basicService->mobileModuleSelector($request->get()));

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\service\gen;
 
 use app\service\mobile\MobileResourceService;
+use RuntimeException;
 use think\facade\Db;
 
 /**
@@ -72,6 +73,71 @@ class BasicService
     public function mobileModuleSelector(array $filters = []): array
     {
         return (new MobileResourceService())->moduleSelector($filters);
+    }
+
+    /**
+     * @return array<int, array{tableName: string, tableRemark: string}>
+     */
+    public function tables(array $filters = []): array
+    {
+        $sql = <<<SQL
+SELECT TABLE_NAME, TABLE_COMMENT
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_TYPE = ?
+  AND LEFT(UPPER(TABLE_NAME), 4) <> ?
+SQL;
+        $bind = ['BASE TABLE', 'ACT_'];
+
+        if (!empty($filters['searchKey'])) {
+            $sql .= "\n  AND (TABLE_NAME LIKE ? OR TABLE_COMMENT LIKE ?)";
+            $searchKey = '%' . trim((string)$filters['searchKey']) . '%';
+            $bind[] = $searchKey;
+            $bind[] = $searchKey;
+        }
+
+        $sql .= "\nORDER BY TABLE_NAME ASC";
+
+        return array_map(static function (array $row): array {
+            $tableName = (string)($row['TABLE_NAME'] ?? '');
+            $tableRemark = trim((string)($row['TABLE_COMMENT'] ?? ''));
+
+            return [
+                'tableName' => $tableName,
+                'tableRemark' => $tableRemark !== '' ? $tableRemark : $tableName,
+            ];
+        }, Db::query($sql, $bind));
+    }
+
+    /**
+     * @return array<int, array{columnName: string, typeName: string, columnRemark: string}>
+     */
+    public function tableColumns(string $tableName): array
+    {
+        $tableName = trim($tableName);
+        if ($tableName === '') {
+            throw new RuntimeException('missing tableName', 400);
+        }
+
+        $rows = Db::query(<<<SQL
+SELECT COLUMN_NAME, DATA_TYPE, COLUMN_COMMENT
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND (TABLE_NAME = ? OR LOWER(TABLE_NAME) = LOWER(?))
+ORDER BY ORDINAL_POSITION ASC
+SQL, [$tableName, $tableName]);
+
+        return array_map(static function (array $row): array {
+            $columnName = strtoupper((string)($row['COLUMN_NAME'] ?? ''));
+            $typeName = strtoupper((string)($row['DATA_TYPE'] ?? ''));
+            $columnRemark = trim((string)($row['COLUMN_COMMENT'] ?? ''));
+
+            return [
+                'columnName' => $columnName,
+                'typeName' => $typeName !== '' ? $typeName : 'NONE',
+                'columnRemark' => $columnRemark !== '' ? $columnRemark : $columnName,
+            ];
+        }, $rows);
     }
 
     private function basicQuery(array $filters)

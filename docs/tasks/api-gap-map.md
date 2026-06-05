@@ -100,6 +100,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/bizteamprojecttaskuser` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `dev/monitor` | `serverInfo` and `networkInfo` covered |
 | `sys/field` | `page`, `tree`, `detail`, and `MenuTreeSelector` covered; add/edit/delete remain deferred |
+| `gen/basic` | `page`, `detail`, `tables`, `tableColumns`, and `mobileModuleSelector` covered; add/edit/delete/previewGen/execGen routes remain deferred |
 
 ## Deferred Write And Side-Effect Groups
 
@@ -122,6 +123,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `biz/bizhistoryexcel` | `add`, `edit`, `delete` | Historical spreadsheet data writes and import/export parsing need a separate plan |
 | `sys/user` and `sys/userCenter` | `import`, profile edits, password edits, grant actions | Security and audit requirements |
+| `gen/basic` | `add`, `edit`, `delete`, `previewGen`, `execGenZip`, `execGenPro` | Generator writes or code generation output require a separate module plan |
 
 ## Authentication And Session Gaps
 

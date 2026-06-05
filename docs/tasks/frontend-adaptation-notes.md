@@ -565,3 +565,28 @@ This slice supports the copied system-resource field wrapper and drawer:
 
 - `/sys/field/add`, `/edit`, and `/delete` remain deferred.
 - Menu, button, module, and field write behavior remains out of scope.
+
+## 2026-06-05 Gen Basic Metadata Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied generator form metadata calls:
+
+- `snowy-admin-web/src/api/gen/genBasicApi.js`
+- `snowy-admin-web/src/views/gen/basic.vue`
+
+### Result
+
+- `/gen/basic/tables` is now routed as a protected read-only GET endpoint.
+- `/gen/basic/tableColumns` is now routed as a protected read-only GET endpoint.
+- Table metadata returns `tableName` and `tableRemark`.
+- Column metadata returns upper-case `columnName`, upper-case `typeName`, and `columnRemark`, matching the Java generator form expectations.
+- `ACT_` workflow engine tables are excluded from generator table options.
+
+### Deferred
+
+- `/gen/basic/add`, `/edit`, and `/delete` remain deferred.
+- `/gen/basic/previewGen`, `/execGenZip`, and `/execGenPro` remain deferred because they generate or write code.
+- Generator templates, generated code output, and frontend source remain unchanged.
