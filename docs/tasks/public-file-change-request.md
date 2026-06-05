@@ -594,6 +594,41 @@ The existing Vue file-relation pages call `/biz/bizfilerelation/page`, `/biz/biz
 
 ---
 
+# Public File Change Request: Team Project Comment Reply Read-Only Routes
+
+## Request
+
+Register protected read-only team-project comment detail and project-comment reply page/detail routes in `route/app.php`.
+
+## Reason
+
+The copied Vue API wrappers call these endpoints from team-project comment and reply components. Existing ThinkPHP reads already load project comments and nested replies for timeline lists; this request only exposes the missing standalone read paths while preserving the current team-project membership visibility boundary.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected routes:
+
+- `GET /biz/bizteamprojectcomment/detail`
+- `GET /biz/bizteamprojectcommentreply/page`
+- `GET /biz/bizteamprojectcommentreply/detail`
+
+## Explicit Exclusions
+
+- No `/biz/bizteamprojectcomment/add` route was added.
+- No `/biz/bizteamprojectcomment/delete` route was added.
+- No `/biz/bizteamprojectcommentreply/add` route was added.
+- No `/biz/bizteamprojectcommentreply/edit` route was added.
+- No `/biz/bizteamprojectcommentreply/delete` route was added.
+- No comment/reply mutation, notification, data-change event, database schema change, Java source change, frontend change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Token requests should return `code=200` for representative routes.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Index Read-Only Compatibility Routes
 
 ## Request

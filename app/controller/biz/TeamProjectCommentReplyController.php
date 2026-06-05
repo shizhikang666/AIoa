@@ -9,7 +9,7 @@ use app\service\biz\TeamProjectTaskReadService;
 use think\Request;
 use think\Response;
 
-class TeamProjectCommentController extends BaseSysController
+class TeamProjectCommentReplyController extends BaseSysController
 {
     public function __construct(private readonly TeamProjectTaskReadService $readService = new TeamProjectTaskReadService())
     {
@@ -17,17 +17,12 @@ class TeamProjectCommentController extends BaseSysController
 
     public function page(Request $request): Response
     {
-        return $this->guard(fn () => $this->readService->projectCommentPage($request->get(), $this->authPayload($request)));
-    }
-
-    public function list(Request $request): Response
-    {
-        return $this->guard(fn () => $this->readService->projectCommentList($request->get(), $this->authPayload($request)));
+        return $this->guard(fn () => $this->readService->projectReplyPage($request->get(), $this->authPayload($request)));
     }
 
     public function detail(Request $request): Response
     {
-        return $this->guard(fn () => $this->readService->projectCommentDetail($this->requiredString($request, 'id'), $this->authPayload($request)));
+        return $this->guard(fn () => $this->readService->projectReplyDetail($this->requiredString($request, 'id'), $this->authPayload($request)));
     }
 
     private function authPayload(Request $request): array

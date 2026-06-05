@@ -4721,6 +4721,60 @@ Agent: api-agent
 - Commit and push this runtime target confirmation.
 - Continue the next planned safe read-only compatibility slice after the runtime rule is recorded.
 
+## 2026-06-05 - api-agent/frontend-agent - Team Project Comment Reply Read-Only Compatibility
+
+### Completed Content
+
+- Added protected read-only project comment detail endpoint for copied team-project comment consumers.
+- Added protected read-only project comment reply page and detail endpoints for copied comment-reply consumers.
+- Reused `TeamProjectTaskReadService` and existing project comment/reply row normalization.
+- Kept standalone reply reads within the current user team-project membership boundary by joining reply target comments, owning projects, and project members.
+- Preserved nested `bizTeamProjectCommentReplies` on project comment detail.
+- Updated API docs, frontend notes, API gap map, public route-change request, progress dashboard, plan, and status records.
+- Kept Java source, database schema, comment/reply add/edit/delete, notifications, data-change events, Composer files, `.env`, and frontend source unchanged.
+
+### Modified Files
+
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/TeamProjectCommentController.php`
+- `app/controller/biz/TeamProjectCommentReplyController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/team-project-comment-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\TeamProjectCommentController.php`: passed.
+- `php -l app\controller\biz\TeamProjectCommentReplyController.php`: passed.
+- `php -l app\service\biz\TeamProjectTaskReadService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed on copied-data project comment `2038855658414485505`; page returned total 2 rows, detail matched the sample id, and nested `bizTeamProjectCommentReplies` key was present.
+- Reply table data check: `biz_team_project_comment_reply` currently has 0 rows in the imported local database.
+- Direct reply page smoke: passed with an empty page result containing `records`, `total=0`, and `count=0`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed; `/biz/bizteamprojectcomment/detail`, `/biz/bizteamprojectcommentreply/page`, and `/biz/bizteamprojectcommentreply/detail` are registered.
+- Route count check: passed with 274 registered routes.
+- Full PHP lint over `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- The imported local database has no project comment reply rows, so reply detail could not be smoke-tested against a real row; route, syntax, service page, and visibility query paths were verified.
+- `/biz/bizteamprojectcomment/add`, `/delete`, `/biz/bizteamprojectcommentreply/add`, `/edit`, and `/delete` remain intentionally deferred.
+- Notifications, data-change events, task/project writes, and file upload behavior remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this read-only compatibility slice.
+- Continue the next safe frontend-visible read-only route gap, likely system field reads or generator metadata reads, before opening write APIs.
+
 ## 2026-06-05 - workflow-agent/api-agent/frontend-agent - Biz User Vacation Page Read-Only Compatibility
 
 ### Completed Content

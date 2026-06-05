@@ -164,6 +164,15 @@ SQL;
         'createUserName' => 'creator.NAME',
     ];
 
+    private const PROJECT_REPLY_SORT_MAP = [
+        'id' => 'r.ID',
+        'targetId' => 'r.TARGET_ID',
+        'createTime' => 'r.CREATE_TIME',
+        'updateTime' => 'r.UPDATE_TIME',
+        'tenantId' => 'r.TENANT_ID',
+        'createUserName' => 'creator.NAME',
+    ];
+
     private const TASK_COMMENT_SORT_MAP = [
         'id' => 'tc.ID',
         'teamProjectTaskId' => 'tc.TEAM_PROJECT_TASK_ID',
@@ -313,6 +322,43 @@ SQL;
             ->toArray();
 
         return $this->projectCommentRows($rows, $filters);
+    }
+
+    public function projectCommentDetail(string $id, array $payload = []): array
+    {
+        $row = $this->projectCommentQuery(['id' => $id], $payload)
+            ->field(self::PROJECT_COMMENT_FIELDS)
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('team project comment not found', 404);
+        }
+
+        return $this->projectCommentRows([$row], [])[0];
+    }
+
+    public function projectReplyPage(array $filters = [], array $payload = []): array
+    {
+        [$page, $limit] = $this->pagination($filters);
+        $total = $this->projectReplyQuery($filters, $payload)->count();
+        $rows = $this->applySort($this->projectReplyQuery($filters, $payload), $filters, self::PROJECT_REPLY_SORT_MAP, 'r.ID')
+            ->field(self::PROJECT_REPLY_FIELDS)
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+
+        return $this->pageResult(array_map(fn (array $row): array => $this->projectReplyRow($row), $rows), $total, $page, $limit);
+    }
+
+    public function projectReplyDetail(string $id, array $payload = []): array
+    {
+        $row = $this->projectReplyQuery(['id' => $id], $payload)
+            ->field(self::PROJECT_REPLY_FIELDS)
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('team project comment reply not found', 404);
+        }
+
+        return $this->projectReplyRow($row);
     }
 
     public function taskCommentPage(array $filters = [], array $payload = []): array
@@ -561,6 +607,57 @@ SQL;
         return $query;
     }
 
+    private function projectReplyQuery(array $filters, array $payload)
+    {
+        $query = Db::name('biz_team_project_comment_reply')
+            ->alias('r')
+            ->leftJoin('biz_team_project_comment pc', 'pc.ID = r.TARGET_ID')
+            ->leftJoin('biz_team_project p', 'p.ID = pc.TEAM_PROJECT_ID')
+            ->leftJoin('biz_team_project_user pm', 'pm.TEAM_PROJECT_ID = pc.TEAM_PROJECT_ID')
+            ->leftJoin('sys_user creator', 'creator.ID = r.CREATE_USER')
+            ->where('pm.USER_ID', $this->currentUserId($payload))
+            ->where(function ($query): void {
+                $query->whereNull('r.DELETE_FLAG')->whereOr('r.DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->where(function ($query): void {
+                $query->whereNull('pc.DELETE_FLAG')->whereOr('pc.DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->where(function ($query): void {
+                $query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->where(function ($query): void {
+                $query->whereNull('pm.DELETE_FLAG')->whereOr('pm.DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $this->applyTenant($query, $filters, $payload, 'r.TENANT_ID');
+        $this->applyExactFilters($query, $filters, [
+            'id' => 'r.ID',
+            'targetId' => 'r.TARGET_ID',
+            'teamProjectId' => 'pc.TEAM_PROJECT_ID',
+            'projectId' => 'pc.TEAM_PROJECT_ID',
+            'createUser' => 'r.CREATE_USER',
+        ]);
+
+        if (!empty($filters['targetIds']) && is_array($filters['targetIds'])) {
+            $targetIds = array_values(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $filters['targetIds'])));
+            if ($targetIds !== []) {
+                $query->whereIn('r.TARGET_ID', $targetIds);
+            }
+        }
+
+        if (!empty($filters['searchKey'])) {
+            $keyword = '%' . trim((string)$filters['searchKey']) . '%';
+            $query->where(function ($query) use ($keyword): void {
+                $query->whereLike('r.CONTENT_TEXT', $keyword)
+                    ->whereOr('creator.NAME', 'like', $keyword);
+            });
+        }
+
+        $this->applyTimeRange($query, $filters, 'r.CREATE_TIME', 'startCreateTime', 'endCreateTime');
+
+        return $query;
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
@@ -599,13 +696,7 @@ SQL;
                 $query->whereNull('r.DELETE_FLAG')->whereOr('r.DELETE_FLAG', '=', self::NOT_DELETE);
             });
 
-        $rows = $this->applySort($query, $filters, [
-            'id' => 'r.ID',
-            'targetId' => 'r.TARGET_ID',
-            'createTime' => 'r.CREATE_TIME',
-            'updateTime' => 'r.UPDATE_TIME',
-            'createUserName' => 'creator.NAME',
-        ], 'r.ID')
+        $rows = $this->applySort($query, $filters, self::PROJECT_REPLY_SORT_MAP, 'r.ID')
             ->field(self::PROJECT_REPLY_FIELDS)
             ->select()
             ->toArray();

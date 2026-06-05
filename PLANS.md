@@ -5234,3 +5234,70 @@ git diff --check
 - Do not add `/biz/bizuservacation/add`, `/edit`, or `/delete`.
 - Do not implement vacation generation, vacation reduction, leave approval deductions, or workflow write side effects.
 - Do not modify `F:\AI\projects\testJava\OA`.
+
+## Completed Plan: api-agent/frontend-agent - Team Project Comment Reply Read-Only Compatibility
+
+Status: completed on 2026-06-05 after route, syntax, database smoke, and baseline checks.
+
+Date: 2026-06-05
+
+### 1. Current Goal
+
+Close the next real frontend API gap by adding only read-only routes for copied team-project comment detail and standalone comment-reply page/detail consumers.
+
+### 2. Involved Modules
+
+- api-agent team-project read adapter
+- frontend-agent copied team-project comment/reply API compatibility
+- Java read-only input under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/TeamProjectCommentController.php`
+- `app/controller/biz/TeamProjectCommentReplyController.php`
+- `app/service/biz/TeamProjectTaskReadService.php`
+- `route/app.php`
+- `docs/api/team-project-comment-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java `BizTeamProjectCommentController` exposes page/list but not detail, while Java service and copied frontend wrapper include detail.
+- Java `BizTeamProjectCommentReplyController` exposes only write routes, while Java service and copied frontend wrapper include page/detail.
+- Reply reads must not bypass the existing team-project membership boundary.
+- `route/app.php` is a locked public file, so the route change must be recorded.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\TeamProjectCommentController.php
+php -l app\controller\biz\TeamProjectCommentReplyController.php
+php -l app\service\biz\TeamProjectTaskReadService.php
+php -l route\app.php
+composer dump-autoload
+php think
+php think route:list
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /biz/bizteamprojectcomment/detail` is registered behind token middleware.
+- `GET /biz/bizteamprojectcommentreply/page` and `/detail` are registered behind token middleware.
+- Reads preserve the current team-project membership visibility boundary.
+- Comment detail includes nested `bizTeamProjectCommentReplies`.
+- Reply rows include `id`, `targetId`, `contentText`, `extJson`, creator display fields, audit fields, and tenant id.
+- Java source, database schema, comment/reply writes, notifications, Composer files, `.env`, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add `/biz/bizteamprojectcomment/add` or `/delete`.
+- Do not add `/biz/bizteamprojectcommentreply/add`, `/edit`, or `/delete`.
+- Do not modify task comments, team-project writes, notifications, file upload behavior, or `F:\AI\projects\testJava\OA`.

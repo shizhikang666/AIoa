@@ -514,3 +514,28 @@ This slice supports the copied rating API wrapper `snowy-admin-web/src/api/biz/s
 
 - `/biz/projectrate/add`, `/edit`, and `/delete` remain deferred.
 - Rating image upload, sale-project writes, file storage, project state, and workflow/finance side effects remain out of scope.
+
+## 2026-06-05 Team Project Comment Reply Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied team-project comment wrappers:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentApi.js`
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentReplyApi.js`
+
+### Result
+
+- `/biz/bizteamprojectcomment/detail` is now routed as a protected read-only GET endpoint.
+- `/biz/bizteamprojectcommentreply/page` is now routed as a protected read-only GET endpoint.
+- `/biz/bizteamprojectcommentreply/detail` is now routed as a protected read-only GET endpoint.
+- Comment detail includes nested `bizTeamProjectCommentReplies`.
+- Standalone reply reads use the reply target comment and owning project membership to keep the current user visibility boundary.
+
+### Deferred
+
+- `/biz/bizteamprojectcomment/add` and `/delete` remain deferred.
+- `/biz/bizteamprojectcommentreply/add`, `/edit`, and `/delete` remain deferred.
+- Notifications, data-change events, file uploads, and team-project write behavior remain out of scope.

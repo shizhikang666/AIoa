@@ -19,9 +19,9 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 271 | From `php think route:list` after biz user vacation page route addition |
-| Endpoints already covered by route path | 259 | Includes read adapters and auth/system routes |
-| Missing read/selector/report candidates | 79 | Priority candidates for safe compatibility work |
+| Current ThinkPHP routes | 274 | From `php think route:list` after team-project comment/reply read route addition |
+| Endpoints already covered by route path | 262 | Includes read adapters and auth/system routes |
+| Missing read/selector/report candidates | 76 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 207 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
@@ -54,7 +54,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/bizhistoryexcel` | Historical EXCEL page and detail reads |
 | `biz/saleprojectinvoiceItem` | Sale-project delivery invoice item page reads |
 | `biz/salesprojectfieldchangelog` | Sale-project field change log page and detail reads |
-| `biz/teamproject`, `biz/task` | Team project, task, task user, and task comment read slices |
+| `biz/teamproject`, `biz/task` | Team project, task, task user, project comment, project comment reply, and task comment read slices |
 | `biz/process` | Basic workflow query/read slices |
 | `biz/ccrecords` | Workflow copy/CC record page and detail reads |
 | `biz/bizdraft` | Sale-project draft detail read |
@@ -95,6 +95,8 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/projectrate` | `page`, `list`, and `detail` covered; add/edit/delete remain deferred |
 | `biz/saleprojectreissueorder` | `list/query` |
 | `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
+| `biz/bizteamprojectcomment` | `page`, `list`, and `detail` covered; add/delete remain deferred |
+| `biz/bizteamprojectcommentreply` | `page` and `detail` covered; add/edit/delete remain deferred |
 | `biz/bizteamprojecttaskuser` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `dev/monitor` | `serverInfo` and `networkInfo` covered |
 
