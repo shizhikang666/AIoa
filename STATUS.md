@@ -7456,3 +7456,42 @@ Agent: api-agent
 
 - After local MySQL is available, rerun direct service smoke for system export, business export, and single-user profile export.
 - Continue with the next safe frontend-visible slice outside personnel import/export, or start targeted data-scope and permission hardening before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 18:05 +08:00 - test-agent - Smoke Runbook Automation
+
+### Completed
+
+- Confirmed `OA-ThinkPHP` is on `refactor/thinkphp-main`, clean, and ahead of origin by the completed user export compatibility commit.
+- Cleaned up the temporary local `mysqld.exe` processes started during the DB export smoke attempt.
+- Confirmed current route coverage already includes `/dev/message/createSseConnect`, `/biz/dict/*`, `/biz/org/*`, `/biz/user/*`, and `/biz/position/*`.
+- Confirmed org/user display-field compatibility is already documented in `docs/api/sys-user-org-display-compat.md` and implemented through user/org/position row aliases.
+- Added `scripts/test-agent-smoke.ps1` for repeatable post-slice baseline checks.
+- Added `docs/tasks/test-agent-smoke-runbook.md` with usage and DB blocker notes.
+
+### Modified Files
+
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/test-agent-smoke-runbook.md`
+- `scripts/test-agent-smoke.ps1`
+
+### Test Results
+
+- `.\scripts\test-agent-smoke.ps1`: passed.
+- `composer dump-autoload`: passed through the smoke script.
+- `php think`: passed through the smoke script.
+- `php think route:list`: passed through the smoke script.
+- Required route coverage check: passed for current personnel download routes, message SSE, and biz directory aliases.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- Direct DB-backed user export smoke remains blocked because the local MySQL instance rejects the ThinkPHP `.env` database user with access denied.
+- User cooperation is needed to start the intended MySQL instance or provide/update working local database credentials for `phpoa20026`.
+
+### Next Plan
+
+- After DB credentials are fixed, rerun the DB-backed user export service smokes and then browser-smoke the copied user export/download buttons.

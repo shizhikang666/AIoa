@@ -8246,3 +8246,52 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement `POST /sys/user/import`, Excel parser, Word template renderer, new Composer dependencies, file upload/storage behavior, route-permission middleware, Java data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
+
+## Active Plan: test-agent - Smoke Runbook Automation
+
+Status: completed on 2026-06-06 after smoke script execution passed.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Turn the repeated post-slice manual checks into a focused test-agent smoke script and runbook for the integrated ThinkPHP project.
+
+### 2. Involved Modules
+
+- test-agent regression workflow
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+- Java read-only reference remains untouched under `F:\AI\projects\testJava\OA`
+
+### 3. Involved Files
+
+- `scripts/test-agent-smoke.ps1`
+- `docs/tasks/test-agent-smoke-runbook.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The script must not change `.env`, database data, Java source, Composer dependencies, or application code.
+- DB-backed export smoke is still blocked by the local MySQL credential mismatch and must remain documented as an environment prerequisite.
+- No-token HTTP smoke should remain optional because it requires a separately started backend server.
+
+### 5. Test Commands
+
+```powershell
+.\scripts\test-agent-smoke.ps1
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- The smoke script runs Composer autoload, ThinkPHP console bootstrap, route list, required route coverage checks, strict PHP lint, and whitespace checks.
+- Optional no-token HTTP smoke can be run when a backend server is already available.
+- The runbook records the DB credential blocker without exposing secrets.
+- No business behavior, route registration, frontend source, Java source, `.env`, database schema, or Composer files are changed.
+
+### 7. Forbidden Scope
+
+- Do not implement new routes, services, controllers, database writes, imports, exports, browser automation, frontend source changes, `.env` edits, Java source edits, or dependency changes in this slice.

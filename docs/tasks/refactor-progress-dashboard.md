@@ -105,6 +105,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Dev monitor network read | `/dev/monitor/networkInfo` routed for copied monitor pages, returning `upLinkRate` and `downLinkRate` with safe zero fallback | Monitor writes, server control, and metric persistence deferred |
 | Sale project rating reads and writes | `/biz/projectrate/page`, `/list`, `/detail`, `/add`, and `/delete` routed for copied sale-project rating consumers, returning `projectName`, `customerName`, raw `extJson`, preserving `imgList`, and using logical delete | Rating edit, image upload/storage, sale-project writes, workflow, finance, and notifications deferred |
 | Biz user vacation page read | `/biz/bizuservacation/page` routed for copied vacation-balance management wrappers, returning user display names and balance fields | Vacation writes, generation/reduction, and leave approval deductions deferred |
+| Test-agent smoke automation | `scripts/test-agent-smoke.ps1` and `docs/tasks/test-agent-smoke-runbook.md` added for Composer autoload, ThinkPHP bootstrap, route coverage, strict PHP lint, whitespace checks, and optional no-token backend smoke | DB-backed user export service smoke deferred until local MySQL credentials are corrected |
 
 ## Remaining High-Level Plan
 

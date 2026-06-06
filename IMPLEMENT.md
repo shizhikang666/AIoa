@@ -789,3 +789,21 @@ Explicit non-goals:
 - No Java data-change events.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, finance, stock, or unrelated business module changes.
 
+## 2026-06-06 Test Agent Smoke Runbook Automation
+
+Agent: test-agent
+
+Execution summary:
+
+1. Added `scripts/test-agent-smoke.ps1` to run the repeated post-slice baseline checks from one command.
+2. Added required route coverage checks for current frontend-visible personnel download routes, message SSE compatibility, and biz directory aliases.
+3. Added optional no-token backend smoke for the protected user download routes when a local backend server is already running.
+4. Added `docs/tasks/test-agent-smoke-runbook.md` with baseline usage, optional backend smoke usage, and the current DB-backed export smoke blocker.
+5. Kept DB credentials, `.env`, Composer dependencies, Java source, route files, controllers, services, frontend source, and database schema unchanged.
+
+Explicit non-goals:
+
+- No business behavior changes.
+- No route, controller, service, frontend, database schema, Composer, `.env`, or Java source changes.
+- No DB-backed export smoke until the local MySQL credentials are corrected.
+
