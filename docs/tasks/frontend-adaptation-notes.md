@@ -1062,3 +1062,30 @@ This slice supports the copied supplier maintenance wrapper and visible supplier
 
 - Supplier import/export remains deferred.
 - Purchase, payment, procurement, inventory, workflow, and other supplier side effects remain out of scope.
+
+## 2026-06-06 Warehouse Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied warehouse maintenance wrapper and visible warehouse table/form consumers:
+
+- `snowy-admin-web/src/api/biz/warehousesApi.js`
+- `snowy-admin-web/src/views/biz/warehouses/index.vue`
+- `snowy-admin-web/src/views/biz/warehouses/form.vue`
+
+### Result
+
+- `/biz/warehouses/add` is now routed as a protected POST endpoint.
+- `/biz/warehouses/edit` is now routed as a protected POST endpoint.
+- `/biz/warehouses/delete` is now routed as a protected POST endpoint.
+- Add accepts `name`, `code`, `address`, `sortCode`, and optional `extJson`.
+- Add writes `USER` from the current token user and `ORG` from the current token user's organization.
+- Edit accepts submitted base fields and validates submitted `org` against token write scope.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED`; imported warehouse rows are not physically removed.
+
+### Deferred
+
+- Inventory stock updates, delivery records, purchase-order writes, sale-project invoice writes, workflow behavior, and warehouse side effects remain out of scope.

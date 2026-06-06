@@ -358,6 +358,9 @@ Route::group('biz/bizteamprojecttaskcomment', function () {
 Route::group('biz/warehouses', function () {
     Route::get('page', 'biz.WarehousesController/page');
     Route::get('list', 'biz.WarehousesController/list');
+    Route::post('add', 'biz.WarehousesController/add');
+    Route::post('edit', 'biz.WarehousesController/edit');
+    Route::post('delete', 'biz.WarehousesController/delete');
     Route::get('detail', 'biz.WarehousesController/detail');
 })->middleware(AuthMiddleware::class);
 

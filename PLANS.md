@@ -6626,3 +6626,71 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement purchase, payment, procurement, inventory, workflow, supplier import/export, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: api-agent/frontend-agent - Warehouse Base Maintenance Compatibility
+
+Status: completed on 2026-06-06.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected warehouse base maintenance endpoints used by the copied warehouse list and warehouse form:
+
+- `POST /biz/warehouses/add`
+- `POST /biz/warehouses/edit`
+- `POST /biz/warehouses/delete`
+
+This slice only maintains base `warehouses` rows and keeps inventory, delivery, purchase, and workflow side effects out of scope.
+
+### 2. Involved Modules
+
+- api-agent warehouse API compatibility
+- frontend-agent copied warehouse page/form compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/WarehousesController.php`
+- `app/service/biz/WarehousesService.php`
+- `route/app.php`
+- `docs/api/biz-warehouses-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Warehouse records are referenced by inventory, delivery, purchase, and sale-project invoice flows; this slice must not update those modules.
+- Java uses MyBatis logic delete; this ThinkPHP slice should preserve imported data by setting `DELETE_FLAG = DELETED`.
+- Java edit/delete checks warehouse ownership through the warehouse user and that user's organization. This slice should keep the same conservative write-scope idea.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\WarehousesController.php
+php -l app\service\biz\WarehousesService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Warehouse `add`, `edit`, and `delete` routes are registered behind token middleware.
+- Add requires SQL-required fields `name` and `code`, accepts copied optional fields `address`, `sortCode`, and `extJson`, and writes owner user/org from the current token.
+- Edit requires `id`; if `name`, `code`, or `org` is submitted, it validates the value before writing; it updates only submitted base fields and audit fields.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or single `id`, validates active warehouse write scope, and logically deletes selected rows with `DELETE_FLAG = DELETED`.
+- Java source, database schema, frontend source, inventory/delivery/purchase side effects, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement inventory stock updates, delivery record writes, purchase-order writes, sale-project invoice writes, workflow behavior, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

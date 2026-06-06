@@ -3180,3 +3180,35 @@ Java exposes `/biz/supplier/add`, `/edit`, and `/delete`, and the copied Vue sup
 - Add should validate Java-required fields and default empty `status` to `ENABLE`.
 - Edit/delete should validate supplier write access through admin, scoped organization, or creator scope.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Warehouse Base Maintenance Routes
+
+## Request
+
+Register protected warehouse add, edit, and delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/warehouses/add`, `/edit`, and `/delete`, and the copied Vue warehouse page calls these endpoints from the warehouse table and form. Existing ThinkPHP routes already cover warehouse `page`, `list`, and `detail`; this slice opens only base warehouse-row maintenance.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/warehouses/add`
+- `POST /biz/warehouses/edit`
+- `POST /biz/warehouses/delete`
+
+## Explicit Exclusions
+
+- No inventory stock update, delivery record write, purchase-order write, sale-project invoice write, workflow behavior, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Deletes use logical deletion through `DELETE_FLAG = DELETED` instead of physical removal.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Add should default owner user and organization from the current token user.
+- Edit/delete should validate warehouse write access through admin, scoped organization, or warehouse owner scope.
+- Requests without token should return `code=401`.

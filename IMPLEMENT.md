@@ -321,3 +321,22 @@ Explicit non-goals:
 - No purchase, payment, procurement, inventory, or workflow side effects.
 - No Java source, schema, Composer, `.env`, or frontend source changes.
 
+## 2026-06-06 Warehouse Base Maintenance Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `WarehousesController`, `WarehousesServiceImpl`, warehouse add/edit/delete params, copied `warehousesApi.js`, and the ThinkPHP warehouse read service.
+2. Added only base warehouse add, edit, and logical delete handlers.
+3. Defaulted new warehouse `USER` and `ORG` from the current token user.
+4. Validated writes through admin-compatible roles, scoped organization ids, or direct warehouse ownership.
+5. Registered only `/biz/warehouses/add`, `/edit`, and `/delete` in `route/app.php`.
+6. Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No inventory stock updates.
+- No delivery record, purchase-order, sale-project invoice, or workflow writes.
+- No Java source, schema, Composer, `.env`, or frontend source changes.
+

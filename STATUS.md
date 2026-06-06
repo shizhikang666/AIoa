@@ -6225,3 +6225,54 @@ Agent: api-agent
 
 - Commit and push this supplier base maintenance compatibility slice.
 - Continue another isolated low-risk master-data or page-local write endpoint before opening sale-project state, finance, inventory, or workflow transition writes.
+
+## 2026-06-06 09:05 +08:00 - api-agent/frontend-agent - Warehouse Base Maintenance Compatibility
+
+### Completed
+
+- Added protected compatibility routes for warehouse add, edit, and delete.
+- Added `WarehousesController` POST handlers with JSON/form body parsing and Java-style delete payload compatibility.
+- Added `WarehousesService` base warehouse maintenance logic for SQL-required `name`/`code` validation, whitelisted field mapping, token owner/org defaults, admin/scoped-org/owner write-scope validation, audit fields, and logical deletion.
+- Updated warehouse API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+- Started the local backend on `http://127.0.0.1:82/` and the copied Vue frontend on `http://127.0.0.1:83/` for joint smoke testing.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/WarehousesController.php`
+- `app/service/biz/WarehousesService.php`
+- `route/app.php`
+- `docs/api/biz-warehouses-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\WarehousesController.php`: passed.
+- `php -l app\service\biz\WarehousesService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; warehouse `1780707586896778747` was added, edited, and logically deleted with `DELETE_FLAG = DELETED`; one earlier smoke row with an overlong test `CODE` was also logically deleted.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 327 route entries; warehouse `add`, `edit`, and `delete` listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 232 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP smoke for `POST /biz/warehouses/add`: returned business `code=401`.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- Inventory stock updates, delivery records, purchase-order writes, sale-project invoice writes, and workflow side effects remain deferred by design.
+- File upload/storage, notifications, and Java data-change event side effects remain deferred.
+- The smoke test intentionally leaves logically deleted warehouse rows in the local database for traceability instead of physically deleting data.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this warehouse base maintenance compatibility slice.
+- Continue the next isolated low-risk frontend-visible write or route cleanup slice before opening stock, finance, workflow, or sale-project state-transition writes.

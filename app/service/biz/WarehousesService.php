@@ -13,6 +13,7 @@ use think\facade\Db;
 class WarehousesService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
         'name' => 'NAME',
@@ -67,6 +68,177 @@ class WarehousesService
         }
 
         return $this->warehouseRows([$row])[0];
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $this->requiredInput($input, 'name');
+        $this->requiredInput($input, 'code');
+
+        return Db::transaction(function () use ($input, $payload): array {
+            $userId = $this->currentUserId($payload);
+            $id = $this->newId();
+            $row = [
+                'ID' => $id,
+                'USER' => $userId !== '' ? $userId : null,
+                'ORG' => $this->defaultOrgId($payload),
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => date('Y-m-d H:i:s'),
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $this->tenantId($input, $payload),
+            ];
+
+            $this->applyWarehouseInput($row, $input, false);
+            $this->assertNewWarehouseWritable($row, $payload);
+
+            Db::name('warehouses')->insert($row);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $this->assertWarehouseWritable($id, $payload, 'edit');
+            $userId = $this->currentUserId($payload);
+            $row = [
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+            ];
+
+            $this->applyWarehouseInput($row, $input, true);
+            if (array_key_exists('ORG', $row)) {
+                $this->assertOrgWritable((string)$row['ORG'], $payload);
+            }
+
+            $updated = Db::name('warehouses')
+                ->where('ID', $id)
+                ->update($row);
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->stringList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            foreach ($idList as $id) {
+                $this->assertWarehouseWritable($id, $payload, 'delete');
+            }
+
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('warehouses')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
+    }
+
+    private function applyWarehouseInput(array &$row, array $input, bool $allowOrg): void
+    {
+        $fields = [
+            'name' => 'NAME',
+            'code' => 'CODE',
+            'address' => 'ADDRESS',
+            'sortCode' => 'SORT_CODE',
+            'extJson' => 'EXT_JSON',
+        ];
+
+        foreach ($fields as $inputKey => $column) {
+            if (!array_key_exists($inputKey, $input)) {
+                continue;
+            }
+
+            $row[$column] = $inputKey === 'sortCode'
+                ? $this->nullableInt($input[$inputKey])
+                : (in_array($inputKey, ['name', 'code'], true)
+                    ? $this->requiredInput($input, $inputKey)
+                    : $this->nullableString($input[$inputKey]));
+        }
+
+        if ($allowOrg && array_key_exists('org', $input)) {
+            $row['ORG'] = $this->requiredInput($input, 'org');
+        }
+    }
+
+    private function assertWarehouseWritable(string $id, array $payload, string $action): array
+    {
+        $row = $this->activeWarehouse($id, $payload);
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $warehouseOrg = trim((string)($row['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && in_array($warehouseOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $ownerUserId = trim((string)($row['USER'] ?? ''));
+        if ($currentUserId !== '' && $ownerUserId === $currentUserId) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action} this warehouse", 403);
+    }
+
+    private function assertNewWarehouseWritable(array $row, array $payload): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $warehouseOrg = trim((string)($row['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && in_array($warehouseOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $ownerUserId = trim((string)($row['USER'] ?? ''));
+        if ($currentUserId !== '' && $ownerUserId === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to add this warehouse', 403);
+    }
+
+    private function assertOrgWritable(string $orgId, array $payload): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && in_array($orgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $payloadOrg = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($payloadOrg !== '' && $payloadOrg === $orgId) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to assign this warehouse organization', 403);
     }
 
     private function warehouseQuery(array $filters, array $payload, bool $applyDataScope)
@@ -283,18 +455,168 @@ class WarehousesService
      */
     private function scopeOrgIds(array $payload): array
     {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
         $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
-        if (!is_array($scopes)) {
+        if (is_array($scopes)) {
+            $ids = array_merge($ids, array_map(static function (mixed $scope): string {
+                if (!is_array($scope)) {
+                    return '';
+                }
+
+                return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            }, $scopes));
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function activeWarehouse(string $id, array $payload): array
+    {
+        $query = Db::name('warehouses')->where('ID', $id);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('warehouse not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function whereNotDeleted($query, string $column): void
+    {
+        $query->where(function ($query) use ($column): void {
+            $query->whereNull($column)->whereOr($column, '=', self::NOT_DELETE);
+        });
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    private function tenantId(array $input, array $payload): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function defaultOrgId(array $payload): ?string
+    {
+        $orgId = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($orgId !== '') {
+            return $orgId;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId === '') {
+            return null;
+        }
+
+        $user = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->field('ORG_ID')
+            ->find();
+        if (!is_array($user) || $user === []) {
+            return null;
+        }
+
+        $orgId = trim((string)($user['ORG_ID'] ?? ''));
+
+        return $orgId !== '' ? $orgId : null;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = is_array($value) ? implode(',', array_map('strval', $value)) : (string)$value;
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        $value = trim((string)$value);
+
+        return $value !== '' ? (int)$value : null;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
             return [];
         }
 
-        return array_values(array_unique(array_filter(array_map(static function (mixed $scope): string {
-            if (!is_array($scope)) {
-                return '';
+        return array_values(array_unique(array_filter(array_map(static function (mixed $item): string {
+            if (is_array($item)) {
+                return trim((string)($item['id'] ?? $item['ID'] ?? ''));
             }
 
-            return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
-        }, $scopes))));
+            return trim((string)$item);
+        }, $value))));
     }
 
     private function pagination(array $filters): array
