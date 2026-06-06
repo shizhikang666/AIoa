@@ -398,3 +398,21 @@ Explicit non-goals:
 - No delivery, invoice, return, inventory, workflow, finance, sale-project state, file upload/storage, or Java data-change/cache side effects.
 - No Java source, schema, Composer, `.env`, or frontend source changes.
 
+## 2026-06-06 Customer Head Reassignment Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `CustomerController.editCustomerHead`, `CustomerServiceImpl.editCustomerHead`, `CustomerHeadEditParam`, and `BizUserServiceImpl.queryEntityByPermission`.
+2. Added only customer owner reassignment compatibility for `/biz/customer/head/edit`.
+3. Reused existing active-customer write-scope validation before changing ownership.
+4. Validated target users through admin-compatible roles, data-scope organization ids, or current-user fallback.
+5. Registered only `/biz/customer/head/edit` in `route/app.php`.
+6. Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No customer import/export, file upload/storage, SM4 plaintext search migration, notification, sale-project/customer side effect, or Java data-change event.
+- No Java source, schema, Composer, `.env`, or frontend source changes.
+

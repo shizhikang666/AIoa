@@ -206,6 +206,35 @@ SQL;
         });
     }
 
+    public function headEdit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $targetUserId = $this->requiredInput($input, 'user');
+
+        return Db::transaction(function () use ($id, $targetUserId, $payload): array {
+            $this->assertCustomerWritable($id, $payload, 'edit customer head');
+            $targetUser = $this->assignableUser($targetUserId, $payload);
+            $currentUserId = $this->currentUserId($payload);
+
+            $updated = Db::name('customer')
+                ->where('ID', $id)
+                ->update([
+                    'USER' => $targetUserId,
+                    'ORG' => $targetUser['ORG_ID'],
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                    'VERSION' => Db::raw('IFNULL(VERSION, 0) + 1'),
+                ]);
+
+            return [
+                'id' => $id,
+                'user' => $targetUserId,
+                'org' => $targetUser['ORG_ID'],
+                'count' => $updated,
+            ];
+        });
+    }
+
     private function applyCustomerInput(array &$row, array $input, bool $partial): void
     {
         $fields = [
@@ -286,6 +315,41 @@ SQL;
         }
 
         throw new RuntimeException('no permission to add this customer', 403);
+    }
+
+    private function assignableUser(string $userId, array $payload): array
+    {
+        $query = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->field('ID, ORG_ID, DELETE_FLAG');
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        if (!$this->canSeeAll($payload)) {
+            $scopeOrgIds = $this->scopeOrgIds($payload);
+            if ($scopeOrgIds !== []) {
+                $query->whereIn('ORG_ID', $scopeOrgIds);
+            } else {
+                $currentUserId = $this->currentUserId($payload);
+                if ($currentUserId !== '') {
+                    $query->where('ID', $currentUserId);
+                }
+            }
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('target user not found', 404);
+        }
+
+        $orgId = trim((string)($row['ORG_ID'] ?? ''));
+        if ($orgId === '') {
+            throw new RuntimeException('target user has no organization', 400);
+        }
+
+        return [
+            'ID' => (string)$row['ID'],
+            'ORG_ID' => $orgId,
+        ];
     }
 
     private function customerQuery(array $filters, array $payload, bool $applyDataScope)

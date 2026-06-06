@@ -6908,3 +6908,71 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement sale-project product item add, edit, delete, delivery, invoice, stock, return, workflow, finance, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: api-agent/frontend-agent - Customer Head Reassignment Compatibility
+
+Status: completed on 2026-06-06 after implementation, service smoke with customer owner restore, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected customer owner reassignment endpoint used by the copied customer API wrapper:
+
+- `POST /biz/customer/head/edit`
+
+This slice updates only `customer.USER`, `customer.ORG`, and update audit/version fields. It must not implement customer import/export, file upload/storage, SM4 plaintext migration, sale-project side effects, notifications, or Java data-change events.
+
+### 2. Involved Modules
+
+- api-agent customer API compatibility
+- frontend-agent copied customer wrapper compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/CustomerController.php`
+- `app/service/biz/CustomerService.php`
+- `route/app.php`
+- `docs/api/biz-customer-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Customer ownership controls list visibility, so tests must restore the sampled customer to its original owner and organization.
+- Java validates target users through business-user data scope; this slice must mirror that with sys_user visibility based on admin-compatible roles, scoped organization ids, or current user fallback.
+- Existing sale-project/customer side effects and data-change events remain deferred.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\CustomerController.php
+php -l app\service\biz\CustomerService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Customer `head/edit` route is registered behind token middleware.
+- Request requires `id` and `user`.
+- The current token must be allowed to edit the active customer.
+- The target user must exist, be active/not deleted, and be visible through admin-compatible roles, data-scope org ids, or current-user fallback.
+- The endpoint updates only `USER`, `ORG`, update audit fields, and increments `VERSION`.
+- Smoke tests restore sampled customer `USER`, `ORG`, and `VERSION` after mutation.
+- Java source, database schema, frontend source, sale-project side effects, notifications, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement customer import/export, file upload/storage, SM4 plaintext search migration, customer data-change events, sale-project/customer side effects, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

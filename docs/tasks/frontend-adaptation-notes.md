@@ -1055,8 +1055,28 @@ This slice supports the copied customer maintenance wrapper and visible customer
 
 ### Deferred
 
-- `/biz/customer/head/edit` remains deferred.
 - SM4 plaintext phone/detail-address compatibility, file upload/storage cleanup, customer data-change events, and sale-project/customer side effects remain out of scope.
+
+## 2026-06-06 Customer Head Reassignment Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied customer owner reassignment wrapper:
+
+- `snowy-admin-web/src/api/biz/customerApi.js`
+
+### Result
+
+- `/biz/customer/head/edit` is now routed as a protected POST endpoint.
+- The endpoint accepts `id` and `user`.
+- It validates current-user customer write scope and validates that the target user is assignable through admin-compatible roles, token data-scope org ids, or current-user fallback.
+- It updates only `customer.USER`, `customer.ORG`, update audit fields, and `VERSION`.
+
+### Deferred
+
+- Customer import/export, file upload/storage cleanup, SM4 plaintext search, sale-project/customer side effects, notifications, and Java data-change events remain out of scope.
 
 ## 2026-06-05 Supplier Base Maintenance Compatibility
 

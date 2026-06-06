@@ -6432,3 +6432,54 @@ Agent: api-agent
 
 - Commit and push this sale-project product mark compatibility slice.
 - Continue another isolated frontend-visible endpoint, still avoiding stock, finance, workflow, and state-transition side effects until their module plans are explicitly opened.
+
+## 2026-06-06 10:09 +08:00 - api-agent/frontend-agent - Customer Head Reassignment Compatibility
+
+### Completed
+
+- Added protected compatibility route `POST /biz/customer/head/edit`.
+- Added `CustomerController.headEdit`.
+- Added `CustomerService.headEdit` for Java-compatible customer owner reassignment.
+- Validated current-token customer write scope before reassignment.
+- Validated target users through admin-compatible roles, data-scope organization ids, or current-user fallback.
+- Updated customer API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/CustomerController.php`
+- `app/service/biz/CustomerService.php`
+- `route/app.php`
+- `docs/api/biz-customer-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CustomerController.php`: passed.
+- `php -l app\service\biz\CustomerService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; sampled customer `2007641838392315905` was reassigned to user `1543837863788879871` and org `1543842934270394368`, then restored to its original `USER`, `ORG`, `VERSION`, `UPDATE_TIME`, and `UPDATE_USER` values.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 335 route entries; `/biz/customer/head/edit` is listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 234 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP smoke for `/biz/customer/head/edit`: returned business `code=401`.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- Customer import/export, file upload/storage cleanup, SM4 plaintext search, sale-project/customer side effects, notifications, and Java data-change events remain deferred by design.
+- The smoke test restored sampled imported customer ownership fields and did not leave test data behind.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this customer head reassignment compatibility slice.
+- Continue another isolated frontend-visible endpoint while keeping workflow, stock, finance, and sale-project state transitions behind explicit module plans.

@@ -1,6 +1,6 @@
 # Biz Customer API Compatibility
 
-Date: 2026-06-05
+Date: 2026-06-06
 
 Agent: api-agent
 
@@ -14,6 +14,7 @@ This document maps the Java customer and customer-follow-up endpoints currently 
 - `POST /biz/customer/delete`
 - `GET /biz/customer/detail`
 - `POST /biz/customer/detail/list`
+- `POST /biz/customer/head/edit`
 - `GET /biz/customerfollowup/page`
 - `GET /biz/customerfollowup/detail`
 - `POST /biz/customerfollowup/add`
@@ -216,6 +217,23 @@ Accepted input shapes:
 
 The endpoint validates every target row through the owning customer, then performs a logical delete by setting `DELETE_FLAG = DELETED`. It does not physically remove imported data.
 
+### Customer head edit
+
+`POST /biz/customer/head/edit`
+
+Required fields:
+
+- `id`
+- `user`
+
+The endpoint validates the current token can edit the active customer, then validates the target user through Java-compatible data-scope rules:
+
+- Admin-compatible accounts/roles can assign any active user.
+- Scoped users can assign users inside their token data-scope organization ids.
+- Users without explicit data scope can assign only themselves.
+
+The endpoint updates only `USER`, `ORG`, update audit fields, and increments `VERSION`. It does not trigger sale-project reassignment, notifications, or Java data-change events.
+
 ## Data Scope
 
 The slice applies the following conservative visibility order:
@@ -232,12 +250,6 @@ The Java project uses SM4 type handlers for customer `PHONE` and `DETAILS_ADDRES
 This slice does not implement SM4 encryption/decryption. It preserves stored values and supports raw stored-value matching only. Plaintext phone/detail-address search is deferred until a dedicated crypto compatibility plan is approved.
 
 ## Deferred Routes
-
-The following Java/frontend route remains intentionally unregistered:
-
-- `/biz/customer/head/edit`
-
-Customer owner reassignment requires a dedicated permission and relation strategy before implementation.
 
 Customer follow-up attachment uploads, file cleanup, and notification side effects remain deferred.
 

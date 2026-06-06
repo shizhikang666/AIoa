@@ -3182,6 +3182,36 @@ Java exposes `/biz/customer/add`, `/edit`, and `/delete`, and the copied Vue cus
 
 ---
 
+# Public File Change Request: Customer Head Reassignment Route
+
+## Request
+
+Register protected customer owner reassignment route in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/customer/head/edit`, and the copied Vue customer API wrapper calls this endpoint for customer owner reassignment. Existing ThinkPHP routes already cover customer page/detail/base add/edit/delete; this slice opens only the Java-equivalent owner reassignment write.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST route:
+
+- `POST /biz/customer/head/edit`
+
+## Explicit Exclusions
+
+- No customer import/export, file upload/storage cleanup, SM4 plaintext search, sale-project/customer side effect, notification, Java data-change event, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Writes are limited to `customer.USER`, `customer.ORG`, update audit fields, and `VERSION`.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- The current token must be allowed to edit the active customer.
+- The target user must exist and be assignable by admin-compatible role, data-scope org ids, or current-user fallback.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Supplier Base Maintenance Routes
 
 ## Request

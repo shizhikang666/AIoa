@@ -407,6 +407,7 @@ Route::group('biz/customer', function () {
     Route::post('delete', 'biz.CustomerController/delete');
     Route::get('detail', 'biz.CustomerController/detail');
     Route::post('detail/list', 'biz.CustomerController/detailList');
+    Route::post('head/edit', 'biz.CustomerController/headEdit');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/customerfollowup', function () {

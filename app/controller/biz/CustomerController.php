@@ -51,6 +51,11 @@ class CustomerController extends BaseSysController
         return $this->guard(fn () => $this->customerService->detailList($filters, $this->authPayload($request)));
     }
 
+    public function headEdit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->customerService->headEdit($this->body($request), $this->authPayload($request)));
+    }
+
     private function authPayload(Request $request): array
     {
         $payload = $request->middleware('auth_payload', []);
