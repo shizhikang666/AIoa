@@ -691,3 +691,26 @@ Explicit non-goals:
 - No import/export, token/session invalidation after delete, Java data-change event publishing, route-permission middleware implementation, or encrypted profile-field migration.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, grants, or unrelated business module changes.
 
+## 2026-06-06 User Add Edit Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserController.add/edit`, `SysUserServiceImpl.add/edit`, `BizUserController.add/edit`, `BizUserServiceImpl.add/edit`, and copied `sys/userApi.js` / `biz/bizUserApi.js` plus both user forms.
+2. Added system and business add/edit controller handlers for the copied user management forms.
+3. Added `UserDirectoryService::addUser` and `UserDirectoryService::editUser` for base `sys_user` profile writes only.
+4. Preserved Java-compatible defaults on add: configured default password hash, enabled status, not-deleted flag, selected-organization tenant id, avatar fallback, bank defaults, and company employee id.
+5. Preserved Java-compatible edit safeguards: required fields, unique account/phone/email, active organization/position/supervisor validation, built-in account protection, and no password/status/create-metadata updates.
+6. Registered protected `/sys/user/add`, `/sys/user/edit`, `/biz/user/add`, and `/biz/user/edit` routes in `route/app.php`.
+7. Updated user add/edit API docs, biz directory docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No import/export.
+- No route-permission middleware.
+- No token/session invalidation.
+- No Java data-change event publishing.
+- No full SM4 encrypted-field migration.
+- No org/position CRUD, Java source, database schema, Composer, `.env`, frontend source, workflow, grants, or unrelated business module changes.
+

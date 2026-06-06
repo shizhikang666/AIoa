@@ -3726,3 +3726,39 @@ Java exposes system and business user delete endpoints, and the copied Vue user 
 - `php think route:list` must list both routes.
 - Requests without token should return business `code=401`.
 - Service smoke should logically delete one sampled active user and restore the original user row plus touched director references.
+
+---
+
+# Public File Change Request: User Add Edit Routes
+
+## Request
+
+Register protected user add/edit routes in `route/app.php`.
+
+## Reason
+
+Java exposes system and business user add/edit endpoints, and the copied Vue user forms submit to these endpoints. The existing ThinkPHP user directory already supports read/detail/selector behavior, so this slice opens the matching protected base profile mutations without import/export, grant, workflow, or token side effects.
+
+## Applied Change
+
+`user-agent/frontend-agent` registers the following protected POST routes:
+
+- `POST /sys/user/add`
+- `POST /sys/user/edit`
+- `POST /biz/user/add`
+- `POST /biz/user/edit`
+
+## Guardrails
+
+- All four routes remain behind `AuthMiddleware`.
+- The service writes only known `sys_user` profile columns.
+- Add sets default password hash, enabled status, not-deleted flag, tenant id, avatar fallback, bank defaults, and company employee id.
+- Edit preserves password, status, delete flag, tenant id, and create metadata.
+- Business routes enforce conservative organization data-scope or current-user edit fallback.
+- No Java source, database schema, Composer, `.env`, frontend source, import/export, grants, token/session invalidation, Java data-change events, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list all four routes.
+- Requests without token should return business `code=401`.
+- Service smoke should create temporary system and business users, edit them, then remove only the temporary test rows.

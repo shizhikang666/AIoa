@@ -7943,3 +7943,77 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement user add/edit, import/export, route-permission middleware, token/session invalidation on delete, Java data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
+
+## Active Plan: user-agent/frontend-agent - User Add Edit Compatibility
+
+Status: completed on 2026-06-06 after sys/biz add-edit service smoke with temporary-row cleanup, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected user add/edit endpoints used by copied system and business user forms:
+
+- `POST /sys/user/add`
+- `POST /sys/user/edit`
+- `POST /biz/user/add`
+- `POST /biz/user/edit`
+
+This slice only writes base `sys_user` profile fields and keeps password/status/grant/import/export side effects out of scope.
+
+### 2. Involved Modules
+
+- user-agent user add/edit compatibility
+- frontend-agent copied system/business user form compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/user-add-edit-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- Add/edit touches many profile columns, so the implementation must map only known `sys_user` fields and avoid broad user/business side effects.
+- New users require safe defaults for password hash, status, tenant, bank fields, avatar, and company employee id.
+- Business add/edit must preserve Java's organization data-scope behavior.
+- Java encrypts some profile fields through SM4; full encrypted-field migration remains deferred.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\UserController.php
+php -l app\service\user\UserDirectoryService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- All four add/edit routes are registered behind `AuthMiddleware`.
+- Requests accept copied frontend form payloads and store Java-compatible `sys_user` fields.
+- Add validates required account/name/org/position, uniqueness, active org/position, optional director, default password hash, default enabled status, tenant, bank defaults, avatar, and company employee id.
+- Edit validates the same references, protects built-in/admin-compatible account names from being changed, and does not update password/status/create metadata.
+- Business add/edit enforces conservative organization data-scope or current-user edit fallback.
+- Smoke tests create and remove only temporary test users without changing real user rows.
+- Java source, database schema, Composer files, `.env`, frontend source, import/export, token/session invalidation, grants, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement import/export, route-permission middleware, Java data-change events, token/session invalidation, encrypted-field migration, org/position CRUD, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.

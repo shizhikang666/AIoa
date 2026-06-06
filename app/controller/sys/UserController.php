@@ -29,6 +29,24 @@ class UserController extends BaseSysController
         return $this->guard(fn () => $this->userDirectoryService->detail($this->requiredString($request, 'id')));
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->addUser(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            false
+        ));
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->editUser(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            false
+        ));
+    }
+
     public function listDetail(Request $request): Response
     {
         return $this->guard(fn () => $this->userDirectoryService->listDetail($request->get()));
@@ -116,6 +134,24 @@ class UserController extends BaseSysController
                 true
             );
         });
+    }
+
+    public function bizAdd(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->addUser(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            true
+        ));
+    }
+
+    public function bizEdit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->editUser(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            true
+        ));
     }
 
     public function ownRole(Request $request): Response

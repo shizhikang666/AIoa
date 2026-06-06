@@ -226,6 +226,103 @@ class UserDirectoryService
      * @param array<string, mixed> $input
      * @param array<string, mixed>|mixed $payload
      */
+    public function addUser(array $input, mixed $payload = [], bool $bizScope = false): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $data = $this->userWriteData($input);
+        $org = $this->assertUserWriteReferences($data, null);
+        $this->assertUniqueUserFields($data, null);
+        $this->ensureUserWriteAllowed($payload, $data, $bizScope, 'add', null);
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $id = $this->newId();
+        $data = array_merge($data, [
+            'ID' => $id,
+            'PASSWORD' => $this->defaultPasswordHash(),
+            'USER_STATUS' => self::USER_STATUS_ENABLE,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'TENANT_ID' => $this->tenantIdForWrite($payload, $org),
+            'BANK_NAME' => (string)($data['BANK_NAME'] ?? ''),
+            'BANK_ACCOUNT' => (string)($data['BANK_ACCOUNT'] ?? ''),
+            'BASIC_SALARY' => $data['BASIC_SALARY'] ?? '0.00',
+        ]);
+
+        if (trim((string)($data['AVATAR'] ?? '')) === '') {
+            $data['AVATAR'] = $this->defaultAvatar((string)$data['NAME']);
+        }
+        if (trim((string)($data['COMPANY_EMPLOYEE_ID'] ?? '')) === '') {
+            $data['COMPANY_EMPLOYEE_ID'] = $this->nextCompanyEmployeeId($org);
+        }
+
+        Db::name('sys_user')->insert($data);
+
+        return [
+            'id' => $id,
+            'detail' => $this->detail($id),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function editUser(array $input, mixed $payload = [], bool $bizScope = false): array
+    {
+        $id = trim((string)($input['id'] ?? $input['ID'] ?? ''));
+        if ($id === '') {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $user = $this->activeUserRow($id);
+        $data = $this->userWriteData($input);
+        $org = $this->assertUserWriteReferences($data, $user);
+        $this->assertUniqueUserFields($data, $id);
+        $this->ensureUserWriteAllowed($payload, $data, $bizScope, 'edit', $user);
+        $this->ensureTenantCompatible($payload, $user);
+        $this->ensureOrgTenantCompatibleWithUser($org, $user);
+
+        $oldAccount = strtolower(trim((string)($user['ACCOUNT'] ?? '')));
+        $newAccount = strtolower(trim((string)($data['ACCOUNT'] ?? '')));
+        if (in_array($oldAccount, ['superadmin', 'bizadmin', 'tenantadmin'], true) && $oldAccount !== $newAccount) {
+            throw new RuntimeException('built-in user account cannot be changed', 403);
+        }
+
+        $operatorId = $this->payloadUserId($payload);
+        $data['UPDATE_TIME'] = date('Y-m-d H:i:s');
+        $data['UPDATE_USER'] = $operatorId !== '' ? $operatorId : null;
+        unset(
+            $data['ID'],
+            $data['PASSWORD'],
+            $data['USER_STATUS'],
+            $data['DELETE_FLAG'],
+            $data['CREATE_TIME'],
+            $data['CREATE_USER'],
+            $data['TENANT_ID']
+        );
+
+        Db::name('sys_user')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update($data);
+
+        return [
+            'id' => $id,
+            'detail' => $this->detail($id),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
     public function grantRole(array $input, mixed $payload = [], bool $bizScope = false): array
     {
         $id = trim((string)($input['id'] ?? ''));
@@ -832,6 +929,419 @@ class UserDirectoryService
         }
 
         return array_values(array_intersect_key($rowsById, array_flip($ids)));
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @return array<string, mixed>
+     */
+    private function userWriteData(array $input): array
+    {
+        $data = [];
+        foreach ($this->userWriteFieldMap() as $camel => $column) {
+            $hasCamel = array_key_exists($camel, $input);
+            $hasColumn = array_key_exists($column, $input);
+            if (!$hasCamel && !$hasColumn) {
+                continue;
+            }
+
+            $value = $hasCamel ? $input[$camel] : $input[$column];
+            if ($this->isUserJsonColumn($column)) {
+                $data[$column] = $this->jsonTextValue($value);
+            } elseif ($column === 'SORT_CODE') {
+                $data[$column] = $value === '' || $value === null ? null : (int)$value;
+            } elseif ($column === 'BASIC_SALARY') {
+                $salary = $value === '' || $value === null ? '0.00' : (string)$value;
+                if (!is_numeric($salary) || (float)$salary < 0) {
+                    throw new RuntimeException('invalid basicSalary', 400);
+                }
+                $data[$column] = $salary;
+            } elseif (in_array($column, ['BANK_NAME', 'BANK_ACCOUNT'], true)) {
+                $data[$column] = $value === null ? '' : trim((string)$value);
+            } else {
+                $data[$column] = is_array($value) ? $this->jsonTextValue($value) : $this->nullableString($value);
+            }
+        }
+
+        foreach (['ACCOUNT' => 'account', 'NAME' => 'name', 'ORG_ID' => 'orgId', 'POSITION_ID' => 'positionId'] as $column => $name) {
+            if (trim((string)($data[$column] ?? '')) === '') {
+                throw new RuntimeException("missing {$name}", 400);
+            }
+        }
+
+        $data['ACCOUNT'] = trim((string)$data['ACCOUNT']);
+        $data['NAME'] = trim((string)$data['NAME']);
+        $data['ORG_ID'] = trim((string)$data['ORG_ID']);
+        $data['POSITION_ID'] = trim((string)$data['POSITION_ID']);
+
+        return $data;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function userWriteFieldMap(): array
+    {
+        return [
+            'account' => 'ACCOUNT',
+            'name' => 'NAME',
+            'avatar' => 'AVATAR',
+            'signature' => 'SIGNATURE',
+            'nickname' => 'NICKNAME',
+            'gender' => 'GENDER',
+            'age' => 'AGE',
+            'birthday' => 'BIRTHDAY',
+            'nation' => 'NATION',
+            'nativePlace' => 'NATIVE_PLACE',
+            'homeAddress' => 'HOME_ADDRESS',
+            'mailingAddress' => 'MAILING_ADDRESS',
+            'idCardType' => 'ID_CARD_TYPE',
+            'idCardNumber' => 'ID_CARD_NUMBER',
+            'cultureLevel' => 'CULTURE_LEVEL',
+            'politicalOutlook' => 'POLITICAL_OUTLOOK',
+            'college' => 'COLLEGE',
+            'education' => 'EDUCATION',
+            'eduLength' => 'EDU_LENGTH',
+            'degree' => 'DEGREE',
+            'phone' => 'PHONE',
+            'email' => 'EMAIL',
+            'homeTel' => 'HOME_TEL',
+            'officeTel' => 'OFFICE_TEL',
+            'emergencyContact' => 'EMERGENCY_CONTACT',
+            'emergencyPhone' => 'EMERGENCY_PHONE',
+            'emergencyAddress' => 'EMERGENCY_ADDRESS',
+            'empNo' => 'EMP_NO',
+            'entryDate' => 'ENTRY_DATE',
+            'orgId' => 'ORG_ID',
+            'positionId' => 'POSITION_ID',
+            'positionLevel' => 'POSITION_LEVEL',
+            'directorId' => 'DIRECTOR_ID',
+            'positionJson' => 'POSITION_JSON',
+            'sortCode' => 'SORT_CODE',
+            'extJson' => 'EXT_JSON',
+            'bankName' => 'BANK_NAME',
+            'bankAccount' => 'BANK_ACCOUNT',
+            'basicSalary' => 'BASIC_SALARY',
+            'workStartDate' => 'WORK_START_DATE',
+            'healthStatus' => 'HEALTH_STATUS',
+            'specialtySkills' => 'SPECIALTY_SKILLS',
+            'onJobEducationJson' => 'ON_JOB_EDUCATION_JSON',
+            'fullTimeEducationJson' => 'FULL_TIME_EDUCATION_JSON',
+            'jobTitle' => 'JOB_TITLE',
+            'socialAppointments' => 'SOCIAL_APPOINTMENTS',
+            'departmentAttribute' => 'DEPARTMENT_ATTRIBUTE',
+            'personalInformation' => 'PERSONAL_INFORMATION',
+            'mainStudyAndWorkExperience' => 'MAIN_STUDY_AND_WORK_EXPERIENCE',
+            'awardsAndAchievements' => 'AWARDS_AND_ACHIEVEMENTS',
+            'familyMembersAndSocialRelationshipsJson' => 'FAMILY_MEMBERS_AND_SOCIAL_RELATIONSHIPS_JSON',
+            'partyOrganizationOpinion' => 'PARTY_ORGANIZATION_OPINION',
+            'entryMethod' => 'ENTRY_METHOD',
+            'companyEmployeeId' => 'COMPANY_EMPLOYEE_ID',
+        ];
+    }
+
+    private function isUserJsonColumn(string $column): bool
+    {
+        return in_array($column, [
+            'POSITION_JSON',
+            'EXT_JSON',
+            'ON_JOB_EDUCATION_JSON',
+            'FULL_TIME_EDUCATION_JSON',
+            'FAMILY_MEMBERS_AND_SOCIAL_RELATIONSHIPS_JSON',
+        ], true);
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string)$value);
+
+        return $value === '' ? null : $value;
+    }
+
+    private function jsonTextValue(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_array($value)) {
+            $json = json_encode($value, JSON_UNESCAPED_UNICODE);
+
+            return $json === false ? null : $json;
+        }
+
+        return trim((string)$value) === '' ? null : (string)$value;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @param array<string, mixed>|null $existingUser
+     * @return array<string, mixed>
+     */
+    private function assertUserWriteReferences(array $data, ?array $existingUser): array
+    {
+        $org = $this->activeOrgRow((string)$data['ORG_ID']);
+        $position = $this->activePositionRow((string)$data['POSITION_ID']);
+        $positionOrgId = trim((string)($position['ORG_ID'] ?? ''));
+        if ($positionOrgId !== '' && $positionOrgId !== (string)$data['ORG_ID']) {
+            throw new RuntimeException('position does not belong to org', 400);
+        }
+
+        $directorId = trim((string)($data['DIRECTOR_ID'] ?? ''));
+        if ($directorId !== '') {
+            $director = $this->activeUserRow($directorId);
+            $this->ensureOrgTenantCompatibleWithUser($org, $director);
+        }
+
+        $this->assertPositionJsonReferences((string)($data['POSITION_JSON'] ?? ''));
+        if ($existingUser !== null) {
+            $this->ensureOrgTenantCompatibleWithUser($org, $existingUser);
+        }
+
+        return $org;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function activeOrgRow(string $id): array
+    {
+        $row = Db::name('sys_org')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('org not found', 404);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function activePositionRow(string $id): array
+    {
+        $row = Db::name('sys_position')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('position not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertPositionJsonReferences(string $json): void
+    {
+        $json = trim($json);
+        if ($json === '') {
+            return;
+        }
+
+        $items = json_decode($json, true);
+        if (!is_array($items)) {
+            throw new RuntimeException('invalid positionJson', 400);
+        }
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('invalid positionJson', 400);
+            }
+            $orgId = trim((string)($item['orgId'] ?? $item['ORG_ID'] ?? ''));
+            $positionId = trim((string)($item['positionId'] ?? $item['POSITION_ID'] ?? ''));
+            if ($orgId === '' || $positionId === '') {
+                throw new RuntimeException('invalid positionJson', 400);
+            }
+
+            $this->activeOrgRow($orgId);
+            $position = $this->activePositionRow($positionId);
+            $positionOrgId = trim((string)($position['ORG_ID'] ?? ''));
+            if ($positionOrgId !== '' && $positionOrgId !== $orgId) {
+                throw new RuntimeException('positionJson position does not belong to org', 400);
+            }
+
+            $directorId = trim((string)($item['directorId'] ?? $item['DIRECTOR_ID'] ?? ''));
+            if ($directorId !== '') {
+                $this->activeUserRow($directorId);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function assertUniqueUserFields(array $data, ?string $excludeId): void
+    {
+        $account = trim((string)($data['ACCOUNT'] ?? ''));
+        $this->assertUniqueUserColumn('ACCOUNT', $account, $excludeId, 'account already exists');
+
+        $phone = trim((string)($data['PHONE'] ?? ''));
+        if ($phone !== '') {
+            if (!preg_match('/^1[3-9][0-9]{9}$/', $phone)) {
+                throw new RuntimeException('invalid phone', 400);
+            }
+            $this->assertUniqueUserColumn('PHONE', $phone, $excludeId, 'phone already exists');
+        }
+
+        $email = trim((string)($data['EMAIL'] ?? ''));
+        if ($email !== '') {
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new RuntimeException('invalid email', 400);
+            }
+            $this->assertUniqueUserColumn('EMAIL', $email, $excludeId, 'email already exists');
+        }
+    }
+
+    private function assertUniqueUserColumn(string $column, string $value, ?string $excludeId, string $message): void
+    {
+        if ($value === '') {
+            return;
+        }
+
+        $query = Db::name('sys_user')
+            ->where($column, $value)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if ($excludeId !== null && $excludeId !== '') {
+            $query->where('ID', '<>', $excludeId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException($message, 400);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $data
+     * @param array<string, mixed>|null $existingUser
+     */
+    private function ensureUserWriteAllowed(array $payload, array $data, bool $bizScope, string $action, ?array $existingUser): void
+    {
+        $admin = $this->isAdminCompatible($payload);
+        if (!$admin && !$this->hasUserWritePermission($payload, $bizScope, $action)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $targetOrgId = trim((string)($data['ORG_ID'] ?? ''));
+        if (!$bizScope || $admin) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $targetOrgId !== '' && in_array($targetOrgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        if ($action === 'edit' && $existingUser !== null && $this->payloadUserId($payload) === (string)($existingUser['ID'] ?? '')) {
+            return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function hasUserWritePermission(array $payload, bool $bizScope, string $action): bool
+    {
+        $action = strtolower($action) === 'add' ? 'add' : 'edit';
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+        $needles = $bizScope
+            ? ["/biz/user/{$action}", "bizuser{$action}"]
+            : ["/sys/user/{$action}", "sysuser{$action}"];
+
+        foreach ($codes as $code) {
+            $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
+            $lower = strtolower($code);
+            foreach ($needles as $needle) {
+                if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $org
+     */
+    private function tenantIdForWrite(array $payload, array $org): string
+    {
+        $orgTenantId = trim((string)($org['TENANT_ID'] ?? ''));
+        $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($payloadTenantId !== '' && $orgTenantId !== '' && $payloadTenantId !== $orgTenantId && !$this->isAdminCompatible($payload)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        return $orgTenantId !== '' ? $orgTenantId : ($payloadTenantId !== '' ? $payloadTenantId : '0');
+    }
+
+    /**
+     * @param array<string, mixed> $org
+     * @param array<string, mixed> $user
+     */
+    private function ensureOrgTenantCompatibleWithUser(array $org, array $user): void
+    {
+        $orgTenantId = trim((string)($org['TENANT_ID'] ?? ''));
+        $userTenantId = trim((string)($user['TENANT_ID'] ?? ''));
+        if ($orgTenantId !== '' && $userTenantId !== '' && $orgTenantId !== $userTenantId) {
+            throw new RuntimeException('tenant mismatch', 403);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $org
+     */
+    private function nextCompanyEmployeeId(array $org): string
+    {
+        $orgCode = strtoupper(trim((string)($org['CODE'] ?? '')));
+        $orgCode = preg_replace('/[^A-Z0-9]/', '', $orgCode) ?: '';
+        if ($orgCode === '') {
+            $orgCode = substr((string)($org['ID'] ?? 'ORG'), -6);
+        }
+
+        return date('Ymd') . '-' . $orgCode . '-' . ((int)Db::name('sys_user')->count() + 1);
+    }
+
+    private function defaultAvatar(string $name): string
+    {
+        $label = trim($name);
+        if (function_exists('mb_substr')) {
+            $label = mb_substr($label, 0, 1, 'UTF-8');
+        } else {
+            $label = strtoupper(substr($label, 0, 1));
+        }
+        if ($label === '') {
+            $label = 'U';
+        }
+
+        $text = htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">'
+            . '<rect width="96" height="96" rx="48" fill="#2563eb"/>'
+            . '<text x="48" y="57" text-anchor="middle" font-family="Arial, sans-serif" font-size="40" fill="#fff">'
+            . $text
+            . '</text></svg>';
+
+        return 'data:image/svg+xml;base64,' . base64_encode($svg);
     }
 
     /**
@@ -1665,8 +2175,25 @@ class UserDirectoryService
             'genderName' => $gender !== null ? ($genderLabels[(string)$gender] ?? $gender) : null,
             'age' => $this->rowValue($row, 'AGE', 'age'),
             'birthday' => $this->rowValue($row, 'BIRTHDAY', 'birthday'),
+            'nation' => $this->rowValue($row, 'NATION', 'nation'),
+            'nativePlace' => $this->rowValue($row, 'NATIVE_PLACE', 'nativePlace'),
+            'homeAddress' => $this->rowValue($row, 'HOME_ADDRESS', 'homeAddress'),
+            'mailingAddress' => $this->rowValue($row, 'MAILING_ADDRESS', 'mailingAddress'),
+            'idCardType' => $this->rowValue($row, 'ID_CARD_TYPE', 'idCardType'),
+            'idCardNumber' => $this->rowValue($row, 'ID_CARD_NUMBER', 'idCardNumber'),
+            'cultureLevel' => $this->rowValue($row, 'CULTURE_LEVEL', 'cultureLevel'),
+            'politicalOutlook' => $this->rowValue($row, 'POLITICAL_OUTLOOK', 'politicalOutlook'),
+            'college' => $this->rowValue($row, 'COLLEGE', 'college'),
+            'education' => $this->rowValue($row, 'EDUCATION', 'education'),
+            'eduLength' => $this->rowValue($row, 'EDU_LENGTH', 'eduLength'),
+            'degree' => $this->rowValue($row, 'DEGREE', 'degree'),
             'phone' => $this->rowValue($row, 'PHONE', 'phone'),
             'email' => $this->rowValue($row, 'EMAIL', 'email'),
+            'homeTel' => $this->rowValue($row, 'HOME_TEL', 'homeTel'),
+            'officeTel' => $this->rowValue($row, 'OFFICE_TEL', 'officeTel'),
+            'emergencyContact' => $this->rowValue($row, 'EMERGENCY_CONTACT', 'emergencyContact'),
+            'emergencyPhone' => $this->rowValue($row, 'EMERGENCY_PHONE', 'emergencyPhone'),
+            'emergencyAddress' => $this->rowValue($row, 'EMERGENCY_ADDRESS', 'emergencyAddress'),
             'empNo' => $this->rowValue($row, 'EMP_NO', 'empNo'),
             'entryDate' => $this->rowValue($row, 'ENTRY_DATE', 'entryDate'),
             'orgId' => $orgId,
@@ -1676,6 +2203,24 @@ class UserDirectoryService
             'positionLevel' => $this->rowValue($row, 'POSITION_LEVEL', 'positionLevel'),
             'directorId' => $this->rowValue($row, 'DIRECTOR_ID', 'directorId'),
             'positionJson' => $this->rowValue($row, 'POSITION_JSON', 'positionJson'),
+            'bankName' => $this->rowValue($row, 'BANK_NAME', 'bankName'),
+            'bankAccount' => $this->rowValue($row, 'BANK_ACCOUNT', 'bankAccount'),
+            'basicSalary' => $this->rowValue($row, 'BASIC_SALARY', 'basicSalary'),
+            'workStartDate' => $this->rowValue($row, 'WORK_START_DATE', 'workStartDate'),
+            'healthStatus' => $this->rowValue($row, 'HEALTH_STATUS', 'healthStatus'),
+            'specialtySkills' => $this->rowValue($row, 'SPECIALTY_SKILLS', 'specialtySkills'),
+            'onJobEducationJson' => $this->rowValue($row, 'ON_JOB_EDUCATION_JSON', 'onJobEducationJson'),
+            'fullTimeEducationJson' => $this->rowValue($row, 'FULL_TIME_EDUCATION_JSON', 'fullTimeEducationJson'),
+            'jobTitle' => $this->rowValue($row, 'JOB_TITLE', 'jobTitle'),
+            'socialAppointments' => $this->rowValue($row, 'SOCIAL_APPOINTMENTS', 'socialAppointments'),
+            'departmentAttribute' => $this->rowValue($row, 'DEPARTMENT_ATTRIBUTE', 'departmentAttribute'),
+            'personalInformation' => $this->rowValue($row, 'PERSONAL_INFORMATION', 'personalInformation'),
+            'mainStudyAndWorkExperience' => $this->rowValue($row, 'MAIN_STUDY_AND_WORK_EXPERIENCE', 'mainStudyAndWorkExperience'),
+            'awardsAndAchievements' => $this->rowValue($row, 'AWARDS_AND_ACHIEVEMENTS', 'awardsAndAchievements'),
+            'familyMembersAndSocialRelationshipsJson' => $this->rowValue($row, 'FAMILY_MEMBERS_AND_SOCIAL_RELATIONSHIPS_JSON', 'familyMembersAndSocialRelationshipsJson'),
+            'partyOrganizationOpinion' => $this->rowValue($row, 'PARTY_ORGANIZATION_OPINION', 'partyOrganizationOpinion'),
+            'entryMethod' => $this->rowValue($row, 'ENTRY_METHOD', 'entryMethod'),
+            'companyEmployeeId' => $this->rowValue($row, 'COMPANY_EMPLOYEE_ID', 'companyEmployeeId'),
             'userStatus' => $this->rowValue($row, 'USER_STATUS', 'userStatus'),
             'sortCode' => $this->rowValue($row, 'SORT_CODE', 'sortCode'),
             'extJson' => $this->rowValue($row, 'EXT_JSON', 'extJson'),

@@ -103,6 +103,8 @@ Route::group('sys/user', function () {
     Route::get('page', 'sys.UserController/page');
     Route::get('list/detail', 'sys.UserController/listDetail');
     Route::get('detail', 'sys.UserController/detail');
+    Route::post('add', 'sys.UserController/add');
+    Route::post('edit', 'sys.UserController/edit');
     Route::post('delete', 'sys.UserController/delete');
     Route::post('disableUser', 'sys.UserController/disableUser');
     Route::post('enableUser', 'sys.UserController/enableUser');
@@ -561,6 +563,8 @@ Route::group('biz/user', function () {
     Route::get('page', 'sys.UserController/page');
     Route::get('list/detail', 'sys.UserController/listDetail');
     Route::get('detail', 'sys.UserController/detail');
+    Route::post('add', 'sys.UserController/bizAdd');
+    Route::post('edit', 'sys.UserController/bizEdit');
     Route::post('center/edit', 'sys.UserCenterController/centerEdit');
     Route::post('delete', 'sys.UserController/bizDelete');
     Route::post('disableUser', 'sys.UserController/bizDisableUser');

@@ -69,7 +69,7 @@ These are the highest-priority follow-ups because they affect pages the user can
 | Message SSE | Frontend components call `/dev/message/createSseConnect` | api-agent or workflow/test support | Review Java behavior before adding a safe compatibility route |
 | Upload compatibility | Frontend expects many `dev/file/upload*ReturnFile*` routes | api-agent | Do not implement storage writes until storage strategy is confirmed |
 | User profile center / homepage self-service | Current-user password, avatar, signature, profile, workbench, process-config edit, message detail mark-read, homepage all-mark-read, homepage schedule add/delete, and `/biz/user/center/edit` self-profile alias are covered | user-agent | Admin-side user CRUD/import/export and encrypted-field migration remain deferred |
-| Sys/biz user grant, status, reset-password, and delete dialogs | `ownRole`, `ownResource`, `ownPermission`, `/sys/user/grantRole`, `/biz/user/grantRole`, `/sys/user/grantResource`, `/sys/user/grantPermission`, `/sys/user/delete`, `/biz/user/delete`, `/sys/user/disableUser`, `/sys/user/enableUser`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/sys/user/resetPassword`, and `/biz/user/resetPassword` are covered | user-agent/frontend-agent | User add/edit and import/export remain deferred |
+| Sys/biz user add/edit, grant, status, reset-password, and delete dialogs | `/sys/user/add`, `/sys/user/edit`, `/biz/user/add`, `/biz/user/edit`, `ownRole`, `ownResource`, `ownPermission`, `/sys/user/grantRole`, `/biz/user/grantRole`, `/sys/user/grantResource`, `/sys/user/grantPermission`, `/sys/user/delete`, `/biz/user/delete`, `/sys/user/disableUser`, `/sys/user/enableUser`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/sys/user/resetPassword`, and `/biz/user/resetPassword` are covered | user-agent/frontend-agent | User import/export and encrypted-field migration remain deferred |
 
 ## Priority 2: Safe Read-Only API Candidates
 
@@ -118,7 +118,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleprojectproductitem` | Add/edit/delete, delivery/invoice/stock side effects | Product item `mark/edit` is covered |
 | `biz/customer` | SM4 plaintext search, file upload/storage, and related side effects | Customer base add/edit/delete and `head/edit` are covered |
 | `biz/customerfollowup` | Attachment upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file side effects remain deferred |
-| `biz/org`, `biz/user`, `biz/position` | `add`, `edit`, resource/permission grants | `/biz/user/center/edit`, `/biz/user/delete`, `/biz/user/grantRole`, `/biz/user/disableUser`, `/biz/user/enableUser`, and `/biz/user/resetPassword` are covered; admin-side user/org/position add/edit remains deferred |
+| `biz/org`, `biz/user`, `biz/position` | org/position add/edit/delete, resource/permission grants | `/biz/user/add`, `/biz/user/edit`, `/biz/user/center/edit`, `/biz/user/delete`, `/biz/user/grantRole`, `/biz/user/disableUser`, `/biz/user/enableUser`, and `/biz/user/resetPassword` are covered; org/position add/edit remains deferred |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
 | `dev/file` | `upload*`, `delete` | Storage provider, file persistence, and cleanup strategy |
@@ -132,7 +132,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `biz/bizhistoryexcel` | Import/export parsing, `biz_history_excel_row` writes | Base add/edit/delete writes are covered; parser/storage changes remain deferred |
 | `biz/projectrate` | `edit`, image upload/storage cleanup | Add/delete base row writes are covered; Java controller does not expose edit in the current reference |
-| `sys/user`, `sys/userCenter`, and `sys/index` | `import`, admin-side profile edits | Current-user profile/password/workbench/process-config writes, user delete, user role/resource/permission grant saves, user enable/disable, admin reset password, homepage schedule, and message read-state writes are covered; admin-side add/edit still needs security and audit requirements |
+| `sys/user`, `sys/userCenter`, and `sys/index` | `import`, `export`, encrypted-field migration | Current-user profile/password/workbench/process-config writes, admin-side user add/edit, user delete, user role/resource/permission grant saves, user enable/disable, admin reset password, homepage schedule, and message read-state writes are covered |
 | `gen/basic` | `add`, `edit`, `delete`, `previewGen`, `execGenZip`, `execGenPro` | Generator writes or code generation output require a separate module plan |
 
 ## Authentication And Session Gaps

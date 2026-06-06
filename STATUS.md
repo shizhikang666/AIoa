@@ -7218,3 +7218,62 @@ Agent: api-agent
 
 - Commit this user delete compatibility slice.
 - Continue with a focused user add/edit planning slice, because that path needs broader field validation, default-password hashing, org/position validation, uniqueness checks, and role grant coordination.
+
+## 2026-06-06 15:45 +08:00 - user-agent/frontend-agent - User Add Edit Compatibility
+
+### Completed
+
+- Added protected Java-compatible user add/edit routes:
+  - `POST /sys/user/add`
+  - `POST /sys/user/edit`
+  - `POST /biz/user/add`
+  - `POST /biz/user/edit`
+- Added controller handlers for system and business user add/edit forms.
+- Added `UserDirectoryService::addUser` and `UserDirectoryService::editUser` for base `sys_user` profile writes.
+- Added field mapping for copied frontend camelCase form payloads and camelCase detail/page aliases for extended user profile fields.
+- Added validation for required account/name/org/position, account/phone/email uniqueness, active organization, active position, optional director, extra position JSON, tenant compatibility, and non-negative salary.
+- Preserved Java-compatible defaults on add and protected password/status/create metadata on edit.
+- Preserved business user data-scope guarding with organization scope or current-user edit fallback.
+- Updated user add/edit API docs, biz directory docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/user-add-edit-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\UserController.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; all four add/edit routes are listed, route rows count is 368.
+- Direct service smoke: passed; one temporary system user and one temporary business user were created, edited, verified, and physically removed by unique test ids/accounts.
+- Temporary data cleanup check: passed; `codex_` smoke account count returned 0.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for all four new POST routes on the backend root path: returned business `code=401`.
+
+### Current Issues
+
+- User import/export, route-permission middleware, token/session invalidation after profile edits, Java data-change event publishing, and full SM4 encrypted-field migration remain deferred.
+- Direct backend test path is the current PHP server root path; `/think/...` returns a ThinkPHP 404 in this local server mode, while the frontend proxy can still apply its own prefix behavior.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this user add/edit compatibility slice.
+- Continue with user import/export planning or move to the next browser-visible low-risk write/read gap before side-effect-heavy workflow, finance, stock, and sale-project state writes.

@@ -23,6 +23,8 @@ The implementation reuses existing ThinkPHP read services for system organizatio
 | GET | `/biz/user/page` | `sys.UserController/page` |
 | GET | `/biz/user/list/detail` | `sys.UserController/listDetail` |
 | GET | `/biz/user/detail` | `sys.UserController/detail` |
+| POST | `/biz/user/add` | `sys.UserController/bizAdd` |
+| POST | `/biz/user/edit` | `sys.UserController/bizEdit` |
 | GET | `/biz/user/ownRole` | `sys.UserController/ownRole` |
 | POST | `/biz/user/delete` | `sys.UserController/bizDelete` |
 | POST | `/biz/user/disableUser` | `sys.UserController/bizDisableUser` |
@@ -47,6 +49,7 @@ All routes are protected by `AuthMiddleware`.
 
 - `/biz/user/list/detail` returns sanitized user rows and never returns the `PASSWORD` field.
 - `/biz/user/ownRole` reads role IDs from `sys_relation` where `CATEGORY = SYS_USER_HAS_ROLE`.
+- `/biz/user/add` and `/biz/user/edit` write base `sys_user` profile fields with conservative organization data-scope or current-user edit fallback.
 - `/biz/user/delete` logically deletes users and clears affected director references with conservative organization data-scope or current-user fallback.
 - `/biz/user/disableUser` and `/biz/user/enableUser` update only `sys_user.USER_STATUS` with conservative organization data-scope or current-user fallback.
 - `/biz/user/resetPassword` updates only `sys_user.PASSWORD` to the configured default password hash with conservative organization data-scope or current-user fallback.
@@ -56,7 +59,7 @@ All routes are protected by `AuthMiddleware`.
 ## Deferred
 
 - Organization add/edit/delete
-- User add/edit and import/export
+- User import/export
 - General organization-wide profile edit beyond `/biz/user/center/edit`
 - Position add/edit/delete
 - Dictionary edit
@@ -72,6 +75,17 @@ The route delegates to the user-center self-profile writer and mirrors Java `Biz
 
 Still deferred:
 
-- `/biz/user/add`
-- `/biz/user/edit`
-- import/export and organization-wide user management writes
+- import/export and organization-wide side effects beyond base profile writes
+
+## 2026-06-06 User Add Edit Alias
+
+`POST /biz/user/add` and `POST /biz/user/edit` are now routed for the copied business user management form.
+
+The routes delegate to the shared user directory writer and mirror Java `BizUserServiceImpl` behavior for base profile fields, default password/status on add, uniqueness checks, organization/position validation, and organization data-scope guarding.
+
+Still deferred:
+
+- import/export
+- token/session invalidation
+- Java data-change event publishing
+- full SM4 encrypted-field migration

@@ -1536,3 +1536,33 @@ This slice supports copied system and business user delete actions:
 ### Deferred
 
 - Admin-side user add/edit, import/export, route-permission middleware, token/session invalidation after delete, Java data-change events, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Add Edit Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user add/edit forms:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/form.vue`
+- `snowy-admin-web/src/views/biz/user/form.vue`
+
+### Result
+
+- `/sys/user/add` is now routed as a protected POST endpoint.
+- `/sys/user/edit` is now routed as a protected POST endpoint.
+- `/biz/user/add` is now routed as a protected POST endpoint.
+- `/biz/user/edit` is now routed as a protected POST endpoint.
+- The backend accepts the existing camelCase form payload and stores matching `sys_user` physical columns.
+- Detail/page responses expose camelCase aliases for the extended profile fields used by the forms.
+- Add sets default password hash, enabled status, not-deleted flag, tenant id, avatar fallback, bank defaults, and company employee id.
+- Edit preserves password, status, tenant id, delete flag, and create metadata.
+- Business add/edit enforces conservative organization data-scope or current-user edit fallback.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Import/export, route-permission middleware, token/session invalidation after profile changes, Java data-change events, and full SM4 encrypted-field migration remain out of scope.
