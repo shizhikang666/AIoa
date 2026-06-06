@@ -22,6 +22,9 @@ ThinkPHP outputs:
 - `GET /biz/bizproduct/list`
 - `GET /biz/bizproduct/detail`
 - `POST /biz/bizproduct/children`
+- `POST /biz/bizproduct/add`
+- `POST /biz/bizproduct/edit`
+- `POST /biz/bizproduct/delete`
 - `POST /biz/bizproduct/edit/status`
 - `POST /biz/bizproduct/reconciliation/edit`
 
@@ -35,7 +38,69 @@ ThinkPHP outputs:
 - `page` hides disabled products by default unless `showDisabledProducts=true`, matching the Java service.
 - Reads preserve the imported physical schema, including lower-case `status` in `biz_product`.
 
-## Lightweight Write Behavior
+## Write Behavior
+
+### Product add
+
+`POST /biz/bizproduct/add`
+
+Required fields:
+
+- `productName`
+- `category`
+- `productCategory`
+- `safetyStock`
+- `purchasePrice`
+- `salePrice`
+- `minPrice`
+
+Optional fields:
+
+- `specs`
+- `coverImage`
+- `productList`
+
+Supported `category` values:
+
+- `SINGLE_PRODUCT`
+- `KIT_PRODUCT`
+
+Add writes one active `biz_product` row with Java-compatible audit, tenant, organization, status, and base product fields. For `KIT_PRODUCT`, `productList` is required and each child item must provide a unique active product id plus `number >= 1`; the endpoint then writes `product_relation` rows with `CATEGORY = KIT_PRODUCT_DATA`.
+
+### Product edit
+
+`POST /biz/bizproduct/edit`
+
+Required fields:
+
+- `id`
+
+Optional fields:
+
+- `productName`
+- `productCategory`
+- `safetyStock`
+- `purchasePrice`
+- `salePrice`
+- `minPrice`
+- `specs`
+- `coverImage`
+- `productList`
+
+Edit validates active product write scope, updates only submitted base fields plus audit fields, and intentionally does not change `CATEGORY` because Java `BizProductEditParam` does not expose it. When the existing product is `KIT_PRODUCT` and `productList` is submitted, the endpoint clears and replaces only that product object's `KIT_PRODUCT_DATA` relation rows, mirroring Java `saveRelationBatchWithClear`.
+
+### Product delete
+
+`POST /biz/bizproduct/delete`
+
+Accepted payloads:
+
+- Java-style array body: `[{ "id": "..." }]`
+- `idList`
+- `ids`
+- single `id`
+
+Delete validates every active product write scope, rejects products referenced as kit child products, and logically deletes `biz_product` rows with `DELETE_FLAG = DELETED`. Imported product rows are not physically deleted.
 
 ### Product status edit
 
@@ -75,10 +140,8 @@ The endpoint validates every active product id and write scope, then updates onl
 
 ## Deferred
 
-- No `/biz/bizproduct/add` route.
-- No `/biz/bizproduct/edit` route.
-- No `/biz/bizproduct/delete` route.
-- No product relation writes, cache events, inventory changes, purchase writes, sale-project writes, workflow actions, or Java source changes.
+- No cache events, inventory changes, purchase writes, sale-project writes, finance transaction writes, workflow actions, file upload/storage implementation, or Java source changes.
+- Product relation writes are limited to Java-equivalent `KIT_PRODUCT_DATA` clear-and-replace for the product object currently being added or edited.
 
 ## Notes
 

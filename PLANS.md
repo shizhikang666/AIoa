@@ -6763,3 +6763,76 @@ git diff --check
 - Do not implement `/biz/bizproduct/add`, `/edit`, or `/delete`.
 - Do not modify `product_relation`.
 - Do not implement stock, purchase, sale-project, finance transaction, workflow, file upload/storage, Java source, database schema, Composer, `.env`, or frontend source changes.
+
+## Active Plan: api-agent/frontend-agent - Product Base Maintenance Compatibility
+
+Status: completed on 2026-06-06 after implementation, service smoke, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected product base maintenance endpoints used by the copied product page and product form:
+
+- `POST /biz/bizproduct/add`
+- `POST /biz/bizproduct/edit`
+- `POST /biz/bizproduct/delete`
+
+This slice maintains `biz_product` base rows and Java-style kit-product relations in `product_relation` for category `KIT_PRODUCT_DATA`. Inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and Java data-change/cache event behavior stay deferred.
+
+### 2. Involved Modules
+
+- api-agent product API compatibility
+- frontend-agent copied product table/form compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/ProductController.php`
+- `app/service/biz/ProductService.php`
+- `route/app.php`
+- `docs/api/biz-product-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java saves kit products by clearing and replacing `product_relation` rows for the product object; this slice may physically replace only relations for the product currently being edited.
+- Product deletion must not remove imported relation rows; it should block products referenced as kit children and logically delete only `biz_product` rows.
+- Product rows are used by inventory, purchase, sale-project, and reports, so this slice must not update stock, sales project items, purchase orders, or finance records.
+- File upload/storage for `coverImage` remains separate; this slice stores submitted cover image ids/paths as-is.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\ProductController.php
+php -l app\service\biz\ProductService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Product `add`, `edit`, and `delete` routes are registered behind token middleware.
+- Add requires Java-required product base fields: `productName`, `category`, `productCategory`, `safetyStock`, `purchasePrice`, `salePrice`, and `minPrice`.
+- Add accepts optional `specs` and `coverImage`, defaults `status = ENABLE`, writes tenant/audit fields, and defaults `ORG` from the current token user.
+- Add for `KIT_PRODUCT` validates non-empty unique `productList`, each quantity >= 1, every child product exists and is active, and writes `product_relation` rows for `KIT_PRODUCT_DATA`.
+- Edit requires `id`, validates active product write scope, updates submitted base fields and audit fields, and replaces kit relations only when the existing product is `KIT_PRODUCT` and `productList` is submitted.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or single `id`, rejects products referenced as kit child targets, validates write scope, and logically deletes selected `biz_product` rows with `DELETE_FLAG = DELETED`.
+- Java source, database schema, frontend source, inventory, purchase, sale-project, finance transaction, workflow, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement stock updates, purchase-order writes, sale-project item writes, finance transaction writes, workflow actions, file upload/storage, Java data-change/cache events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+- Do not physically delete imported `biz_product` rows.
+- Do not clear product relations except the Java-equivalent `KIT_PRODUCT_DATA` relations for the product object currently being added/edited.

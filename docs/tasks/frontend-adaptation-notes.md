@@ -1112,3 +1112,29 @@ This slice supports two copied product list operations:
 ### Deferred
 
 - Product add, edit, delete, kit product relation writes, inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and Java data-change/cache event behavior remain out of scope.
+
+## 2026-06-06 Product Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied product table and form maintenance flow:
+
+- `snowy-admin-web/src/api/biz/bizProductApi.js`
+- `snowy-admin-web/src/views/biz/bizproduct/index.vue`
+- `snowy-admin-web/src/views/biz/bizproduct/form.vue`
+
+### Result
+
+- `/biz/bizproduct/add` is now routed as a protected POST endpoint.
+- `/biz/bizproduct/edit` is now routed as a protected POST endpoint.
+- `/biz/bizproduct/delete` is now routed as a protected POST endpoint.
+- Add validates Java-required product fields and writes active `biz_product` rows with audit, tenant, organization, and default `status = ENABLE`.
+- Kit product add/edit validates unique child products and quantities, then writes Java-compatible `product_relation` rows with `CATEGORY = KIT_PRODUCT_DATA`.
+- Edit updates only submitted base fields and does not change `CATEGORY`, matching Java `BizProductEditParam`.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads, blocks products referenced as kit children, and uses logical deletion.
+
+### Deferred
+
+- Inventory stock updates, purchase-order writes, sale-project item writes, finance transaction writes, workflow actions, file upload/storage implementation, and Java data-change/cache event behavior remain out of scope.

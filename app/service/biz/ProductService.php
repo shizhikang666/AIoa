@@ -8,13 +8,16 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only product queries compatible with Java BizProductController.
+ * Product query and base-maintenance compatibility for Java BizProductController.
  */
 class ProductService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const ENABLE = 'ENABLE';
     private const DISABLE = 'DISABLE';
+    private const KIT_PRODUCT = 'KIT_PRODUCT';
+    private const SINGLE_PRODUCT = 'SINGLE_PRODUCT';
     private const KIT_PRODUCT_DATA = 'KIT_PRODUCT_DATA';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
@@ -114,6 +117,94 @@ class ProductService
         }, $relations));
     }
 
+    public function add(array $input, array $payload = []): array
+    {
+        $category = $this->requiredInput($input, 'category');
+        $this->assertProductCategory($category);
+        $this->validateRequiredProductInput($input);
+
+        return Db::transaction(function () use ($input, $payload, $category): array {
+            $userId = $this->currentUserId($payload);
+            $tenantId = $this->tenantId($input, $payload);
+            $id = $this->newId();
+            $row = [
+                'ID' => $id,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => date('Y-m-d H:i:s'),
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId,
+                'ORG' => $this->defaultOrgId($payload),
+                'status' => self::ENABLE,
+            ];
+
+            $this->applyProductInput($row, $input, true);
+            $this->assertNewProductWritable($row, $payload);
+
+            Db::name('biz_product')->insert($row);
+
+            if ($category === self::KIT_PRODUCT) {
+                $this->syncKitRelations($id, $input['productList'] ?? [], $tenantId);
+            }
+
+            return ['id' => $id];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $product = $this->assertProductWritable($id, $payload, 'edit');
+            $row = $this->auditFields($payload);
+            $this->applyProductInput($row, $input, false);
+
+            $updated = Db::name('biz_product')
+                ->where('ID', $id)
+                ->update($row);
+
+            if ((string)($product['CATEGORY'] ?? '') === self::KIT_PRODUCT && array_key_exists('productList', $input)) {
+                $tenantId = trim((string)($product['TENANT_ID'] ?? ''));
+                $this->syncKitRelations($id, $input['productList'], $tenantId !== '' ? $tenantId : '1');
+            }
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->normalizeIdList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            foreach ($idList as $id) {
+                $this->assertProductWritable($id, $payload, 'delete');
+            }
+
+            $referencingKitNames = $this->referencingKitNames($idList);
+            if ($referencingKitNames !== []) {
+                throw new RuntimeException('product referenced by kit product: ' . implode(',', $referencingKitNames), 409);
+            }
+
+            $updated = Db::name('biz_product')
+                ->whereIn('ID', $idList)
+                ->update(array_merge(
+                    ['DELETE_FLAG' => self::DELETED],
+                    $this->auditFields($payload)
+                ));
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
+    }
+
     public function editStatus(array $input, array $payload = []): array
     {
         $id = $this->requiredInput($input, 'id');
@@ -161,6 +252,206 @@ class ProductService
 
             return ['ids' => $ids, 'count' => $updated];
         });
+    }
+
+    private function validateRequiredProductInput(array $input): void
+    {
+        foreach (['productName', 'productCategory'] as $key) {
+            $this->requiredInput($input, $key);
+        }
+
+        foreach (['safetyStock', 'purchasePrice', 'salePrice', 'minPrice'] as $key) {
+            $this->requiredDecimalInput($input, $key);
+        }
+    }
+
+    private function applyProductInput(array &$row, array $input, bool $allowCategory): void
+    {
+        foreach ([
+            'productName' => 'PRODUCT_NAME',
+            'productCategory' => 'PRODUCT_CATEGORY',
+        ] as $inputKey => $column) {
+            if (array_key_exists($inputKey, $input)) {
+                $row[$column] = $this->requiredInput($input, $inputKey);
+            }
+        }
+
+        foreach ([
+            'safetyStock' => 'SAFETY_STOCK',
+            'purchasePrice' => 'PURCHASE_PRICE',
+            'salePrice' => 'SALE_PRICE',
+            'minPrice' => 'MIN_PRICE',
+        ] as $inputKey => $column) {
+            if (array_key_exists($inputKey, $input)) {
+                $row[$column] = $this->requiredDecimalInput($input, $inputKey);
+            }
+        }
+
+        foreach ([
+            'specs' => 'SPECS',
+            'coverImage' => 'COVER_IMAGE',
+        ] as $inputKey => $column) {
+            if (array_key_exists($inputKey, $input)) {
+                $row[$column] = $this->nullableString($input[$inputKey]);
+            }
+        }
+
+        if ($allowCategory && array_key_exists('category', $input)) {
+            $category = $this->requiredInput($input, 'category');
+            $this->assertProductCategory($category);
+            $row['CATEGORY'] = $category;
+        }
+    }
+
+    private function assertNewProductWritable(array $row, array $payload): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $productOrg = trim((string)($row['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && in_array($productOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to add this product', 403);
+    }
+
+    /**
+     * @param mixed $productList
+     * @return array<int, array{id: string, number: int}>
+     */
+    private function kitProductItems(mixed $productList): array
+    {
+        if (is_string($productList)) {
+            $decoded = json_decode($productList, true);
+            $productList = is_array($decoded) ? $decoded : [];
+        }
+
+        if (!is_array($productList)) {
+            return [];
+        }
+
+        $items = [];
+        $seen = [];
+        foreach ($productList as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $id = trim((string)($item['id'] ?? $item['ID'] ?? $item['productId'] ?? ''));
+            $number = (int)($item['number'] ?? 0);
+            if ($id === '' || $number < 1) {
+                throw new RuntimeException('invalid kit product item', 400);
+            }
+
+            if (isset($seen[$id])) {
+                throw new RuntimeException('duplicate kit product item', 400);
+            }
+
+            $seen[$id] = true;
+            $items[] = ['id' => $id, 'number' => $number];
+        }
+
+        return $items;
+    }
+
+    private function syncKitRelations(string $productId, mixed $productList, string $tenantId): void
+    {
+        $items = $this->kitProductItems($productList);
+        if ($items === []) {
+            throw new RuntimeException('kit product items required', 400);
+        }
+
+        $targetIds = array_column($items, 'id');
+        if (in_array($productId, $targetIds, true)) {
+            throw new RuntimeException('kit product cannot contain itself', 400);
+        }
+
+        $rows = Db::name('biz_product')
+            ->whereIn('ID', $targetIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->select()
+            ->toArray();
+        if (count($rows) !== count($targetIds)) {
+            throw new RuntimeException('kit product item verification failed', 400);
+        }
+
+        $productsById = [];
+        foreach ($this->productRows($rows) as $product) {
+            $productsById[(string)$product['id']] = $product;
+        }
+
+        Db::name('product_relation')
+            ->where('OBJECT_ID', $productId)
+            ->where('CATEGORY', self::KIT_PRODUCT_DATA)
+            ->delete();
+
+        $relationRows = [];
+        foreach ($items as $item) {
+            $childProduct = $productsById[$item['id']] ?? null;
+            if ($childProduct === null) {
+                throw new RuntimeException('kit product item verification failed', 400);
+            }
+
+            $relationRows[] = [
+                'ID' => $this->newId(),
+                'OBJECT_ID' => $productId,
+                'TARGET_ID' => $item['id'],
+                'CATEGORY' => self::KIT_PRODUCT_DATA,
+                'EXT_JSON' => json_encode([
+                    'number' => $item['number'],
+                    'product' => $childProduct,
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'TENANT_ID' => $tenantId !== '' ? $tenantId : '1',
+            ];
+        }
+
+        if ($relationRows !== []) {
+            Db::name('product_relation')->insertAll($relationRows);
+        }
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<int, string>
+     */
+    private function referencingKitNames(array $ids): array
+    {
+        $relations = Db::name('product_relation')
+            ->whereIn('TARGET_ID', $ids)
+            ->where('CATEGORY', self::KIT_PRODUCT_DATA)
+            ->select()
+            ->toArray();
+        if ($relations === []) {
+            return [];
+        }
+
+        $objectIds = array_values(array_unique(array_filter(array_map(
+            static fn (array $row): string => trim((string)($row['OBJECT_ID'] ?? '')),
+            $relations
+        ))));
+        if ($objectIds === []) {
+            return ['unknown kit product'];
+        }
+
+        $names = Db::name('biz_product')
+            ->whereIn('ID', $objectIds)
+            ->column('PRODUCT_NAME');
+
+        return array_values(array_filter(array_map(
+            static fn (mixed $name): string => trim((string)$name),
+            $names
+        )));
     }
 
     private function assertProductWritable(string $id, array $payload, string $action): array
@@ -254,6 +545,79 @@ class ProductService
         }
 
         return $value;
+    }
+
+    private function requiredDecimalInput(array $input, string $key): string
+    {
+        if (!array_key_exists($key, $input)) {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        $value = $this->nullableDecimal($input[$key], $key);
+        if ($value === null) {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_array($value)) {
+            $value = implode(',', array_map(static fn (mixed $item): string => trim((string)$item), $value));
+        }
+
+        $value = trim((string)$value);
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function assertProductCategory(string $category): void
+    {
+        if (!in_array($category, [self::SINGLE_PRODUCT, self::KIT_PRODUCT], true)) {
+            throw new RuntimeException('unsupported product category', 400);
+        }
+    }
+
+    private function tenantId(array $input, array $payload): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function defaultOrgId(array $payload): ?string
+    {
+        $orgId = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($orgId !== '') {
+            return $orgId;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId === '') {
+            return null;
+        }
+
+        $row = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->field('ORG_ID')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            return null;
+        }
+
+        $orgId = trim((string)($row['ORG_ID'] ?? ''));
+
+        return $orgId !== '' ? $orgId : null;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function assertStatus(string $status): void

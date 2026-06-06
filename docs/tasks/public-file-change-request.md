@@ -3242,3 +3242,37 @@ Java exposes `/biz/bizproduct/edit/status` and `/biz/bizproduct/reconciliation/e
 - Status edit should validate `ENABLE`/`DISABLE` and product write access.
 - Reconciliation edit should validate selected product ids, `ENABLE`/`DISABLE`, non-negative amount, and product write access.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Product Base Maintenance Routes
+
+## Request
+
+Register protected product add, edit, and delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizproduct/add`, `/edit`, and `/delete`, and the copied Vue product table/form calls these endpoints through `bizProductApi.js`. Existing ThinkPHP routes already cover product reads, children reads, status edits, and reconciliation edits; this slice opens only base product-row maintenance plus Java-compatible kit product relation maintenance.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/bizproduct/add`
+- `POST /biz/bizproduct/edit`
+- `POST /biz/bizproduct/delete`
+
+## Explicit Exclusions
+
+- No inventory stock update, purchase-order write, sale-project item write, finance transaction write, workflow action, file upload/storage implementation, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Deletes use logical deletion through `DELETE_FLAG = DELETED` instead of physically deleting imported product rows.
+- Product relation writes are limited to clearing and replacing `KIT_PRODUCT_DATA` rows for the product object currently being added or edited.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Add should validate Java-required product fields and default `status` to `ENABLE`.
+- Kit product add/edit should validate child product ids and quantities, then write `product_relation.CATEGORY = KIT_PRODUCT_DATA`.
+- Delete should reject products referenced as kit children.
+- Requests without token should return `code=401`.

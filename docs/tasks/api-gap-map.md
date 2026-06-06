@@ -1,6 +1,6 @@
 # Frontend API Gap Map
 
-Date: 2026-06-05
+Date: 2026-06-06
 
 Agent: frontend-agent / main control agent
 
@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 329 | From `php think route:list` after product status/reconciliation route addition |
-| Endpoints already covered by route path | 317 | Includes read adapters, auth/system routes, and selected low-risk writes |
+| Current ThinkPHP routes | 332 | From `php think route:list` after product base maintenance route addition |
+| Endpoints already covered by route path | 320 | Includes read adapters, auth/system routes, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 159 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
+| Deferred write/side-effect candidates | 156 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
 
@@ -41,7 +41,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | Metadata/list/detail and monitor reads; mutation routes remain deferred |
 | `mobile/menu` and `mobile/resource` | Mobile menu/resource read compatibility |
 | `gen/basic`, `gen/config`, `tenant` | Read-only compatibility routes |
-| `biz/product`, `biz/supplier`, `biz/settlementaccount` | Core master-data read adapters; product status/reconciliation and supplier base add/edit/delete are covered |
+| `biz/product`, `biz/supplier`, `biz/settlementaccount` | Core master-data read adapters; product base add/edit/delete, kit relation maintenance, product status/reconciliation, and supplier base add/edit/delete are covered |
 | `biz/bizpaymentrecord`, `biz/bizexpenditurerecord`, `biz/bizdebitnote` | Finance read adapters |
 | `biz/bizpurchaserequest`, `biz/bizpurchaseorder`, `biz/warehouses`, `biz/inventory`, `biz/delivery`, `biz/returnorder` | Purchase, warehouse, inventory, delivery, return read slices; warehouse base add/edit/delete is covered |
 | `biz/saleprojectproductinfo` | Sale-project software package/version info reads and base add/edit/delete writes |
@@ -125,7 +125,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `dev/message` | `send`, `delete`, `createSseConnect` | Messaging/SSE behavior must match Java expectations |
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
-| `biz/bizproduct` | `add`, `edit`, `delete`, kit product relation writes | Status toggle and reconciliation edits are covered; product base CRUD and relation writes need a separate plan |
+| `biz/bizproduct` | Inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and data-change/cache side effects | Product base add/edit/delete, kit relation maintenance, status toggle, and reconciliation edits are covered |
 | `biz/salesprojectfieldchangelog` | Sale-project amount/change generation, workflow, finance, audit side effects | Add/edit/delete base log-row writes are covered |
 | `biz/ccrecords` | `add`, `edit`, workflow copy-user delegate writes | Delete is covered as current-user logical delete; generation still belongs to workflow write runtime |
 | `biz/teamproject comments and tasks` | notification push, data-change events, generated task logs, full task drag ordering, member role edit | Member add/manage-add/delete, comment/reply base writes, task add/edit/delete base rows, task comment add/edit/delete for `COMMENT` rows, task category add/edit/sort/delete, and task assignee sync are covered with member/resource-permission guards; push and data-change side effects remain deferred |

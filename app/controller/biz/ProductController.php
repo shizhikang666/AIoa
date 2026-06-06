@@ -35,6 +35,25 @@ class ProductController extends BaseSysController
         return $this->guard(fn () => $this->productService->children($this->childrenInput($request)));
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->productService->add($this->body($request), $this->authPayload($request)));
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->productService->edit($this->body($request), $this->authPayload($request)));
+    }
+
+    public function delete(Request $request): Response
+    {
+        return $this->guard(function () use ($request): array {
+            $input = $this->body($request);
+
+            return $this->productService->delete($this->deleteIds($request, $input), $this->authPayload($request));
+        });
+    }
+
     public function editStatus(Request $request): Response
     {
         return $this->guard(fn () => $this->productService->editStatus($this->body($request), $this->authPayload($request)));
@@ -93,5 +112,20 @@ class ProductController extends BaseSysController
         }
 
         return $request->param();
+    }
+
+    private function deleteIds(Request $request, array $input): array
+    {
+        if (isset($input[0])) {
+            return $input;
+        }
+
+        foreach (['idList', 'ids', 'id'] as $key) {
+            if (array_key_exists($key, $input)) {
+                return is_array($input[$key]) ? $input[$key] : [(string)$input[$key]];
+            }
+        }
+
+        return $this->idList($request);
     }
 }

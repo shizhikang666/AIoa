@@ -360,3 +360,22 @@ Explicit non-goals:
 - No inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, or data-change/cache event behavior.
 - No Java source, schema, Composer, `.env`, or frontend source changes.
 
+## 2026-06-06 Product Base Maintenance Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `BizProductController`, `BizProductServiceImpl`, product add/edit/delete params, copied `bizProductApi.js`, and the ThinkPHP product read/status service.
+2. Added only product base add, edit, and logical delete handlers.
+3. Preserved lower-case physical `biz_product.status`, uppercase base product columns, and Java-style `product_relation.CATEGORY = KIT_PRODUCT_DATA`.
+4. Validated writes through admin-compatible roles, scoped organization ids, or matching product creator.
+5. Registered only `/biz/bizproduct/add`, `/edit`, and `/delete` in `route/app.php`.
+6. Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No inventory stock updates.
+- No purchase-order, sale-project item, finance transaction, workflow, file upload/storage, or Java data-change/cache side effects.
+- No Java source, schema, Composer, `.env`, or frontend source changes.
+

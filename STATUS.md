@@ -6327,3 +6327,53 @@ Agent: api-agent
 
 - Commit and push this product status/reconciliation compatibility slice.
 - Continue with another isolated low-risk frontend-visible route, or split product base add/edit/delete plus kit relation writes into a separate plan before touching it.
+
+## 2026-06-06 09:41 +08:00 - api-agent/frontend-agent - Product Base Maintenance Compatibility
+
+### Completed
+
+- Added protected compatibility routes for product add, edit, and delete.
+- Added `ProductController` POST handlers with JSON/form body parsing and Java-style delete payload compatibility.
+- Added `ProductService` base product maintenance logic for Java-required field validation, status/default audit fields, tenant/org defaults, write-scope validation, kit-product child validation, `product_relation.CATEGORY = KIT_PRODUCT_DATA` clear-and-replace, referenced-child delete blocking, and logical deletion.
+- Updated product API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+- Kept the local backend on `http://127.0.0.1:82/` and the copied Vue frontend on `http://127.0.0.1:83/` for joint smoke testing.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/ProductController.php`
+- `app/service/biz/ProductService.php`
+- `route/app.php`
+- `docs/api/biz-product-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\ProductController.php`: passed.
+- `php -l app\service\biz\ProductService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; single product `1780709947044271606` was added, edited, and logically deleted; kit product `1780709947533366689` was added with two child relations, rejected deletion of referenced child product `1843547479813316610`, replaced kit relations with one quantity-3 child relation, then was logically deleted. The generated smoke kit relation rows were physically cleaned because they belonged only to this temporary test product object.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 332 route entries; product `add`, `edit`, `delete`, `edit/status`, and `reconciliation/edit` are listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 232 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP smoke for `POST /biz/bizproduct/add`: returned business `code=401`.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- Inventory stock updates, purchase-order writes, sale-project item writes, finance transaction writes, workflow actions, file upload/storage implementation, and Java data-change/cache events remain deferred by design.
+- The smoke test intentionally leaves logically deleted product rows in the local database for traceability instead of physically deleting imported-style data.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this product base maintenance compatibility slice.
+- Continue the next isolated frontend-visible write/read compatibility slice, avoiding stock, finance, workflow, and sale-project state side effects until their module-specific plans are opened.
