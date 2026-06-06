@@ -7798,3 +7798,75 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement user add/edit/delete, reset-password-by-admin, import/export, role/resource/permission grant changes, route-permission middleware, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
+
+## Active Plan: user-agent/frontend-agent - User Reset Password Compatibility
+
+Status: completed on 2026-06-06 after reset-password service smoke with original password restoration, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected admin reset-password endpoints used by the copied system and business user pages:
+
+- `POST /sys/user/resetPassword`
+- `POST /biz/user/resetPassword`
+
+This slice only updates `sys_user.PASSWORD` to the SM3 hash of the configured system default password.
+
+### 2. Involved Modules
+
+- user-agent admin user password reset compatibility
+- frontend-agent copied system/business user reset-password menu compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/api/user-reset-password-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- The default password value is sensitive enough to avoid printing in test output, logs, or status reports.
+- Business reset must preserve Java's conservative data-scope or current-user fallback before saving.
+- Smoke tests must restore the sampled user's original `PASSWORD` hash.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\UserController.php
+php -l app\service\user\UserDirectoryService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Both reset-password routes are registered behind `AuthMiddleware`.
+- Requests accept Java-style `{ id }` JSON/body payloads.
+- System route updates only `sys_user.PASSWORD` after admin/permission guard.
+- Business route also enforces organization data-scope or current-user fallback before saving.
+- Default password is read from `dev_config.CONFIG_KEY = SNOWY_SYS_DEFAULT_PASSWORD` and hashed with existing SM3 compatibility.
+- Smoke tests restore the original password hash after each reset path.
+- Java source, database schema, Composer files, `.env`, frontend source, user CRUD, import/export, token invalidation, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement user add/edit/delete, import/export, route-permission middleware, token/session invalidation on reset, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.

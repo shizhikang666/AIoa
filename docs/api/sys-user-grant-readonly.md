@@ -23,7 +23,9 @@ The Java source project remains read-only:
 | POST | `/sys/user/grantRole` | Clear and rewrite user role relations. |
 | POST | `/sys/user/grantResource` | Clear and rewrite user menu/button resource relations. |
 | POST | `/sys/user/grantPermission` | Clear and rewrite user API/data-scope permission relations. |
+| POST | `/sys/user/resetPassword` | Reset a user's password to the configured system default password hash. |
 | POST | `/biz/user/grantRole` | Clear and rewrite business user role relations with conservative data-scope checks. |
+| POST | `/biz/user/resetPassword` | Reset a business user's password with conservative data-scope checks. |
 
 All routes are protected by `AuthMiddleware`.
 
@@ -50,6 +52,8 @@ All routes are protected by `AuthMiddleware`.
 - `EXT_JSON` preserves Java-compatible `{ apiUrl, scopeCategory, scopeDefineOrgIdList }` payloads.
 - `scopeCategory` is constrained to Java/frontend data-scope values.
 - Custom data-scope organization ids are validated against active `sys_org` rows.
+- `resetPassword` accepts `{ id }`, reads the configured default password from `dev_config`, hashes it with existing SM3 compatibility, and updates only `sys_user.PASSWORD`.
+- The reset-password response never returns the default password value or hash.
 
 ## Deferred
 
@@ -57,7 +61,6 @@ The following remain intentionally deferred:
 
 - user add/edit/delete
 - enable/disable user
-- reset password
 - import/export
 - Java source changes
 - database schema changes

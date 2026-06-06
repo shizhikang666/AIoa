@@ -26,6 +26,7 @@ The implementation reuses existing ThinkPHP read services for system organizatio
 | GET | `/biz/user/ownRole` | `sys.UserController/ownRole` |
 | POST | `/biz/user/disableUser` | `sys.UserController/bizDisableUser` |
 | POST | `/biz/user/enableUser` | `sys.UserController/bizEnableUser` |
+| POST | `/biz/user/resetPassword` | `sys.UserController/bizResetPassword` |
 | GET | `/biz/user/orgTreeSelector` | `sys.UserController/orgTreeSelector` |
 | GET | `/biz/user/positionSelector` | `sys.UserController/positionSelector` |
 | GET | `/biz/user/roleSelector` | `sys.UserController/roleSelector` |
@@ -46,6 +47,7 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/user/list/detail` returns sanitized user rows and never returns the `PASSWORD` field.
 - `/biz/user/ownRole` reads role IDs from `sys_relation` where `CATEGORY = SYS_USER_HAS_ROLE`.
 - `/biz/user/disableUser` and `/biz/user/enableUser` update only `sys_user.USER_STATUS` with conservative organization data-scope or current-user fallback.
+- `/biz/user/resetPassword` updates only `sys_user.PASSWORD` to the configured default password hash with conservative organization data-scope or current-user fallback.
 - `/biz/dict/treeAll` returns the dictionary tree without tenant-specific filtering for frontend compatibility.
 - Selector responses keep existing `id`, `value`, `label`, `title`, and display-name aliases.
 
@@ -71,5 +73,4 @@ Still deferred:
 - `/biz/user/add`
 - `/biz/user/edit`
 - `/biz/user/delete`
-- `/biz/user/resetPassword`
-- grants, import/export, and organization-wide user management writes
+- import/export and organization-wide user management writes

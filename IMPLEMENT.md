@@ -649,3 +649,23 @@ Explicit non-goals:
 - No reset-password-by-admin, import/export, token/session invalidation on status change, or route-permission middleware implementation.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, grants, or unrelated business module changes.
 
+## 2026-06-06 User Reset Password Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserController.resetPassword`, `SysUserServiceImpl.resetPassword`, `BizUserController.resetPassword`, `BizUserServiceImpl.resetPassword`, and copied `sys/userApi.js` / `biz/bizUserApi.js`.
+2. Added `UserController.resetPassword` and `UserController.bizResetPassword` for copied system and business user row actions.
+3. Added `UserDirectoryService::resetPassword` to update only `sys_user.PASSWORD`.
+4. Read the configured system default password from `dev_config` and hashed it through existing SM3 compatibility without returning or printing the value.
+5. Preserved Java's business data-scope behavior with conservative organization scope or current-user fallback.
+6. Registered protected `/sys/user/resetPassword` and `/biz/user/resetPassword` routes in `route/app.php`.
+7. Updated reset-password API docs, biz directory docs, user grant/status docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No user add/edit/delete implementation.
+- No import/export, token/session invalidation after reset, route-permission middleware implementation, or encrypted profile-field migration.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, grants, or unrelated business module changes.
+

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\user;
 
+use app\service\auth\Sm3Hasher;
 use app\model\SysOrg;
 use app\model\SysPosition;
 use app\model\SysRelation;
@@ -21,6 +22,7 @@ class UserDirectoryService
     private const NOT_DELETE = 'NOT_DELETE';
     private const WORKBENCH_CATEGORY = 'SYS_USER_WORKBENCH_DATA';
     private const DEFAULT_WORKBENCH_KEY = 'SNOWY_SYS_DEFAULT_WORKBENCH_DATA';
+    private const DEFAULT_PASSWORD_KEY = 'SNOWY_SYS_DEFAULT_PASSWORD';
     private const MESSAGE_TO_USER_CATEGORY = 'MSG_TO_USER';
     private const USER_HAS_ROLE = 'SYS_USER_HAS_ROLE';
     private const USER_HAS_RESOURCE = 'SYS_USER_HAS_RESOURCE';
@@ -152,6 +154,32 @@ class UserDirectoryService
             'id' => $id,
             'userStatus' => $status,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function resetPassword(array $input, mixed $payload = [], bool $bizScope = false): array
+    {
+        $id = trim((string)($input['id'] ?? ''));
+        if ($id === '') {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $user = $this->activeUserRow($id);
+        $this->ensureResetPasswordAllowed($payload, $user, $bizScope);
+        $this->ensureTenantCompatible($payload, $user);
+
+        Db::name('sys_user')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update(['PASSWORD' => $this->defaultPasswordHash()]);
+
+        return ['id' => $id];
     }
 
     /**
@@ -830,6 +858,34 @@ class UserDirectoryService
      * @param array<string, mixed> $payload
      * @param array<string, mixed> $user
      */
+    private function ensureResetPasswordAllowed(array $payload, array $user, bool $bizScope): void
+    {
+        $admin = $this->isAdminCompatible($payload);
+        if (!$admin && !$this->hasResetPasswordPermission($payload, $bizScope)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        if (!$bizScope || $admin) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $targetOrgId = trim((string)($user['ORG_ID'] ?? ''));
+        if ($scopeOrgIds !== [] && $targetOrgId !== '' && in_array($targetOrgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        if ($this->payloadUserId($payload) === (string)($user['ID'] ?? '')) {
+            return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $user
+     */
     private function ensureTenantCompatible(array $payload, array $user): void
     {
         $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
@@ -881,6 +937,33 @@ class UserDirectoryService
         $needles = $bizScope
             ? ["/biz/user/{$action}", "bizuser{$action}", 'bizuserupdatastatus']
             : ["/sys/user/{$action}", "sysuser{$action}", 'sysuserupdatestatus'];
+
+        foreach ($codes as $code) {
+            $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
+            $lower = strtolower($code);
+            foreach ($needles as $needle) {
+                if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function hasResetPasswordPermission(array $payload, bool $bizScope): bool
+    {
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+        $needles = $bizScope
+            ? ['/biz/user/resetpassword', 'bizuserresetpassword', 'bizuserpwdreset']
+            : ['/sys/user/resetpassword', 'sysuserresetpassword', 'sysuserpwdreset'];
 
         foreach ($codes as $code) {
             $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
@@ -1508,6 +1591,23 @@ class UserDirectoryService
         $workbench = is_string($value) ? trim($value) : '';
 
         return $workbench !== '' ? $workbench : '{"shortcut":[]}';
+    }
+
+    private function defaultPasswordHash(): string
+    {
+        $value = Db::name('dev_config')
+            ->where('CONFIG_KEY', self::DEFAULT_PASSWORD_KEY)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->value('CONFIG_VALUE');
+
+        $defaultPassword = is_string($value) ? trim($value) : '';
+        if ($defaultPassword === '') {
+            throw new RuntimeException('default password not configured', 500);
+        }
+
+        return Sm3Hasher::hash($defaultPassword);
     }
 
     /**

@@ -54,6 +54,15 @@ class UserController extends BaseSysController
         ));
     }
 
+    public function resetPassword(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->resetPassword(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            false
+        ));
+    }
+
     public function bizDisableUser(Request $request): Response
     {
         return $this->guard(fn () => $this->userDirectoryService->setUserStatus(
@@ -70,6 +79,15 @@ class UserController extends BaseSysController
             $this->bodyInput($request),
             $request->middleware('auth_payload', []),
             'ENABLE',
+            true
+        ));
+    }
+
+    public function bizResetPassword(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->resetPassword(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
             true
         ));
     }

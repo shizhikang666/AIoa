@@ -1483,3 +1483,29 @@ This slice supports copied system and business user table status switches:
 ### Deferred
 
 - Admin-side user add/edit/delete, reset-password-by-admin, import/export, route-permission middleware, token/session invalidation on status change, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Reset Password Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user reset-password row actions:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/resetPassword` is now routed as a protected POST endpoint.
+- `/biz/user/resetPassword` is now routed as a protected POST endpoint.
+- Both endpoints accept `{ id }` from the copied frontend row action.
+- Save updates only `sys_user.PASSWORD` to the configured default password SM3 hash.
+- The default password value and hash are never returned to the frontend.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Admin-side user add/edit/delete, import/export, route-permission middleware, token/session invalidation after reset, and encrypted profile-field migration remain out of scope.

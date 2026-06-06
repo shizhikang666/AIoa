@@ -7105,3 +7105,59 @@ Agent: api-agent
 
 - Commit this user enable/disable compatibility slice.
 - Continue with the next low-risk frontend-visible user write route, or move to targeted permission/data-scope hardening before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 14:35 +08:00 - user-agent/frontend-agent - User Reset Password Compatibility
+
+### Completed
+
+- Added protected Java-compatible reset-password routes:
+  - `POST /sys/user/resetPassword`
+  - `POST /biz/user/resetPassword`
+- Added controller handlers for system and business user reset-password actions.
+- Added `UserDirectoryService::resetPassword` to update only `sys_user.PASSWORD`.
+- Reused the existing Java-compatible SM3 hasher for default password hashing.
+- Preserved business user data-scope guarding with organization scope or current-user fallback.
+- Kept default password value and generated hash out of API responses, test output, and documentation.
+- Updated reset-password API docs, biz directory alias docs, user grant/status docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/api/user-reset-password-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\UserController.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; both reset-password routes are listed, route rows count is 362.
+- Direct service smoke: passed; the configured default password record exists, one sampled active user's password was reset through both system and business paths, and the original password hash was restored after each path.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for both new POST routes on the backend root path: returned business `code=401`.
+
+### Current Issues
+
+- User add/edit/delete, import/export, token/session invalidation after reset, route-permission middleware, and encrypted profile-field migration remain deferred.
+- Direct backend test path is the current PHP server root path; `/think/...` returns a ThinkPHP 404 in this local server mode, while the frontend proxy can still apply its own prefix behavior.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this user reset-password compatibility slice.
+- Continue with a focused user CRUD planning slice or targeted permission/data-scope hardening before side-effect-heavy workflow, finance, stock, and sale-project state writes.

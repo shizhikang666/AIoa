@@ -3657,3 +3657,37 @@ Java exposes system and business user enable/disable endpoints, and the copied V
 - `php think route:list` must list all four routes.
 - Requests without token should return business `code=401`.
 - Service smoke should toggle one sampled active user's status and restore the original value.
+
+---
+
+# Public File Change Request: User Reset Password Routes
+
+## Request
+
+Register protected admin reset-password routes in `route/app.php`.
+
+## Reason
+
+Java exposes system and business user reset-password endpoints, and the copied Vue user tables call them from row action menus. Existing ThinkPHP password verification already supports Java-compatible SM3 hashes, so this slice opens the matching protected mutation while keeping the default password value internal to the service.
+
+## Applied Change
+
+`user-agent/frontend-agent` registers the following protected POST routes:
+
+- `POST /sys/user/resetPassword`
+- `POST /biz/user/resetPassword`
+
+## Guardrails
+
+- Both routes remain behind `AuthMiddleware`.
+- The service only updates `sys_user.PASSWORD`.
+- Access requires admin-compatible payloads or matching route/button permission codes.
+- Business route also enforces conservative organization data-scope or current-user fallback.
+- The default password is read from `dev_config` and hashed through existing SM3 compatibility without printing the value.
+- No Java source, database schema, Composer, `.env`, frontend source, user CRUD, import/export, token/session invalidation, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list both routes.
+- Requests without token should return business `code=401`.
+- Service smoke should reset one sampled active user's password and restore the original hash.
