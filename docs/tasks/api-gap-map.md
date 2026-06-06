@@ -19,8 +19,8 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 343 | From `php think route:list` after index message all-mark-read route addition |
-| Endpoints already covered by route path | 331 | Includes read adapters, auth/system routes, user-center/index message routes, user-center self-service routes, and selected low-risk writes |
+| Current ThinkPHP routes | 345 | From `php think route:list` after index schedule self-service route addition |
+| Endpoints already covered by route path | 333 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 153 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
@@ -68,7 +68,7 @@ These are the highest-priority follow-ups because they affect pages the user can
 | Org/User visible tables | Some rows show blank fields or missing dictionary labels | frontend-agent with api-agent support | First confirm response field names before changing backend or frontend |
 | Message SSE | Frontend components call `/dev/message/createSseConnect` | api-agent or workflow/test support | Review Java behavior before adding a safe compatibility route |
 | Upload compatibility | Frontend expects many `dev/file/upload*ReturnFile*` routes | api-agent | Do not implement storage writes until storage strategy is confirmed |
-| User profile center | Current-user password, avatar, signature, profile, workbench, process-config edit, message detail mark-read, homepage all-mark-read, and `/biz/user/center/edit` self-profile alias are covered | user-agent | Admin-side user management, encrypted-field migration, and message send/delete remain deferred |
+| User profile center / homepage self-service | Current-user password, avatar, signature, profile, workbench, process-config edit, message detail mark-read, homepage all-mark-read, homepage schedule add/delete, and `/biz/user/center/edit` self-profile alias are covered | user-agent | Admin-side user management, encrypted-field migration, and message send/delete remain deferred |
 | Sys user grant dialogs | `ownRole`, `ownResource`, and `ownPermission` read echoes are covered | user-agent/frontend-agent | Grant save endpoints remain deferred |
 
 ## Priority 2: Safe Read-Only API Candidates
@@ -132,7 +132,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `biz/bizhistoryexcel` | Import/export parsing, `biz_history_excel_row` writes | Base add/edit/delete writes are covered; parser/storage changes remain deferred |
 | `biz/projectrate` | `edit`, image upload/storage cleanup | Add/delete base row writes are covered; Java controller does not expose edit in the current reference |
-| `sys/user` and `sys/userCenter` | `import`, admin-side profile edits, reset-password-by-admin, grant actions | Current-user profile/password/workbench/process-config writes plus message detail/all-mark-read are covered; admin-side mutations still need security and audit requirements |
+| `sys/user`, `sys/userCenter`, and `sys/index` | `import`, admin-side profile edits, reset-password-by-admin, grant actions | Current-user profile/password/workbench/process-config writes plus homepage schedule and message read-state writes are covered; admin-side mutations still need security and audit requirements |
 | `gen/basic` | `add`, `edit`, `delete`, `previewGen`, `execGenZip`, `execGenPro` | Generator writes or code generation output require a separate module plan |
 
 ## Authentication And Session Gaps

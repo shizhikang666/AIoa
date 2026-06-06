@@ -22,6 +22,22 @@ class IndexController extends BaseSysController
         ));
     }
 
+    public function addSchedule(Request $request): Response
+    {
+        return $this->guard(fn () => $this->indexService->addSchedule(
+            $this->currentUserId($request),
+            $this->body($request)
+        ));
+    }
+
+    public function deleteSchedule(Request $request): Response
+    {
+        return $this->guard(fn () => $this->indexService->deleteSchedule(
+            $this->currentUserId($request),
+            $this->idListFromBody($request)
+        ));
+    }
+
     public function messageList(Request $request): Response
     {
         return $this->guard(fn () => $this->indexService->messageList(
@@ -61,5 +77,54 @@ class IndexController extends BaseSysController
     public function opLogList(Request $request): Response
     {
         return $this->guard(fn () => $this->indexService->opLogList($this->currentUserId($request)));
+    }
+
+    private function body(Request $request): array
+    {
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $request->param();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function idListFromBody(Request $request): array
+    {
+        $body = $this->body($request);
+        $value = $body['idList'] ?? $body['ids'] ?? $body['id'] ?? $body;
+
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static function ($item): string {
+            if (is_array($item)) {
+                return trim((string)($item['id'] ?? ''));
+            }
+
+            return trim((string)$item);
+        }, $value)));
     }
 }

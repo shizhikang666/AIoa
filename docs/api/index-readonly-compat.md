@@ -1,4 +1,4 @@
-# Index Read-Only Compatibility
+# Index Compatibility
 
 Date: 2026-05-29
 
@@ -25,6 +25,9 @@ Expose `/sys/index/*` endpoints used by the old Vue homepage and message panel, 
 - `GET /sys/index/message/detail`
 - `GET /sys/index/visLog/list`
 - `GET /sys/index/opLog/list`
+- `POST /sys/index/schedule/add`
+- `POST /sys/index/schedule/deleteSchedule`
+- `POST /sys/index/message/allMessageMarkRead`
 
 All routes are protected by `AuthMiddleware`.
 
@@ -34,6 +37,26 @@ All routes are protected by `AuthMiddleware`.
 - Message list/page/detail: `dev_message` and `dev_relation` category `MSG_TO_USER`
 - Visit logs: `dev_log` categories `LOGIN`, `LOGOUT`
 - Operation logs: `dev_log` categories `OPERATE`, `EXCEPTION`
+
+## 2026-06-06 Schedule Self-Service Compatibility
+
+Agent: user-agent / frontend-agent
+
+Homepage schedule writes are now implemented for the current token user:
+
+| Method | Path | Scope |
+| --- | --- | --- |
+| POST | `/sys/index/schedule/add` | Current token user's schedule rows |
+| POST | `/sys/index/schedule/deleteSchedule` | Current token user's schedule rows |
+
+Compatibility notes:
+
+- Add requires `scheduleDate`, `scheduleTime`, and `scheduleContent`.
+- Add stores Java-compatible relation data in `sys_relation` with `CATEGORY = SYS_USER_SCHEDULE_DATA`.
+- `OBJECT_ID` is the current token user id and `TARGET_ID` is the schedule date.
+- Delete accepts Java-style array bodies and common `idList`, `ids`, or single `id` payloads.
+- Delete is constrained to the current token user's schedule rows.
+- `sys_relation` has no audit columns in the current SQL dump, so this slice does not invent update audit fields.
 
 ## 2026-06-06 Message Read-State Compatibility
 
@@ -55,9 +78,7 @@ Compatibility notes:
 
 ## Deferred
 
-- `POST /sys/index/schedule/add`
-- `POST /sys/index/schedule/deleteSchedule`
 - message send/delete and full message management
 - full realtime/WebPush implementation
 
-These endpoints require separate validation, audit, and realtime behavior before implementation.
+These deferred areas require separate validation, audit, and realtime behavior before implementation.

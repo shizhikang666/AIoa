@@ -45,6 +45,47 @@ class IndexService
         }, $rows);
     }
 
+    public function addSchedule(string $userId, array $input): void
+    {
+        $scheduleDate = $this->requiredInput($input, 'scheduleDate');
+        $scheduleTime = $this->requiredInput($input, 'scheduleTime');
+        $scheduleContent = $this->requiredInput($input, 'scheduleContent');
+        $userName = $this->currentUserName($userId);
+
+        $extJson = json_encode([
+            'scheduleDate' => $scheduleDate,
+            'scheduleTime' => $scheduleTime,
+            'scheduleContent' => $scheduleContent,
+            'scheduleUserId' => $userId,
+            'scheduleUserName' => $userName,
+        ], JSON_UNESCAPED_UNICODE);
+
+        Db::name('sys_relation')->insert([
+            'ID' => $this->newId(),
+            'OBJECT_ID' => $userId,
+            'TARGET_ID' => $scheduleDate,
+            'CATEGORY' => self::SCHEDULE_CATEGORY,
+            'EXT_JSON' => $extJson === false ? '{}' : $extJson,
+        ]);
+    }
+
+    /**
+     * @param array<int, string> $ids
+     */
+    public function deleteSchedule(string $userId, array $ids): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        if ($ids === []) {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        Db::name('sys_relation')
+            ->whereIn('ID', $ids)
+            ->where('OBJECT_ID', $userId)
+            ->where('CATEGORY', self::SCHEDULE_CATEGORY)
+            ->delete();
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
@@ -94,6 +135,21 @@ class IndexService
         }
 
         return (string)$user['NAME'];
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     /**

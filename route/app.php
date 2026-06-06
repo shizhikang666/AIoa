@@ -60,6 +60,8 @@ Route::group('sys/userCenter', function () {
 })->middleware(AuthMiddleware::class);
 
 Route::group('sys/index', function () {
+    Route::post('schedule/add', 'sys.IndexController/addSchedule');
+    Route::post('schedule/deleteSchedule', 'sys.IndexController/deleteSchedule');
     Route::get('schedule/list', 'sys.IndexController/scheduleList');
     Route::get('message/list', 'sys.IndexController/messageList');
     Route::get('message/page', 'sys.IndexController/messagePage');

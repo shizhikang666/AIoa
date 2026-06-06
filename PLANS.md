@@ -7178,3 +7178,70 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement message send, message delete, WebPush, full realtime push, schedule add/delete, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: user-agent/frontend-agent - Index Schedule Self-Service Compatibility
+
+Status: completed on 2026-06-06 after add/list/delete service smoke, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected homepage schedule write endpoints used by the copied Vue dashboard:
+
+- `POST /sys/index/schedule/add`
+- `POST /sys/index/schedule/deleteSchedule`
+
+This slice creates and deletes only current-token-user schedule rows stored in `sys_relation` with `CATEGORY = SYS_USER_SCHEDULE_DATA`.
+
+### 2. Involved Modules
+
+- user-agent current-user schedule compatibility
+- frontend-agent copied homepage schedule widget compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/IndexController.php`
+- `app/service/sys/IndexService.php`
+- `route/app.php`
+- `docs/api/index-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- Java deletes schedules by ids directly; this ThinkPHP slice should constrain deletion to the current token user's `SYS_USER_SCHEDULE_DATA` rows.
+- `sys_relation` has no audit columns, so this slice must not invent audit data.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\IndexController.php
+php -l app\service\sys\IndexService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Both schedule write routes are registered behind `AuthMiddleware`.
+- Add requires `scheduleDate`, `scheduleTime`, and `scheduleContent`.
+- Add writes `OBJECT_ID = current user id`, `TARGET_ID = scheduleDate`, `CATEGORY = SYS_USER_SCHEDULE_DATA`, and Java-compatible `EXT_JSON` including current user id/name.
+- Delete accepts Java-style array body, `idList`, `ids`, or single `id`, and deletes only current user's schedule rows.
+- Java source, database schema, Composer files, `.env`, frontend source, other schedule users, message routes, and business modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement shared calendar behavior, schedule editing, notifications, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated system/user mutations.

@@ -1258,4 +1258,27 @@ This slice supports copied homepage message drawer behavior:
 
 ### Deferred
 
-- Message send/delete, WebPush, full realtime push, and schedule writes remain out of scope.
+- Message send/delete, WebPush, and full realtime push remain out of scope.
+
+## 2026-06-06 Index Schedule Self-Service Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied homepage schedule widget behavior:
+
+- `snowy-admin-web/src/api/sys/indexApi.js`
+- `snowy-admin-web/src/views/index/components/schedule.vue`
+
+### Result
+
+- `/sys/index/schedule/add` is now routed as a protected POST endpoint.
+- `/sys/index/schedule/deleteSchedule` is now routed as a protected POST endpoint.
+- Add stores current-user schedule rows in `sys_relation` with `CATEGORY = SYS_USER_SCHEDULE_DATA`.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`, and is constrained to current-user schedule rows.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Shared calendars, schedule editing, notifications, and cross-user schedule management remain out of scope.

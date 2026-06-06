@@ -3395,3 +3395,33 @@ Java exposes `/sys/index/message/allMessageMarkRead`, and the copied Vue homepag
 - `php think route:list` must list the added route.
 - Requests without token should return business `code=401`.
 - Service smoke should mark sampled current-user message relations as `read=true` and then restore imported `EXT_JSON` test data.
+
+---
+
+# Public File Change Request: Index Schedule Self-Service Routes
+
+## Request
+
+Register protected homepage schedule add and delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/sys/index/schedule/add` and `/sys/index/schedule/deleteSchedule`, and the copied Vue homepage schedule widget calls them from the add form and timeline delete icon. Existing ThinkPHP routes already cover schedule listing; this slice opens only current-user schedule maintenance.
+
+## Applied Change
+
+`user-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /sys/index/schedule/add`
+- `POST /sys/index/schedule/deleteSchedule`
+
+## Explicit Exclusions
+
+- No shared calendar, schedule editing, notifications, cross-user schedule management, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Delete is constrained to current-token-user `sys_relation` rows where `CATEGORY = SYS_USER_SCHEDULE_DATA`.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Requests without token should return business `code=401`.
+- Service smoke should add one temporary current-user schedule row and delete it without leaving test data.

@@ -471,3 +471,24 @@ Explicit non-goals:
 - No schedule add/delete implementation.
 - No Java source, database schema, Composer, `.env`, or frontend source changes.
 
+## 2026-06-06 Index Schedule Self-Service Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysIndexController.addSchedule`, `SysIndexController.deleteSchedule`, `SysIndexServiceImpl` schedule methods, schedule param/result classes, and copied homepage `schedule.vue`.
+2. Added `IndexController.addSchedule` and `IndexController.deleteSchedule` with JSON/body parsing for form objects and Java-style delete arrays.
+3. Added `IndexService.addSchedule` and `IndexService.deleteSchedule`.
+4. Stored current-user schedules in `sys_relation` with `CATEGORY = SYS_USER_SCHEDULE_DATA`, matching Java relation storage.
+5. Constrained deletion to current-token-user schedule rows before physical relation deletion.
+6. Registered protected `POST /sys/index/schedule/add` and `POST /sys/index/schedule/deleteSchedule` in `route/app.php`.
+7. Updated index API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No shared calendar behavior.
+- No schedule editing or notifications.
+- No cross-user schedule management.
+- No Java source, database schema, Composer, `.env`, or frontend source changes.
+
