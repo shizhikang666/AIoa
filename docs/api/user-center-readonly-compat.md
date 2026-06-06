@@ -33,9 +33,22 @@ All routes are protected by `AuthMiddleware`.
 - Messages: `dev_message`
 - Message recipient/read relation: `dev_relation` with category `MSG_TO_USER`
 
-## Read-Only Differences From Java
+## 2026-06-06 Message Mark-Read Compatibility
 
-The Java message detail endpoint marks a message as read as part of the detail call. This ThinkPHP compatibility phase intentionally does not update `dev_relation.EXT_JSON`, because the current stage is read-only. A later write-capable user/message phase can add explicit mark-read behavior with validation and audit coverage.
+Agent: user-agent / frontend-agent
+
+The protected message detail endpoint now matches Java `DevMessageService.detail()` read-state behavior:
+
+| Method | Path | Scope |
+| --- | --- | --- |
+| GET | `/sys/userCenter/loginUnreadMessageDetail` | Current token user's receiver relation only |
+
+Compatibility notes:
+
+- The endpoint still verifies the current user owns the requested `MSG_TO_USER` relation before returning detail.
+- Opening message detail updates only that relation's `dev_relation.EXT_JSON` to include `"read": true`.
+- `dev_message` rows and other recipients' relations are not modified.
+- `dev_relation` has no audit columns in the current SQL dump, so this slice does not invent update audit fields.
 
 ## Deferred
 
@@ -45,7 +58,7 @@ The Java message detail endpoint marks a message as read as part of the detail c
 - `POST /sys/userCenter/updateAvatar`
 - `POST /sys/userCenter/updateSignature`
 - `POST /sys/userCenter/process/config/edit`
-- message mark-read writes
+- message send/delete, all-mark-read, WebPush, and full realtime push
 
 These endpoints require write validation, audit behavior, and conflict checks before implementation.
 
@@ -77,4 +90,4 @@ Still deferred:
 - User management add/edit/delete, enable/disable, reset-password-by-admin, grants, import/export.
 - Java SM4 encrypted-field migration for phone/identity fields.
 - Full file storage/provider integration for avatar uploads.
-- Message mark-read mutations.
+- Message send/delete, all-mark-read, WebPush, and full realtime push.

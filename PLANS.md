@@ -7050,3 +7050,64 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement `/sys/user/add`, `/edit`, `/delete`, enable/disable, reset password, grant role/resource/permission, import/export, Java source changes, database schema changes, Composer changes, `.env` changes, or broad frontend changes.
+
+## Active Plan: user-agent/frontend-agent - User Message Mark-Read Compatibility
+
+Status: completed on 2026-06-06 after service smoke with `EXT_JSON` restore, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Align the protected user-center message detail endpoint with Java behavior:
+
+- `GET /sys/userCenter/loginUnreadMessageDetail`
+
+When the current token user opens a message detail, update only that user's `dev_relation` row for `CATEGORY = MSG_TO_USER` so `EXT_JSON.read = true`.
+
+### 2. Involved Modules
+
+- user-agent message read-state compatibility
+- frontend-agent copied user-center message list/detail compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/service/user/UserDirectoryService.php`
+- `docs/api/user-center-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The `dev_relation` table has only `ID`, `OBJECT_ID`, `TARGET_ID`, `CATEGORY`, and `EXT_JSON`, so this slice must not invent audit columns.
+- Message detail must only mark the current token user's receiver relation, not all recipients and not the `dev_message` row.
+- The frontend unread list may shrink after opening detail, so tests should restore sampled imported `EXT_JSON` after smoke checks when possible.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\user\UserDirectoryService.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /sys/userCenter/loginUnreadMessageDetail` stays protected by existing auth middleware and no route changes are needed.
+- The endpoint requires `id`, verifies the message belongs to the current token user, and returns `null` for non-owned messages.
+- Opening detail changes only the current user's `dev_relation.EXT_JSON` read flag to `true`.
+- The returned message detail and current user's receive-info row show `read = true`.
+- Java source, database schema, route file, Composer files, `.env`, frontend source, message send/delete, SSE, and all other modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement message send, delete, all-mark-read, WebPush, full realtime push, Java source changes, database schema changes, route changes, Composer changes, `.env` changes, or frontend source changes.

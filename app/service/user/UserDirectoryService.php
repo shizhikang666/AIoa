@@ -426,6 +426,8 @@ class UserDirectoryService
             return null;
         }
 
+        $ownRelation = $this->markMessageRead($ownRelation, $userId, $id);
+
         $receiveRelations = Db::name('dev_relation')
             ->where('OBJECT_ID', $id)
             ->where('CATEGORY', self::MESSAGE_TO_USER_CATEGORY)
@@ -888,6 +890,34 @@ class UserDirectoryService
             'updateTime' => $row['UPDATE_TIME'] ?? null,
             'updateUser' => $row['UPDATE_USER'] ?? null,
         ];
+    }
+
+    private function markMessageRead(array $relation, string $userId, string $messageId): array
+    {
+        if ($this->relationReadStatus($relation) === true) {
+            return $relation;
+        }
+
+        $decoded = json_decode((string)($relation['EXT_JSON'] ?? '{}'), true);
+        if (!is_array($decoded)) {
+            $decoded = [];
+        }
+
+        $decoded['read'] = true;
+        $extJson = json_encode($decoded, JSON_UNESCAPED_UNICODE);
+        if ($extJson === false) {
+            $extJson = '{"read":true}';
+        }
+
+        Db::name('dev_relation')
+            ->where('OBJECT_ID', $messageId)
+            ->where('TARGET_ID', $userId)
+            ->where('CATEGORY', self::MESSAGE_TO_USER_CATEGORY)
+            ->update(['EXT_JSON' => $extJson]);
+
+        $relation['EXT_JSON'] = $extJson;
+
+        return $relation;
     }
 
     private function relationReadStatus(?array $relation): ?bool

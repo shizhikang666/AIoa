@@ -1214,4 +1214,25 @@ This slice supports copied personal-center API wrappers and forms:
 - Admin-side user CRUD, enable/disable, reset password, grants, import/export.
 - Java SM4 encrypted-field migration.
 - Full file-provider storage and avatar cleanup.
-- Message mark-read mutations.
+
+## 2026-06-06 User Message Detail Mark-Read Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied user-center message detail behavior:
+
+- `snowy-admin-web/src/api/sys/userCenterApi.js`
+- `snowy-admin-web/src/views/sys/user/userTab/userMessage.vue`
+
+### Result
+
+- `/sys/userCenter/loginUnreadMessageDetail` now marks only the current token user's `dev_relation` receiver row as read.
+- The response detail returns `read = true` after the detail call.
+- The current user's `receiveInfoList` entry also returns `read = true`.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Message send/delete, all-mark-read, WebPush, and full realtime push remain out of scope.

@@ -6534,3 +6534,48 @@ Agent: api-agent
 
 - Commit this user-center self-service compatibility slice.
 - Continue with another isolated frontend-visible slice, or start data-scope/permission tightening before heavy finance, stock, workflow, and sale-project state writes.
+
+## 2026-06-06 11:12 +08:00 - user-agent/frontend-agent - User Message Detail Mark-Read Compatibility
+
+### Completed
+
+- Added Java-compatible read-state behavior to `GET /sys/userCenter/loginUnreadMessageDetail`.
+- Kept the existing route unchanged and protected by current auth middleware.
+- Marked only the current token user's `dev_relation` receiver row for `CATEGORY = MSG_TO_USER` as `read = true`.
+- Preserved `dev_message` and all other recipients' relations.
+- Updated user-center API docs, frontend adaptation notes, API gap map, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/service/user/UserDirectoryService.php`
+- `docs/api/user-center-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- Direct service smoke: passed; sampled unread message relation was marked read in the returned detail and receiver info, database `EXT_JSON` changed to `read=true`, then the original `EXT_JSON` was restored.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 342 route entries; no route changes were made.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for `/sys/userCenter/loginUnreadMessageDetail`: returned business `code=401`.
+
+### Current Issues
+
+- Message send/delete, all-mark-read, WebPush, and full realtime push remain deferred.
+- Admin-side user CRUD, grants, reset-password-by-admin, import/export, encrypted profile fields, and full file-provider storage remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this user message detail mark-read compatibility slice.
+- Continue with another isolated frontend-visible user/system compatibility endpoint, or move to data-scope and permission tightening before heavier finance, stock, workflow, and sale-project state writes.

@@ -434,3 +434,21 @@ Explicit non-goals:
 - No Java source, database schema, Composer, `.env`, or frontend source changes.
 - No Java SM4 encrypted-field migration or full file-provider storage cleanup.
 
+## 2026-06-06 User Message Detail Mark-Read Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserCenterController.loginMessageDetail`, `SysUserServiceImpl.loginMessageDetail`, and `DevMessageServiceImpl.detail`.
+2. Confirmed Java marks only the current login user's `dev_relation` receiver relation as read during message detail.
+3. Confirmed `dev_relation` in `oa2026.sql` has only `ID`, `OBJECT_ID`, `TARGET_ID`, `CATEGORY`, and `EXT_JSON`.
+4. Updated `UserDirectoryService.loginUnreadMessageDetail` to mark the current user's `MSG_TO_USER` relation `EXT_JSON.read = true` after ownership validation.
+5. Kept existing route registration unchanged and updated API/frontend/gap/progress documentation.
+
+Explicit non-goals:
+
+- No message send/delete/all-mark-read implementation.
+- No WebPush/full realtime push implementation.
+- No Java source, database schema, route, Composer, `.env`, or frontend source changes.
+
