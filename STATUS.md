@@ -7654,3 +7654,34 @@ Agent: api-agent
 
 - Commit this business dictionary edit compatibility slice.
 - Continue with browser-facing smoke or the next low-risk read/API slice after confirming frontend login credentials.
+
+## 2026-06-06 18:45 +08:00 - docs-agent - Default Multi-Agent And Local Login Notes
+
+### Completed
+
+- Ran a scoped `docs-agent worker` for documentation updates.
+- Added project-level guidance that future Codex conversations should default to real multi-Agent mode.
+- Documented that the main conversation is the merge/coordinator session and scoped workers such as `frontend-agent`, `api-agent`, `test-agent`, and `docs-agent` handle explicitly assigned slices only.
+- Added local login smoke credential variable names to tracked docs:
+  - `LOCAL_SUPER_ADMIN_ACCOUNT`
+  - `LOCAL_SUPER_ADMIN_PASSWORD`
+- Stored the user-provided local login values in the ignored local `.env`.
+- Confirmed no plaintext local login password, database password, or Redis password was written to tracked documentation.
+
+### Modified Files
+
+- `AGENTS.md`
+- `STATUS.md`
+- `docs/tasks/frontend-joint-test-workflow.md`
+- `docs/tasks/local-runtime-services.md`
+- `docs/tasks/test-agent-smoke-runbook.md`
+- local ignored `.env` only, not committed
+
+### Current Issues
+
+- Browser smoke still requires starting backend/frontend services and using the ignored local `.env` values for login.
+
+### Next Plan
+
+- Commit the default multi-Agent and local login documentation slice.
+- Continue future work in real multi-Agent mode by default.

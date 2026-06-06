@@ -4,6 +4,8 @@
 
 This repository uses a main architect Agent plus multiple module Agents.
 
+Future new Codex conversations should default to the real multi-Agent mode for this project. The main conversation acts as the merge/coordinator session, and work is split into explicit worker roles such as `frontend-agent`, `api-agent`, `test-agent`, `docs-agent`, and other module Agents defined below.
+
 The current main architect Agent is responsible for:
 
 - architecture control
@@ -11,8 +13,13 @@ The current main architect Agent is responsible for:
 - module boundaries
 - final merge planning
 - conflict and integration strategy
+- assigning scoped worker tasks
+- integrating worker results into the final target project
+- committing only after reviewing the combined changes
 
 The main architect Agent does not implement business features directly unless the user explicitly changes the task.
+
+Worker Agents must only operate inside their explicitly assigned task scope. They do not broaden the task, take over merge/coordinator responsibilities, or edit unrelated modules. The main conversation is responsible for consolidating worker output, resolving overlap, and preparing the final commit.
 
 ## Project Goal
 
@@ -70,6 +77,7 @@ Each Agent:
 
 - must work only in its assigned worktree
 - must work only on its assigned module
+- must follow the explicit role and file/task scope from the current user request
 - must check `git status --short --branch` before editing
 - must commit its completed work
 - must not modify unrelated modules
@@ -226,6 +234,13 @@ Expected local endpoints:
 - PHP FastCGI: `127.0.0.1:9000`
 
 The ThinkPHP project reads credentials from the ignored local `.env` in `F:\AI\projects\testJava\OA-ThinkPHP`. Do not print or commit `DB_PASS`, `REDIS_PASSWD`, or other secrets.
+
+Local browser/login smoke credentials must also come from the ignored local `.env`. Use:
+
+- `LOCAL_SUPER_ADMIN_ACCOUNT`
+- `LOCAL_SUPER_ADMIN_PASSWORD`
+
+Do not write plaintext login accounts, passwords, tokens, or other secrets into tracked files, task notes, test logs, commits, or final reports.
 
 Detailed runtime notes: `docs/tasks/local-runtime-services.md`.
 

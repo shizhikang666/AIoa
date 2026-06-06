@@ -10,6 +10,8 @@ The script is intended for the integrated ThinkPHP project at:
 
 It does not modify Java source, `.env`, database schema, Composer dependencies, or application behavior.
 
+Future new Codex conversations should treat the main conversation as the merge/coordinator session and use real scoped worker Agents by default. `test-agent` owns smoke checks, syntax checks, route checks, namespace checks, Composer checks, and test documentation inside the explicit task scope. It should not take over frontend, API, docs, or merge/coordinator work unless the user assigns that scope.
+
 ## Script
 
 `scripts/test-agent-smoke.ps1`
@@ -80,6 +82,13 @@ Expected local services:
 - PHP FastCGI listens on `127.0.0.1:9000`
 
 The project local `.env` is ignored by Git and should hold the user-provided MySQL and Redis credentials. Do not print or commit database or Redis passwords in test logs.
+
+Local login smoke credentials must also come from the ignored project `.env`:
+
+- `LOCAL_SUPER_ADMIN_ACCOUNT`
+- `LOCAL_SUPER_ADMIN_PASSWORD`
+
+Never write plaintext local login credentials, tokens, database passwords, Redis passwords, or other secrets into tracked files, smoke output excerpts, commits, or final reports.
 
 ## DB-Backed Export Smoke Status
 

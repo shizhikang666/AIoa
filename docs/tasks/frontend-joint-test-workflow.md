@@ -8,6 +8,8 @@ Agent: merge-agent / main control agent
 
 From this point forward, frontend adaptation is part of the refactor workflow. Backend API slices are still developed in small steps, but each completed backend slice must be considered against the Vue frontend and, once the frontend is imported into the final repository, tested with the backend service running.
 
+Future new Codex conversations should use real multi-Agent mode by default. The main conversation is the merge/coordinator session. It assigns scoped work to role-specific workers such as `frontend-agent`, `api-agent`, `test-agent`, `docs-agent`, and other module Agents, then integrates and commits the final result. Worker Agents must only handle the explicitly assigned slice and must not broaden into merge ownership or unrelated modules.
+
 The final delivery is still one complete project at:
 
 `F:\AI\projects\testJava\OA-ThinkPHP`
@@ -117,6 +119,13 @@ Future adaptation should make the frontend send the backend convention. For tran
 The original frontend may encrypt the login password with SM2 when a public key is configured. The backend already isolates password verification logic, but browser login must be tested end to end after frontend import.
 
 No SM2 key, password, Redis credential, database password, or token may be committed to the repository.
+
+For local login smoke tests, read the superadmin credentials from the ignored project `.env`:
+
+- `LOCAL_SUPER_ADMIN_ACCOUNT`
+- `LOCAL_SUPER_ADMIN_PASSWORD`
+
+Do not place plaintext local account names, passwords, tokens, or generated credential values in this document, screenshots, task notes, commits, or final reports.
 
 ## Joint Smoke Checklist
 

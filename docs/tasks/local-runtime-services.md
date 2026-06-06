@@ -6,6 +6,8 @@ This project uses the user-provided local runtime bundle for database-backed and
 
 Future Codex conversations should use this runtime first instead of trying unrelated Windows services such as `MySQL80`.
 
+Future Codex conversations should also assume the project is being handled in real multi-Agent mode. The main conversation is the merge/coordinator session, while scoped workers such as `frontend-agent`, `api-agent`, `test-agent`, and `docs-agent` perform only their explicitly assigned slices. Workers should not expand into unrelated runtime, frontend, API, or merge work.
+
 ## Start Command
 
 Run from the service bundle directory:
@@ -53,6 +55,15 @@ REDIS_EXPIRE=11
 ```
 
 Secret values such as `DB_PASS` and `REDIS_PASSWD` must remain only in the ignored local `.env` or be provided by the user during the session.
+
+Local login smoke credentials must also be read from the ignored local `.env`:
+
+```dotenv
+LOCAL_SUPER_ADMIN_ACCOUNT=
+LOCAL_SUPER_ADMIN_PASSWORD=
+```
+
+Do not write plaintext login accounts, passwords, tokens, database credentials, Redis credentials, or other secrets into tracked files, task notes, command output snippets, commits, or final reports.
 
 ## Verification Commands
 
