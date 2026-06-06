@@ -156,9 +156,8 @@ Invoke-TestStep 'Redis ping' {
 }
 
 Invoke-TestStep 'UserDirectoryService exports' {
-    $probe = @'
+$probe = @'
 <?php
-declare(strict_types=1);
 
 require getcwd() . '/vendor/autoload.php';
 
