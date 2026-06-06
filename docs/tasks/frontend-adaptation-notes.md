@@ -1309,3 +1309,26 @@ This slice supports copied auth monitor behavior:
 ### Deferred
 
 - C-side login/client token storage, third-party OAuth render/callback, and fine-grained route permission middleware remain out of scope.
+
+## 2026-06-06 Dev Message Delete Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied station-message management behavior:
+
+- `snowy-admin-web/src/api/dev/messageApi.js`
+- `snowy-admin-web/src/views/dev/message/index.vue`
+
+### Result
+
+- `/dev/message/delete` is now routed as a protected POST endpoint.
+- The endpoint accepts Java-style arrays of `{ id }`, `idList`, `ids`, or a single `id`.
+- Delete removes selected `dev_message` rows and their `MSG_TO_USER` receiver relations.
+- Admin-compatible accounts or roles may delete tenant messages; ordinary users may delete only messages they created.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Message send, SSE/WebPush realtime push behavior, and file/storage cleanup remain out of scope.

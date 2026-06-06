@@ -122,7 +122,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
 | `dev/file` | `upload*`, `delete` | Storage provider, file persistence, and cleanup strategy |
-| `dev/message` | `send`, `delete`, full realtime push | User-center/index detail mark-read, homepage all-mark-read, and minimal SSE compatibility are covered; remaining messaging behavior must match Java expectations |
+| `dev/message` | `send`, full realtime push | User-center/index detail mark-read, homepage all-mark-read, minimal SSE compatibility, and message delete are covered; remaining send behavior must match Java expectations |
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
 | `biz/bizproduct` | Inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and data-change/cache side effects | Product base add/edit/delete, kit relation maintenance, status toggle, and reconciliation edits are covered |

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\dev;
 
+use RuntimeException;
 use think\facade\Db;
 
 /**
@@ -56,6 +57,37 @@ class MessageService
         $detail['receiveInfoList'] = $this->receiveInfoList($relations);
 
         return $detail;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function delete(array $items, ?string $tenantId, mixed $payload = []): array
+    {
+        $ids = $this->idList($items);
+        if ($ids === []) {
+            throw new RuntimeException('empty message list', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $allowedIds = $this->allowedDeleteIds($ids, $tenantId, $payload);
+        if ($allowedIds === []) {
+            throw new RuntimeException('message not found or permission denied', 404);
+        }
+
+        return Db::transaction(function () use ($allowedIds): array {
+            Db::name('dev_relation')
+                ->where('CATEGORY', self::MESSAGE_TO_USER)
+                ->whereIn('OBJECT_ID', $allowedIds)
+                ->delete();
+
+            $count = Db::name('dev_message')
+                ->whereIn('ID', $allowedIds)
+                ->delete();
+
+            return ['count' => $count];
+        });
     }
 
     private function messageQuery(array $filters, ?string $tenantId, ?array $messageIds = null)
@@ -207,6 +239,102 @@ class MessageService
         }
 
         return (bool)$decoded['read'];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @return array<int, string>
+     */
+    private function idList(array $items): array
+    {
+        $ids = [];
+        foreach ($items as $item) {
+            $id = trim((string)($item['id'] ?? ''));
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @param array<string, mixed> $payload
+     * @return array<int, string>
+     */
+    private function allowedDeleteIds(array $ids, ?string $tenantId, array $payload): array
+    {
+        $query = Db::name('dev_message')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($tenantId !== null && $tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        if (!$this->canManageMessages($payload)) {
+            $userId = $this->payloadUserId($payload);
+            $query->where('CREATE_USER', $userId);
+        }
+
+        return array_values(array_filter($query->column('ID')));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function payloadUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function canManageMessages(array $payload): bool
+    {
+        $account = strtolower(trim((string)($payload['account'] ?? '')));
+        if (in_array($account, ['superadmin', 'bizadmin', 'tenantadmin'], true)) {
+            return true;
+        }
+
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+
+        foreach ($codes as $code) {
+            $code = strtolower($code);
+            if (
+                in_array($code, ['superadmin', 'bizadmin', 'tenantadmin', 'devmessage'], true)
+                || str_contains($code, 'dev:message')
+                || str_contains($code, 'devmessage')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
     }
 
     private function pagination(array $filters): array

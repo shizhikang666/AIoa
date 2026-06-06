@@ -1,8 +1,8 @@
-# Dev Message Read-Only Compatibility
+# Dev Message Compatibility
 
 ## Scope
 
-This slice adds authenticated, read-only compatibility for the Java `DevMessageController` message query endpoints.
+This document tracks authenticated compatibility for Java `DevMessageController` message management endpoints.
 
 ## Java Reference
 
@@ -15,6 +15,7 @@ This slice adds authenticated, read-only compatibility for the Java `DevMessageC
 
 - `GET /dev/message/page`
 - `GET /dev/message/detail`
+- `POST /dev/message/delete`
 
 All routes are protected by `AuthMiddleware`.
 
@@ -74,11 +75,32 @@ Supported sort fields are:
 ## Deliberate Exclusions
 
 - `POST /dev/message/send` is not implemented.
-- `POST /dev/message/delete` is not implemented.
 - Detail reads do not update `dev_relation.EXT_JSON`.
 - Detail reads do not send SSE notifications.
+- Delete does not send SSE/WebPush notifications.
 - No database schema or Java source files are changed.
+
+## Delete Behavior
+
+`POST /dev/message/delete` accepts Java-style arrays:
+
+```json
+[
+  { "id": "2032011542112157698" }
+]
+```
+
+It also accepts `idList`, `ids`, or a single `id` for frontend compatibility.
+
+The endpoint:
+
+- validates a non-empty id list
+- limits rows to the current tenant when the bearer token carries `tenant_id`
+- allows admin-compatible accounts or roles to delete tenant messages
+- allows ordinary users to delete only messages they created
+- deletes `dev_relation` rows with `CATEGORY = MSG_TO_USER`
+- deletes the selected `dev_message` rows
 
 ## Later Work
 
-Mutation behavior needs a separate write-endpoint plan covering validation, audit logs, receiver relation updates, read-state updates, and frontend compatibility.
+Message send behavior still needs a separate write-endpoint plan covering validation, receiver relation creation, SSE/WebPush behavior, and frontend compatibility.

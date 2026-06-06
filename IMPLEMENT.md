@@ -512,3 +512,23 @@ Explicit non-goals:
 - No route permission middleware or UI permission rewrite.
 - No Java source, database schema, Composer, `.env`, frontend source, user CRUD, workflow, or business module changes.
 
+## 2026-06-06 Dev Message Delete Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `DevMessageController.delete`, `DevMessageServiceImpl.delete`, `DevMessageIdParam`, and copied `dev/message` Vue list.
+2. Added Java-compatible body parsing for `/dev/message/delete`.
+3. Added `MessageService::delete` to remove `MSG_TO_USER` receiver relations before removing selected `dev_message` rows.
+4. Added conservative delete scope: admin-compatible accounts/roles may delete tenant messages; ordinary users may delete only messages they created.
+5. Registered protected `POST /dev/message/delete` in `route/app.php`.
+6. Updated dev-message API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No message send implementation.
+- No SSE/WebPush realtime push implementation.
+- No file upload/storage cleanup.
+- No Java source, database schema, Composer, `.env`, frontend source, user/workflow, or business module changes.
+

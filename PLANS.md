@@ -7319,3 +7319,72 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement C-side login/client token storage, third-party login, OAuth callback, route permission middleware, frontend source changes, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated auth/user/business mutations.
+
+## Active Plan: api-agent/frontend-agent - Dev Message Delete Compatibility
+
+Status: completed on 2026-06-06 after temp-message delete smoke, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected station-message delete endpoint used by the copied Vue message management page:
+
+- `POST /dev/message/delete`
+
+This slice deletes selected `dev_message` rows and their `MSG_TO_USER` receiver relations. It must not implement message send, WebPush, full realtime push, file cleanup, or frontend source changes.
+
+### 2. Involved Modules
+
+- api-agent dev message compatibility
+- frontend-agent copied dev message page compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageService.php`
+- `route/app.php`
+- `docs/api/dev-message-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java physically removes `dev_message` rows. This slice follows that behavior, so tests must create and delete temporary rows only.
+- Deleting a message must also remove `dev_relation` rows for `CATEGORY = MSG_TO_USER`.
+- The current project does not have fine-grained route permission middleware, so this slice should conservatively allow admin-compatible users to delete tenant messages and ordinary users to delete only their own created messages.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\dev\MessageController.php
+php -l app\service\dev\MessageService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /dev/message/delete` is registered behind `AuthMiddleware`.
+- Request accepts Java-style arrays of `{ id }`, `idList`, `ids`, or a single `id`.
+- The service validates non-empty ids and active messages.
+- Admin-compatible accounts/roles may delete tenant messages.
+- Ordinary users may delete only messages they created.
+- Delete removes matching `dev_relation` receiver rows before deleting selected `dev_message` rows.
+- Smoke tests insert temporary rows and verify both message and relation rows are removed.
+- Java source, database schema, Composer files, `.env`, frontend source, message send, WebPush, and full realtime push remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/dev/message/send`, SSE/WebPush push behavior, file upload/storage cleanup, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated user/workflow/business mutations.

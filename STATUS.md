@@ -6741,3 +6741,53 @@ Agent: api-agent
 
 - Commit this auth session/token exit compatibility slice.
 - Continue with another isolated frontend-visible route or start targeted permission/data-scope hardening before heavier workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 12:31 +08:00 - api-agent/frontend-agent - Dev Message Delete Compatibility
+
+### Completed
+
+- Added protected Java-compatible route `POST /dev/message/delete`.
+- Added request body parsing for Java-style arrays of `{ id }`, `idList`, `ids`, or single `id`.
+- Added `MessageService::delete` to remove `MSG_TO_USER` receiver relations and then delete selected `dev_message` rows.
+- Added conservative delete scope: admin-compatible accounts/roles may delete tenant messages; ordinary users may delete only messages they created.
+- Updated dev-message API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageService.php`
+- `route/app.php`
+- `docs/api/dev-message-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\dev\MessageController.php`: passed.
+- `php -l app\service\dev\MessageService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; one temporary `dev_message` row and one temporary `dev_relation` row were inserted, deleted, and confirmed with zero residual rows.
+- `php think route:list`: passed; route entries now count 350 and `/dev/message/delete` is listed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for `/dev/message/delete`: returned business `code=401`.
+
+### Current Issues
+
+- `/dev/message/send` remains deferred.
+- SSE/WebPush realtime push behavior remains minimal and deferred for full parity.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this dev-message delete compatibility slice.
+- Continue with another small browser-visible compatibility endpoint or move into targeted permission/data-scope hardening before heavier workflow, finance, stock, and sale-project state writes.

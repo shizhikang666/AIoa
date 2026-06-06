@@ -3461,3 +3461,35 @@ Java exposes the session and token exit endpoints, and the copied Vue auth monit
 - `php think route:list` must list the added routes.
 - Requests without token should return business `code=401`.
 - Service smoke should create indexed temporary tokens, revoke them by token value and user id, and confirm the cache payload is removed.
+
+---
+
+# Public File Change Request: Dev Message Delete Route
+
+## Request
+
+Register protected station-message delete route in `route/app.php`.
+
+## Reason
+
+Java exposes `/dev/message/delete`, and the copied Vue station-message management page calls it from row delete and batch delete actions. Existing ThinkPHP routes already cover message page/detail reads and SSE compatibility; this slice opens only delete compatibility.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST route:
+
+- `POST /dev/message/delete`
+
+## Guardrails
+
+- The route remains behind `AuthMiddleware`.
+- Delete removes selected `dev_message` rows and matching `dev_relation` rows where `CATEGORY = MSG_TO_USER`.
+- Admin-compatible accounts or roles may delete tenant messages.
+- Ordinary users may delete only messages they created.
+- No message send, SSE/WebPush realtime push, Java source, database schema, Composer, `.env`, frontend source, user/workflow, or business module behavior was changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Requests without token should return business `code=401`.
+- Service smoke should insert one temporary message and receiver relation, delete it, and confirm both rows are removed.

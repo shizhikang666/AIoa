@@ -29,6 +29,15 @@ class MessageController extends BaseSysController
         return $this->guard(fn () => $this->messageService->detail($this->requiredString($request, 'id'), $this->tenantId($request)));
     }
 
+    public function delete(Request $request): Response
+    {
+        return $this->guard(fn () => $this->messageService->delete(
+            $this->bodyList($request),
+            $this->tenantId($request),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
     public function createSseConnect(Request $request): Response
     {
         return $this->messageSseService->connect(
@@ -47,5 +56,66 @@ class MessageController extends BaseSysController
         $tenantId = (string)($payload['tenant_id'] ?? $payload['tenantId'] ?? '');
 
         return $tenantId === '' ? null : $tenantId;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function bodyList(Request $request): array
+    {
+        $input = $request->post();
+        if ($input === []) {
+            $raw = '';
+            if (method_exists($request, 'getContent')) {
+                $raw = trim((string)$request->getContent());
+            }
+            if ($raw === '' && method_exists($request, 'getInput')) {
+                $raw = trim((string)$request->getInput());
+            }
+            if ($raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    $input = $decoded;
+                }
+            }
+        }
+        if ($input === []) {
+            $input = $request->param();
+        }
+
+        return $this->normalizeBodyList($input);
+    }
+
+    /**
+     * @param array<mixed> $input
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeBodyList(array $input): array
+    {
+        $value = $input['idList'] ?? $input['ids'] ?? $input['id'] ?? $input;
+        if (isset($input['id'])) {
+            $value = [$input];
+        }
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $records[] = $item;
+                continue;
+            }
+
+            $id = trim((string)$item);
+            if ($id !== '') {
+                $records[] = ['id' => $id];
+            }
+        }
+
+        return $records;
     }
 }
