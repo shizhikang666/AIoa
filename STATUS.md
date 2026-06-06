@@ -7558,3 +7558,46 @@ Agent: api-agent
 
 - Commit the local runtime documentation.
 - Continue with the next browser-facing smoke or low-risk read/API slice.
+
+## 2026-06-06 17:55 +08:00 - test-agent - DB Smoke Script Automation
+
+### Completed
+
+- Ran true multi-Agent coordination:
+  - `frontend-agent` mapped user export/download browser smoke paths and blockers.
+  - `api-agent` recommended `/biz/dict/edit` as the next low-risk frontend-visible implementation slice.
+  - `test-agent` identified the missing repeatable DB-backed smoke script.
+  - `test-agent worker` added the script-only patch.
+- Added `scripts/test-agent-db-smoke.ps1`.
+- Updated `scripts/test-agent-smoke.ps1` so optional no-token HTTP smoke handles real HTTP 401 responses.
+- Updated `docs/tasks/test-agent-smoke-runbook.md` with the DB smoke command.
+- Updated implementation and active plan notes.
+
+### Modified Files
+
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+- `docs/tasks/test-agent-smoke-runbook.md`
+- `scripts/test-agent-db-smoke.ps1`
+- `scripts/test-agent-smoke.ps1`
+
+### Test Results
+
+- `.\scripts\test-agent-smoke.ps1 -SkipComposer`: passed.
+- `.\scripts\test-agent-db-smoke.ps1`: passed.
+- DB smoke table count check: passed, `phpoa20026` has application tables.
+- Redis smoke: passed, `PING` returned `PONG`.
+- User export service smoke: passed for system export, business export, and single-user profile export descriptors.
+- Export safety check: passed; sampled content did not include `PASSWORD`.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- Browser smoke for copied Vue export/download buttons still needs a valid login account and, for business export buttons, matching button permission codes.
+- `/biz/dict/edit` is the current recommended next low-risk implementation slice.
+
+### Next Plan
+
+- Commit the DB smoke script automation.
+- Start a focused worker for `/biz/dict/edit` after reviewing Java/controller details locally.

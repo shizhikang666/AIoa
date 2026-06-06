@@ -14,6 +14,10 @@ It does not modify Java source, `.env`, database schema, Composer dependencies, 
 
 `scripts/test-agent-smoke.ps1`
 
+DB/Redis/export smoke script:
+
+`scripts/test-agent-db-smoke.ps1`
+
 ## Baseline Command
 
 ```powershell
@@ -28,6 +32,23 @@ The baseline command runs:
 - required route coverage checks for current frontend-visible personnel, message SSE, and biz directory aliases
 - PHP syntax lint for `app`, `config`, and `route`
 - `git diff --check`
+
+## DB Smoke Command
+
+After the local runtime services are started and the ignored `.env` contains the local credentials, run:
+
+```powershell
+.\scripts\test-agent-db-smoke.ps1
+```
+
+The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and Redis clients, and does not print passwords. It verifies:
+
+- `phpoa20026` has application tables
+- Redis responds to `PING`
+- `UserDirectoryService::exportUsers(false, ...)` returns a valid CSV download descriptor
+- `UserDirectoryService::exportUsers(true, ...)` returns a valid CSV download descriptor
+- `UserDirectoryService::exportUserInfoFile(...)` returns a valid text download descriptor
+- sampled export content does not include `PASSWORD`
 
 ## Optional Backend No-Token Smoke
 

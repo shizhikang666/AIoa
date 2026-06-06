@@ -8295,3 +8295,55 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement new routes, services, controllers, database writes, imports, exports, browser automation, frontend source changes, `.env` edits, Java source edits, or dependency changes in this slice.
+
+## Active Plan: test-agent - DB Smoke Script Automation
+
+Status: completed on 2026-06-06 after script review and execution.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add a repeatable DB/Redis/export smoke script that can be run in future conversations after starting the user-provided local runtime bundle.
+
+### 2. Involved Modules
+
+- test-agent runtime validation
+- local MySQL/Redis runtime described in `docs/tasks/local-runtime-services.md`
+- user export service smoke for the current export/download compatibility slice
+
+### 3. Involved Files
+
+- `scripts/test-agent-db-smoke.ps1`
+- `scripts/test-agent-smoke.ps1`
+- `docs/tasks/test-agent-smoke-runbook.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The script must not print or commit MySQL/Redis passwords.
+- The script must read credentials only from ignored local `.env`.
+- DB smoke must remain a validation step and must not mutate application data.
+- No-token HTTP smoke must accept both JSON business `code = 401` and real HTTP 401 responses.
+
+### 5. Test Commands
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer
+.\scripts\test-agent-db-smoke.ps1
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- DB smoke confirms the expected database has application tables.
+- Redis smoke confirms authenticated `PING` returns `PONG`.
+- User export service smoke confirms system export, business export, and single-user profile export descriptors are valid.
+- Sampled export content does not include `PASSWORD`.
+- No `.env`, Java source, route, controller, service, frontend source, database schema, or Composer files are changed.
+
+### 7. Forbidden Scope
+
+- Do not implement business endpoints, browser automation, frontend changes, database writes, `.env` edits, Java source changes, route changes, or dependency changes in this slice.

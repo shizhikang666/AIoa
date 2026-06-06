@@ -33,6 +33,34 @@ function Invoke-External {
     }
 }
 
+function Read-WebExceptionContent {
+    param([Parameter(Mandatory = $true)]$Response)
+
+    if ($Response.PSObject.Properties.Name -contains 'Content' -and $Response.Content -is [string]) {
+        return [string]$Response.Content
+    }
+
+    if ($Response.PSObject.Methods.Name -contains 'GetResponseStream') {
+        $stream = $Response.GetResponseStream()
+        if ($null -eq $stream) {
+            return ''
+        }
+
+        $reader = [System.IO.StreamReader]::new($stream)
+        try {
+            return $reader.ReadToEnd()
+        } finally {
+            $reader.Dispose()
+        }
+    }
+
+    if ($Response.PSObject.Properties.Name -contains 'Content' -and $Response.Content -and $Response.Content.PSObject.Methods.Name -contains 'ReadAsStringAsync') {
+        return $Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    }
+
+    return ''
+}
+
 Invoke-TestStep 'composer dump-autoload' {
     if (-not $SkipComposer) {
         Invoke-External composer dump-autoload
@@ -103,10 +131,25 @@ if ($NoTokenSmoke) {
         )
 
         foreach ($route in $routes) {
-            $response = Invoke-WebRequest -Uri "$base/$route" -Method GET -UseBasicParsing -TimeoutSec 10
-            $content = [string]$response.Content
-            if ($response.StatusCode -ne 401 -and -not $content.Contains('"code":401') -and -not $content.Contains('"code": 401')) {
-                throw "Expected unauthenticated response for $route, got HTTP $($response.StatusCode): $content"
+            $response = $null
+            $statusCode = $null
+            $content = ''
+            try {
+                $response = Invoke-WebRequest -Uri "$base/$route" -Method GET -UseBasicParsing -TimeoutSec 10
+                $statusCode = [int]$response.StatusCode
+                $content = [string]$response.Content
+            } catch {
+                $response = $_.Exception.Response
+                if ($null -eq $response) {
+                    throw
+                }
+
+                $statusCode = [int]$response.StatusCode
+                $content = Read-WebExceptionContent -Response $response
+            }
+
+            if ($statusCode -ne 401 -and -not $content.Contains('"code":401') -and -not $content.Contains('"code": 401')) {
+                throw "Expected unauthenticated response for $route, got HTTP $($statusCode): $content"
             }
         }
     }

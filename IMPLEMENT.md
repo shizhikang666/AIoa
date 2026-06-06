@@ -807,3 +807,20 @@ Explicit non-goals:
 - No route, controller, service, frontend, database schema, Composer, `.env`, or Java source changes.
 - No DB-backed export smoke until the local MySQL credentials are corrected.
 
+## 2026-06-06 Test Agent DB Smoke Script Automation
+
+Agent: test-agent
+
+Execution summary:
+
+1. Added `scripts/test-agent-db-smoke.ps1` to make DB/Redis/export smoke checks repeatable.
+2. The script reads local credentials from ignored `.env`, uses `MYSQL_PWD` and `REDISCLI_AUTH`, and avoids printing passwords.
+3. The script verifies `phpoa20026` has tables, Redis responds with `PONG`, and `UserDirectoryService` export methods return valid descriptors without `PASSWORD` content.
+4. Updated `scripts/test-agent-smoke.ps1` so optional no-token HTTP smoke treats real HTTP 401 responses as expected unauthenticated responses.
+5. Updated the smoke runbook to include the DB smoke command.
+
+Explicit non-goals:
+
+- No endpoint, controller, service, route, frontend, database schema, Composer, `.env`, or Java source changes.
+- No data mutation beyond read-only verification.
+
