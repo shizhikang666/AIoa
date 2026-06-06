@@ -1,6 +1,6 @@
-# Biz Sale Project Product Item Relation Read-Only API Compatibility
+# Biz Sale Project Product Item Relation API Compatibility
 
-Date: 2026-06-03
+Date: 2026-06-06
 
 Agent: api-agent
 
@@ -18,6 +18,8 @@ The route is protected by `AuthMiddleware`.
 | Method | Route | ThinkPHP Handler | Behavior |
 | --- | --- | --- | --- |
 | POST | `/biz/saleprojectproductitemrelation/list` | `biz.SaleProjectProductItemRelationController/list` | Reads combo-product child relation rows by sale-project product item ids |
+| POST | `/biz/saleprojectproductitemrelation/mark/edit` | `biz.SaleProjectProductItemRelationController/editMark` | Updates relation `MARK` only |
+| POST | `/biz/saleprojectproductitem/mark/edit` | `biz.SaleProjectProductItemController/editMark` | Updates sale-project product item `MARK` only |
 
 ## Request Compatibility
 
@@ -69,6 +71,24 @@ Rows include Java/frontend camelCase fields:
 
 If `EXT_JSON` is empty, the service returns a minimal compatible `{"product": ...}` JSON string from joined product fields, matching the existing sale-project detail child-row behavior.
 
+## Mark Edit Compatibility
+
+Both mark-edit endpoints accept JSON/form payloads:
+
+```json
+{
+  "id": "row-id",
+  "mark": "optional marker"
+}
+```
+
+Behavior:
+
+- Relation mark edit validates the active relation through its owning active product item and active sale project, then updates only `sale_project_product_item_relation.MARK` plus update audit fields.
+- Product item mark edit validates the active product item through its owning active sale project, then updates only `biz_sale_project_product_item.MARK` plus update audit fields.
+- Empty or missing `mark` is stored as an empty string, matching the Java nullable edit param behavior.
+- Relation `MARK` is capped at 255 characters and product item `MARK` is capped at 50 characters to match the physical table columns.
+
 ## Data Scope
 
 - The query joins relation rows to `biz_sale_project_product_item` and `biz_sale_project`.
@@ -81,14 +101,16 @@ The following Java/frontend routes remain intentionally unimplemented in this sl
 
 | Route | Reason |
 | --- | --- |
-| `POST /biz/saleprojectproductitemrelation/mark/edit` | Mutates relation `MARK` |
-| `POST /biz/saleprojectproductitem/mark/edit` | Mutates sale-project product item `MARK` |
+| Sale-project product item add/edit/delete | Mutates product item rows and can affect delivery/invoice/stock workflows |
+| Delivery, invoice, return, inventory, finance, workflow actions | Transactional side effects require separate module plans |
 
 ## Test Commands
 
 ```powershell
 php -l app\controller\biz\SaleProjectProductItemRelationController.php
+php -l app\controller\biz\SaleProjectProductItemController.php
 php -l app\service\biz\SaleProjectProductItemRelationService.php
+php -l app\service\biz\SaleProjectProductItemService.php
 php -l route\app.php
 composer dump-autoload
 php think
@@ -106,3 +128,11 @@ Date: 2026-06-03
 - The first sampled row included `productId` and non-empty `extJson`.
 - Authenticated HTTP smoke for `/biz/saleprojectproductitemrelation/list` returned `code = 200`, 10 relation rows, `productId`, and non-empty `extJson`.
 - Unauthenticated HTTP smoke for `/biz/saleprojectproductitemrelation/list` returned `code = 401`.
+
+Date: 2026-06-06
+
+- Direct service smoke updated and restored one sampled product item `MARK`.
+- Direct service smoke updated and restored one sampled product item relation `MARK`.
+- `php think route:list` lists both mark-edit routes.
+- Unauthenticated HTTP smoke for `/biz/saleprojectproductitem/mark/edit` returned `code = 401`.
+- Unauthenticated HTTP smoke for `/biz/saleprojectproductitemrelation/mark/edit` returned `code = 401`.

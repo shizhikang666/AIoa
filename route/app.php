@@ -463,6 +463,11 @@ Route::group('biz/saleprojectproductinfo', function () {
 
 Route::group('biz/saleprojectproductitemrelation', function () {
     Route::post('list', 'biz.SaleProjectProductItemRelationController/list');
+    Route::post('mark/edit', 'biz.SaleProjectProductItemRelationController/editMark');
+})->middleware(AuthMiddleware::class);
+
+Route::group('biz/saleprojectproductitem', function () {
+    Route::post('mark/edit', 'biz.SaleProjectProductItemController/editMark');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizdatareport', function () {

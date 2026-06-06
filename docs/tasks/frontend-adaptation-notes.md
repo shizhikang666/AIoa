@@ -154,6 +154,29 @@ This smoke followed the sale-project product item relation read-only API slice. 
 - Relation mark editing remains deferred because `/biz/saleprojectproductitemrelation/mark/edit` mutates data.
 - Product item mark editing remains deferred because `/biz/saleprojectproductitem/mark/edit` mutates data.
 
+## 2026-06-06 Sale Project Product Mark Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied sale-project product mark helpers:
+
+- `snowy-admin-web/src/api/biz/saleProjectProductItemRelationApi.js`
+- `snowy-admin-web/src/api/biz/bizSaleProjectProductItemApi.js`
+
+### Result
+
+- `/biz/saleprojectproductitemrelation/mark/edit` is now routed as a protected POST endpoint.
+- `/biz/saleprojectproductitem/mark/edit` is now routed as a protected POST endpoint.
+- Relation mark edit updates only `sale_project_product_item_relation.MARK`.
+- Product item mark edit updates only `biz_sale_project_product_item.MARK`.
+- Both endpoints validate visibility through the owning active sale project and apply the existing admin/data-scope/current-user compatibility guard.
+
+### Deferred
+
+- Sale-project product item add/edit/delete, delivery, invoice, return, inventory, finance, workflow, and sale-project state side effects remain out of scope.
+
 ## 2026-06-03 Sale Project Page Data Scope Smoke Fix
 
 Agent: api-agent / frontend-agent

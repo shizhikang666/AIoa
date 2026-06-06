@@ -6377,3 +6377,58 @@ Agent: api-agent
 
 - Commit and push this product base maintenance compatibility slice.
 - Continue the next isolated frontend-visible write/read compatibility slice, avoiding stock, finance, workflow, and sale-project state side effects until their module-specific plans are opened.
+
+## 2026-06-06 10:01 +08:00 - api-agent/frontend-agent - Sale Project Product Mark Compatibility
+
+### Completed
+
+- Added protected compatibility route `POST /biz/saleprojectproductitemrelation/mark/edit`.
+- Added protected compatibility route `POST /biz/saleprojectproductitem/mark/edit`.
+- Added `SaleProjectProductItemRelationController.editMark` and `SaleProjectProductItemRelationService.editMark`.
+- Added tiny `SaleProjectProductItemController` and `SaleProjectProductItemService` for product-item `MARK` writes only.
+- Validated both writes through the owning active sale project with admin-compatible, data-scope org, or project-user visibility.
+- Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/SaleProjectProductItemRelationController.php`
+- `app/controller/biz/SaleProjectProductItemController.php`
+- `app/service/biz/SaleProjectProductItemRelationService.php`
+- `app/service/biz/SaleProjectProductItemService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-product-item-relation-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectProductItemRelationController.php`: passed.
+- `php -l app\controller\biz\SaleProjectProductItemController.php`: passed.
+- `php -l app\service\biz\SaleProjectProductItemRelationService.php`: passed.
+- `php -l app\service\biz\SaleProjectProductItemService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; sampled product item `2007746037914529793` and relation `2007746037960667138` were updated and then restored to their original `MARK` values.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 334 route entries; both mark-edit routes are listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 234 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP smoke for both mark-edit routes returned business `code=401`.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- Product item add/edit/delete, delivery, invoice, return, inventory, finance, workflow, sale-project state changes, and Java data-change/cache events remain deferred by design.
+- The smoke test restored sampled imported rows to their original `MARK` values and did not leave test data behind.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this sale-project product mark compatibility slice.
+- Continue another isolated frontend-visible endpoint, still avoiding stock, finance, workflow, and state-transition side effects until their module plans are explicitly opened.

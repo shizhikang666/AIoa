@@ -6836,3 +6836,75 @@ git diff --check
 - Do not implement stock updates, purchase-order writes, sale-project item writes, finance transaction writes, workflow actions, file upload/storage, Java data-change/cache events, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
 - Do not physically delete imported `biz_product` rows.
 - Do not clear product relations except the Java-equivalent `KIT_PRODUCT_DATA` relations for the product object currently being added/edited.
+
+## Active Plan: api-agent/frontend-agent - Sale Project Product Mark Compatibility
+
+Status: completed on 2026-06-06 after implementation, service smoke with MARK restore, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected mark-edit endpoints used by copied sale-project delivery/invoice helpers:
+
+- `POST /biz/saleprojectproductitemrelation/mark/edit`
+- `POST /biz/saleprojectproductitem/mark/edit`
+
+This slice updates only `MARK` on `sale_project_product_item_relation` and `biz_sale_project_product_item`. It must not implement product item add/edit/delete, delivery, invoice, inventory, workflow, finance, or sale-project state changes.
+
+### 2. Involved Modules
+
+- api-agent sale-project product item compatibility
+- frontend-agent copied sale-project product helper compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/SaleProjectProductItemRelationController.php`
+- `app/controller/biz/SaleProjectProductItemController.php`
+- `app/service/biz/SaleProjectProductItemRelationService.php`
+- `app/service/biz/SaleProjectProductItemService.php`
+- `route/app.php`
+- `docs/api/biz-saleproject-product-item-relation-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Product item rows belong to sale projects and are later used by delivery, return, invoice, inventory, and reporting flows; this slice must update only `MARK`.
+- The relation mark endpoint must validate visibility through the owning sale project before updating.
+- The product item endpoint has a separate route group, so a tiny controller/service may be needed without opening broader product-item CRUD.
+- Java does not validate mark enum values here, so this slice should accept submitted string/null values and only cap length to the physical column.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\SaleProjectProductItemRelationController.php
+php -l app\controller\biz\SaleProjectProductItemController.php
+php -l app\service\biz\SaleProjectProductItemRelationService.php
+php -l app\service\biz\SaleProjectProductItemService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Both `mark/edit` routes are registered behind token middleware.
+- Relation mark edit requires `id`, validates the active relation through its owning active product item and sale project, applies data-scope checks, and updates only `MARK`.
+- Product item mark edit requires `id`, validates the active product item through its owning active sale project, applies data-scope checks, and updates only `MARK`.
+- Smoke tests restore sampled imported rows to their original `MARK` values after mutation.
+- Java source, database schema, frontend source, delivery, invoice, inventory, workflow, finance, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement sale-project product item add, edit, delete, delivery, invoice, stock, return, workflow, finance, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

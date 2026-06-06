@@ -379,3 +379,22 @@ Explicit non-goals:
 - No purchase-order, sale-project item, finance transaction, workflow, file upload/storage, or Java data-change/cache side effects.
 - No Java source, schema, Composer, `.env`, or frontend source changes.
 
+## 2026-06-06 Sale Project Product Mark Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SaleProjectProductItemRelationController.editMark`, `SaleProjectProductItemRelationServiceImpl.editMark`, `BizSaleProjectProductItemController.editMark`, and `BizSaleProjectProductItemServiceImpl.editMark`.
+2. Added only relation/product-item `MARK` update compatibility.
+3. Added a tiny product-item controller/service for `/biz/saleprojectproductitem/mark/edit` without opening product-item CRUD.
+4. Reused sale-project visibility checks through the owning active sale project before writes.
+5. Registered only `/biz/saleprojectproductitemrelation/mark/edit` and `/biz/saleprojectproductitem/mark/edit` in `route/app.php`.
+6. Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No sale-project product item add/edit/delete.
+- No delivery, invoice, return, inventory, workflow, finance, sale-project state, file upload/storage, or Java data-change/cache side effects.
+- No Java source, schema, Composer, `.env`, or frontend source changes.
+

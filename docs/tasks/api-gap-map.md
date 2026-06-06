@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 332 | From `php think route:list` after product base maintenance route addition |
-| Endpoints already covered by route path | 320 | Includes read adapters, auth/system routes, and selected low-risk writes |
+| Current ThinkPHP routes | 334 | From `php think route:list` after sale-project product mark route addition |
+| Endpoints already covered by route path | 322 | Includes read adapters, auth/system routes, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 156 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
+| Deferred write/side-effect candidates | 154 | Add/edit/delete/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
 
@@ -94,7 +94,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/saleprojectinvoiceItem` | `page` covered; invoice item writes remain deferred |
 | `biz/projectrate` | `page`, `list`, `detail`, `add`, and `delete` covered; edit and file upload/storage remain deferred |
 | `biz/saleprojectreissueorder` | `list/query` |
-| `biz/saleprojectproductitemrelation` | `list` covered; `mark/edit` remains deferred |
+| `biz/saleprojectproductitemrelation` | `list` and `mark/edit` covered |
 | `biz/bizteamprojectcomment` | `page`, `list`, `detail`, `add`, and `delete` covered; notification/data-change side effects remain deferred |
 | `biz/bizteamprojectcommentreply` | `page`, `detail`, `add`, `edit`, and `delete` covered |
 | `biz/bizteamprojecttask` | `page`, `list`, `detail`, `add`, `edit`, `delete`, and `user/edit` covered; task logs, notification, data-change events, and full drag ordering remain deferred |
@@ -114,8 +114,8 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleproject` | `add`, `edit`, `delete`, `amount/edit`, `deal/edit`, `cancel`, `history/add`, `special/add`, `visibility/edit` | Project state, finance, visibility, and history side effects |
 | `biz/bizdraft` | `saleproject/add` | Draft save mutates sale-project draft state and needs validation/audit coverage |
 | `biz/saleprojectfollowup` | File upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file and message side effects remain deferred |
-| `biz/saleprojectproductitemrelation` | `mark/edit` | Relation mark mutation |
-| `biz/saleprojectproductitem` | `mark/edit` | Product item mark mutation |
+| `biz/saleprojectproductitemrelation` | Delivery/invoice/stock side effects | Relation `mark/edit` is covered |
+| `biz/saleprojectproductitem` | Add/edit/delete, delivery/invoice/stock side effects | Product item `mark/edit` is covered |
 | `biz/customer` | `head/edit` | Customer ownership reassignment, SM4 plaintext search, file upload/storage, and related side effects |
 | `biz/customerfollowup` | Attachment upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file side effects remain deferred |
 | `biz/org`, `biz/user`, `biz/position` | `add`, `edit`, `delete`, grants, enable/disable, reset password | Permission and organization-state side effects |

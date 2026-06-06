@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only sale-project product item relation queries compatible with Java SaleProjectProductItemRelationController.
+ * Sale-project product item relation compatibility for Java SaleProjectProductItemRelationController.
  */
 class SaleProjectProductItemRelationService
 {
@@ -58,6 +59,29 @@ SQL;
         return $this->relationRows($query->select()->toArray());
     }
 
+    public function editMark(array $input, array $payload = []): array
+    {
+        $id = $this->requiredString($input, 'id');
+        $mark = $this->nullableMark($input['mark'] ?? null, 255);
+        $row = $this->activeRelationForWrite($id, $payload);
+
+        $updated = Db::name('sale_project_product_item_relation')
+            ->where('ID', $id)
+            ->update([
+                'MARK' => $mark,
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $this->currentUserId($payload) ?: null,
+            ]);
+
+        return [
+            'id' => $id,
+            'objectId' => $row['OBJECT_ID'] ?? null,
+            'targetId' => $row['TARGET_ID'] ?? null,
+            'mark' => $mark,
+            'count' => $updated,
+        ];
+    }
+
     /**
      * @param array<int, string> $objectIds
      */
@@ -100,6 +124,33 @@ SQL;
         if ($userId !== '') {
             $query->where('project.USER', $userId);
         }
+    }
+
+    private function activeRelationForWrite(string $id, array $payload): array
+    {
+        $query = Db::name('sale_project_product_item_relation')
+            ->alias('r')
+            ->join('biz_sale_project_product_item i', 'i.ID = r.OBJECT_ID', 'INNER')
+            ->join('biz_sale_project project', 'project.ID = i.PROJECT_ID', 'INNER')
+            ->where('r.ID', $id)
+            ->field('r.ID, r.OBJECT_ID, r.TARGET_ID, r.MARK, r.TENANT_ID, project.ID AS PROJECT_ID, project.USER AS PROJECT_USER, project.ORG AS PROJECT_ORG');
+        $this->whereNotDeleted($query, 'r.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'i.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'project.DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('r.TENANT_ID', $tenantId);
+        }
+
+        $this->applyDataScope($query, $payload);
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('sale project product item relation not found', 404);
+        }
+
+        return $row;
     }
 
     /**
@@ -188,6 +239,31 @@ SQL;
     private function currentUserId(array $payload): string
     {
         return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    private function requiredString(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function nullableMark(mixed $value, int $maxLength): string
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        $value = trim((string)$value);
+        $length = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
+        if ($length > $maxLength) {
+            throw new RuntimeException('mark too long', 400);
+        }
+
+        return $value;
     }
 
     /**

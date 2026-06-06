@@ -2208,6 +2208,38 @@ The copied Vue sale-project delivery/invoice helpers include Java-compatible `/b
 
 ---
 
+# Public File Change Request: Sale Project Product Mark Routes
+
+## Request
+
+Register protected sale-project product item mark edit routes in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-project delivery/invoice helpers call Java-compatible mark endpoints to flag product item rows and kit child relation rows. Java updates only `MARK` for these endpoints, so this slice opens only the same single-field mutation and keeps delivery, invoice, inventory, workflow, finance, and sale-project state side effects deferred.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/saleprojectproductitemrelation/mark/edit`
+- `POST /biz/saleprojectproductitem/mark/edit`
+
+## Explicit Exclusions
+
+- No sale-project product item add/edit/delete route was added.
+- No delivery, invoice, return, inventory, workflow, finance, file upload, account-balance, sale-project state, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- Writes are limited to `MARK` plus update audit fields on the target row.
+
+## Verification
+
+- `php think route:list` must list both added routes.
+- Relation mark edit should validate the owning active sale project before updating.
+- Product item mark edit should validate the owning active sale project before updating.
+- Requests without token should return `code=401`.
+
+---
+
 # Public File Change Request: Sale Project Cost Route Precedence Fix
 
 ## Request
