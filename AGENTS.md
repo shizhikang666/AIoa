@@ -208,6 +208,27 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 ```
 
+## Local Runtime Services
+
+Use the user-provided local runtime bundle for database-backed and Redis-backed checks.
+
+Start it from:
+
+```powershell
+Set-Location F:\project\socket\AI\testPhp\files
+.\startServer1.bat
+```
+
+Expected local endpoints:
+
+- MySQL: `127.0.0.1:3306`, database `phpoa20026`
+- Redis: `127.0.0.1:6379`
+- PHP FastCGI: `127.0.0.1:9000`
+
+The ThinkPHP project reads credentials from the ignored local `.env` in `F:\AI\projects\testJava\OA-ThinkPHP`. Do not print or commit `DB_PASS`, `REDIS_PASSWD`, or other secrets.
+
+Detailed runtime notes: `docs/tasks/local-runtime-services.md`.
+
 Composer checks:
 
 ```powershell

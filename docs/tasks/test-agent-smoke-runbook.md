@@ -48,6 +48,10 @@ Set-Location F:\project\socket\AI\testPhp\files
 .\startServer1.bat
 ```
 
+Detailed connection notes for future conversations are kept in:
+
+`docs/tasks/local-runtime-services.md`
+
 Expected local services:
 
 - MySQL listens on `127.0.0.1:3306`

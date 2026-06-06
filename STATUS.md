@@ -7533,3 +7533,28 @@ Agent: api-agent
 
 - Commit the DB smoke follow-up documentation.
 - Continue with browser-facing smoke when frontend/backend servers and a login session are available, or move to the next low-risk read/API slice.
+
+## 2026-06-06 17:40 +08:00 - docs-agent - Local Runtime Service Notes
+
+### Completed
+
+- Added project-level local runtime startup notes to `AGENTS.md` so future Codex conversations can find the database/Redis startup path immediately.
+- Added `docs/tasks/local-runtime-services.md` with the local service bundle path, expected MySQL/Redis/PHP-FastCGI ports, non-secret `.env` keys, and verification commands.
+- Linked the local runtime notes from `docs/tasks/test-agent-smoke-runbook.md`.
+- Kept MySQL and Redis passwords out of tracked documentation; they remain in the ignored local `.env` or must be provided by the user.
+
+### Modified Files
+
+- `AGENTS.md`
+- `STATUS.md`
+- `docs/tasks/local-runtime-services.md`
+- `docs/tasks/test-agent-smoke-runbook.md`
+
+### Current Issues
+
+- Browser smoke for copied Vue export/download buttons still needs an authenticated frontend session.
+
+### Next Plan
+
+- Commit the local runtime documentation.
+- Continue with the next browser-facing smoke or low-risk read/API slice.
