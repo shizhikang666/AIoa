@@ -5,13 +5,16 @@ declare(strict_types=1);
 namespace app\controller\sys;
 
 use app\service\user\UserDirectoryService;
+use app\service\user\UserCenterWriteService;
 use think\Request;
 use think\Response;
 
 class UserCenterController extends BaseSysController
 {
-    public function __construct(private readonly UserDirectoryService $userDirectoryService = new UserDirectoryService())
-    {
+    public function __construct(
+        private readonly UserDirectoryService $userDirectoryService = new UserDirectoryService(),
+        private readonly UserCenterWriteService $userCenterWriteService = new UserCenterWriteService()
+    ) {
     }
 
     public function loginOrgTree(Request $request): Response
@@ -73,5 +76,71 @@ class UserCenterController extends BaseSysController
     public function processConfig(Request $request): Response
     {
         return $this->guard(fn () => $this->userDirectoryService->processConfig($this->currentUserId($request)));
+    }
+
+    public function updatePassword(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userCenterWriteService->updatePassword($this->body($request), $this->authPayload($request)));
+    }
+
+    public function updateAvatar(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userCenterWriteService->updateAvatar($request->file('file'), $this->authPayload($request)));
+    }
+
+    public function updateSignature(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userCenterWriteService->updateSignature($this->body($request), $this->authPayload($request)));
+    }
+
+    public function updateUserInfo(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userCenterWriteService->updateUserInfo($this->body($request), $this->authPayload($request)));
+    }
+
+    public function centerEdit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userCenterWriteService->updateUserInfo($this->body($request), $this->authPayload($request), true));
+    }
+
+    public function updateUserWorkbench(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userCenterWriteService->updateWorkbench($this->body($request), $this->authPayload($request)));
+    }
+
+    public function editProcessConfig(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userCenterWriteService->editProcessConfig($this->body($request), $this->authPayload($request)));
+    }
+
+    private function authPayload(Request $request): array
+    {
+        $payload = $request->middleware('auth_payload', []);
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    private function body(Request $request): array
+    {
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $request->param();
     }
 }

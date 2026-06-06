@@ -46,6 +46,12 @@ Route::group('sys/userCenter', function () {
     Route::get('loginUnreadMessagePage', 'sys.UserCenterController/loginUnreadMessagePage');
     Route::get('loginUnreadMessageDetail', 'sys.UserCenterController/loginUnreadMessageDetail');
     Route::post('process/config', 'sys.UserCenterController/processConfig');
+    Route::post('process/config/edit', 'sys.UserCenterController/editProcessConfig');
+    Route::post('updatePassword', 'sys.UserCenterController/updatePassword');
+    Route::post('updateAvatar', 'sys.UserCenterController/updateAvatar');
+    Route::post('updateSignature', 'sys.UserCenterController/updateSignature');
+    Route::post('updateUserInfo', 'sys.UserCenterController/updateUserInfo');
+    Route::post('updateUserWorkbench', 'sys.UserCenterController/updateUserWorkbench');
     Route::post('getOrgListByIdList', 'sys.UserCenterController/getOrgListByIdList');
     Route::post('getUserListByIdList', 'sys.UserCenterController/getUserListByIdList');
     Route::post('getPositionListByIdList', 'sys.UserCenterController/getPositionListByIdList');
@@ -536,6 +542,7 @@ Route::group('biz/user', function () {
     Route::get('page', 'sys.UserController/page');
     Route::get('list/detail', 'sys.UserController/listDetail');
     Route::get('detail', 'sys.UserController/detail');
+    Route::post('center/edit', 'sys.UserCenterController/centerEdit');
     Route::get('ownRole', 'sys.UserController/ownRole');
     Route::get('orgTreeSelector', 'sys.UserController/orgTreeSelector');
     Route::get('positionSelector', 'sys.UserController/positionSelector');

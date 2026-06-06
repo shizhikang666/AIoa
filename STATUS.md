@@ -6483,3 +6483,54 @@ Agent: api-agent
 
 - Commit and push this customer head reassignment compatibility slice.
 - Continue another isolated frontend-visible endpoint while keeping workflow, stock, finance, and sale-project state transitions behind explicit module plans.
+
+## 2026-06-06 10:55 +08:00 - user-agent/frontend-agent - User Center Self-Service Writes
+
+### Completed
+
+- Added protected compatibility routes for current-user personal-center writes.
+- Added `UserCenterWriteService` for password, avatar, signature, profile, workbench, and process-config edits.
+- Added `/biz/user/center/edit` as a self-profile alias matching Java `BizUserController.editUser` behavior by forcing the current token user id.
+- Updated user-center API docs, business directory alias docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/UserCenterController.php`
+- `app/service/user/UserCenterWriteService.php`
+- `route/app.php`
+- `docs/api/user-center-readonly-compat.md`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\UserCenterController.php`: passed.
+- `php -l app\service\user\UserCenterWriteService.php`: passed.
+- `php -l route\app.php`: passed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 342 route entries; all new user-center routes are listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for `/sys/userCenter/updateSignature` and `/biz/user/center/edit`: returned business `code=401`.
+- Authenticated wrong-password smoke for `/sys/userCenter/updatePassword`: login returned `code=200`; password update returned `code=401` and did not modify the password.
+
+### Current Issues
+
+- Avatar compatibility stores a bounded base64 data URI; full file-provider storage and cleanup remain deferred.
+- Java SM4 encrypted-field migration for phone and identity fields remains deferred.
+- Admin-side user CRUD, grants, reset-password-by-admin, import/export, and enable/disable remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this user-center self-service compatibility slice.
+- Continue with another isolated frontend-visible slice, or start data-scope/permission tightening before heavy finance, stock, workflow, and sale-project state writes.

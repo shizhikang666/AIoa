@@ -48,3 +48,33 @@ The Java message detail endpoint marks a message as read as part of the detail c
 - message mark-read writes
 
 These endpoints require write validation, audit behavior, and conflict checks before implementation.
+
+## 2026-06-06 Self-Service Write Compatibility
+
+Agent: user-agent / frontend-agent
+
+The following protected user-center write endpoints are now implemented for the copied Vue personal center:
+
+| Method | Path | Scope |
+| --- | --- | --- |
+| POST | `/sys/userCenter/updatePassword` | Current user's password only |
+| POST | `/sys/userCenter/updateAvatar` | Current user's avatar only |
+| POST | `/sys/userCenter/updateSignature` | Current user's signature only |
+| POST | `/sys/userCenter/updateUserInfo` | Current user's profile only; submitted `id` must match the token user |
+| POST | `/sys/userCenter/updateUserWorkbench` | Current user's workbench relation only |
+| POST | `/sys/userCenter/process/config/edit` | Current user's workflow process config only |
+
+Compatibility notes:
+
+- Password update reuses the existing transport decoder and stores a Java-compatible SM3 hash.
+- Avatar upload stores a bounded base64 data URI on `sys_user.AVATAR`; full file-provider storage and cleanup remain deferred.
+- Signature updates store a data URI on `sys_user.SIGNATURE`.
+- Workbench writes upsert `sys_relation` with category `SYS_USER_WORKBENCH_DATA`.
+- Process config writes update or create the current user's `sys_user_process_config` row.
+
+Still deferred:
+
+- User management add/edit/delete, enable/disable, reset-password-by-admin, grants, import/export.
+- Java SM4 encrypted-field migration for phone/identity fields.
+- Full file storage/provider integration for avatar uploads.
+- Message mark-read mutations.

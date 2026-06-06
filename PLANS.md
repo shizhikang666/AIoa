@@ -6976,3 +6976,77 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement customer import/export, file upload/storage, SM4 plaintext search migration, customer data-change events, sale-project/customer side effects, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+## Active Plan: user-agent/frontend-agent - User Center Self-Service Writes
+
+Status: completed on 2026-06-06 after route check, strict PHP lint, backend/frontend reachability, no-token auth smoke, and wrong-password auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible self-service write endpoints for the copied user center frontend:
+
+- `POST /sys/userCenter/updatePassword`
+- `POST /sys/userCenter/updateAvatar`
+- `POST /sys/userCenter/updateSignature`
+- `POST /sys/userCenter/updateUserInfo`
+- `POST /sys/userCenter/updateUserWorkbench`
+- `POST /sys/userCenter/process/config/edit`
+- `POST /biz/user/center/edit`
+
+This slice only updates the current login user's own profile/workbench/process-config/password data.
+
+### 2. Involved Modules
+
+- user-agent user-center write compatibility
+- frontend-agent copied user-center form compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/UserCenterController.php`
+- `app/service/user/UserCenterWriteService.php`
+- `route/app.php`
+- `docs/api/user-center-readonly-compat.md`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Password changes must use the existing SM2 transport decoder and SM3 hashing compatibility without committing secrets.
+- Avatar upload compatibility stores a bounded base64 data URI for the current user; full file-storage/provider cleanup remains deferred.
+- Profile updates must not become user-management CRUD. The submitted `id` must match the current token user id.
+- Phone/identity encryption parity with Java SM4 remains deferred; this slice does not migrate encrypted-field storage.
+- Process config writes must update only the current user's `sys_user_process_config` row.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\UserCenterController.php
+php -l app\service\user\UserCenterWriteService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- User-center write routes are protected by `AuthMiddleware`.
+- Password update requires current password and new password, verifies current password, stores a Java-compatible SM3 hash, and never logs or documents password values.
+- Avatar/signature/profile/workbench/process-config writes only affect the current token user.
+- `/biz/user/center/edit` reuses the same self-profile update guard.
+- Java source, database schema, Composer files, `.env`, role grants, user management CRUD, imports/exports, and frontend source remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/sys/user/add`, `/edit`, `/delete`, enable/disable, reset password, grant role/resource/permission, import/export, Java source changes, database schema changes, Composer changes, `.env` changes, or broad frontend changes.

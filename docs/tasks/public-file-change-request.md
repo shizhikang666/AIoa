@@ -3338,3 +3338,31 @@ Java exposes `/biz/bizproduct/add`, `/edit`, and `/delete`, and the copied Vue p
 - Kit product add/edit should validate child product ids and quantities, then write `product_relation.CATEGORY = KIT_PRODUCT_DATA`.
 - Delete should reject products referenced as kit children.
 - Requests without token should return `code=401`.
+
+## 2026-06-06 User Center Self-Service Write Routes
+
+Agent: user-agent / frontend-agent
+
+### Locked File Changed
+
+- `route/app.php`
+
+### Reason
+
+The copied Vue personal center calls Java-compatible user-center self-service routes. These require explicit ThinkPHP route declarations under the locked public-file rule.
+
+### Added Routes
+
+- `POST /sys/userCenter/updatePassword`
+- `POST /sys/userCenter/updateAvatar`
+- `POST /sys/userCenter/updateSignature`
+- `POST /sys/userCenter/updateUserInfo`
+- `POST /sys/userCenter/updateUserWorkbench`
+- `POST /sys/userCenter/process/config/edit`
+- `POST /biz/user/center/edit`
+
+### Guardrails
+
+- All routes remain behind `AuthMiddleware`.
+- All writes affect only the current token user.
+- No admin-side user CRUD, grants, reset-password-by-admin, import/export, Java source change, database schema change, Composer change, `.env` change, or frontend source change was added.

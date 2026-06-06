@@ -416,3 +416,21 @@ Explicit non-goals:
 - No customer import/export, file upload/storage, SM4 plaintext search migration, notification, sale-project/customer side effect, or Java data-change event.
 - No Java source, schema, Composer, `.env`, or frontend source changes.
 
+## 2026-06-06 User Center Self-Service Write Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserCenterController`, `SysUserServiceImpl`, `BizUserController.editUser`, and copied `userCenterApi.js` / `bizUserApi.js`.
+2. Added `UserCenterWriteService` for current-user-only password, avatar, signature, profile, workbench, and process-config writes.
+3. Reused the existing password transport decoder and SM3 hashing for password updates.
+4. Registered only the copied frontend user-center routes and `/biz/user/center/edit`.
+5. Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No admin-side user CRUD, enable/disable, reset-password-by-admin, grants, import/export.
+- No Java source, database schema, Composer, `.env`, or frontend source changes.
+- No Java SM4 encrypted-field migration or full file-provider storage cleanup.
+

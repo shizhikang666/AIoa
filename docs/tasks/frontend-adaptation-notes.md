@@ -1181,3 +1181,37 @@ This slice supports the copied product table and form maintenance flow:
 ### Deferred
 
 - Inventory stock updates, purchase-order writes, sale-project item writes, finance transaction writes, workflow actions, file upload/storage implementation, and Java data-change/cache event behavior remain out of scope.
+
+## 2026-06-06 User Center Self-Service Write Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied personal-center API wrappers and forms:
+
+- `snowy-admin-web/src/api/sys/userCenterApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/userCenter.vue`
+- `snowy-admin-web/src/views/sys/user/userTab/bindForm/updatePassword.vue`
+- `snowy-admin-web/src/views/sys/user/userTab/bindForm/updateUserInfo.vue`
+- `snowy-admin-web/src/views/sys/user/userTab/shortcutSetting.vue`
+- `snowy-admin-web/src/views/sys/user/userTab/userProcessConfig.vue`
+
+### Result
+
+- `/sys/userCenter/updatePassword` is now routed as a protected POST endpoint.
+- `/sys/userCenter/updateAvatar` is now routed as a protected POST endpoint.
+- `/sys/userCenter/updateSignature` is now routed as a protected POST endpoint.
+- `/sys/userCenter/updateUserInfo` is now routed as a protected POST endpoint.
+- `/sys/userCenter/updateUserWorkbench` is now routed as a protected POST endpoint.
+- `/sys/userCenter/process/config/edit` is now routed as a protected POST endpoint.
+- `/biz/user/center/edit` is now routed as a protected POST endpoint for the copied "more info" form.
+- All writes are constrained to the current token user.
+
+### Deferred
+
+- Admin-side user CRUD, enable/disable, reset password, grants, import/export.
+- Java SM4 encrypted-field migration.
+- Full file-provider storage and avatar cleanup.
+- Message mark-read mutations.

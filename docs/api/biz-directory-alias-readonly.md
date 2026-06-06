@@ -56,3 +56,19 @@ All routes are protected by `AuthMiddleware`.
 - Java source changes
 - Database schema changes
 - Frontend code changes
+
+## 2026-06-06 Self Profile Write Alias
+
+`POST /biz/user/center/edit` is now routed for the copied user-center "more info" form.
+
+The route delegates to the user-center self-profile writer and mirrors Java `BizUserController.editUser` behavior by forcing the target user id to the current token user. It is not a general user-management edit route.
+
+Still deferred:
+
+- `/biz/user/add`
+- `/biz/user/edit`
+- `/biz/user/delete`
+- `/biz/user/disableUser`
+- `/biz/user/enableUser`
+- `/biz/user/resetPassword`
+- grants, import/export, and organization-wide user management writes
