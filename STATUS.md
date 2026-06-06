@@ -6682,3 +6682,62 @@ Agent: api-agent
 
 - Commit this index schedule self-service compatibility slice.
 - Continue with another low-risk frontend-visible route or begin targeted data-scope/permission tightening before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 12:08 +08:00 - auth-agent/frontend-agent - Session And Token Exit Compatibility
+
+### Completed
+
+- Added protected Java-compatible auth monitor exit routes:
+  - `POST /auth/session/b/exit`
+  - `POST /auth/session/c/exit`
+  - `POST /auth/token/b/exit`
+  - `POST /auth/token/c/exit`
+- Added cache-backed B-side token indexing in `TokenService` for tokens created after this slice.
+- Added B-side session exit by user id and token exit by token value in `SessionMonitorService`.
+- Kept C-side exit endpoints as success-compatible no-op responses until C-side client auth is implemented.
+- Limited ordinary users to their own user id/token while allowing admin-compatible accounts or roles to manage indexed B-side sessions.
+- Updated auth API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/auth/SessionController.php`
+- `app/service/auth/SessionMonitorService.php`
+- `app/service/auth/TokenService.php`
+- `route/app.php`
+- `docs/api/auth-session-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\auth\SessionController.php`: passed.
+- `php -l app\service\auth\SessionMonitorService.php`: passed.
+- `php -l app\service\auth\TokenService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; the four exit routes are listed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- TokenService smoke: passed; temporary cache tokens were created, revoked by token value, revoked by user id, and confirmed removed.
+- SessionMonitorService smoke: passed; B-side token exit, B-side session exit, and C-side deferred no-op responses behaved as expected.
+- No-token HTTP smoke for all four exit routes: returned business `code=401`.
+- Strict PHP lint for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- Existing tokens created before this slice are not globally indexed; they can still revoke themselves through logout or direct bearer token handling.
+- C-side client auth/login/token storage remains deferred.
+- Fine-grained route permission middleware for auth monitor access remains deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this auth session/token exit compatibility slice.
+- Continue with another isolated frontend-visible route or start targeted permission/data-scope hardening before heavier workflow, finance, stock, and sale-project state writes.

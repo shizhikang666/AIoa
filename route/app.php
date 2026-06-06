@@ -30,6 +30,13 @@ Route::group('auth/session', function () {
     Route::get('analysis', 'auth.SessionController/analysis');
     Route::get('b/page', 'auth.SessionController/pageForB');
     Route::get('c/page', 'auth.SessionController/pageForC');
+    Route::post('b/exit', 'auth.SessionController/exitSessionForB');
+    Route::post('c/exit', 'auth.SessionController/exitSessionForC');
+})->middleware(AuthMiddleware::class);
+
+Route::group('auth/token', function () {
+    Route::post('b/exit', 'auth.SessionController/exitTokenForB');
+    Route::post('c/exit', 'auth.SessionController/exitTokenForC');
 })->middleware(AuthMiddleware::class);
 
 Route::group('auth/third', function () {

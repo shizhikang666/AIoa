@@ -1282,3 +1282,30 @@ This slice supports copied homepage schedule widget behavior:
 ### Deferred
 
 - Shared calendars, schedule editing, notifications, and cross-user schedule management remain out of scope.
+
+## 2026-06-06 Auth Session And Token Exit Compatibility
+
+Agent: auth-agent / frontend-agent
+
+### Scope
+
+This slice supports copied auth monitor behavior:
+
+- `snowy-admin-web/src/api/auth/monitorApi.js`
+- `snowy-admin-web/src/views/auth/monitor/bTab.vue`
+- `snowy-admin-web/src/views/auth/monitor/cTab.vue`
+- `snowy-admin-web/src/views/auth/monitor/tokenInfoList.vue`
+
+### Result
+
+- `/auth/session/b/exit` is now routed as a protected POST endpoint.
+- `/auth/session/c/exit` is now routed as a protected POST endpoint with client-auth no-op compatibility.
+- `/auth/token/b/exit` is now routed as a protected POST endpoint.
+- `/auth/token/c/exit` is now routed as a protected POST endpoint with client-auth no-op compatibility.
+- B-side tokens created after this slice are indexed in cache by user id so monitor pages can revoke active tokens.
+- Ordinary users can only operate on their own user id/token; admin-compatible accounts or roles may manage all indexed B-side sessions.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- C-side login/client token storage, third-party OAuth render/callback, and fine-grained route permission middleware remain out of scope.

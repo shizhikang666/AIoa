@@ -21,32 +21,71 @@ class SessionMonitorService
 
     public function analysis(Request $request): array
     {
-        $session = $this->currentSession($request);
-        $createdAt = (int)($session['payload']['login_at'] ?? 0);
-        $isRecent = $createdAt > 0 && $createdAt >= time() - 3600;
+        $payload = $this->currentPayload($request);
+        $rows = $this->pageRowsForPayload($payload, $request);
+        $tokenCounts = array_map(static fn (array $row): int => (int)($row['tokenCount'] ?? 0), $rows);
+        $recentCount = 0;
+
+        foreach ($rows as $row) {
+            $createdAt = strtotime((string)($row['sessionCreateTime'] ?? '')) ?: 0;
+            if ($createdAt > 0 && $createdAt >= time() - 3600) {
+                $recentCount++;
+            }
+        }
 
         return [
-            'currentSessionTotalCount' => '1',
-            'maxTokenCount' => '1',
-            'oneHourNewlyAdded' => $isRecent ? '1' : '0',
-            'proportionOfBAndC' => '1/0',
+            'currentSessionTotalCount' => (string)count($rows),
+            'maxTokenCount' => (string)($tokenCounts === [] ? 0 : max($tokenCounts)),
+            'oneHourNewlyAdded' => (string)$recentCount,
+            'proportionOfBAndC' => count($rows) . '/0',
         ];
     }
 
     public function pageForB(array $filters, Request $request): array
     {
         [$page, $limit] = $this->pagination($filters);
-        $session = $this->currentSession($request);
-        $userId = (string)($session['payload']['user_id'] ?? '');
+        $payload = $this->currentPayload($request);
         $filterUserId = trim((string)($filters['userId'] ?? ''));
 
-        if ($filterUserId !== '' && $filterUserId !== $userId) {
-            return $this->pageResult([], 0, $page, $limit);
+        $records = array_values(array_filter(
+            $this->pageRowsForPayload($payload, $request),
+            static fn (array $row): bool => $filterUserId === '' || (string)($row['id'] ?? '') === $filterUserId
+        ));
+
+        $total = count($records);
+        if ($total > 0) {
+            $records = array_slice($records, ($page - 1) * $limit, $limit);
         }
 
-        $records = $page === 1 ? [$this->sessionRow($session)] : [];
+        return $this->pageResult($records, $total, $page, $limit);
+    }
 
-        return $this->pageResult($records, 1, $page, $limit);
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    public function exitSessionForB(array $items, Request $request): array
+    {
+        $payload = $this->currentPayload($request);
+        $currentUserId = $this->payloadUserId($payload);
+        $canManage = $this->canManageMonitor($payload);
+        $userIds = $this->targetUserIds($items);
+        $count = 0;
+
+        foreach ($userIds as $userId) {
+            if (!$canManage && $userId !== $currentUserId) {
+                throw new RuntimeException('permission denied', 403);
+            }
+
+            $count += $this->tokenService->revokeUserTokens($userId);
+            if ($userId === $currentUserId) {
+                $currentToken = $this->tokenService->bearerFromRequest($request);
+                if (is_string($currentToken) && $currentToken !== '') {
+                    $this->tokenService->revoke($currentToken);
+                }
+            }
+        }
+
+        return ['count' => $count];
     }
 
     public function pageForC(array $filters = []): array
@@ -57,17 +96,84 @@ class SessionMonitorService
     }
 
     /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    public function exitSessionForC(array $items, Request $request): array
+    {
+        $payload = $this->currentPayload($request);
+        $currentUserId = $this->payloadUserId($payload);
+        $canManage = $this->canManageMonitor($payload);
+        $userIds = $this->targetUserIds($items);
+
+        foreach ($userIds as $userId) {
+            if (!$canManage && $userId !== $currentUserId) {
+                throw new RuntimeException('permission denied', 403);
+            }
+        }
+
+        return [
+            'count' => 0,
+            'clientAuthDeferred' => true,
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    public function exitTokenForB(array $items, Request $request): array
+    {
+        $payload = $this->currentPayload($request);
+        $currentUserId = $this->payloadUserId($payload);
+        $canManage = $this->canManageMonitor($payload);
+        $tokenValues = $this->targetTokenValues($items);
+        $allowedTokens = [];
+
+        foreach ($tokenValues as $tokenValue) {
+            $tokenPayload = $this->tokenService->getPayload($tokenValue);
+            if (!$canManage) {
+                if (!is_array($tokenPayload) || (string)($tokenPayload['user_id'] ?? '') !== $currentUserId) {
+                    throw new RuntimeException('permission denied', 403);
+                }
+            }
+
+            $allowedTokens[] = $tokenValue;
+        }
+
+        return ['count' => $this->tokenService->revokeTokens($allowedTokens)];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    public function exitTokenForC(array $items, Request $request): array
+    {
+        $payload = $this->currentPayload($request);
+        if (!$this->canManageMonitor($payload)) {
+            $currentToken = (string)$this->tokenService->bearerFromRequest($request);
+            foreach ($this->targetTokenValues($items) as $tokenValue) {
+                if ($tokenValue !== $currentToken) {
+                    throw new RuntimeException('permission denied', 403);
+                }
+            }
+        } else {
+            $this->targetTokenValues($items);
+        }
+
+        return [
+            'count' => 0,
+            'clientAuthDeferred' => true,
+        ];
+    }
+
+    /**
      * @return array{token: string, payload: array<string, mixed>, user: array<string, mixed>}
      */
     private function currentSession(Request $request): array
     {
         $token = $this->tokenService->bearerFromRequest($request);
-        $payload = $request->middleware('auth_payload', []);
-        if (!is_array($payload) || $payload === []) {
-            $payload = $this->tokenService->getPayload($token);
-        }
+        $payload = $this->currentPayload($request);
 
-        if (!is_string($token) || $token === '' || !is_array($payload)) {
+        if (!is_string($token) || $token === '') {
             throw new RuntimeException('unauthenticated', 401);
         }
 
@@ -86,15 +192,30 @@ class SessionMonitorService
      */
     private function sessionRow(array $session): array
     {
-        $payload = $session['payload'];
-        $user = $session['user'];
-        $createdAt = (int)($payload['login_at'] ?? time());
-        $expiresAt = (int)($payload['expires_at'] ?? 0);
+        return $this->sessionRowFromTokenRows((string)($session['payload']['user_id'] ?? ''), [[
+            'tokenValue' => $session['token'],
+            'device' => $session['payload']['device'] ?? 'PC',
+            'loginAt' => (int)($session['payload']['login_at'] ?? time()),
+            'expiresAt' => (int)($session['payload']['expires_at'] ?? 0),
+            'payload' => $session['payload'],
+        ]], $session['user']);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     * @param array<string, mixed>|null $user
+     */
+    private function sessionRowFromTokenRows(string $userId, array $tokens, ?array $user = null): array
+    {
+        $firstToken = $tokens[0] ?? [];
+        $payload = is_array($firstToken['payload'] ?? null) ? $firstToken['payload'] : [];
+        $user = $user ?? $this->userRecord($userId);
+        $createdAt = $this->oldestLoginAt($tokens);
+        $expiresAt = $this->latestExpiresAt($tokens);
         $secondsLeft = $expiresAt > 0 ? max(0, $expiresAt - time()) : 0;
-        $configuredTtl = $expiresAt > $createdAt ? max(1, $expiresAt - $createdAt) : self::DEFAULT_TOKEN_TTL;
 
         return [
-            'id' => $user['ID'] ?? $payload['user_id'] ?? null,
+            'id' => $user['ID'] ?? $payload['user_id'] ?? $userId,
             'avatar' => $user['AVATAR'] ?? null,
             'account' => $user['ACCOUNT'] ?? $payload['account'] ?? null,
             'name' => $user['NAME'] ?? $payload['name'] ?? null,
@@ -106,17 +227,237 @@ class SessionMonitorService
             'latestLoginAddress' => $user['LATEST_LOGIN_ADDRESS'] ?? null,
             'latestLoginTime' => $user['LATEST_LOGIN_TIME'] ?? null,
             'latestLoginDevice' => $user['LATEST_LOGIN_DEVICE'] ?? null,
-            'sessionId' => 'b-session-' . substr(hash('sha256', (string)($payload['user_id'] ?? '')), 0, 16),
+            'sessionId' => 'b-session-' . substr(hash('sha256', $userId), 0, 16),
             'sessionCreateTime' => $this->timeString($createdAt),
             'sessionTimeout' => $this->formatSeconds($secondsLeft),
-            'tokenCount' => 1,
-            'tokenSignList' => [[
-                'tokenValue' => $this->maskToken($session['token']),
-                'tokenDevice' => $payload['device'] ?? 'PC',
-                'tokenTimeout' => $this->formatSeconds($secondsLeft),
-                'tokenTimeoutPercent' => round($secondsLeft / $configuredTtl, 4),
-            ]],
+            'tokenCount' => count($tokens),
+            'tokenSignList' => array_map(fn (array $token): array => $this->tokenSignInfo($token), $tokens),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function currentPayload(Request $request): array
+    {
+        $payload = $request->middleware('auth_payload', []);
+        if (is_array($payload) && $payload !== []) {
+            return $payload;
+        }
+
+        $payload = $this->tokenService->getPayload($this->tokenService->bearerFromRequest($request));
+        if (!is_array($payload)) {
+            throw new RuntimeException('unauthenticated', 401);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<int, array<string, mixed>>
+     */
+    private function pageRowsForPayload(array $payload, Request $request): array
+    {
+        $currentUserId = $this->payloadUserId($payload);
+        $userIds = $this->canManageMonitor($payload) ? $this->tokenService->onlineUserIds() : [$currentUserId];
+        $rows = [];
+
+        foreach ($userIds as $userId) {
+            $tokens = $this->tokenService->tokensForUser($userId);
+            if ($tokens === []) {
+                continue;
+            }
+
+            $rows[] = $this->sessionRowFromTokenRows($userId, $tokens);
+        }
+
+        if (!$this->hasRowForUser($rows, $currentUserId)) {
+            $rows[] = $this->sessionRow($this->currentSession($request));
+        }
+
+        usort($rows, static fn (array $left, array $right): int => strcmp(
+            (string)($right['sessionCreateTime'] ?? ''),
+            (string)($left['sessionCreateTime'] ?? '')
+        ));
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     */
+    private function hasRowForUser(array $rows, string $userId): bool
+    {
+        foreach ($rows as $row) {
+            if ((string)($row['id'] ?? '') === $userId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function userRecord(string $userId): array
+    {
+        if ($userId === '') {
+            return [];
+        }
+
+        $user = Db::name('sys_user')->where('ID', $userId)->find();
+
+        return is_array($user) ? $user : [];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function oldestLoginAt(array $tokens): int
+    {
+        $times = array_values(array_filter(array_map(
+            static fn (array $token): int => (int)($token['loginAt'] ?? ($token['payload']['login_at'] ?? 0)),
+            $tokens
+        )));
+
+        return $times === [] ? time() : min($times);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $tokens
+     */
+    private function latestExpiresAt(array $tokens): int
+    {
+        $times = array_values(array_filter(array_map(
+            static fn (array $token): int => (int)($token['expiresAt'] ?? ($token['payload']['expires_at'] ?? 0)),
+            $tokens
+        )));
+
+        return $times === [] ? 0 : max($times);
+    }
+
+    /**
+     * @param array<string, mixed> $token
+     */
+    private function tokenSignInfo(array $token): array
+    {
+        $createdAt = (int)($token['loginAt'] ?? ($token['payload']['login_at'] ?? time()));
+        $expiresAt = (int)($token['expiresAt'] ?? ($token['payload']['expires_at'] ?? 0));
+        $secondsLeft = $expiresAt > 0 ? max(0, $expiresAt - time()) : 0;
+        $configuredTtl = $expiresAt > $createdAt ? max(1, $expiresAt - $createdAt) : self::DEFAULT_TOKEN_TTL;
+
+        return [
+            'tokenValue' => (string)($token['tokenValue'] ?? ''),
+            'tokenDevice' => $token['device'] ?? ($token['payload']['device'] ?? 'PC'),
+            'tokenTimeout' => $this->formatSeconds($secondsLeft),
+            'tokenTimeoutPercent' => round($secondsLeft / $configuredTtl, 4),
+        ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @return array<int, string>
+     */
+    private function targetUserIds(array $items): array
+    {
+        $userIds = [];
+        foreach ($items as $item) {
+            $userId = trim((string)($item['userId'] ?? $item['id'] ?? ''));
+            if ($userId !== '') {
+                $userIds[] = $userId;
+            }
+        }
+
+        $userIds = array_values(array_unique($userIds));
+        if ($userIds === []) {
+            throw new RuntimeException('empty session list', 400);
+        }
+
+        return $userIds;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @return array<int, string>
+     */
+    private function targetTokenValues(array $items): array
+    {
+        $tokenValues = [];
+        foreach ($items as $item) {
+            $tokenValue = trim((string)($item['tokenValue'] ?? $item['id'] ?? ''));
+            if ($tokenValue !== '') {
+                $tokenValues[] = $tokenValue;
+            }
+        }
+
+        $tokenValues = array_values(array_unique($tokenValues));
+        if ($tokenValues === []) {
+            throw new RuntimeException('empty token list', 400);
+        }
+
+        return $tokenValues;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function payloadUserId(array $payload): string
+    {
+        $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+        if ($userId === '') {
+            throw new RuntimeException('unauthenticated', 401);
+        }
+
+        return $userId;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function canManageMonitor(array $payload): bool
+    {
+        $account = strtolower(trim((string)($payload['account'] ?? '')));
+        if (in_array($account, ['superadmin', 'bizadmin', 'tenantadmin'], true)) {
+            return true;
+        }
+
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+
+        foreach ($codes as $code) {
+            $code = strtolower($code);
+            if (
+                in_array($code, ['superadmin', 'bizadmin', 'tenantadmin', 'authmonitor'], true)
+                || str_contains($code, 'auth:session')
+                || str_contains($code, 'auth:token')
+                || str_contains($code, 'authmonitor')
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
     }
 
     /**

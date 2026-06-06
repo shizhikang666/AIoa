@@ -3425,3 +3425,39 @@ Java exposes `/sys/index/schedule/add` and `/sys/index/schedule/deleteSchedule`,
 - `php think route:list` must list the added routes.
 - Requests without token should return business `code=401`.
 - Service smoke should add one temporary current-user schedule row and delete it without leaving test data.
+
+---
+
+# Public File Change Request: Auth Session And Token Exit Routes
+
+## Request
+
+Register protected auth monitor session/token exit routes in `route/app.php`.
+
+## Reason
+
+Java exposes the session and token exit endpoints, and the copied Vue auth monitor page calls them from session and token strong-exit buttons. The existing ThinkPHP routes already cover monitor analysis and page reads; this slice opens the matching protected mutation routes.
+
+## Applied Change
+
+`auth-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /auth/session/b/exit`
+- `POST /auth/session/c/exit`
+- `POST /auth/token/b/exit`
+- `POST /auth/token/c/exit`
+
+## Guardrails
+
+- All routes remain behind `AuthMiddleware`.
+- B-side exit uses the cache-backed ThinkPHP token index and does not touch database schema.
+- Ordinary users can only operate on their own user id/token.
+- Admin-compatible accounts or roles may manage all indexed B-side sessions.
+- C-side exit routes return success-compatible no-op data until client auth is implemented.
+- No Java source, database schema, Composer, `.env`, frontend source, user CRUD, workflow, or business module behavior was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Requests without token should return business `code=401`.
+- Service smoke should create indexed temporary tokens, revoke them by token value and user id, and confirm the cache payload is removed.

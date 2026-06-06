@@ -492,3 +492,23 @@ Explicit non-goals:
 - No cross-user schedule management.
 - No Java source, database schema, Composer, `.env`, or frontend source changes.
 
+## 2026-06-06 Auth Session And Token Exit Implementation
+
+Agent: auth-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `AuthSessionController`, `AuthSessionServiceImpl`, `AuthExitSessionParam`, `AuthExitTokenParam`, and copied auth monitor frontend API/views.
+2. Added a cache-backed B-side token index in `TokenService` for tokens created after this slice.
+3. Added Java-compatible session and token exit handlers to `SessionController` and `SessionMonitorService`.
+4. Registered protected `/auth/session/b/exit`, `/auth/session/c/exit`, `/auth/token/b/exit`, and `/auth/token/c/exit` routes.
+5. Kept C-side exit as success-compatible no-op behavior because C-side client auth is not implemented yet.
+6. Updated auth session API notes, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No C-side login/client token storage.
+- No third-party OAuth render/callback.
+- No route permission middleware or UI permission rewrite.
+- No Java source, database schema, Composer, `.env`, frontend source, user CRUD, workflow, or business module changes.
+

@@ -141,10 +141,10 @@ The frontend still references several auth monitoring and third-party routes:
 
 | Endpoint | Current Recommendation |
 | --- | --- |
-| `auth/session/b/exit` | Defer unless session-monitor pages become active |
-| `auth/session/c/exit` | Defer unless client session pages become active |
-| `auth/token/b/exit` | Defer unless token-monitor pages become active |
-| `auth/token/c/exit` | Defer unless client token pages become active |
+| `auth/session/b/exit` | Covered by auth-agent session/token exit compatibility with cache-backed B-side token index |
+| `auth/session/c/exit` | Covered as success-compatible C-side no-op until client auth is implemented |
+| `auth/token/b/exit` | Covered by auth-agent token exit compatibility for indexed B-side bearer tokens |
+| `auth/token/c/exit` | Covered as success-compatible C-side no-op until client auth is implemented |
 | `auth/third/page` | Covered as protected read-only third-party user binding pagination |
 | `auth/third/render`, `auth/third/callback` | Defer third-party login until provider config and security review |
 

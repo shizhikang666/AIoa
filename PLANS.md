@@ -7245,3 +7245,77 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement shared calendar behavior, schedule editing, notifications, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated system/user mutations.
+
+## Active Plan: auth-agent/frontend-agent - Session And Token Exit Compatibility
+
+Status: completed on 2026-06-06 after token-index smoke, session/token exit service smoke, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected exit endpoints used by the copied auth monitor frontend:
+
+- `POST /auth/session/b/exit`
+- `POST /auth/session/c/exit`
+- `POST /auth/token/b/exit`
+- `POST /auth/token/c/exit`
+
+This slice also adds a minimal cache-backed token index to `TokenService` so B-side session/token revocation can actually locate active ThinkPHP tokens.
+
+### 2. Involved Modules
+
+- auth-agent session/token monitor compatibility
+- frontend-agent copied auth monitor API compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/auth/SessionController.php`
+- `app/service/auth/SessionMonitorService.php`
+- `app/service/auth/TokenService.php`
+- `route/app.php`
+- `docs/api/auth-session-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java Sa-Token can enumerate and revoke Redis sessions globally; current ThinkPHP tokens were previously stored only by hashed token key.
+- New token indexes only apply to tokens created after this slice. Existing unindexed tokens can still revoke themselves through logout.
+- Returning full `tokenValue` is needed for Java-compatible token exit; access must remain protected and management-sensitive.
+- C-side client auth is still not implemented, so C-side exit endpoints should accept Java-shaped payloads but perform no B-side mutation.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\auth\SessionController.php
+php -l app\service\auth\SessionMonitorService.php
+php -l app\service\auth\TokenService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- All four exit routes are registered behind `AuthMiddleware`.
+- B-side session exit accepts Java-style arrays of `{ userId }` and revokes indexed tokens for those users.
+- B-side token exit accepts Java-style arrays of `{ tokenValue }` and revokes those tokens.
+- Ordinary users can only operate on their own user id/token; admin-compatible accounts or roles may manage all indexed B-side sessions.
+- Session monitor page rows use indexed token data where available and include Java-compatible full `tokenValue` for token exit.
+- C-side exit endpoints return success-compatible results without mutating B-side tokens because C-side client auth is deferred.
+- Java source, database schema, Composer files, `.env`, frontend source, workflow, user CRUD, and business modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement C-side login/client token storage, third-party login, OAuth callback, route permission middleware, frontend source changes, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated auth/user/business mutations.

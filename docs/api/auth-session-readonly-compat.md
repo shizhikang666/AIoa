@@ -1,8 +1,8 @@
-# Auth Session Read-Only Compatibility
+# Auth Session Monitor Compatibility
 
 ## Scope
 
-This slice adds authenticated, read-only compatibility for session monitor endpoints using the current ThinkPHP bearer token.
+This document tracks authenticated compatibility for session monitor endpoints using ThinkPHP bearer tokens.
 
 ## Java Reference
 
@@ -18,6 +18,10 @@ Protected routes:
 - `GET /auth/session/analysis`
 - `GET /auth/session/b/page`
 - `GET /auth/session/c/page`
+- `POST /auth/session/b/exit`
+- `POST /auth/session/c/exit`
+- `POST /auth/token/b/exit`
+- `POST /auth/token/c/exit`
 
 ## Response Shape
 
@@ -61,21 +65,38 @@ Each row includes:
 ## Compatibility Notes
 
 - Java Sa-Token can enumerate all online sessions.
-- The current ThinkPHP `TokenService` stores payloads by hashed token key and does not maintain a searchable online-token index.
-- This slice reports the currently authenticated B-side token only.
-- C-side client auth is not implemented yet, so `/auth/session/c/page` returns an empty page.
-- `tokenSignList.tokenValue` is intentionally masked. The Java endpoint returns full token values, but this read-only slice does not need full token disclosure because token exit routes remain disabled.
+- ThinkPHP now keeps a cache-backed B-side token index for tokens created after the session-exit compatibility slice.
+- Tokens created before the index was added can still be revoked by their own bearer token, but they cannot be globally enumerated by user id.
+- `/auth/session/b/page` returns indexed B-side sessions for monitor managers and the current user's own session for ordinary users.
+- `tokenSignList.tokenValue` is returned as the full token value for Java-compatible token exit. The route remains protected by bearer auth.
+- Ordinary users may only operate on their own user id/token. Admin-compatible accounts or roles may manage all indexed B-side sessions.
+- C-side client auth is not implemented yet, so `/auth/session/c/page` returns an empty page and C-side exit endpoints return success-compatible no-op data.
+
+## Exit Payloads
+
+Session exit accepts Java-style arrays:
+
+```json
+[
+  { "userId": "1543837863788879873" }
+]
+```
+
+Token exit accepts Java-style arrays:
+
+```json
+[
+  { "tokenValue": "<bearer-token-value>" }
+]
+```
 
 ## Deliberate Exclusions
 
-- No `/auth/session/b/exit` route is implemented.
-- No `/auth/session/c/exit` route is implemented.
-- No `/auth/token/b/exit` route is implemented.
-- No `/auth/token/c/exit` route is implemented.
-- No token/session is revoked or mutated.
-- No token index write behavior is added to login.
-- No Java source files, database schema, `.env`, Composer files, or public config files are changed.
+- No C-side login/client token storage is implemented.
+- No third-party OAuth render/callback is implemented.
+- No route permission middleware or UI-side permission filtering is added in this slice.
+- No Java source files, database schema, `.env`, Composer files, frontend source, or public config files are changed.
 
 ## Later Work
 
-Full online-session management needs a dedicated auth-agent slice that adds a token index during login, cleans it on logout/expiry, supports Redis-backed enumeration, and reviews whether full token values should ever be returned to administrators.
+Full online-session hardening still needs Redis deployment validation, expired-index cleanup under production cache settings, and a later permission-middleware pass for fine-grained auth monitor access.
