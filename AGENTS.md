@@ -6,6 +6,8 @@ This repository uses a main architect Agent plus multiple module Agents.
 
 Future new Codex conversations should default to the real multi-Agent mode for this project. The main conversation acts as the merge/coordinator session, and work is split into explicit worker roles such as `frontend-agent`, `api-agent`, `test-agent`, `docs-agent`, and other module Agents defined below.
 
+New conversation startup details are tracked in `docs/tasks/new-conversation-bootstrap.md`. Read that file together with `AGENTS.md`, `PLANS.md`, `IMPLEMENT.md`, and `STATUS.md` before continuing project work.
+
 The current main architect Agent is responsible for:
 
 - architecture control

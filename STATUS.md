@@ -7685,3 +7685,38 @@ Agent: api-agent
 
 - Commit the default multi-Agent and local login documentation slice.
 - Continue future work in real multi-Agent mode by default.
+
+## 2026-06-06 19:10 +08:00 - docs-agent worker - New Conversation Bootstrap
+
+### Completed
+
+- Added `docs/tasks/new-conversation-bootstrap.md` for future Codex conversations.
+- Documented that new conversations should default to real multi-Agent mode with the main conversation acting as merge/coordinator and scoped worker Agents executing slices.
+- Documented startup reads for `AGENTS.md`, `PLANS.md`, `IMPLEMENT.md`, and `STATUS.md`.
+- Documented local runtime startup dependency through `docs/tasks/local-runtime-services.md`.
+- Documented login smoke `.env` variable names only:
+  - `LOCAL_SUPER_ADMIN_ACCOUNT`
+  - `LOCAL_SUPER_ADMIN_PASSWORD`
+- Documented common smoke scripts:
+  - `scripts/test-agent-smoke.ps1`
+  - `scripts/test-agent-db-smoke.ps1`
+- Repeated the Java source read-only boundary and fallback rule for conversations with missing tools.
+- Added an `AGENTS.md` pointer to the bootstrap note.
+
+### Modified Files
+
+- `AGENTS.md`
+- `STATUS.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+
+### Test Results
+
+- Documentation-only slice; no runtime smoke was required.
+
+### Current Issues
+
+- None for this documentation slice.
+
+### Next Plan
+
+- Main merge/coordinator can review and commit when ready.
