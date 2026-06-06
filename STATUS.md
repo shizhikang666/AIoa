@@ -6276,3 +6276,54 @@ Agent: api-agent
 
 - Commit and push this warehouse base maintenance compatibility slice.
 - Continue the next isolated low-risk frontend-visible write or route cleanup slice before opening stock, finance, workflow, or sale-project state-transition writes.
+
+## 2026-06-06 09:25 +08:00 - api-agent/frontend-agent - Product Status And Reconciliation Compatibility
+
+### Completed
+
+- Added protected compatibility routes for product status toggling and selected-product reconciliation edits.
+- Added `ProductController` POST handlers with JSON/form body parsing.
+- Added `ProductService` lightweight product write logic for `status`, `RECONCILIATION_TYPE`, `RECONCILIATION_AMOUNT`, write-scope validation, non-negative amount validation, and update audit fields.
+- Updated product API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+- Kept the local backend on `http://127.0.0.1:82/` and the copied Vue frontend on `http://127.0.0.1:83/` for joint smoke testing.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/biz/ProductController.php`
+- `app/service/biz/ProductService.php`
+- `route/app.php`
+- `docs/api/biz-product-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\biz\ProductController.php`: passed.
+- `php -l app\service\biz\ProductService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; smoke product `1780709036278310490` was inserted for testing, status was changed to `DISABLE`, reconciliation fields were updated to `ENABLE` and `12.34`, then the smoke product was logically deleted with `DELETE_FLAG = DELETED`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 329 route entries; product `edit/status` and `reconciliation/edit` listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 232 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- No-token HTTP smoke for `POST /biz/bizproduct/edit/status`: returned business `code=401`.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- Product add, edit, delete, and kit product relation writes remain deferred by design.
+- Inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and Java data-change/cache event behavior remain deferred.
+- The smoke test intentionally leaves one logically deleted product row in the local database for traceability instead of physically deleting data.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this product status/reconciliation compatibility slice.
+- Continue with another isolated low-risk frontend-visible route, or split product base add/edit/delete plus kit relation writes into a separate plan before touching it.

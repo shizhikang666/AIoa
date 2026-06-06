@@ -232,6 +232,8 @@ Route::group('biz/bizproduct', function () {
     Route::get('list', 'biz.ProductController/list');
     Route::get('detail', 'biz.ProductController/detail');
     Route::post('children', 'biz.ProductController/children');
+    Route::post('edit/status', 'biz.ProductController/editStatus');
+    Route::post('reconciliation/edit', 'biz.ProductController/editReconciliation');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/supplier', function () {

@@ -340,3 +340,23 @@ Explicit non-goals:
 - No delivery record, purchase-order, sale-project invoice, or workflow writes.
 - No Java source, schema, Composer, `.env`, or frontend source changes.
 
+## 2026-06-06 Product Status And Reconciliation Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `BizProductController`, `BizProductServiceImpl`, product status/reconciliation params, copied `bizProductApi.js`, and the ThinkPHP product read service.
+2. Added only product status toggling and selected-product reconciliation edits.
+3. Preserved lower-case physical `biz_product.status` and upper-case reconciliation columns.
+4. Validated writes through admin-compatible roles, scoped organization ids, or matching product creator.
+5. Registered only `/biz/bizproduct/edit/status` and `/biz/bizproduct/reconciliation/edit` in `route/app.php`.
+6. Updated API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No product add, edit, or delete.
+- No kit product relation writes.
+- No inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, or data-change/cache event behavior.
+- No Java source, schema, Composer, `.env`, or frontend source changes.
+

@@ -3212,3 +3212,33 @@ Java exposes `/biz/warehouses/add`, `/edit`, and `/delete`, and the copied Vue w
 - Add should default owner user and organization from the current token user.
 - Edit/delete should validate warehouse write access through admin, scoped organization, or warehouse owner scope.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Product Status And Reconciliation Routes
+
+## Request
+
+Register protected product status and reconciliation edit routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizproduct/edit/status` and `/biz/bizproduct/reconciliation/edit`, and the copied Vue product list page calls these endpoints from the status switch and reconciliation modal. Existing ThinkPHP routes already cover product `page`, `list`, `detail`, and `children`; this slice opens only lightweight product-row writes.
+
+## Applied Change
+
+`api-agent/frontend-agent` registered the following protected POST routes:
+
+- `POST /biz/bizproduct/edit/status`
+- `POST /biz/bizproduct/reconciliation/edit`
+
+## Explicit Exclusions
+
+- No product add, edit, delete, kit product relation write, inventory, purchase, sale-project, finance transaction, workflow, Java source, database schema, Composer, `.env`, or frontend source was changed.
+
+## Verification
+
+- `php think route:list` must list the added routes.
+- Status edit should validate `ENABLE`/`DISABLE` and product write access.
+- Reconciliation edit should validate selected product ids, `ENABLE`/`DISABLE`, non-negative amount, and product write access.
+- Requests without token should return `code=401`.

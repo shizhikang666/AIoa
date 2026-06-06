@@ -1089,3 +1089,26 @@ This slice supports the copied warehouse maintenance wrapper and visible warehou
 ### Deferred
 
 - Inventory stock updates, delivery records, purchase-order writes, sale-project invoice writes, workflow behavior, and warehouse side effects remain out of scope.
+
+## 2026-06-06 Product Status And Reconciliation Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports two copied product list operations:
+
+- `snowy-admin-web/src/api/biz/bizProductApi.js`
+- `snowy-admin-web/src/views/biz/bizproduct/index.vue`
+
+### Result
+
+- `/biz/bizproduct/edit/status` is now routed as a protected POST endpoint.
+- `/biz/bizproduct/reconciliation/edit` is now routed as a protected POST endpoint.
+- Status edit accepts only `ENABLE` and `DISABLE`.
+- Reconciliation edit accepts selected product ids, `reconciliationType`, and optional non-negative `reconciliationAmount`.
+- Both writes validate active product visibility through admin-compatible roles, scoped organization ids, or matching product creator.
+
+### Deferred
+
+- Product add, edit, delete, kit product relation writes, inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and Java data-change/cache event behavior remain out of scope.

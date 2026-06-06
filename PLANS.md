@@ -6694,3 +6694,72 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement inventory stock updates, delivery record writes, purchase-order writes, sale-project invoice writes, workflow behavior, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: api-agent/frontend-agent - Product Status And Reconciliation Compatibility
+
+Status: completed on 2026-06-06.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected product lightweight write endpoints used by the copied product list page:
+
+- `POST /biz/bizproduct/edit/status`
+- `POST /biz/bizproduct/reconciliation/edit`
+
+This slice only updates `biz_product.status`, `RECONCILIATION_TYPE`, and `RECONCILIATION_AMOUNT`. Product add/edit/delete, kit product relation writes, inventory, purchase, sale-project, and workflow side effects stay deferred.
+
+### 2. Involved Modules
+
+- api-agent product API compatibility
+- frontend-agent copied product list compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/biz/ProductController.php`
+- `app/service/biz/ProductService.php`
+- `route/app.php`
+- `docs/api/biz-product-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Product add/edit/delete touches kit product relations and must remain out of this slice.
+- Reconciliation editing can affect finance-facing product filters, so this slice must update only explicit product ids and must validate current token write scope.
+- Product status toggling changes product visibility in default Java-compatible page reads; tests must restore imported product status after smoke checks.
+- Java emits broader data-change/cache behavior elsewhere; this slice does not implement event broadcasting.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\biz\ProductController.php
+php -l app\service\biz\ProductService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Product `edit/status` and `reconciliation/edit` routes are registered behind token middleware.
+- Status edit requires `id` and `status`, accepts only `ENABLE` or `DISABLE`, validates active product write scope, and updates audit fields.
+- Reconciliation edit requires non-empty `ids` and `reconciliationType`, accepts only `ENABLE` or `DISABLE`, validates every active product write scope, accepts a non-negative optional `reconciliationAmount`, and updates audit fields.
+- Java source, database schema, frontend source, product add/edit/delete, product relation writes, inventory, purchase, sale-project, workflow, Composer files, and `.env` remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/bizproduct/add`, `/edit`, or `/delete`.
+- Do not modify `product_relation`.
+- Do not implement stock, purchase, sale-project, finance transaction, workflow, file upload/storage, Java source, database schema, Composer, `.env`, or frontend source changes.

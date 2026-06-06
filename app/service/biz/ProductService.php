@@ -14,6 +14,7 @@ class ProductService
 {
     private const NOT_DELETE = 'NOT_DELETE';
     private const ENABLE = 'ENABLE';
+    private const DISABLE = 'DISABLE';
     private const KIT_PRODUCT_DATA = 'KIT_PRODUCT_DATA';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
@@ -111,6 +112,172 @@ class ProductService
                 'objectId' => $relation['OBJECT_ID'] ?? null,
             ];
         }, $relations));
+    }
+
+    public function editStatus(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $status = $this->requiredInput($input, 'status');
+        $this->assertStatus($status);
+
+        return Db::transaction(function () use ($id, $status, $payload): array {
+            $this->assertProductWritable($id, $payload, 'edit status');
+            $updated = Db::name('biz_product')
+                ->where('ID', $id)
+                ->update(array_merge(
+                    ['status' => $status],
+                    $this->auditFields($payload)
+                ));
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    public function editReconciliation(array $input, array $payload = []): array
+    {
+        $ids = $this->normalizeIdList($input['ids'] ?? $input['idList'] ?? $input['id'] ?? []);
+        if ($ids === []) {
+            throw new RuntimeException('missing ids', 400);
+        }
+
+        $reconciliationType = $this->requiredInput($input, 'reconciliationType');
+        $this->assertStatus($reconciliationType);
+        $reconciliationAmount = $this->nullableDecimal($input['reconciliationAmount'] ?? null, 'reconciliationAmount');
+
+        return Db::transaction(function () use ($ids, $reconciliationType, $reconciliationAmount, $payload): array {
+            foreach ($ids as $id) {
+                $this->assertProductWritable($id, $payload, 'edit reconciliation');
+            }
+
+            $updated = Db::name('biz_product')
+                ->whereIn('ID', $ids)
+                ->update(array_merge(
+                    [
+                        'RECONCILIATION_TYPE' => $reconciliationType,
+                        'RECONCILIATION_AMOUNT' => $reconciliationAmount,
+                    ],
+                    $this->auditFields($payload)
+                ));
+
+            return ['ids' => $ids, 'count' => $updated];
+        });
+    }
+
+    private function assertProductWritable(string $id, array $payload, string $action): array
+    {
+        $row = $this->activeProduct($id, $payload);
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $productOrg = trim((string)($row['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && in_array($productOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action} this product", 403);
+    }
+
+    private function activeProduct(string $id, array $payload): array
+    {
+        $query = Db::name('biz_product')->where('ID', $id);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('product not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function whereNotDeleted($query, string $column): void
+    {
+        $query->where(function ($query) use ($column): void {
+            $query->whereNull($column)->whereOr($column, '=', self::NOT_DELETE);
+        });
+    }
+
+    private function auditFields(array $payload): array
+    {
+        $userId = $this->currentUserId($payload);
+
+        return [
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $userId !== '' ? $userId : null,
+        ];
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function assertStatus(string $status): void
+    {
+        if (!in_array($status, [self::ENABLE, self::DISABLE], true)) {
+            throw new RuntimeException('unsupported product status', 400);
+        }
+    }
+
+    private function nullableDecimal(mixed $value, string $field): ?string
+    {
+        if ($value === null || trim((string)$value) === '') {
+            return null;
+        }
+
+        if (!is_numeric($value)) {
+            throw new RuntimeException("invalid {$field}", 400);
+        }
+
+        if ((float)$value < 0) {
+            throw new RuntimeException("invalid {$field}", 400);
+        }
+
+        return (string)$value;
     }
 
     private function productQuery(array $filters, array $payload, bool $hideDisabledByDefault)
@@ -404,18 +571,30 @@ class ProductService
      */
     private function scopeOrgIds(array $payload): array
     {
-        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
-        if (!is_array($scopes)) {
-            return [];
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
         }
 
-        return array_values(array_unique(array_filter(array_map(static function (mixed $scope): string {
-            if (!is_array($scope)) {
-                return '';
-            }
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            $ids = array_merge($ids, array_map(static function (mixed $scope): string {
+                if (!is_array($scope)) {
+                    return '';
+                }
 
-            return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
-        }, $scopes))));
+                return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            }, $scopes));
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
     }
 
     /**
