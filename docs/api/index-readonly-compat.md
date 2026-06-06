@@ -6,7 +6,7 @@ Agent: merge-agent
 
 ## Goal
 
-Expose the read-only `/sys/index/*` endpoints used by the old Vue homepage and message panel while deferring schedule writes, message mark-read writes, and SSE.
+Expose `/sys/index/*` endpoints used by the old Vue homepage and message panel, with read-only schedule/log queries and scoped current-user message read-state updates.
 
 ## Java Inputs
 
@@ -35,15 +35,29 @@ All routes are protected by `AuthMiddleware`.
 - Visit logs: `dev_log` categories `LOGIN`, `LOGOUT`
 - Operation logs: `dev_log` categories `OPERATE`, `EXCEPTION`
 
-## Read-Only Differences From Java
+## 2026-06-06 Message Read-State Compatibility
 
-The Java message detail and all-message-mark-read flows can update read status. This ThinkPHP phase does not update `dev_relation.EXT_JSON`, so message detail remains read-only.
+Agent: user-agent / frontend-agent
+
+Message read-state compatibility is now partially write-capable:
+
+| Method | Path | Scope |
+| --- | --- | --- |
+| GET | `/sys/index/message/detail` | Current token user's receiver relation for the opened message |
+| POST | `/sys/index/message/allMessageMarkRead` | All current token user's receiver relations |
+
+Compatibility notes:
+
+- Message detail reuses the user-center message detail service and marks only the current user's `MSG_TO_USER` relation as read.
+- All-mark-read updates only current-token-user `dev_relation` rows where `CATEGORY = MSG_TO_USER`.
+- Existing valid JSON keys in `EXT_JSON` are preserved while `read` is set to `true`.
+- `dev_message` rows and other users' receiver relations are not modified.
 
 ## Deferred
 
 - `POST /sys/index/schedule/add`
 - `POST /sys/index/schedule/deleteSchedule`
-- `POST /sys/index/message/allMessageMarkRead`
-- `GET /dev/message/createSseConnect`
+- message send/delete and full message management
+- full realtime/WebPush implementation
 
-These endpoints require mutation/SSE handling, validation, and audit behavior before implementation.
+These endpoints require separate validation, audit, and realtime behavior before implementation.

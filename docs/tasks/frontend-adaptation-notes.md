@@ -1236,3 +1236,26 @@ This slice supports copied user-center message detail behavior:
 ### Deferred
 
 - Message send/delete, all-mark-read, WebPush, and full realtime push remain out of scope.
+
+## 2026-06-06 Index Message All-Mark-Read Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied homepage message drawer behavior:
+
+- `snowy-admin-web/src/api/sys/indexApi.js`
+- `snowy-admin-web/src/layout/components/message.vue`
+- `snowy-admin-web/src/views/index/components/miniMessage.vue`
+
+### Result
+
+- `/sys/index/message/allMessageMarkRead` is now routed as a protected POST endpoint.
+- The endpoint marks only the current token user's `dev_relation` rows with `CATEGORY = MSG_TO_USER` as read.
+- Existing valid `EXT_JSON` keys are preserved while `read` is set to `true`.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Message send/delete, WebPush, full realtime push, and schedule writes remain out of scope.

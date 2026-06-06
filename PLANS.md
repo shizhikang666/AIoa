@@ -7111,3 +7111,70 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement message send, delete, all-mark-read, WebPush, full realtime push, Java source changes, database schema changes, route changes, Composer changes, `.env` changes, or frontend source changes.
+
+## Active Plan: user-agent/frontend-agent - Index Message All-Mark-Read Compatibility
+
+Status: completed on 2026-06-06 after service smoke with `EXT_JSON` restore, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected endpoint used by the copied homepage message drawer:
+
+- `POST /sys/index/message/allMessageMarkRead`
+
+This slice marks all current-token-user `MSG_TO_USER` relations as read and does not implement message send, delete, WebPush, full realtime push, or schedule writes.
+
+### 2. Involved Modules
+
+- user-agent message read-state compatibility
+- frontend-agent homepage message drawer compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/IndexController.php`
+- `app/service/sys/IndexService.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/index-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- Java bulk mark-read overwrites relation `EXT_JSON` with `{"read":true}`. This ThinkPHP slice should preserve any existing JSON keys while setting `read = true`.
+- Frontend unread count is local/SSE-assisted; this slice only updates the database and returns a normal API success response.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\IndexController.php
+php -l app\service\sys\IndexService.php
+php -l app\service\user\UserDirectoryService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /sys/index/message/allMessageMarkRead` is registered behind `AuthMiddleware`.
+- The endpoint updates only the current token user's `dev_relation` rows where `CATEGORY = MSG_TO_USER`.
+- Every updated relation has `EXT_JSON.read = true`, preserving other valid JSON keys if present.
+- Java source, database schema, Composer files, `.env`, frontend source, message send/delete, WebPush/full realtime push, and schedule writes remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement message send, message delete, WebPush, full realtime push, schedule add/delete, Java source changes, database schema changes, Composer changes, `.env` changes, or frontend source changes.

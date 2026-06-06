@@ -3366,3 +3366,32 @@ The copied Vue personal center calls Java-compatible user-center self-service ro
 - All routes remain behind `AuthMiddleware`.
 - All writes affect only the current token user.
 - No admin-side user CRUD, grants, reset-password-by-admin, import/export, Java source change, database schema change, Composer change, `.env` change, or frontend source change was added.
+
+---
+
+# Public File Change Request: Index Message All-Mark-Read Route
+
+## Request
+
+Register protected homepage message bulk mark-read route in `route/app.php`.
+
+## Reason
+
+Java exposes `/sys/index/message/allMessageMarkRead`, and the copied Vue homepage message drawer calls it from the "mark all as read" button. Existing ThinkPHP routes already cover message list, page, and detail; this slice opens only the current user's bulk read-state update.
+
+## Applied Change
+
+`user-agent/frontend-agent` registered the following protected POST route:
+
+- `POST /sys/index/message/allMessageMarkRead`
+
+## Explicit Exclusions
+
+- No message send, message delete, WebPush, full realtime push, schedule add/delete, Java source, database schema, Composer, `.env`, or frontend source was changed.
+- The update is limited to current-token-user `dev_relation` rows where `CATEGORY = MSG_TO_USER`.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Requests without token should return business `code=401`.
+- Service smoke should mark sampled current-user message relations as `read=true` and then restore imported `EXT_JSON` test data.

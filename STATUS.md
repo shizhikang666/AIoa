@@ -6579,3 +6579,56 @@ Agent: api-agent
 
 - Commit this user message detail mark-read compatibility slice.
 - Continue with another isolated frontend-visible user/system compatibility endpoint, or move to data-scope and permission tightening before heavier finance, stock, workflow, and sale-project state writes.
+
+## 2026-06-06 11:21 +08:00 - user-agent/frontend-agent - Index Message All-Mark-Read Compatibility
+
+### Completed
+
+- Added protected compatibility route `POST /sys/index/message/allMessageMarkRead`.
+- Added homepage index controller and service handlers for all-message mark-read.
+- Added `UserDirectoryService.markAllMessagesRead` for current-user `MSG_TO_USER` relation updates.
+- Preserved existing valid `EXT_JSON` keys while setting `read = true`.
+- Updated index API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/IndexController.php`
+- `app/service/sys/IndexService.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/index-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\IndexController.php`: passed.
+- `php -l app\service\sys\IndexService.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l route\app.php`: passed.
+- Direct service smoke: passed; sampled current-user unread relation changed to read, then original `EXT_JSON` was restored.
+- Initial broader smoke with a larger sample timed out before completion, so a smaller deterministic sample was used and restored successfully.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed, 343 route entries; `/sys/index/message/allMessageMarkRead` is listed.
+- Strict PHP lint for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for `/sys/index/message/allMessageMarkRead`: returned business `code=401`.
+
+### Current Issues
+
+- Message send/delete, WebPush, and full realtime push remain deferred.
+- Schedule add/delete remains deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this index message all-mark-read compatibility slice.
+- Continue with another isolated frontend-visible endpoint or start targeted data-scope/permission tightening before side-effect-heavy workflow, finance, stock, and sale-project state writes.

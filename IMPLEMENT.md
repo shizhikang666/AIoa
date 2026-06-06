@@ -452,3 +452,22 @@ Explicit non-goals:
 - No WebPush/full realtime push implementation.
 - No Java source, database schema, route, Composer, `.env`, or frontend source changes.
 
+## 2026-06-06 Index Message All-Mark-Read Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysIndexController.allMessageMarkRead`, `SysIndexServiceImpl.allMessageMarkRead`, `DevMessageProvider.allMessageMarkRead`, and copied `indexApi.js` plus homepage message drawer components.
+2. Added `IndexController.allMessageMarkRead` and `IndexService.allMessageMarkRead`.
+3. Added `UserDirectoryService.markAllMessagesRead` to update only current-user `dev_relation` rows for `CATEGORY = MSG_TO_USER`.
+4. Registered protected `POST /sys/index/message/allMessageMarkRead` in `route/app.php`.
+5. Updated index API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No message send/delete implementation.
+- No WebPush/full realtime push implementation.
+- No schedule add/delete implementation.
+- No Java source, database schema, Composer, `.env`, or frontend source changes.
+

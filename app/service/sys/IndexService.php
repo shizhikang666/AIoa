@@ -65,6 +65,11 @@ class IndexService
         return $this->userDirectoryService->loginUnreadMessageDetail($userId, $id);
     }
 
+    public function allMessageMarkRead(string $userId): void
+    {
+        $this->userDirectoryService->markAllMessagesRead($userId);
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */

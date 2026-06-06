@@ -64,6 +64,7 @@ Route::group('sys/index', function () {
     Route::get('message/list', 'sys.IndexController/messageList');
     Route::get('message/page', 'sys.IndexController/messagePage');
     Route::get('message/detail', 'sys.IndexController/messageDetail');
+    Route::post('message/allMessageMarkRead', 'sys.IndexController/allMessageMarkRead');
     Route::get('visLog/list', 'sys.IndexController/visLogList');
     Route::get('opLog/list', 'sys.IndexController/opLogList');
 })->middleware(AuthMiddleware::class);

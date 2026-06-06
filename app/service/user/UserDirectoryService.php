@@ -452,6 +452,28 @@ class UserDirectoryService
         return $detail;
     }
 
+    public function markAllMessagesRead(string $userId): void
+    {
+        $relations = Db::name('dev_relation')
+            ->where('TARGET_ID', $userId)
+            ->where('CATEGORY', self::MESSAGE_TO_USER_CATEGORY)
+            ->select()
+            ->toArray();
+
+        foreach ($relations as $relation) {
+            if ($this->relationReadStatus($relation) === true) {
+                continue;
+            }
+
+            $extJson = $this->messageRelationExtWithRead($relation);
+            Db::name('dev_relation')
+                ->where('ID', (string)($relation['ID'] ?? ''))
+                ->where('TARGET_ID', $userId)
+                ->where('CATEGORY', self::MESSAGE_TO_USER_CATEGORY)
+                ->update(['EXT_JSON' => $extJson]);
+        }
+    }
+
     /**
      * @return array<int, array<string, mixed>>
      */
@@ -898,16 +920,7 @@ class UserDirectoryService
             return $relation;
         }
 
-        $decoded = json_decode((string)($relation['EXT_JSON'] ?? '{}'), true);
-        if (!is_array($decoded)) {
-            $decoded = [];
-        }
-
-        $decoded['read'] = true;
-        $extJson = json_encode($decoded, JSON_UNESCAPED_UNICODE);
-        if ($extJson === false) {
-            $extJson = '{"read":true}';
-        }
+        $extJson = $this->messageRelationExtWithRead($relation);
 
         Db::name('dev_relation')
             ->where('OBJECT_ID', $messageId)
@@ -918,6 +931,19 @@ class UserDirectoryService
         $relation['EXT_JSON'] = $extJson;
 
         return $relation;
+    }
+
+    private function messageRelationExtWithRead(array $relation): string
+    {
+        $decoded = json_decode((string)($relation['EXT_JSON'] ?? '{}'), true);
+        if (!is_array($decoded)) {
+            $decoded = [];
+        }
+
+        $decoded['read'] = true;
+        $extJson = json_encode($decoded, JSON_UNESCAPED_UNICODE);
+
+        return $extJson === false ? '{"read":true}' : $extJson;
     }
 
     private function relationReadStatus(?array $relation): ?bool

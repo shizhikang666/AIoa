@@ -46,6 +46,13 @@ class IndexController extends BaseSysController
         ));
     }
 
+    public function allMessageMarkRead(Request $request): Response
+    {
+        return $this->guard(fn () => $this->indexService->allMessageMarkRead(
+            $this->currentUserId($request)
+        ));
+    }
+
     public function visLogList(Request $request): Response
     {
         return $this->guard(fn () => $this->indexService->visLogList($this->currentUserId($request)));
