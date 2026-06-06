@@ -42,6 +42,9 @@ The implementation reuses existing ThinkPHP read services for system organizatio
 | GET | `/biz/position/detail` | `sys.PositionController/detail` |
 | GET | `/biz/position/orgTreeSelector` | `sys.PositionController/orgTreeSelector` |
 | GET | `/biz/position/positionSelector` | `sys.PositionController/selector` |
+| POST | `/biz/position/add` | `sys.PositionController/bizAdd` |
+| POST | `/biz/position/edit` | `sys.PositionController/bizEdit` |
+| POST | `/biz/position/delete` | `sys.PositionController/bizDelete` |
 | GET | `/biz/dict/page` | `dev.DictController/page` |
 | GET | `/biz/dict/tree` | `dev.DictController/tree` |
 | GET | `/biz/dict/treeAll` | `dev.DictController/treeAll` |
@@ -52,6 +55,7 @@ All routes are protected by `AuthMiddleware`.
 
 - `/biz/user/list/detail` returns sanitized user rows and never returns the `PASSWORD` field.
 - `/biz/org/add`, `/biz/org/edit`, and `/biz/org/delete` write base `sys_org` rows with conservative organization data-scope checks and dependency-protected logical delete.
+- `/biz/position/add`, `/biz/position/edit`, and `/biz/position/delete` write base `sys_position` rows with conservative organization data-scope checks and user-reference-protected logical delete.
 - `/biz/user/ownRole` reads role IDs from `sys_relation` where `CATEGORY = SYS_USER_HAS_ROLE`.
 - `/biz/user/add` and `/biz/user/edit` write base `sys_user` profile fields with conservative organization data-scope or current-user edit fallback.
 - `/biz/user/delete` logically deletes users and clears affected director references with conservative organization data-scope or current-user fallback.
@@ -64,7 +68,6 @@ All routes are protected by `AuthMiddleware`.
 
 - User import/export
 - General organization-wide profile edit beyond `/biz/user/center/edit`
-- Position add/edit/delete
 - Dictionary edit
 - Java source changes
 - Database schema changes
@@ -103,6 +106,19 @@ The ThinkPHP implementation uses logical delete on `sys_org.DELETE_FLAG` during 
 
 Still deferred:
 
-- position add/edit/delete
+- Java data-change event publishing
+- route-permission middleware
+
+## 2026-06-06 Position Add Edit Delete Alias
+
+`POST /biz/position/add`, `POST /biz/position/edit`, and `POST /biz/position/delete` are now routed for the copied business position management page.
+
+The routes delegate to the shared position service and mirror Java `BizPositionServiceImpl` behavior for base position fields, category validation, same-organization name uniqueness, user-reference-protected delete, and organization data-scope guarding.
+
+The ThinkPHP implementation uses logical delete on `sys_position.DELETE_FLAG` during this staged refactor instead of Java's physical row removal.
+
+Still deferred:
+
+- user import/export
 - Java data-change event publishing
 - route-permission middleware

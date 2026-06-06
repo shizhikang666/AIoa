@@ -1599,3 +1599,36 @@ This slice supports copied system and business organization maintenance pages:
 ### Deferred
 
 - Position add/edit/delete, user import/export, route-permission middleware, Java data-change events, Java physical delete behavior, and unrelated workflow/business side effects remain out of scope.
+
+## 2026-06-06 Position Add Edit Delete Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business position maintenance pages:
+
+- `snowy-admin-web/src/api/sys/positionApi.js`
+- `snowy-admin-web/src/api/biz/bizPositionApi.js`
+- `snowy-admin-web/src/views/sys/position/index.vue`
+- `snowy-admin-web/src/views/sys/position/form.vue`
+- `snowy-admin-web/src/views/biz/position/index.vue`
+- `snowy-admin-web/src/views/biz/position/form.vue`
+
+### Result
+
+- `/sys/position/add` is now routed as a protected POST endpoint.
+- `/sys/position/edit` is now routed as a protected POST endpoint.
+- `/sys/position/delete` is now routed as a protected POST endpoint.
+- `/biz/position/add` is now routed as a protected POST endpoint.
+- `/biz/position/edit` is now routed as a protected POST endpoint.
+- `/biz/position/delete` is now routed as a protected POST endpoint.
+- Add/edit accept the existing camelCase form payload: `orgId`, `name`, `category`, `sortCode`, and `extJson`.
+- Delete accepts copied frontend batch payloads such as `[{ id }]`.
+- Delete blocks positions referenced by direct user `POSITION_ID` or user `POSITION_JSON[*].positionId`, then logically deletes safe rows.
+- Business add/edit/delete enforces conservative organization data-scope checks.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- User import/export, route-permission middleware, Java data-change events, Java physical delete behavior, and unrelated workflow/business side effects remain out of scope.

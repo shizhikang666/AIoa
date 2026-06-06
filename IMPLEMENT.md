@@ -740,3 +740,28 @@ Explicit non-goals:
 - No Java physical delete behavior.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, finance, stock, or unrelated business module changes.
 
+## 2026-06-06 Position Add Edit Delete Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysPositionController.add/edit/delete`, `BizPositionController.add/edit/delete`, `SysPositionServiceImpl`, `BizPositionServiceImpl`, copied `sys/positionApi.js`, `biz/bizPositionApi.js`, and both position forms.
+2. Added system and business position write controller handlers for copied position maintenance pages.
+3. Added `PositionService::add`, `PositionService::edit`, and `PositionService::delete` for base `sys_position` writes only.
+4. Preserved Java-compatible form payloads for `orgId`, `name`, `category`, `sortCode`, `extJson`, and copied frontend delete arrays such as `[{ id }]`.
+5. Added validation for active organization, category values, same-organization duplicate names, tenant compatibility, and route/button permission payloads.
+6. Added dependency-protected delete that blocks active direct user `POSITION_ID` and user extra-position JSON references.
+7. Used logical `sys_position.DELETE_FLAG = DELETED` during the staged refactor instead of Java physical delete.
+8. Preserved Java-compatible business organization data-scope checks for add/edit/delete.
+9. Registered protected `/sys/position/add`, `/sys/position/edit`, `/sys/position/delete`, `/biz/position/add`, `/biz/position/edit`, and `/biz/position/delete` routes in `route/app.php`.
+10. Updated position API docs, biz directory docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+Explicit non-goals:
+
+- No user import/export.
+- No route-permission middleware.
+- No Java data-change event publishing.
+- No Java physical delete behavior.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, finance, stock, or unrelated business module changes.
+

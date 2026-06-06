@@ -3800,3 +3800,41 @@ Java exposes system and business organization maintenance endpoints, and the cop
 - `php think route:list` must list all six routes.
 - Requests without token should return business `code=401`.
 - Service smoke should create temporary system and business organizations, edit them, logically delete them, then physically remove only the temporary smoke rows.
+
+---
+
+# Public File Change Request: Position Add Edit Delete Routes
+
+## Request
+
+Register protected position add/edit/delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes system and business position maintenance endpoints, and the copied Vue position pages submit add/edit/delete actions to these paths. The existing ThinkPHP position service already supports page/list/detail/selector reads, so this slice opens the matching protected base position mutations.
+
+## Applied Change
+
+`user-agent/frontend-agent` registers the following protected POST routes:
+
+- `POST /sys/position/add`
+- `POST /sys/position/edit`
+- `POST /sys/position/delete`
+- `POST /biz/position/add`
+- `POST /biz/position/edit`
+- `POST /biz/position/delete`
+
+## Guardrails
+
+- All six routes remain behind `AuthMiddleware`.
+- The service writes only known `sys_position` base columns.
+- Add/edit validate active organization, category, sort code, same-organization duplicate names, and tenant compatibility.
+- Delete blocks active direct-user and extra-position JSON references, then logically deletes safe rows with `DELETE_FLAG = DELETED`.
+- Business routes enforce conservative organization data-scope checks.
+- No Java source, database schema, Composer, `.env`, frontend source, user import/export, Java data-change events, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list all six routes.
+- Requests without token should return business `code=401`.
+- Service smoke should create temporary system and business positions, edit them, logically delete them, then physically remove only the temporary smoke rows.

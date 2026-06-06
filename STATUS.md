@@ -7338,3 +7338,64 @@ Agent: api-agent
 
 - Commit and push this organization write compatibility slice.
 - Continue with the next low-risk browser-visible personnel module gap: position add/edit/delete planning or user import/export planning, before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 17:05 +08:00 - user-agent/frontend-agent - Position Add Edit Delete Compatibility
+
+### Completed
+
+- Added protected Java-compatible position write routes:
+  - `POST /sys/position/add`
+  - `POST /sys/position/edit`
+  - `POST /sys/position/delete`
+  - `POST /biz/position/add`
+  - `POST /biz/position/edit`
+  - `POST /biz/position/delete`
+- Added controller handlers for system and business position forms and delete actions.
+- Added `PositionService::add`, `PositionService::edit`, and `PositionService::delete` for base `sys_position` writes.
+- Added validation for active organization, category, sort code, same-organization duplicate names, and tenant compatibility.
+- Added dependency-protected position delete checks for active user `POSITION_ID` and active user `POSITION_JSON[*].positionId`.
+- Used logical delete on `sys_position.DELETE_FLAG` during the staged refactor.
+- Preserved business position organization data-scope guarding for add/edit/delete.
+- Updated position API docs, biz directory docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/PositionController.php`
+- `app/service/user/PositionService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/position-write-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\PositionController.php`: passed.
+- `php -l app\service\user\PositionService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; all six position write routes are listed, route rows count is 380.
+- Direct service smoke: passed; one temporary system position and one temporary business position were created, edited, logically deleted, verified, and physically removed by unique test ids.
+- Temporary data cleanup check: passed; remaining temporary position rows returned 0.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for all six new POST routes on the backend root path: returned business `code=401`.
+
+### Current Issues
+
+- User import/export, route-permission middleware, Java data-change event publishing, Java physical delete behavior, and full encrypted profile-field migration remain deferred.
+- Direct backend test path is the current PHP server root path; `/think/...` returns a ThinkPHP 404 in this local server mode, while the frontend proxy can still apply its own prefix behavior.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this position write compatibility slice.
+- Continue with a focused user import/export planning slice or move back to safe read/write gaps outside personnel before side-effect-heavy workflow, finance, stock, and sale-project state writes.

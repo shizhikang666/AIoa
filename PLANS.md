@@ -8094,3 +8094,80 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement position CRUD, user import/export, route-permission middleware, Java data-change events, Java physical delete behavior, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
+
+## Active Plan: user-agent/frontend-agent - Position Add Edit Delete Compatibility
+
+Status: completed on 2026-06-06 after sys/biz position add-edit-delete service smoke with temporary-row cleanup, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected position maintenance endpoints used by copied system and business position pages:
+
+- `POST /sys/position/add`
+- `POST /sys/position/edit`
+- `POST /sys/position/delete`
+- `POST /biz/position/add`
+- `POST /biz/position/edit`
+- `POST /biz/position/delete`
+
+This slice writes only base `sys_position` rows and protects user-referenced positions from deletion.
+
+### 2. Involved Modules
+
+- user-agent position maintenance compatibility
+- frontend-agent copied system/business position form and table action compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/PositionController.php`
+- `app/service/user/PositionService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/position-write-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- Java physically removes position rows, but this ThinkPHP slice should logically delete `sys_position.DELETE_FLAG` to preserve database safety during staged refactor.
+- Position deletion can break users through direct `POSITION_ID` or `POSITION_JSON`, so dependency checks must block referenced positions.
+- Business position writes must preserve Java's organization data-scope behavior.
+- This slice should not change user profile writes, organization writes, import/export, route-permission middleware, workflow, finance, or stock behavior.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\PositionController.php
+php -l app\service\user\PositionService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- All six position write routes are registered behind `AuthMiddleware`.
+- Requests accept copied frontend form payloads and array delete payloads such as `[{ id }]`.
+- Add validates required org/name/category/sort fields, active organization, valid categories, same-organization duplicate names, tenant compatibility, and default position code.
+- Edit validates active position, active organization, category, duplicate names, and tenant compatibility.
+- Delete blocks active direct users and active user extra-position JSON references, then logically deletes only safe `sys_position` rows.
+- Business routes enforce conservative organization data-scope before writing.
+- Smoke tests create, edit, logically delete, and physically clean up only temporary position rows.
+- Java source, database schema, Composer files, `.env`, frontend source, organization CRUD, user CRUD/import/export, auth, workflow, finance, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement user import/export, route-permission middleware, Java data-change events, Java physical delete behavior, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
