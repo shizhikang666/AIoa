@@ -1,4 +1,4 @@
-# Biz Directory Alias Read-Only API
+# Biz Directory Alias Compatibility API
 
 Date: 2026-06-02
 
@@ -6,9 +6,9 @@ Agent: user-agent
 
 ## Scope
 
-This document records the safe read-only compatibility aliases for legacy frontend `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict` requests.
+This document records the safe compatibility aliases for legacy frontend `/biz/org`, `/biz/user`, `/biz/position`, and `/biz/dict` requests.
 
-The implementation reuses existing ThinkPHP read services for system organization, user, position, role selector, and dictionary data. It does not add write behavior.
+The implementation reuses existing ThinkPHP services for system organization, user, position, role selector, and dictionary data. Write behavior is added only in narrow slices documented below.
 
 ## Implemented Routes
 
@@ -50,6 +50,7 @@ The implementation reuses existing ThinkPHP read services for system organizatio
 | GET | `/biz/dict/page` | `dev.DictController/page` |
 | GET | `/biz/dict/tree` | `dev.DictController/tree` |
 | GET | `/biz/dict/treeAll` | `dev.DictController/treeAll` |
+| POST | `/biz/dict/edit` | `dev.DictController/edit` |
 
 All routes are protected by `AuthMiddleware`.
 
@@ -65,13 +66,14 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/user/resetPassword` updates only `sys_user.PASSWORD` to the configured default password hash with conservative organization data-scope or current-user fallback.
 - `/biz/user/export` and `/biz/user/exportUserInfo` return sanitized download blobs with conservative organization data-scope or current-user fallback.
 - `/biz/dict/treeAll` returns the dictionary tree without tenant-specific filtering for frontend compatibility.
+- `/biz/dict/edit` updates only active business dictionary rows where `CATEGORY = BIZ`.
 - Selector responses keep existing `id`, `value`, `label`, `title`, and display-name aliases.
 
 ## Deferred
 
 - User import and real `.xlsx`/`.docx` rendering
 - General organization-wide profile edit beyond `/biz/user/center/edit`
-- Dictionary edit
+- Dictionary add/delete
 - Java source changes
 - Database schema changes
 - Frontend code changes
@@ -139,3 +141,16 @@ Still deferred:
 - real `.docx` template rendering
 - file upload/storage behavior
 - route-permission middleware
+
+## 2026-06-06 Business Dictionary Edit Alias
+
+`POST /biz/dict/edit` is now routed for the copied business dictionary maintenance page.
+
+The route delegates to the shared dictionary service and updates only active `dev_dict` rows where `CATEGORY = BIZ`. It validates required `id`, `dictLabel`, and numeric `sortCode`, supports optional `parentId` and `extJson`, blocks same-parent duplicate business dictionary labels, and preserves category, dictionary value, tenant, and create metadata.
+
+Still deferred:
+
+- `/biz/dict/add`
+- `/biz/dict/delete`
+- system dictionary writes under `/dev/dict`
+- dictionary cache invalidation parity with Java

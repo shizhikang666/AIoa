@@ -824,3 +824,23 @@ Explicit non-goals:
 - No endpoint, controller, service, route, frontend, database schema, Composer, `.env`, or Java source changes.
 - No data mutation beyond read-only verification.
 
+## 2026-06-06 Business Dictionary Edit Implementation
+
+Agent: api-agent
+
+Execution summary:
+
+1. Added `DictController::edit` for copied business dictionary edit requests.
+2. Added `DictService::editBizDict` to update only active `dev_dict` rows where `CATEGORY = BIZ`.
+3. Added validation for `id`, `dictLabel`, numeric `sortCode`, optional business parent, tenant compatibility, and same-parent duplicate labels.
+4. Preserved existing `CATEGORY`, `DICT_VALUE`, `TENANT_ID`, `CREATE_TIME`, and `CREATE_USER`.
+5. Registered protected `POST /biz/dict/edit` in `route/app.php`.
+6. Updated business dictionary API docs, biz directory compatibility docs, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+Explicit non-goals:
+
+- No `/biz/dict/add` or `/biz/dict/delete`.
+- No system dictionary writes under `/dev/dict`.
+- No dictionary cache invalidation parity with Java.
+- No frontend source, Java source, database schema, Composer, `.env`, workflow, finance, stock, file storage, or unrelated business changes.
+

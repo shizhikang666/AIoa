@@ -8347,3 +8347,74 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement business endpoints, browser automation, frontend changes, database writes, `.env` edits, Java source changes, route changes, or dependency changes in this slice.
+
+## Active Plan: api-agent - Business Dictionary Edit Compatibility
+
+Status: completed on 2026-06-06 after direct service smoke, route check, strict lint, and DB smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add the copied frontend business dictionary edit endpoint:
+
+- `POST /biz/dict/edit`
+
+This slice edits only existing active business dictionary rows and does not add dictionary add/delete routes.
+
+### 2. Involved Modules
+
+- api-agent business dictionary route compatibility
+- copied frontend `snowy-admin-web/src/api/biz/bizDictApi.js`
+- ThinkPHP dictionary service under `app/service/dev`
+- Java source remains read-only under `F:\AI\projects\testJava\OA`
+
+### 3. Involved Files
+
+- `app/controller/dev/DictController.php`
+- `app/service/dev/DictService.php`
+- `route/app.php`
+- `docs/api/biz-dict-edit-compat.md`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- `dev_dict` is shared by system and business dictionaries; this slice must restrict writes to `CATEGORY = BIZ`.
+- Same-parent duplicate labels must be rejected.
+- Tenant mismatch must be rejected unless the payload is admin-compatible.
+- Dictionary add/delete and system dictionary writes must remain deferred.
+- Java dictionary cache invalidation parity is not implemented in this slice.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\dev\DictController.php
+php -l app\service\dev\DictService.php
+php -l route\app.php
+php think route:list
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+.\scripts\test-agent-smoke.ps1 -SkipComposer
+.\scripts\test-agent-db-smoke.ps1
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /biz/dict/edit` is registered behind `AuthMiddleware`.
+- Controller accepts form POST, raw JSON, and request parameter payloads.
+- Service edits only active `CATEGORY = BIZ` rows.
+- Service validates `id`, `dictLabel`, numeric `sortCode`, optional business parent, duplicate labels, and tenant compatibility.
+- Service preserves category, dict value, tenant, and create metadata.
+- Service smoke edits only temporary rows, blocks duplicate labels, and cleans up temporary rows.
+- No Java source, `.env`, database schema, Composer files, frontend source, system dictionary write behavior, or unrelated business modules are changed.
+
+### 7. Forbidden Scope
+
+- Do not implement `/biz/dict/add`, `/biz/dict/delete`, `/dev/dict` writes, dictionary cache invalidation parity, frontend source changes, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated business writes.

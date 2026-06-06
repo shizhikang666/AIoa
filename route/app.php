@@ -607,6 +607,7 @@ Route::group('biz/dict', function () {
     Route::get('page', 'dev.DictController/page');
     Route::get('tree', 'dev.DictController/tree');
     Route::get('treeAll', 'dev.DictController/treeAll');
+    Route::post('edit', 'dev.DictController/edit');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/returnorder', function () {

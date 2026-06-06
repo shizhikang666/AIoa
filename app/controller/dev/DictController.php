@@ -40,6 +40,51 @@ class DictController extends BaseSysController
         return $this->guard(fn () => $this->dictService->detail($this->requiredString($request, 'id'), $this->tenantId($request)));
     }
 
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->dictService->editBizDict(
+            $this->bodyInput($request),
+            $this->authPayload($request)
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function bodyInput(Request $request): array
+    {
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $request->param();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function authPayload(Request $request): array
+    {
+        $payload = $request->middleware('auth_payload', []);
+
+        return is_array($payload) ? $payload : [];
+    }
+
     private function tenantId(Request $request): ?string
     {
         $payload = $request->middleware('auth_payload', []);

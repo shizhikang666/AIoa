@@ -7601,3 +7601,56 @@ Agent: api-agent
 
 - Commit the DB smoke script automation.
 - Start a focused worker for `/biz/dict/edit` after reviewing Java/controller details locally.
+
+## 2026-06-06 18:20 +08:00 - api-agent - Business Dictionary Edit Compatibility
+
+### Completed
+
+- Used true multi-Agent workflow:
+  - `api-agent explorer` recommended `/biz/dict/edit` as the next low-risk frontend-visible slice.
+  - `api-agent worker` implemented the route/controller/service changes.
+  - Main merge/coordinator reviewed the patch, reran smoke tests, and updated docs/status.
+- Added protected `POST /biz/dict/edit`.
+- Added controller body parsing for form POST, raw JSON, and request parameters.
+- Added business dictionary edit service logic restricted to active `CATEGORY = BIZ` rows.
+- Added validation for required id, label, numeric sort code, optional business parent, duplicate labels, and tenant compatibility.
+- Preserved category, dictionary value, tenant, and create metadata.
+- Updated API docs, biz directory compatibility docs, public route-change request, API gap map, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+- `app/controller/dev/DictController.php`
+- `app/service/dev/DictService.php`
+- `route/app.php`
+- `docs/api/biz-dict-edit-compat.md`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\dev\DictController.php`: passed.
+- `php -l app\service\dev\DictService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and listed `POST /biz/dict/edit`.
+- Direct service smoke: passed; temporary BIZ dictionary rows were inserted, one row was edited, duplicate label blocking was verified, and all temporary rows were physically cleaned up.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed.
+- `.\scripts\test-agent-smoke.ps1 -SkipComposer`: passed.
+- `.\scripts\test-agent-db-smoke.ps1`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- `/biz/dict/add` and `/biz/dict/delete` remain deferred.
+- Java dictionary cache invalidation parity remains deferred.
+- Browser smoke for copied Vue business dictionary edit still needs a valid login session.
+
+### Next Plan
+
+- Commit this business dictionary edit compatibility slice.
+- Continue with browser-facing smoke or the next low-risk read/API slice after confirming frontend login credentials.

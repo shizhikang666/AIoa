@@ -3875,3 +3875,34 @@ Java exposes system and business user download endpoints, and the copied Vue use
 - `php think route:list` must list all five routes.
 - Requests without token should return business `code=401`.
 - Service smoke should generate system template, system export, business export, and one-user profile blobs without exposing password fields.
+
+---
+
+# Public File Change Request: Business Dictionary Edit Route
+
+## Request
+
+Register the protected business dictionary edit route in `route/app.php`.
+
+## Reason
+
+The copied Vue business dictionary wrapper posts dictionary form edits to `/biz/dict/edit`. Existing ThinkPHP dictionary read routes already cover `/biz/dict/page`, `/biz/dict/tree`, and `/biz/dict/treeAll`, so this slice opens the matching narrow business edit route without enabling add/delete behavior.
+
+## Applied Change
+
+`api-agent` registers the following protected POST route:
+
+- `POST /biz/dict/edit`
+
+## Guardrails
+
+- The route remains behind `AuthMiddleware`.
+- The service edits only active `dev_dict` rows where `CATEGORY = BIZ`.
+- The service validates `id`, `dictLabel`, numeric `sortCode`, optional business parent, tenant compatibility, and same-parent duplicate labels.
+- The service preserves `CATEGORY`, `DICT_VALUE`, `TENANT_ID`, `CREATE_TIME`, and `CREATE_USER`.
+- No `/biz/dict/add`, `/biz/dict/delete`, `/dev/dict` write route, Java source, database schema, Composer, `.env`, frontend source, cache invalidation service, or unrelated business behavior is changed.
+
+## Verification
+
+- `php think route:list` must list `POST /biz/dict/edit`.
+- Direct service smoke should create temporary BIZ dictionary rows, edit one row, verify updated label/sort/operator metadata, verify duplicate label blocking, and physically remove only temporary smoke rows.
