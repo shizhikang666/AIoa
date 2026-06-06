@@ -1332,3 +1332,27 @@ This slice supports copied station-message management behavior:
 ### Deferred
 
 - Message send, SSE/WebPush realtime push behavior, and file/storage cleanup remain out of scope.
+
+## 2026-06-06 Dev Message Send Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied station-message send behavior:
+
+- `snowy-admin-web/src/api/dev/messageApi.js`
+- `snowy-admin-web/src/views/dev/message/form.vue`
+
+### Result
+
+- `/dev/message/send` is now routed as a protected POST endpoint.
+- The endpoint accepts copied frontend fields: `subject`, `category`, `content`, `href`, and `receiverIdList`.
+- Receiver values can be strings or selector objects containing `id`, `userId`, `value`, or `key`.
+- Send creates one `dev_message` row and one `MSG_TO_USER` `dev_relation` row per active receiver.
+- `content` defaults to `subject`; `category` defaults to `SYS`; relation `EXT_JSON.read` is initialized as `false`.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Full SSE/WebPush realtime push parity, message templates, file/storage cleanup, and unrelated user/workflow/business writes remain out of scope.

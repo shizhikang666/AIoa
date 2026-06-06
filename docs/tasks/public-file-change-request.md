@@ -3493,3 +3493,35 @@ Java exposes `/dev/message/delete`, and the copied Vue station-message managemen
 - `php think route:list` must list the added route.
 - Requests without token should return business `code=401`.
 - Service smoke should insert one temporary message and receiver relation, delete it, and confirm both rows are removed.
+
+---
+
+# Public File Change Request: Dev Message Send Route
+
+## Request
+
+Register protected station-message send route in `route/app.php`.
+
+## Reason
+
+Java exposes `/dev/message/send`, and the copied Vue station-message management form calls it when sending a station message. Existing ThinkPHP routes already cover message page/detail reads, SSE compatibility, and delete; this slice opens the matching protected send mutation.
+
+## Applied Change
+
+`api-agent/frontend-agent` registers the following protected POST route:
+
+- `POST /dev/message/send`
+
+## Guardrails
+
+- The route remains behind `AuthMiddleware`.
+- Send creates one `dev_message` row and `MSG_TO_USER` receiver relations.
+- Access is limited to admin-compatible accounts or roles until fine-grained route permission middleware is complete.
+- Full SSE/WebPush realtime push behavior remains deferred.
+- No Java source, database schema, Composer, `.env`, frontend source, user/workflow, or unrelated business module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Requests without token should return business `code=401`.
+- Service smoke should insert one temporary message and receiver relation, then clean both rows.

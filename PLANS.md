@@ -7388,3 +7388,72 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement `/dev/message/send`, SSE/WebPush push behavior, file upload/storage cleanup, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated user/workflow/business mutations.
+
+## Active Plan: api-agent/frontend-agent - Dev Message Send Compatibility
+
+Status: completed on 2026-06-06 after temp-message send/delete smoke, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected station-message send endpoint used by the copied Vue message management form:
+
+- `POST /dev/message/send`
+
+This slice creates one `dev_message` row and `MSG_TO_USER` receiver relations for selected users. It must not implement full SSE/WebPush realtime push, message templates, file upload/storage, or frontend source changes.
+
+### 2. Involved Modules
+
+- api-agent dev message compatibility
+- frontend-agent copied dev message form compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageService.php`
+- `route/app.php`
+- `docs/api/dev-message-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java sends SSE/WebPush notifications after persistence; this slice should keep persistence compatible and defer full realtime notification parity.
+- The endpoint writes to live development data, so smoke tests must use temporary rows and clean them up.
+- Fine-grained route permission middleware is not complete yet, so send access should be limited to admin-compatible accounts/roles.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\dev\MessageController.php
+php -l app\service\dev\MessageService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /dev/message/send` is registered behind `AuthMiddleware`.
+- Request accepts copied frontend fields: `subject`, `category`, `content`, `href`, and `receiverIdList`.
+- `subject` and `receiverIdList` are required; `content` defaults to `subject`; `category` defaults to `SYS`.
+- Only active receiver users are accepted, scoped to current tenant when token tenant exists.
+- One `dev_message` row is inserted with Java-compatible `EXT_JSON.href`.
+- One `dev_relation` row per receiver is inserted with `CATEGORY = MSG_TO_USER` and `EXT_JSON.read = false`.
+- Smoke tests insert temporary message/relation rows and clean them up.
+- Java source, database schema, Composer files, `.env`, frontend source, full SSE/WebPush behavior, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement full realtime SSE/WebPush push behavior, message templates, file upload/storage cleanup, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated user/workflow/business mutations.

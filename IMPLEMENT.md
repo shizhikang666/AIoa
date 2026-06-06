@@ -532,3 +532,23 @@ Explicit non-goals:
 - No file upload/storage cleanup.
 - No Java source, database schema, Composer, `.env`, frontend source, user/workflow, or business module changes.
 
+## 2026-06-06 Dev Message Send Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `DevMessageController.send`, `DevMessageServiceImpl.send`, `DevMessageSendParam`, and copied `dev/message` Vue form.
+2. Added Java-compatible body parsing for `/dev/message/send`.
+3. Added `MessageService::send` to validate admin-compatible access, subject, category/defaults, receiver ids, and active tenant-scoped receivers.
+4. Persisted one `dev_message` row with `EXT_JSON.href` and one `MSG_TO_USER` `dev_relation` row per receiver with `read = false`.
+5. Registered protected `POST /dev/message/send` in `route/app.php`.
+6. Updated dev-message API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No full SSE/WebPush realtime push implementation.
+- No message templates.
+- No file upload/storage cleanup.
+- No Java source, database schema, Composer, `.env`, frontend source, user/workflow, or unrelated business module changes.
+

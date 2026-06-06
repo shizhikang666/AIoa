@@ -14,6 +14,7 @@ class MessageService
 {
     private const NOT_DELETE = 'NOT_DELETE';
     private const MESSAGE_TO_USER = 'MSG_TO_USER';
+    private const DEFAULT_CATEGORY = 'SYS';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
         'category' => 'CATEGORY',
@@ -57,6 +58,88 @@ class MessageService
         $detail['receiveInfoList'] = $this->receiveInfoList($relations);
 
         return $detail;
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function send(array $input, ?string $tenantId, mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        if (!$this->canManageMessages($payload)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $subject = trim((string)($input['subject'] ?? ''));
+        if ($subject === '') {
+            throw new RuntimeException('missing subject', 400);
+        }
+
+        $receiverIds = $this->receiverIdList($input['receiverIdList'] ?? $input['receiverIds'] ?? $input['receivers'] ?? []);
+        if ($receiverIds === []) {
+            throw new RuntimeException('missing receiverIdList', 400);
+        }
+
+        $tenantId = $this->tenantIdForWrite($tenantId, $payload);
+        $receiverIds = $this->activeReceiverIds($receiverIds, $tenantId);
+        if ($receiverIds === []) {
+            throw new RuntimeException('receiver user not found', 404);
+        }
+
+        $content = (string)($input['content'] ?? '');
+        if (trim($content) === '') {
+            $content = $subject;
+        }
+
+        $category = trim((string)($input['category'] ?? ''));
+        if ($category === '') {
+            $category = self::DEFAULT_CATEGORY;
+        }
+
+        $href = array_key_exists('href', $input) ? (string)$input['href'] : null;
+        $userId = $this->payloadUserId($payload);
+        $now = date('Y-m-d H:i:s');
+
+        return Db::transaction(function () use ($subject, $content, $category, $href, $receiverIds, $tenantId, $userId, $now): array {
+            $id = $this->newId();
+            $extJson = json_encode(['href' => $href], JSON_UNESCAPED_UNICODE);
+
+            Db::name('dev_message')->insert([
+                'ID' => $id,
+                'CATEGORY' => $category,
+                'SUBJECT' => $subject,
+                'CONTENT' => $content,
+                'EXT_JSON' => $extJson === false ? '{}' : $extJson,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'TENANT_ID' => $tenantId,
+            ]);
+
+            $relations = [];
+            foreach ($receiverIds as $receiverId) {
+                $readJson = json_encode(['read' => false], JSON_UNESCAPED_UNICODE);
+                $relations[] = [
+                    'ID' => $this->newId(),
+                    'OBJECT_ID' => $id,
+                    'TARGET_ID' => $receiverId,
+                    'CATEGORY' => self::MESSAGE_TO_USER,
+                    'EXT_JSON' => $readJson === false ? '{"read":false}' : $readJson,
+                ];
+            }
+
+            if ($relations !== []) {
+                Db::name('dev_relation')->insertAll($relations);
+            }
+
+            return [
+                'id' => $id,
+                'receiveCount' => count($receiverIds),
+            ];
+        });
     }
 
     /**
@@ -259,6 +342,53 @@ class MessageService
     }
 
     /**
+     * @return array<int, string>
+     */
+    private function receiverIdList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $id = trim((string)($item['id'] ?? $item['userId'] ?? $item['value'] ?? $item['key'] ?? ''));
+            } else {
+                $id = trim((string)$item);
+            }
+
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<int, string>
+     */
+    private function activeReceiverIds(array $ids, string $tenantId): array
+    {
+        $query = Db::name('sys_user')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return array_values(array_filter($query->column('ID')));
+    }
+
+    /**
      * @param array<int, string> $ids
      * @param array<string, mixed> $payload
      * @return array<int, string>
@@ -289,6 +419,27 @@ class MessageService
     private function payloadUserId(array $payload): string
     {
         return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function tenantIdForWrite(?string $tenantId, array $payload): string
+    {
+        $tenantId = trim((string)($tenantId ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            return $tenantId;
+        }
+
+        $userId = $this->payloadUserId($payload);
+        if ($userId !== '') {
+            $userTenantId = Db::name('sys_user')->where('ID', $userId)->value('TENANT_ID');
+            if ($userTenantId !== null && (string)$userTenantId !== '') {
+                return (string)$userTenantId;
+            }
+        }
+
+        return '1';
     }
 
     /**
@@ -335,6 +486,11 @@ class MessageService
         }
 
         return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function pagination(array $filters): array

@@ -15,6 +15,7 @@ This document tracks authenticated compatibility for Java `DevMessageController`
 
 - `GET /dev/message/page`
 - `GET /dev/message/detail`
+- `POST /dev/message/send`
 - `POST /dev/message/delete`
 
 All routes are protected by `AuthMiddleware`.
@@ -74,11 +75,38 @@ Supported sort fields are:
 
 ## Deliberate Exclusions
 
-- `POST /dev/message/send` is not implemented.
 - Detail reads do not update `dev_relation.EXT_JSON`.
 - Detail reads do not send SSE notifications.
+- Send does not perform full SSE/WebPush realtime push.
 - Delete does not send SSE/WebPush notifications.
 - No database schema or Java source files are changed.
+
+## Send Behavior
+
+`POST /dev/message/send` accepts the copied frontend message form payload:
+
+```json
+{
+  "subject": "Notice title",
+  "category": "SYS",
+  "content": "Notice body",
+  "href": "/sys/index",
+  "receiverIdList": ["1543837863788879873"]
+}
+```
+
+It also accepts receiver objects containing `id`, `userId`, `value`, or `key` for user-selector compatibility.
+
+The endpoint:
+
+- requires `subject`
+- requires at least one receiver
+- defaults blank `content` to `subject`
+- defaults blank `category` to `SYS`
+- limits access to admin-compatible accounts or roles until fine-grained route permissions are complete
+- limits receivers to active users in the current tenant when the bearer token carries tenant information
+- inserts one `dev_message` row with `EXT_JSON.href`
+- inserts one `dev_relation` row per receiver with `CATEGORY = MSG_TO_USER` and `EXT_JSON.read = false`
 
 ## Delete Behavior
 
@@ -103,4 +131,4 @@ The endpoint:
 
 ## Later Work
 
-Message send behavior still needs a separate write-endpoint plan covering validation, receiver relation creation, SSE/WebPush behavior, and frontend compatibility.
+Full SSE/WebPush notification parity still needs a later plan. Detail read-side SSE refresh behavior is also deferred.

@@ -29,6 +29,15 @@ class MessageController extends BaseSysController
         return $this->guard(fn () => $this->messageService->detail($this->requiredString($request, 'id'), $this->tenantId($request)));
     }
 
+    public function send(Request $request): Response
+    {
+        return $this->guard(fn () => $this->messageService->send(
+            $this->bodyInput($request),
+            $this->tenantId($request),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
     public function delete(Request $request): Response
     {
         return $this->guard(fn () => $this->messageService->delete(
@@ -56,6 +65,31 @@ class MessageController extends BaseSysController
         $tenantId = (string)($payload['tenant_id'] ?? $payload['tenantId'] ?? '');
 
         return $tenantId === '' ? null : $tenantId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function bodyInput(Request $request): array
+    {
+        $input = $request->post();
+        if ($input === []) {
+            $raw = '';
+            if (method_exists($request, 'getContent')) {
+                $raw = trim((string)$request->getContent());
+            }
+            if ($raw === '' && method_exists($request, 'getInput')) {
+                $raw = trim((string)$request->getInput());
+            }
+            if ($raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    return $decoded;
+                }
+            }
+        }
+
+        return $input === [] ? $request->param() : $input;
     }
 
     /**

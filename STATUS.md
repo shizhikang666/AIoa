@@ -6791,3 +6791,55 @@ Agent: api-agent
 
 - Commit this dev-message delete compatibility slice.
 - Continue with another small browser-visible compatibility endpoint or move into targeted permission/data-scope hardening before heavier workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 13:05 +08:00 - api-agent/frontend-agent - Dev Message Send Compatibility
+
+### Completed
+
+- Added protected Java-compatible route `POST /dev/message/send`.
+- Added request body parsing for copied frontend JSON/body payloads.
+- Added `MessageService::send` to create one station-message row and receiver relations.
+- Added receiver parsing for string ids and selector objects containing `id`, `userId`, `value`, or `key`.
+- Defaulted blank `content` to `subject` and blank `category` to `SYS`.
+- Limited send access to admin-compatible accounts or roles until fine-grained route permission middleware is complete.
+- Updated dev-message API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageService.php`
+- `route/app.php`
+- `docs/api/dev-message-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\dev\MessageController.php`: passed.
+- `php -l app\service\dev\MessageService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; `/dev/message/send` and `/dev/message/delete` are listed.
+- Direct service smoke: passed; one temporary `dev_message` row and one temporary `dev_relation` row were inserted, verified, deleted, and confirmed with zero residual rows.
+- No-token HTTP smoke for `/dev/message/send`: returned business `code=401`.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+
+### Current Issues
+
+- Full SSE/WebPush realtime push behavior remains deferred for parity with Java notification side effects.
+- Fine-grained route permission middleware for dev-message send remains deferred; current guard uses admin-compatible account/role detection.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this dev-message send compatibility slice.
+- Continue with targeted permission/data-scope tightening or the next isolated browser-visible compatibility endpoint before side-effect-heavy workflow, finance, stock, and sale-project state writes.
