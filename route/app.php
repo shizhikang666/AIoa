@@ -106,6 +106,7 @@ Route::group('sys/user', function () {
     Route::get('ownRole', 'sys.UserController/ownRole');
     Route::post('grantRole', 'sys.UserController/grantRole');
     Route::get('ownResource', 'sys.UserController/ownResource');
+    Route::post('grantResource', 'sys.UserController/grantResource');
     Route::get('ownPermission', 'sys.UserController/ownPermission');
     Route::get('orgTreeSelector', 'sys.UserController/orgTreeSelector');
     Route::get('positionSelector', 'sys.UserController/positionSelector');

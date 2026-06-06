@@ -165,6 +165,63 @@ class UserDirectoryService
         });
     }
 
+    /**
+     * @param array<string, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function grantResource(array $input, mixed $payload = []): array
+    {
+        $id = trim((string)($input['id'] ?? ''));
+        if ($id === '') {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        if (!array_key_exists('grantInfoList', $input)) {
+            throw new RuntimeException('missing grantInfoList', 400);
+        }
+
+        $grantInfoList = $this->resourceGrantInfoList($input['grantInfoList']);
+        $payload = is_array($payload) ? $payload : [];
+        $user = $this->activeUserRow($id);
+
+        if (!$this->isAdminCompatible($payload) && !$this->hasGrantResourcePermission($payload)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $this->ensureTenantCompatible($payload, $user);
+        $this->assertActiveResourceGrantInfo($grantInfoList);
+        $this->assertSystemModuleResourceGrant($id, $grantInfoList);
+
+        return Db::transaction(function () use ($id, $grantInfoList): array {
+            Db::name('sys_relation')
+                ->where('OBJECT_ID', $id)
+                ->where('CATEGORY', self::USER_HAS_RESOURCE)
+                ->delete();
+
+            $rows = [];
+            foreach ($grantInfoList as $grantInfo) {
+                $extJson = json_encode($grantInfo, JSON_UNESCAPED_UNICODE);
+                $rows[] = [
+                    'ID' => $this->newId(),
+                    'OBJECT_ID' => $id,
+                    'TARGET_ID' => $grantInfo['menuId'],
+                    'CATEGORY' => self::USER_HAS_RESOURCE,
+                    'EXT_JSON' => $extJson === false ? '{}' : $extJson,
+                ];
+            }
+
+            if ($rows !== []) {
+                Db::name('sys_relation')->insertAll($rows);
+            }
+
+            return [
+                'id' => $id,
+                'grantInfoList' => $grantInfoList,
+                'count' => count($grantInfoList),
+            ];
+        });
+    }
+
     public function ownResource(string $id): array
     {
         return [
@@ -688,6 +745,31 @@ class UserDirectoryService
     /**
      * @param array<string, mixed> $payload
      */
+    private function hasGrantResourcePermission(array $payload): bool
+    {
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+        $needles = ['/sys/user/grantresource', 'sysusergrantresource'];
+
+        foreach ($codes as $code) {
+            $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
+            $lower = strtolower($code);
+            foreach ($needles as $needle) {
+                if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
     private function isAdminCompatible(array $payload): bool
     {
         $account = strtolower(trim((string)($payload['account'] ?? '')));
@@ -765,6 +847,128 @@ class UserDirectoryService
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @return array<int, array{menuId: string, buttonInfo: array<int, string>}>
+     */
+    private function resourceGrantInfoList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $byMenuId = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('invalid grantInfoList', 400);
+            }
+
+            $menuId = trim((string)($item['menuId'] ?? $item['menu_id'] ?? $item['id'] ?? ''));
+            if ($menuId === '') {
+                throw new RuntimeException('missing menuId', 400);
+            }
+
+            if (!array_key_exists('buttonInfo', $item) && !array_key_exists('button_info', $item)) {
+                throw new RuntimeException('missing buttonInfo', 400);
+            }
+
+            $buttonInfo = $this->roleIdList($item['buttonInfo'] ?? $item['button_info'] ?? []);
+            $byMenuId[$menuId] = [
+                'menuId' => $menuId,
+                'buttonInfo' => array_values(array_unique(array_merge($byMenuId[$menuId]['buttonInfo'] ?? [], $buttonInfo))),
+            ];
+        }
+
+        return array_values($byMenuId);
+    }
+
+    /**
+     * @param array<int, array{menuId: string, buttonInfo: array<int, string>}> $grantInfoList
+     */
+    private function assertActiveResourceGrantInfo(array $grantInfoList): void
+    {
+        $menuIds = array_values(array_unique(array_map(static fn (array $grantInfo): string => $grantInfo['menuId'], $grantInfoList)));
+        $buttonIds = [];
+        foreach ($grantInfoList as $grantInfo) {
+            $buttonIds = array_merge($buttonIds, $grantInfo['buttonInfo']);
+        }
+        $buttonIds = array_values(array_unique($buttonIds));
+
+        $this->assertActiveResourceIds($menuIds, 'menu resource not found');
+        $this->assertActiveResourceIds($buttonIds, 'button resource not found');
+    }
+
+    /**
+     * @param array<int, string> $ids
+     */
+    private function assertActiveResourceIds(array $ids, string $message): void
+    {
+        if ($ids === []) {
+            return;
+        }
+
+        $validIds = array_values(array_filter(array_map('strval', Db::name('sys_resource')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->column('ID'))));
+        $missing = array_values(array_diff($ids, $validIds));
+        if ($missing !== []) {
+            throw new RuntimeException($message, 404);
+        }
+    }
+
+    /**
+     * @param array<int, array{menuId: string, buttonInfo: array<int, string>}> $grantInfoList
+     */
+    private function assertSystemModuleResourceGrant(string $userId, array $grantInfoList): void
+    {
+        $menuIds = array_values(array_unique(array_map(static fn (array $grantInfo): string => $grantInfo['menuId'], $grantInfoList)));
+        if ($menuIds === []) {
+            return;
+        }
+
+        $moduleIds = array_values(array_unique(array_filter(array_map('strval', Db::name('sys_resource')
+            ->whereIn('ID', $menuIds)
+            ->column('MODULE')))));
+        if ($moduleIds === []) {
+            return;
+        }
+
+        $moduleCodes = array_map('strtolower', array_filter(array_map('strval', Db::name('sys_resource')
+            ->whereIn('ID', $moduleIds)
+            ->column('CODE'))));
+        if (!in_array('system', $moduleCodes, true)) {
+            return;
+        }
+
+        if (!$this->targetHasSuperAdminRole($userId)) {
+            throw new RuntimeException('non-super-admin user cannot be granted system module resources', 403);
+        }
+    }
+
+    private function targetHasSuperAdminRole(string $userId): bool
+    {
+        $roleIds = $this->ownRole($userId);
+        if ($roleIds === []) {
+            return false;
+        }
+
+        $roleCodes = Db::name('sys_role')
+            ->whereIn('ID', $roleIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->column('CODE');
+        foreach ($roleCodes as $roleCode) {
+            if (strtolower((string)$roleCode) === 'superadmin') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

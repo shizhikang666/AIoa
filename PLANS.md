@@ -7590,3 +7590,71 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement `/sys/user/grantResource`, `/sys/user/grantPermission`, user add/edit/delete, reset password, enable/disable, import/export, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
+
+## Active Plan: user-agent/frontend-agent - User Resource Grant Save Compatibility
+
+Status: completed on 2026-06-06 after resource-grant service smoke with original resource restoration, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected resource-grant save endpoint used by the copied system user page:
+
+- `POST /sys/user/grantResource`
+
+This slice only clears and rewrites `sys_relation` rows where `CATEGORY = SYS_USER_HAS_RESOURCE` for the target user.
+
+### 2. Involved Modules
+
+- user-agent resource assignment compatibility
+- frontend-agent copied system user resource-grant dialog compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- Resource grants affect menu and button access and must require admin-compatible payloads or matching route/button permission codes.
+- Java prevents system-module menu resources from being granted to non-super-admin target users; this protection must be preserved.
+- Empty `grantInfoList` should be accepted as a clear operation because Java relation save-with-clear can persist an empty target list.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\UserController.php
+php -l app\service\user\UserDirectoryService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /sys/user/grantResource` is registered behind `AuthMiddleware`.
+- Request accepts `id` and `grantInfoList` where each item contains `menuId` and `buttonInfo`.
+- Existing target user's `SYS_USER_HAS_RESOURCE` relations are cleared and rewritten with valid active resource ids.
+- Invalid menu or button ids fail without partially changing target relations.
+- System-module resources are rejected when the target user does not have the super-admin-compatible role.
+- Java source, database schema, Composer files, `.env`, frontend source, role grant, permission grant, user CRUD, workflow, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/sys/user/grantPermission`, user add/edit/delete, reset password, enable/disable, import/export, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.

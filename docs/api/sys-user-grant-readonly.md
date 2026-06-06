@@ -21,6 +21,7 @@ The Java source project remains read-only:
 | GET | `/sys/user/ownResource` | Read menu and button resource grants directly assigned to a user. |
 | GET | `/sys/user/ownPermission` | Read API permission and data-scope grants directly assigned to a user. |
 | POST | `/sys/user/grantRole` | Clear and rewrite user role relations. |
+| POST | `/sys/user/grantResource` | Clear and rewrite user menu/button resource relations. |
 | POST | `/biz/user/grantRole` | Clear and rewrite business user role relations with conservative data-scope checks. |
 
 All routes are protected by `AuthMiddleware`.
@@ -38,12 +39,16 @@ All routes are protected by `AuthMiddleware`.
 - Role save writes only `sys_relation` rows where `CATEGORY = SYS_USER_HAS_ROLE`.
 - Invalid or tenant-incompatible role ids fail before existing relations are changed.
 - `/biz/user/grantRole` allows admin-compatible payloads or route/button permission payloads that pass organization data-scope or self fallback.
+- `grantResource` accepts `{ id, grantInfoList: [{ menuId, buttonInfo }] }`.
+- Resource save writes only `sys_relation` rows where `CATEGORY = SYS_USER_HAS_RESOURCE`.
+- `EXT_JSON` preserves Java-compatible `{ menuId, buttonInfo }` payloads.
+- Invalid menu or button resource ids fail before existing relations are changed.
+- System-module resources are rejected when the target user does not have the super-admin-compatible role.
 
 ## Deferred
 
 The following remain intentionally deferred:
 
-- `/sys/user/grantResource`
 - `/sys/user/grantPermission`
 - user add/edit/delete
 - enable/disable user

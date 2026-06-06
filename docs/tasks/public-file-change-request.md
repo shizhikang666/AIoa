@@ -3558,3 +3558,35 @@ Java exposes `/sys/user/grantRole` and `/biz/user/grantRole`, and the copied Vue
 - `php think route:list` must list both added routes.
 - Requests without token should return business `code=401`.
 - Service smoke should save a temporary role assignment and restore the original target-user role relations.
+
+---
+
+# Public File Change Request: User Grant Resource Route
+
+## Request
+
+Register protected user resource-grant save route in `route/app.php`.
+
+## Reason
+
+Java exposes `/sys/user/grantResource`, and the copied Vue system user resource-grant dialog calls this endpoint after selecting menus and buttons. Existing ThinkPHP routes already expose `ownResource`, menu selectors, and button echo data, so this slice opens the matching protected save mutation.
+
+## Applied Change
+
+`user-agent/frontend-agent` registers the following protected POST route:
+
+- `POST /sys/user/grantResource`
+
+## Guardrails
+
+- The route remains behind `AuthMiddleware`.
+- The service only rewrites `sys_relation` rows for `CATEGORY = SYS_USER_HAS_RESOURCE`.
+- Access requires admin-compatible payloads or matching route/button permission codes.
+- System-module resources are rejected when the target user is not super-admin-compatible, matching the Java safeguard.
+- No Java source, database schema, Composer, `.env`, frontend source, permission grants, user CRUD, workflow, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list the added route.
+- Requests without token should return business `code=401`.
+- Service smoke should save a temporary resource assignment and restore the original target-user resource relations.

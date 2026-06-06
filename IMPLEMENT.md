@@ -590,3 +590,23 @@ Explicit non-goals:
 - No user add/edit/delete, enable/disable, reset-password-by-admin, import/export, or encrypted profile-field migration.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, role CRUD, or unrelated business module changes.
 
+## 2026-06-06 User Resource Grant Save Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserController.grantResource`, `SysUserServiceImpl.grantResource`, `SysUserGrantResourceParam`, and copied `sys/userApi.js` / `sys/user/grantResourceForm.vue`.
+2. Added `UserController.grantResource` for the copied system user menu/button grant dialog.
+3. Added `UserDirectoryService::grantResource` to clear and rewrite only `sys_relation` rows where `CATEGORY = SYS_USER_HAS_RESOURCE`.
+4. Preserved Java-compatible resource `EXT_JSON` with `menuId` and `buttonInfo`.
+5. Validated active target users, active menu/button resource ids, admin-compatible payloads or route/button permission payloads, and Java's system-module/super-admin target safeguard.
+6. Registered protected `/sys/user/grantResource` in `route/app.php`.
+7. Updated grant API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No permission grant save implementation.
+- No role resource grants, mobile resource grants, user add/edit/delete, enable/disable, reset-password-by-admin, import/export, or encrypted profile-field migration.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, role CRUD, or unrelated business module changes.
+
