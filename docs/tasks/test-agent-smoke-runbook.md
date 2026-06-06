@@ -39,28 +39,40 @@ Start the ThinkPHP server separately, then run:
 
 The optional smoke checks current protected download routes and expects an unauthenticated business response with `code = 401`.
 
-## Current DB Blocker
+## Local Runtime Services
 
-The direct DB-backed user export smoke is not included in the script yet.
+Use the user-provided local service bundle before DB-backed smoke tests:
 
-Current local blocker:
+```powershell
+Set-Location F:\project\socket\AI\testPhp\files
+.\startServer1.bat
+```
 
-- `MySQL80` service exists but did not start cleanly through `Start-Service`.
-- Starting `mysqld.exe` with the explicit local `my.ini` reached port `3306`.
-- The ThinkPHP `.env` database user was rejected by MySQL with `SQLSTATE[HY000] [1045] Access denied`.
+Expected local services:
 
-Required user/environment action before DB-backed export smoke:
+- MySQL listens on `127.0.0.1:3306`
+- Redis listens on `127.0.0.1:6379`
+- PHP FastCGI listens on `127.0.0.1:9000`
 
-- start the intended MySQL instance, or
-- update `.env` with a working local database user/password for `phpoa20026`.
+The project local `.env` is ignored by Git and should hold the user-provided MySQL and Redis credentials. Do not print or commit database or Redis passwords in test logs.
 
-Do not print or commit database passwords in test logs.
+## DB-Backed Export Smoke Status
+
+Resolved on 2026-06-06 after starting the user-provided local service bundle.
+
+Verified:
+
+- `phpoa20026` exists.
+- The database has application tables.
+- Redis responds after authentication.
+- `UserDirectoryService::exportUsers(false, ...)` returns a CSV download descriptor.
+- `UserDirectoryService::exportUsers(true, ...)` returns a CSV download descriptor.
+- `UserDirectoryService::exportUserInfoFile(...)` returns a text profile download descriptor.
+- Export smoke output did not include password headers or password text.
 
 ## Deferred Checks
 
-Add these only after the environment is available:
+Add these only when a backend and frontend browser session are already available:
 
-- direct service smoke for `UserDirectoryService::exportUsers(false, ...)`
-- direct service smoke for `UserDirectoryService::exportUsers(true, ...)`
-- direct service smoke for `UserDirectoryService::exportUserInfoFile(...)`
+- optional no-token HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -NoTokenSmoke`
 - browser smoke through the copied Vue frontend for user export/download buttons

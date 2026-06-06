@@ -7495,3 +7495,41 @@ Agent: api-agent
 ### Next Plan
 
 - After DB credentials are fixed, rerun the DB-backed user export service smokes and then browser-smoke the copied user export/download buttons.
+
+## 2026-06-06 17:30 +08:00 - test-agent - DB Export Smoke Follow-Up
+
+### Completed
+
+- Started the user-provided local runtime bundle from `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Confirmed MySQL listens on `127.0.0.1:3306`.
+- Confirmed Redis listens on `127.0.0.1:6379` and responds after authentication.
+- Updated the ignored local `.env` to use the user-provided local MySQL and Redis runtime values.
+- Confirmed `phpoa20026` exists and contains application tables.
+- Reran direct DB-backed user export smokes.
+- Updated `docs/tasks/test-agent-smoke-runbook.md` from blocker notes to the current local runtime and DB-backed export smoke status.
+
+### Modified Files
+
+- `STATUS.md`
+- `docs/tasks/test-agent-smoke-runbook.md`
+- local ignored `.env` only, not committed
+
+### Test Results
+
+- MySQL database creation/confirmation: passed.
+- `php think route:list` user download route check: passed.
+- Redis authenticated ping: passed.
+- `UserDirectoryService::exportUsers(false, ...)`: passed and returned a CSV descriptor.
+- `UserDirectoryService::exportUsers(true, ...)`: passed and returned a CSV descriptor.
+- `UserDirectoryService::exportUserInfoFile(...)`: passed and returned a text descriptor.
+- Export smoke safety check: passed; no password header/text was present in the sampled descriptors.
+
+### Current Issues
+
+- Browser smoke for copied Vue export/download buttons still needs an authenticated frontend session.
+- Real `.xlsx` generation, real `.docx` rendering, and user import remain deferred.
+
+### Next Plan
+
+- Commit the DB smoke follow-up documentation.
+- Continue with browser-facing smoke when frontend/backend servers and a login session are available, or move to the next low-risk read/API slice.
