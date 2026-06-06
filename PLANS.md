@@ -7457,3 +7457,67 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement full realtime SSE/WebPush push behavior, message templates, file upload/storage cleanup, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated user/workflow/business mutations.
+
+## Active Plan: api-agent/frontend-agent - Dev Message Detail Mark-Read Compatibility
+
+Status: completed on 2026-06-06 after temp-message mark-read smoke, route check, strict PHP lint, backend/frontend reachability, and no-token route protection inherited from the existing protected route group.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Align protected `GET /dev/message/detail` with Java `DevMessageServiceImpl.detail` read-state behavior:
+
+- when the current token user is a receiver of the message, update that user's `MSG_TO_USER` relation `EXT_JSON.read` to `true`
+- keep the detail response shape and `receiveInfoList` intact
+
+This slice must not implement full SSE/WebPush realtime notification parity.
+
+### 2. Involved Modules
+
+- api-agent dev message compatibility
+- frontend-agent copied dev message detail compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageService.php`
+- `docs/api/dev-message-readonly-compat.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- `GET /dev/message/detail` now has a Java-compatible write side effect for the current user's receiver relation.
+- Smoke tests must use a temporary message and relation, then clean them up.
+- Full SSE/WebPush refresh behavior remains deferred to avoid broad realtime infrastructure changes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\dev\MessageController.php
+php -l app\service\dev\MessageService.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `GET /dev/message/detail` remains protected by existing `AuthMiddleware` route group.
+- Detail accepts the current token payload from the controller.
+- If the current user has a `dev_relation` receiver row for the message and `CATEGORY = MSG_TO_USER`, `EXT_JSON.read` is set to `true`.
+- Existing relation `EXT_JSON` keys are preserved.
+- Detail response includes updated `receiveInfoList` and `readCount`.
+- Java source, database schema, Composer files, `.env`, frontend source, full SSE/WebPush behavior, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not add routes, implement full realtime SSE/WebPush behavior, change frontend source, modify Java source, change database schema, touch Composer files, modify `.env`, or alter unrelated user/workflow/business modules.

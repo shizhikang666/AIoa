@@ -45,7 +45,10 @@ class MessageService
         ];
     }
 
-    public function detail(string $id, ?string $tenantId = null): ?array
+    /**
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function detail(string $id, ?string $tenantId = null, mixed $payload = []): ?array
     {
         $row = $this->messageQuery(['id' => $id], $tenantId, null)->find();
         if (!$row) {
@@ -54,6 +57,8 @@ class MessageService
 
         $message = is_array($row) ? $row : $row->toArray();
         $relations = $this->relationsForMessage($id);
+        $payload = is_array($payload) ? $payload : [];
+        $relations = $this->markReadForCurrentUser($id, $relations, $this->payloadUserId($payload));
         $detail = $this->messageRow($message, $relations);
         $detail['receiveInfoList'] = $this->receiveInfoList($relations);
 
@@ -322,6 +327,53 @@ class MessageService
         }
 
         return (bool)$decoded['read'];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $relations
+     * @return array<int, array<string, mixed>>
+     */
+    private function markReadForCurrentUser(string $messageId, array $relations, string $userId): array
+    {
+        if ($userId === '') {
+            return $relations;
+        }
+
+        foreach ($relations as $index => $relation) {
+            if ((string)($relation['TARGET_ID'] ?? '') !== $userId) {
+                continue;
+            }
+
+            if ($this->relationReadStatus($relation) === true) {
+                return $relations;
+            }
+
+            $extJson = $this->relationExtWithRead($relation);
+            Db::name('dev_relation')
+                ->where('OBJECT_ID', $messageId)
+                ->where('TARGET_ID', $userId)
+                ->where('CATEGORY', self::MESSAGE_TO_USER)
+                ->update(['EXT_JSON' => $extJson]);
+
+            $relations[$index]['EXT_JSON'] = $extJson;
+
+            return $relations;
+        }
+
+        return $relations;
+    }
+
+    private function relationExtWithRead(array $relation): string
+    {
+        $decoded = json_decode((string)($relation['EXT_JSON'] ?? '{}'), true);
+        if (!is_array($decoded)) {
+            $decoded = [];
+        }
+
+        $decoded['read'] = true;
+        $extJson = json_encode($decoded, JSON_UNESCAPED_UNICODE);
+
+        return $extJson === false ? '{"read":true}' : $extJson;
     }
 
     /**

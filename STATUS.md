@@ -6843,3 +6843,50 @@ Agent: api-agent
 
 - Commit this dev-message send compatibility slice.
 - Continue with targeted permission/data-scope tightening or the next isolated browser-visible compatibility endpoint before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 13:36 +08:00 - api-agent/frontend-agent - Dev Message Detail Mark-Read Compatibility
+
+### Completed
+
+- Aligned `GET /dev/message/detail` with Java detail read-state behavior.
+- Passed the current auth payload into `MessageService::detail`.
+- Marked only the current token user's `MSG_TO_USER` receiver relation as read when viewing message detail.
+- Preserved existing relation `EXT_JSON` keys while setting `read = true`.
+- Kept the existing route and response shape unchanged.
+- Updated dev-message API docs, frontend adaptation notes, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/dev/MessageController.php`
+- `app/service/dev/MessageService.php`
+- `docs/api/dev-message-readonly-compat.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\dev\MessageController.php`: passed.
+- `php -l app\service\dev\MessageService.php`: passed.
+- `php think route:list`: passed; `/dev/message/detail`, `/send`, and `/delete` are listed.
+- Direct service smoke: passed; one temporary message relation changed from `read=false` to `read=true` on detail read, then all temporary rows were removed.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200 after restarting the ThinkPHP local server.
+- Frontend `http://127.0.0.1:83/`: HTTP 200 after restarting the Vite local server.
+
+### Current Issues
+
+- Full SSE/WebPush realtime push behavior remains deferred for parity with Java notification side effects.
+- Fine-grained route permission middleware remains deferred.
+- Vite generated an untracked temporary config file during local frontend startup; it was not committed or deleted.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this dev-message detail mark-read compatibility slice.
+- Continue with targeted permission/data-scope tightening or the next isolated browser-visible compatibility endpoint before side-effect-heavy workflow, finance, stock, and sale-project state writes.

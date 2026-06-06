@@ -26,7 +26,11 @@ class MessageController extends BaseSysController
 
     public function detail(Request $request): Response
     {
-        return $this->guard(fn () => $this->messageService->detail($this->requiredString($request, 'id'), $this->tenantId($request)));
+        return $this->guard(fn () => $this->messageService->detail(
+            $this->requiredString($request, 'id'),
+            $this->tenantId($request),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function send(Request $request): Response

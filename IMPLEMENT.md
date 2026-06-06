@@ -552,3 +552,22 @@ Explicit non-goals:
 - No file upload/storage cleanup.
 - No Java source, database schema, Composer, `.env`, frontend source, user/workflow, or unrelated business module changes.
 
+## 2026-06-06 Dev Message Detail Mark-Read Implementation
+
+Agent: api-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `DevMessageServiceImpl.detail` read-state behavior and the existing ThinkPHP `MessageService::detail`.
+2. Passed the current auth payload from `MessageController::detail` into `MessageService::detail`.
+3. Added current-user receiver relation mark-read behavior for `CATEGORY = MSG_TO_USER`.
+4. Preserved existing relation `EXT_JSON` keys while setting `read = true`.
+5. Kept the existing protected route and response shape unchanged.
+6. Updated dev-message API docs, frontend adaptation notes, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No route changes.
+- No full SSE/WebPush realtime push implementation.
+- No Java source, database schema, Composer, `.env`, frontend source, user/workflow, or unrelated business module changes.
+

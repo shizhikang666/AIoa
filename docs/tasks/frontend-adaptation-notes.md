@@ -1356,3 +1356,26 @@ This slice supports copied station-message send behavior:
 ### Deferred
 
 - Full SSE/WebPush realtime push parity, message templates, file/storage cleanup, and unrelated user/workflow/business writes remain out of scope.
+
+## 2026-06-06 Dev Message Detail Mark-Read Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports Java-compatible station-message detail behavior:
+
+- `snowy-admin-web/src/api/dev/messageApi.js`
+- `snowy-admin-web/src/views/dev/message/detail.vue`
+
+### Result
+
+- `/dev/message/detail` keeps the same protected GET route and response shape.
+- When the current token user is one of the message receivers, that user's `MSG_TO_USER` relation is marked as read.
+- Existing relation `EXT_JSON` keys are preserved while `read` is set to `true`.
+- `receiveInfoList` and `readCount` reflect the updated relation state.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Full SSE/WebPush detail refresh parity and unrelated user/workflow/business writes remain out of scope.

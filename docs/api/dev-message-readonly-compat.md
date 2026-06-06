@@ -75,11 +75,20 @@ Supported sort fields are:
 
 ## Deliberate Exclusions
 
-- Detail reads do not update `dev_relation.EXT_JSON`.
-- Detail reads do not send SSE notifications.
+- Detail reads do not send SSE/WebPush notifications.
 - Send does not perform full SSE/WebPush realtime push.
 - Delete does not send SSE/WebPush notifications.
 - No database schema or Java source files are changed.
+
+## Detail Mark-Read Behavior
+
+`GET /dev/message/detail` follows Java `DevMessageServiceImpl.detail` for read state:
+
+- if the current token user has a receiver relation for the message, that relation is marked as read
+- only rows with `CATEGORY = MSG_TO_USER` are considered
+- existing `EXT_JSON` keys are preserved while `read` is set to `true`
+- other receivers are not changed
+- full SSE/WebPush refresh behavior remains deferred
 
 ## Send Behavior
 
@@ -131,4 +140,4 @@ The endpoint:
 
 ## Later Work
 
-Full SSE/WebPush notification parity still needs a later plan. Detail read-side SSE refresh behavior is also deferred.
+Full SSE/WebPush notification parity still needs a later plan.
