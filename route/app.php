@@ -109,6 +109,9 @@ Route::group('sys/user', function () {
     Route::get('page', 'sys.UserController/page');
     Route::get('list/detail', 'sys.UserController/listDetail');
     Route::get('detail', 'sys.UserController/detail');
+    Route::get('downloadImportUserTemplate', 'sys.UserController/downloadImportUserTemplate');
+    Route::get('export', 'sys.UserController/export');
+    Route::get('exportUserInfo', 'sys.UserController/exportUserInfo');
     Route::post('add', 'sys.UserController/add');
     Route::post('edit', 'sys.UserController/edit');
     Route::post('delete', 'sys.UserController/delete');
@@ -572,6 +575,8 @@ Route::group('biz/user', function () {
     Route::get('page', 'sys.UserController/page');
     Route::get('list/detail', 'sys.UserController/listDetail');
     Route::get('detail', 'sys.UserController/detail');
+    Route::get('export', 'sys.UserController/bizExport');
+    Route::get('exportUserInfo', 'sys.UserController/bizExportUserInfo');
     Route::post('add', 'sys.UserController/bizAdd');
     Route::post('edit', 'sys.UserController/bizEdit');
     Route::post('center/edit', 'sys.UserCenterController/centerEdit');

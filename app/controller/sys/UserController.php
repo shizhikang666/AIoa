@@ -7,6 +7,9 @@ namespace app\controller\sys;
 use app\service\user\OrgService;
 use app\service\user\PositionService;
 use app\service\user\UserDirectoryService;
+use app\support\ApiResponse;
+use RuntimeException;
+use Throwable;
 use think\Request;
 use think\Response;
 
@@ -50,6 +53,49 @@ class UserController extends BaseSysController
     public function listDetail(Request $request): Response
     {
         return $this->guard(fn () => $this->userDirectoryService->listDetail($request->get()));
+    }
+
+    public function downloadImportUserTemplate(Request $request): Response
+    {
+        return $this->downloadGuard(fn () => $this->userDirectoryService->downloadImportUserTemplate(
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
+    public function export(Request $request): Response
+    {
+        return $this->downloadGuard(fn () => $this->userDirectoryService->exportUsers(
+            $request->get(),
+            $request->middleware('auth_payload', []),
+            false
+        ));
+    }
+
+    public function exportUserInfo(Request $request): Response
+    {
+        return $this->downloadGuard(fn () => $this->userDirectoryService->exportUserInfoFile(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', []),
+            false
+        ));
+    }
+
+    public function bizExport(Request $request): Response
+    {
+        return $this->downloadGuard(fn () => $this->userDirectoryService->exportUsers(
+            $request->get(),
+            $request->middleware('auth_payload', []),
+            true
+        ));
+    }
+
+    public function bizExportUserInfo(Request $request): Response
+    {
+        return $this->downloadGuard(fn () => $this->userDirectoryService->exportUserInfoFile(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', []),
+            true
+        ));
     }
 
     public function disableUser(Request $request): Response
@@ -265,5 +311,38 @@ class UserController extends BaseSysController
         }
 
         return [];
+    }
+
+    private function downloadGuard(callable $callback): Response
+    {
+        try {
+            return $this->downloadResponse($callback());
+        } catch (RuntimeException $exception) {
+            $code = $exception->getCode();
+            $status = is_int($code) && $code >= 400 && $code <= 599 ? $code : 400;
+
+            return ApiResponse::fail($exception->getMessage(), $status);
+        } catch (Throwable) {
+            return ApiResponse::fail('server error', 500);
+        }
+    }
+
+    /**
+     * @param array{filename:string, contentType:string, content:string} $file
+     */
+    private function downloadResponse(array $file): Response
+    {
+        $filename = (string)($file['filename'] ?? 'download.txt');
+        $content = (string)($file['content'] ?? '');
+        $contentType = (string)($file['contentType'] ?? 'application/octet-stream');
+        $encodedFilename = rawurlencode($filename);
+
+        return Response::create($content, 'html', 200)->header([
+            'Content-Type' => $contentType . '; charset=utf-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"; filename*=UTF-8\'\'' . $encodedFilename,
+            'Content-Length' => (string)strlen($content),
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            'Pragma' => 'no-cache',
+        ]);
     }
 }

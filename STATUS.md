@@ -7399,3 +7399,60 @@ Agent: api-agent
 
 - Commit and push this position write compatibility slice.
 - Continue with a focused user import/export planning slice or move back to safe read/write gaps outside personnel before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 17:45 +08:00 - user-agent/frontend-agent - User Export Download Compatibility
+
+### Completed
+
+- Added protected Java-compatible user download routes:
+  - `GET /sys/user/downloadImportUserTemplate`
+  - `GET /sys/user/export`
+  - `GET /sys/user/exportUserInfo`
+  - `GET /biz/user/export`
+  - `GET /biz/user/exportUserInfo`
+- Added controller download handlers for system and business user pages.
+- Added `UserDirectoryService::downloadImportUserTemplate`, `exportUsers`, and `exportUserInfoFile`.
+- Returned CSV/plain-text download blobs without adding Composer dependencies.
+- Reused sanitized user rows so exported content does not include passwords, token data, or secrets.
+- Added export permission checks and conservative business organization data-scope or current-user fallback.
+- Updated export API docs, biz directory alias docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/user-export-download-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\UserController.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; all five download routes are listed, route rows count is 385.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Direct template service smoke: passed; `downloadImportUserTemplate` returned `user-import-template.csv`, `text/csv`, and no `PASSWORD` header.
+- Backend no-token HTTP smoke for all five new GET routes: returned business `code=401`.
+
+### Current Issues
+
+- Direct DB-backed export service smoke could not be completed because local MySQL rejected connections.
+- Windows service `MySQL80` exists but `Start-Service MySQL80` failed and the service remained stopped.
+- `POST /sys/user/import`, real `.xlsx` generation, real `.docx` template rendering, file upload/storage behavior, route-permission middleware, Java data-change events, and encrypted profile-field migration remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- After local MySQL is available, rerun direct service smoke for system export, business export, and single-user profile export.
+- Continue with the next safe frontend-visible slice outside personnel import/export, or start targeted data-scope and permission hardening before side-effect-heavy workflow, finance, stock, and sale-project state writes.

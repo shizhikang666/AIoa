@@ -765,3 +765,27 @@ Explicit non-goals:
 - No Java physical delete behavior.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, finance, stock, or unrelated business module changes.
 
+## 2026-06-06 User Export Download Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserController.downloadImportUserTemplate/export/exportUserInfo`, `SysUserServiceImpl`, `BizUserController.export/exportUserInfo`, `BizUserServiceImpl`, and copied `sys/userApi.js` / `biz/bizUserApi.js`.
+2. Added protected system and business user download routes for copied blob download buttons.
+3. Added `UserDirectoryService::downloadImportUserTemplate`, `exportUsers`, and `exportUserInfoFile`.
+4. Returned CSV/plain-text download blobs without adding Composer dependencies or changing frontend source.
+5. Reused existing sanitized user rows so password/token fields are not exported.
+6. Preserved conservative business organization data-scope or current-user fallback.
+7. Updated export API docs, biz directory alias docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+Explicit non-goals:
+
+- No `POST /sys/user/import`.
+- No real `.xlsx` generation.
+- No real `.docx` template rendering.
+- No file upload/storage behavior.
+- No route-permission middleware.
+- No Java data-change events.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, finance, stock, or unrelated business module changes.
+

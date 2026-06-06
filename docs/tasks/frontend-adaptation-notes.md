@@ -1632,3 +1632,33 @@ This slice supports copied system and business position maintenance pages:
 ### Deferred
 
 - User import/export, route-permission middleware, Java data-change events, Java physical delete behavior, and unrelated workflow/business side effects remain out of scope.
+
+## 2026-06-06 User Export Download Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user download actions:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/sys/user/impExp.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/downloadImportUserTemplate` is now routed as a protected GET endpoint.
+- `/sys/user/export` is now routed as a protected GET endpoint.
+- `/sys/user/exportUserInfo` is now routed as a protected GET endpoint.
+- `/biz/user/export` is now routed as a protected GET endpoint.
+- `/biz/user/exportUserInfo` is now routed as a protected GET endpoint.
+- Download endpoints return blobs compatible with existing frontend `responseType: 'blob'` calls.
+- Export data is sanitized and excludes password/token fields.
+- Business export applies conservative organization data-scope or current-user fallback.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- `POST /sys/user/import`, real `.xlsx` generation, real `.docx` rendering, upload/storage behavior, route-permission middleware, Java data-change events, and encrypted profile-field migration remain out of scope.

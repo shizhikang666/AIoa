@@ -8171,3 +8171,78 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement user import/export, route-permission middleware, Java data-change events, Java physical delete behavior, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
+
+## Active Plan: user-agent/frontend-agent - User Export Download Compatibility
+
+Status: completed on 2026-06-06.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected download endpoints used by copied system and business user pages:
+
+- `GET /sys/user/downloadImportUserTemplate`
+- `GET /sys/user/export`
+- `GET /sys/user/exportUserInfo`
+- `GET /biz/user/export`
+- `GET /biz/user/exportUserInfo`
+
+This slice is read-only. It does not implement `POST /sys/user/import`.
+
+### 2. Involved Modules
+
+- user-agent user export compatibility
+- frontend-agent copied system/business user download button compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/user-export-download-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- The Java implementation exports `.xlsx` and `.docx` using libraries not currently installed in the ThinkPHP project; this slice must not modify Composer files.
+- CSV/plain-text download compatibility should avoid returning `PASSWORD` or secrets.
+- Business exports must preserve conservative organization data-scope behavior.
+- Import parsing, Excel generation, Word template rendering, file upload, and storage provider behavior remain out of scope.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\UserController.php
+php -l app\service\user\UserDirectoryService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- All five download routes are registered behind `AuthMiddleware`.
+- System template download returns a CSV template blob without requiring extra Composer dependencies.
+- System and business user exports accept `userIds`, `searchKey`, and `userStatus` filters.
+- Exported user rows are sanitized and do not include passwords or token data.
+- System and business user-info downloads accept `id` and return a single-user text profile blob.
+- Business export routes enforce conservative organization data-scope before returning data.
+- No Java source, database schema, Composer files, `.env`, frontend source, import parsing, upload handling, auth, workflow, finance, or unrelated modules are changed.
+
+### 7. Forbidden Scope
+
+- Do not implement `POST /sys/user/import`, Excel parser, Word template renderer, new Composer dependencies, file upload/storage behavior, route-permission middleware, Java data-change events, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.

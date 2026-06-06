@@ -3838,3 +3838,40 @@ Java exposes system and business position maintenance endpoints, and the copied 
 - `php think route:list` must list all six routes.
 - Requests without token should return business `code=401`.
 - Service smoke should create temporary system and business positions, edit them, logically delete them, then physically remove only the temporary smoke rows.
+
+---
+
+# Public File Change Request: User Export Download Routes
+
+## Request
+
+Register protected user export and download routes in `route/app.php`.
+
+## Reason
+
+Java exposes system and business user download endpoints, and the copied Vue user pages call these paths with `responseType: 'blob'`. This slice opens the matching protected download routes without enabling import parsing, upload handling, or new Office export dependencies.
+
+## Applied Change
+
+`user-agent/frontend-agent` registers the following protected GET routes:
+
+- `GET /sys/user/downloadImportUserTemplate`
+- `GET /sys/user/export`
+- `GET /sys/user/exportUserInfo`
+- `GET /biz/user/export`
+- `GET /biz/user/exportUserInfo`
+
+## Guardrails
+
+- All five routes remain behind `AuthMiddleware`.
+- The template route returns a CSV template blob.
+- Export routes return sanitized CSV blobs without `PASSWORD`, token data, or secrets.
+- User-info routes return sanitized plain-text profile blobs.
+- Business routes enforce conservative organization data-scope or current-user fallback.
+- No Java source, database schema, Composer, `.env`, frontend source, import parser, upload/storage behavior, real `.xlsx` generation, real `.docx` rendering, route-permission middleware, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list all five routes.
+- Requests without token should return business `code=401`.
+- Service smoke should generate system template, system export, business export, and one-user profile blobs without exposing password fields.

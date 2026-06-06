@@ -110,6 +110,131 @@ class UserDirectoryService
     }
 
     /**
+     * @param array<string, mixed>|mixed $payload
+     * @return array{filename:string, contentType:string, content:string}
+     */
+    public function downloadImportUserTemplate(mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        if (!$this->isAdminCompatible($payload) && !$this->hasExportUserPermission($payload, false)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        return [
+            'filename' => 'user-import-template.csv',
+            'contentType' => 'text/csv',
+            'content' => $this->csvContent([
+                ['account', 'name', 'orgName', 'positionName', 'phone', 'email', 'gender', 'sortCode'],
+                ['zhangsan', 'Zhang San', 'Head Office-Technology', 'Engineer', '13800000000', 'zhangsan@example.com', 'M', '99'],
+            ]),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @param array<string, mixed>|mixed $payload
+     * @return array{filename:string, contentType:string, content:string}
+     */
+    public function exportUsers(array $filters = [], mixed $payload = [], bool $bizScope = false): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $this->ensureExportAllowed($payload, $bizScope);
+
+        $rows = $this->exportUserRows($filters, $payload, $bizScope);
+        $csvRows = [[
+            'id',
+            'account',
+            'name',
+            'gender',
+            'phone',
+            'email',
+            'orgName',
+            'positionName',
+            'userStatus',
+            'entryDate',
+            'sortCode',
+            'createTime',
+        ]];
+
+        foreach ($rows as $row) {
+            $csvRows[] = [
+                $row['id'] ?? '',
+                $row['account'] ?? '',
+                $row['name'] ?? '',
+                $row['genderName'] ?? ($row['gender'] ?? ''),
+                $row['phone'] ?? '',
+                $row['email'] ?? '',
+                $row['orgName'] ?? '',
+                $row['positionName'] ?? '',
+                $row['userStatus'] ?? '',
+                $row['entryDate'] ?? '',
+                $row['sortCode'] ?? '',
+                $row['createTime'] ?? '',
+            ];
+        }
+
+        return [
+            'filename' => ($bizScope ? 'biz-user-export-' : 'sys-user-export-') . date('YmdHis') . '.csv',
+            'contentType' => 'text/csv',
+            'content' => $this->csvContent($csvRows),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|mixed $payload
+     * @return array{filename:string, contentType:string, content:string}
+     */
+    public function exportUserInfoFile(string $id, mixed $payload = [], bool $bizScope = false): array
+    {
+        $id = trim($id);
+        if ($id === '') {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $this->ensureExportAllowed($payload, $bizScope);
+        $user = $this->activeUserRow($id);
+        $this->ensureTenantCompatible($payload, $user);
+        if ($bizScope) {
+            $this->ensureExportUserScopeAllowed($payload, $user);
+        }
+
+        $row = $this->sanitizeUserRows([$user])[0] ?? [];
+        $lines = [
+            'User Profile',
+            '============',
+            'ID: ' . (string)($row['id'] ?? ''),
+            'Account: ' . (string)($row['account'] ?? ''),
+            'Name: ' . (string)($row['name'] ?? ''),
+            'Gender: ' . (string)($row['genderName'] ?? ($row['gender'] ?? '')),
+            'Phone: ' . (string)($row['phone'] ?? ''),
+            'Email: ' . (string)($row['email'] ?? ''),
+            'Organization: ' . (string)($row['orgName'] ?? ''),
+            'Position: ' . (string)($row['positionName'] ?? ''),
+            'Status: ' . (string)($row['userStatus'] ?? ''),
+            'Entry Date: ' . (string)($row['entryDate'] ?? ''),
+            'Employee No: ' . (string)($row['empNo'] ?? ''),
+            'Company Employee ID: ' . (string)($row['companyEmployeeId'] ?? ''),
+            'Native Place: ' . (string)($row['nativePlace'] ?? ''),
+            'Home Address: ' . (string)($row['homeAddress'] ?? ''),
+            'Mailing Address: ' . (string)($row['mailingAddress'] ?? ''),
+            'Education: ' . (string)($row['education'] ?? ''),
+            'Degree: ' . (string)($row['degree'] ?? ''),
+            'Job Title: ' . (string)($row['jobTitle'] ?? ''),
+            'Export Time: ' . date('Y-m-d H:i:s'),
+        ];
+
+        $safeName = preg_replace('/[^A-Za-z0-9_.-]+/', '-', (string)($row['name'] ?? $id));
+        $safeName = trim((string)$safeName, '-');
+
+        return [
+            'filename' => ($bizScope ? 'biz-user-info-' : 'sys-user-info-') . ($safeName !== '' ? $safeName : $id) . '.txt',
+            'contentType' => 'text/plain',
+            'content' => implode("\n", $lines) . "\n",
+        ];
+    }
+
+    /**
      * @return array<int, string>
      */
     public function ownRole(string $id): array
@@ -1502,6 +1627,45 @@ class UserDirectoryService
 
     /**
      * @param array<string, mixed> $payload
+     */
+    private function ensureExportAllowed(array $payload, bool $bizScope): void
+    {
+        if ($this->isAdminCompatible($payload)) {
+            return;
+        }
+
+        if ($this->hasExportUserPermission($payload, $bizScope)) {
+            return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $user
+     */
+    private function ensureExportUserScopeAllowed(array $payload, array $user): void
+    {
+        if ($this->isAdminCompatible($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $targetOrgId = trim((string)($user['ORG_ID'] ?? ''));
+        if ($scopeOrgIds !== [] && $targetOrgId !== '' && in_array($targetOrgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        if ($scopeOrgIds === [] && $this->payloadUserId($payload) === (string)($user['ID'] ?? '')) {
+            return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
      * @param array<string, mixed> $user
      */
     private function ensureTenantCompatible(array $payload, array $user): void
@@ -1609,6 +1773,33 @@ class UserDirectoryService
         $needles = $bizScope
             ? ['/biz/user/delete', 'bizuserdelete']
             : ['/sys/user/delete', 'sysuserdelete'];
+
+        foreach ($codes as $code) {
+            $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
+            $lower = strtolower($code);
+            foreach ($needles as $needle) {
+                if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function hasExportUserPermission(array $payload, bool $bizScope): bool
+    {
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+        $needles = $bizScope
+            ? ['/biz/user/export', '/biz/user/exportuserinfo', 'bizuserexport', 'bizuserexportuserinfo']
+            : ['/sys/user/export', '/sys/user/exportuserinfo', '/sys/user/downloadimportusertemplate', 'sysuserexport', 'sysuserexportuserinfo'];
 
         foreach ($codes as $code) {
             $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
@@ -2055,6 +2246,72 @@ class UserDirectoryService
         }
 
         return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
+    }
+
+    /**
+     * @param array<string, mixed> $filters
+     * @param array<string, mixed> $payload
+     * @return array<int, array<string, mixed>>
+     */
+    private function exportUserRows(array $filters, array $payload, bool $bizScope): array
+    {
+        $query = $this->baseQuery($filters);
+        $ids = $this->idInputList($filters['userIds'] ?? $filters['ids'] ?? $filters['idList'] ?? []);
+        if ($ids !== []) {
+            $query->whereIn('ID', $ids);
+        }
+
+        $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($payloadTenantId !== '' && !$this->isAdminCompatible($payload)) {
+            $query->where('TENANT_ID', $payloadTenantId);
+        }
+
+        if ($bizScope && !$this->isAdminCompatible($payload)) {
+            $scopeOrgIds = $this->scopeOrgIds($payload);
+            if ($scopeOrgIds !== []) {
+                $query->whereIn('ORG_ID', $scopeOrgIds);
+            } else {
+                $payloadUserId = $this->payloadUserId($payload);
+                $payloadUserId === '' ? $query->whereRaw('1 = 0') : $query->where('ID', $payloadUserId);
+            }
+        }
+
+        $rows = $query
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->limit(10000)
+            ->select()
+            ->toArray();
+
+        return $this->sanitizeUserRows($rows);
+    }
+
+    /**
+     * @param array<int, array<int, mixed>> $rows
+     */
+    private function csvContent(array $rows): string
+    {
+        $handle = fopen('php://temp', 'r+');
+        if ($handle === false) {
+            throw new RuntimeException('download failed', 500);
+        }
+
+        foreach ($rows as $row) {
+            fputcsv($handle, array_map(static function (mixed $value): string {
+                if (is_array($value)) {
+                    $json = json_encode($value, JSON_UNESCAPED_UNICODE);
+
+                    return $json === false ? '' : $json;
+                }
+
+                return (string)$value;
+            }, $row));
+        }
+
+        rewind($handle);
+        $content = stream_get_contents($handle);
+        fclose($handle);
+
+        return "\xEF\xBB\xBF" . ($content === false ? '' : $content);
     }
 
     private function baseQuery(array $filters)

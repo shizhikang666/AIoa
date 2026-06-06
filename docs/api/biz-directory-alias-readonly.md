@@ -33,6 +33,8 @@ The implementation reuses existing ThinkPHP read services for system organizatio
 | POST | `/biz/user/disableUser` | `sys.UserController/bizDisableUser` |
 | POST | `/biz/user/enableUser` | `sys.UserController/bizEnableUser` |
 | POST | `/biz/user/resetPassword` | `sys.UserController/bizResetPassword` |
+| GET | `/biz/user/export` | `sys.UserController/bizExport` |
+| GET | `/biz/user/exportUserInfo` | `sys.UserController/bizExportUserInfo` |
 | GET | `/biz/user/orgTreeSelector` | `sys.UserController/orgTreeSelector` |
 | GET | `/biz/user/positionSelector` | `sys.UserController/positionSelector` |
 | GET | `/biz/user/roleSelector` | `sys.UserController/roleSelector` |
@@ -61,12 +63,13 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/user/delete` logically deletes users and clears affected director references with conservative organization data-scope or current-user fallback.
 - `/biz/user/disableUser` and `/biz/user/enableUser` update only `sys_user.USER_STATUS` with conservative organization data-scope or current-user fallback.
 - `/biz/user/resetPassword` updates only `sys_user.PASSWORD` to the configured default password hash with conservative organization data-scope or current-user fallback.
+- `/biz/user/export` and `/biz/user/exportUserInfo` return sanitized download blobs with conservative organization data-scope or current-user fallback.
 - `/biz/dict/treeAll` returns the dictionary tree without tenant-specific filtering for frontend compatibility.
 - Selector responses keep existing `id`, `value`, `label`, `title`, and display-name aliases.
 
 ## Deferred
 
-- User import/export
+- User import and real `.xlsx`/`.docx` rendering
 - General organization-wide profile edit beyond `/biz/user/center/edit`
 - Dictionary edit
 - Java source changes
@@ -119,6 +122,20 @@ The ThinkPHP implementation uses logical delete on `sys_position.DELETE_FLAG` du
 
 Still deferred:
 
-- user import/export
+- user import and real `.xlsx`/`.docx` rendering
 - Java data-change event publishing
+- route-permission middleware
+
+## 2026-06-06 User Export Download Alias
+
+`GET /biz/user/export` and `GET /biz/user/exportUserInfo` are now routed for copied business user download actions.
+
+The routes delegate to the shared user directory export service and return sanitized CSV/plain-text blobs without adding Composer dependencies. Business downloads enforce conservative organization data-scope; when no organization scope exists, ordinary users may download only their own profile data.
+
+Still deferred:
+
+- `POST /sys/user/import`
+- real `.xlsx` generation
+- real `.docx` template rendering
+- file upload/storage behavior
 - route-permission middleware
