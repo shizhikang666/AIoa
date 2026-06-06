@@ -69,7 +69,7 @@ These are the highest-priority follow-ups because they affect pages the user can
 | Message SSE | Frontend components call `/dev/message/createSseConnect` | api-agent or workflow/test support | Review Java behavior before adding a safe compatibility route |
 | Upload compatibility | Frontend expects many `dev/file/upload*ReturnFile*` routes | api-agent | Do not implement storage writes until storage strategy is confirmed |
 | User profile center / homepage self-service | Current-user password, avatar, signature, profile, workbench, process-config edit, message detail mark-read, homepage all-mark-read, homepage schedule add/delete, and `/biz/user/center/edit` self-profile alias are covered | user-agent | Admin-side user management and encrypted-field migration remain deferred |
-| Sys user grant dialogs | `ownRole`, `ownResource`, and `ownPermission` read echoes are covered | user-agent/frontend-agent | Grant save endpoints remain deferred |
+| Sys user grant dialogs | `ownRole`, `ownResource`, `ownPermission`, `/sys/user/grantRole`, and `/biz/user/grantRole` are covered | user-agent/frontend-agent | Resource and permission grant save endpoints remain deferred |
 
 ## Priority 2: Safe Read-Only API Candidates
 
@@ -118,7 +118,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleprojectproductitem` | Add/edit/delete, delivery/invoice/stock side effects | Product item `mark/edit` is covered |
 | `biz/customer` | SM4 plaintext search, file upload/storage, and related side effects | Customer base add/edit/delete and `head/edit` are covered |
 | `biz/customerfollowup` | Attachment upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file side effects remain deferred |
-| `biz/org`, `biz/user`, `biz/position` | `add`, `edit`, `delete`, grants, enable/disable, reset password | `/biz/user/center/edit` self-profile write is covered; admin-side permission and organization-state side effects remain deferred |
+| `biz/org`, `biz/user`, `biz/position` | `add`, `edit`, `delete`, resource/permission grants, enable/disable, reset password | `/biz/user/center/edit` self-profile write and `/biz/user/grantRole` role grant save are covered; admin-side permission and organization-state side effects remain deferred |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
 | `dev/file` | `upload*`, `delete` | Storage provider, file persistence, and cleanup strategy |
@@ -132,7 +132,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `biz/bizhistoryexcel` | Import/export parsing, `biz_history_excel_row` writes | Base add/edit/delete writes are covered; parser/storage changes remain deferred |
 | `biz/projectrate` | `edit`, image upload/storage cleanup | Add/delete base row writes are covered; Java controller does not expose edit in the current reference |
-| `sys/user`, `sys/userCenter`, and `sys/index` | `import`, admin-side profile edits, reset-password-by-admin, grant actions | Current-user profile/password/workbench/process-config writes plus homepage schedule and message read-state writes are covered; admin-side mutations still need security and audit requirements |
+| `sys/user`, `sys/userCenter`, and `sys/index` | `import`, admin-side profile edits, reset-password-by-admin, resource/permission grant actions | Current-user profile/password/workbench/process-config writes, user role grant save, homepage schedule, and message read-state writes are covered; admin-side mutations still need security and audit requirements |
 | `gen/basic` | `add`, `edit`, `delete`, `previewGen`, `execGenZip`, `execGenPro` | Generator writes or code generation output require a separate module plan |
 
 ## Authentication And Session Gaps

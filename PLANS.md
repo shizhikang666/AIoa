@@ -7521,3 +7521,72 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not add routes, implement full realtime SSE/WebPush behavior, change frontend source, modify Java source, change database schema, touch Composer files, modify `.env`, or alter unrelated user/workflow/business modules.
+
+## Active Plan: user-agent/frontend-agent - User Role Grant Save Compatibility
+
+Status: completed on 2026-06-06 after sys/biz grant-role service smoke with original role restoration, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected role-grant save endpoints used by the copied system and business user pages:
+
+- `POST /sys/user/grantRole`
+- `POST /biz/user/grantRole`
+
+This slice only clears and rewrites `sys_relation` rows where `CATEGORY = SYS_USER_HAS_ROLE` for the target user.
+
+### 2. Involved Modules
+
+- user-agent role assignment compatibility
+- frontend-agent copied user management grant-role dialog compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- Role grants are RBAC-sensitive and should require admin-compatible payloads or matching route/button permission codes.
+- Biz user grants in Java apply data-scope checks before delegating to system role grants; this slice must keep a conservative organization/self fallback.
+- Empty `roleIdList` should be accepted as a clear operation because Java relation save-with-clear can persist an empty target list.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\UserController.php
+php -l app\service\user\UserDirectoryService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- Both grant-role routes are registered behind `AuthMiddleware`.
+- Request accepts `id` and `roleIdList` from the copied frontend JSON/body payload.
+- Existing target user's `SYS_USER_HAS_ROLE` relations are cleared and rewritten with valid active role ids.
+- Invalid role ids fail without partially changing target relations.
+- Biz route enforces a conservative data-scope guard before saving.
+- Java source, database schema, Composer files, `.env`, frontend source, resource/permission grants, user CRUD, role CRUD, workflow, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement `/sys/user/grantResource`, `/sys/user/grantPermission`, user add/edit/delete, reset password, enable/disable, import/export, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.

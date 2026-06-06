@@ -113,6 +113,58 @@ class UserDirectoryService
             ->column('TARGET_ID')));
     }
 
+    /**
+     * @param array<string, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function grantRole(array $input, mixed $payload = [], bool $bizScope = false): array
+    {
+        $id = trim((string)($input['id'] ?? ''));
+        if ($id === '') {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        if (!array_key_exists('roleIdList', $input) && !array_key_exists('roleIds', $input) && !array_key_exists('ids', $input)) {
+            throw new RuntimeException('missing roleIdList', 400);
+        }
+
+        $roleIds = $this->roleIdList($input['roleIdList'] ?? $input['roleIds'] ?? $input['ids'] ?? []);
+        $payload = is_array($payload) ? $payload : [];
+        $user = $this->activeUserRow($id);
+
+        $this->ensureGrantRoleAllowed($payload, $user, $bizScope);
+        $this->ensureTenantCompatible($payload, $user);
+        $this->assertActiveRoles($roleIds, (string)($user['TENANT_ID'] ?? ''));
+
+        return Db::transaction(function () use ($id, $roleIds): array {
+            Db::name('sys_relation')
+                ->where('OBJECT_ID', $id)
+                ->where('CATEGORY', self::USER_HAS_ROLE)
+                ->delete();
+
+            $rows = [];
+            foreach ($roleIds as $roleId) {
+                $rows[] = [
+                    'ID' => $this->newId(),
+                    'OBJECT_ID' => $id,
+                    'TARGET_ID' => $roleId,
+                    'CATEGORY' => self::USER_HAS_ROLE,
+                    'EXT_JSON' => null,
+                ];
+            }
+
+            if ($rows !== []) {
+                Db::name('sys_relation')->insertAll($rows);
+            }
+
+            return [
+                'id' => $id,
+                'roleIdList' => $roleIds,
+                'count' => count($roleIds),
+            ];
+        });
+    }
+
     public function ownResource(string $id): array
     {
         return [
@@ -512,6 +564,223 @@ class UserDirectoryService
         }
 
         return $this->getPositionListByIdList($positionIds);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function activeUserRow(string $id): array
+    {
+        $row = Db::name('sys_user')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('user not found', 404);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<int, string> $roleIds
+     */
+    private function assertActiveRoles(array $roleIds, string $tenantId): void
+    {
+        if ($roleIds === []) {
+            return;
+        }
+
+        $query = Db::name('sys_role')
+            ->whereIn('ID', $roleIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($tenantId !== '') {
+            $query->where(function ($query) use ($tenantId): void {
+                $query->whereNull('TENANT_ID')
+                    ->whereOr('TENANT_ID', '=', '')
+                    ->whereOr('TENANT_ID', '=', '0')
+                    ->whereOr('TENANT_ID', '=', $tenantId);
+            });
+        }
+
+        $validIds = array_values(array_filter(array_map('strval', $query->column('ID'))));
+        $missing = array_values(array_diff($roleIds, $validIds));
+        if ($missing !== []) {
+            throw new RuntimeException('role not found or tenant mismatch', 404);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $user
+     */
+    private function ensureGrantRoleAllowed(array $payload, array $user, bool $bizScope): void
+    {
+        $admin = $this->isAdminCompatible($payload);
+        if (!$admin && !$this->hasGrantRolePermission($payload, $bizScope)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        if (!$bizScope || $admin) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $targetOrgId = trim((string)($user['ORG_ID'] ?? ''));
+        if ($scopeOrgIds !== [] && $targetOrgId !== '' && in_array($targetOrgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        if ($this->payloadUserId($payload) === (string)($user['ID'] ?? '')) {
+            return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $user
+     */
+    private function ensureTenantCompatible(array $payload, array $user): void
+    {
+        $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $userTenantId = trim((string)($user['TENANT_ID'] ?? ''));
+
+        if ($payloadTenantId !== '' && $userTenantId !== '' && $payloadTenantId !== $userTenantId && !$this->isAdminCompatible($payload)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function hasGrantRolePermission(array $payload, bool $bizScope): bool
+    {
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+        $needles = $bizScope
+            ? ['/biz/user/grantrole', 'bizusergrantrole']
+            : ['/sys/user/grantrole', 'sysusergrantrole'];
+
+        foreach ($codes as $code) {
+            $normalized = strtolower(str_replace([':', '_', '-'], '', $code));
+            $lower = strtolower($code);
+            foreach ($needles as $needle) {
+                if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function isAdminCompatible(array $payload): bool
+    {
+        $account = strtolower(trim((string)($payload['account'] ?? '')));
+        if (in_array($account, ['superadmin', 'bizadmin', 'tenantadmin'], true)) {
+            return true;
+        }
+
+        foreach ($this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []) as $roleCode) {
+            if (in_array(strtolower($roleCode), ['superadmin', 'bizadmin', 'tenantadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<int, string>
+     */
+    private function scopeOrgIds(array $payload): array
+    {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            foreach ($scopes as $scope) {
+                if (is_array($scope)) {
+                    $ids[] = $scope['orgId'] ?? $scope['org_id'] ?? '';
+                }
+            }
+        }
+
+        return array_values(array_unique(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $ids))));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function payloadUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function roleIdList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $id = trim((string)($item['id'] ?? $item['roleId'] ?? $item['value'] ?? $item['key'] ?? ''));
+            } else {
+                $id = trim((string)$item);
+            }
+
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
     }
 
     private function baseQuery(array $filters)
@@ -958,5 +1227,10 @@ class UserDirectoryService
         }
 
         return (bool)$decoded['read'];
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 }

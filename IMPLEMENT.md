@@ -571,3 +571,22 @@ Explicit non-goals:
 - No full SSE/WebPush realtime push implementation.
 - No Java source, database schema, Composer, `.env`, frontend source, user/workflow, or unrelated business module changes.
 
+## 2026-06-06 User Role Grant Save Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserController.grantRole`, `SysUserServiceImpl.grantRole`, `BizUserController.grantRole`, `BizUserServiceImpl.grantRole`, and copied `sys/userApi.js` / `biz/bizUserApi.js`.
+2. Added `UserController.grantRole` and `UserController.bizGrantRole` for copied frontend role-grant save dialogs.
+3. Added `UserDirectoryService::grantRole` to clear and rewrite only `sys_relation` rows where `CATEGORY = SYS_USER_HAS_ROLE`.
+4. Validated active target users, active tenant-compatible role ids, admin-compatible payloads, route/button permission payloads, and conservative business data-scope.
+5. Registered protected `/sys/user/grantRole` and `/biz/user/grantRole` routes in `route/app.php`.
+6. Updated grant API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No resource grant or permission grant save implementation.
+- No user add/edit/delete, enable/disable, reset-password-by-admin, import/export, or encrypted profile-field migration.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, role CRUD, or unrelated business module changes.
+

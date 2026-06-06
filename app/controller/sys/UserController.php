@@ -39,6 +39,24 @@ class UserController extends BaseSysController
         return $this->guard(fn () => $this->userDirectoryService->ownRole($this->requiredString($request, 'id')));
     }
 
+    public function grantRole(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->grantRole(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            false
+        ));
+    }
+
+    public function bizGrantRole(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->grantRole(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            true
+        ));
+    }
+
     public function ownResource(Request $request): Response
     {
         return $this->guard(fn () => $this->userDirectoryService->ownResource($this->requiredString($request, 'id')));
@@ -67,5 +85,30 @@ class UserController extends BaseSysController
     public function userSelector(Request $request): Response
     {
         return $this->guard(fn () => $this->userDirectoryService->userSelector($request->get()));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function bodyInput(Request $request): array
+    {
+        $input = $request->post();
+        if ($input === []) {
+            $raw = '';
+            if (method_exists($request, 'getContent')) {
+                $raw = trim((string)$request->getContent());
+            }
+            if ($raw === '' && method_exists($request, 'getInput')) {
+                $raw = trim((string)$request->getInput());
+            }
+            if ($raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    return $decoded;
+                }
+            }
+        }
+
+        return $input === [] ? $request->param() : $input;
     }
 }

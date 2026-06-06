@@ -1379,3 +1379,29 @@ This slice supports Java-compatible station-message detail behavior:
 ### Deferred
 
 - Full SSE/WebPush detail refresh parity and unrelated user/workflow/business writes remain out of scope.
+
+## 2026-06-06 User Role Grant Save Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user role-grant dialogs:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/grantRole` is now routed as a protected POST endpoint.
+- `/biz/user/grantRole` is now routed as a protected POST endpoint.
+- Both endpoints accept `{ id, roleIdList }` from the copied frontend forms.
+- Save clears existing direct user role relations and rewrites `SYS_USER_HAS_ROLE` rows with active role ids.
+- Empty `roleIdList` clears direct role grants.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Resource grants, permission grants, admin-side user CRUD, enable/disable, reset-password-by-admin, import/export, and encrypted profile-field migration remain out of scope.

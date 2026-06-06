@@ -6890,3 +6890,57 @@ Agent: api-agent
 
 - Commit this dev-message detail mark-read compatibility slice.
 - Continue with targeted permission/data-scope tightening or the next isolated browser-visible compatibility endpoint before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 12:55 +08:00 - user-agent/frontend-agent - User Role Grant Save Compatibility
+
+### Completed
+
+- Added protected Java-compatible role grant save routes:
+  - `POST /sys/user/grantRole`
+  - `POST /biz/user/grantRole`
+- Added controller handlers for system and business user role grant saves.
+- Added `UserDirectoryService::grantRole` to clear and rewrite `SYS_USER_HAS_ROLE` relations for a target user.
+- Validated active users, active tenant-compatible role ids, admin-compatible payloads, route/button permission payloads, and business data-scope/self fallback.
+- Kept empty `roleIdList` as a supported clear operation.
+- Updated grant API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\UserController.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; `/sys/user/grantRole` and `/biz/user/grantRole` are listed.
+- Direct service smoke: passed; one active user's roles were replaced with one active tenant-compatible role, then cleared through the business-scope path, and the original `SYS_USER_HAS_ROLE` relation rows were restored.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for both new POST routes: returned business `code=401`.
+
+### Current Issues
+
+- Resource and permission grant save endpoints remain deferred.
+- Admin-side user CRUD, enable/disable, reset-password-by-admin, import/export, and encrypted profile-field migration remain deferred.
+- Fine-grained route permission middleware remains deferred; this slice uses payload-based admin/route/button guards.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this user role grant save compatibility slice.
+- Continue with another small frontend-visible compatibility route or begin targeted permission/data-scope tightening before side-effect-heavy workflow, finance, stock, and sale-project state writes.

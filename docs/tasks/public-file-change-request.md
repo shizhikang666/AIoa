@@ -3525,3 +3525,36 @@ Java exposes `/dev/message/send`, and the copied Vue station-message management 
 - `php think route:list` must list the added route.
 - Requests without token should return business `code=401`.
 - Service smoke should insert one temporary message and receiver relation, then clean both rows.
+
+---
+
+# Public File Change Request: User Grant Role Routes
+
+## Request
+
+Register protected role-grant save routes in `route/app.php`.
+
+## Reason
+
+Java exposes `/sys/user/grantRole` and `/biz/user/grantRole`, and the copied Vue system/business user pages call these endpoints after the role selection dialog is saved. Existing ThinkPHP routes already expose `ownRole` and role selectors, so this slice opens the matching protected save mutation.
+
+## Applied Change
+
+`user-agent/frontend-agent` registers the following protected POST routes:
+
+- `POST /sys/user/grantRole`
+- `POST /biz/user/grantRole`
+
+## Guardrails
+
+- Both routes remain behind `AuthMiddleware`.
+- The service only rewrites `sys_relation` rows for `CATEGORY = SYS_USER_HAS_ROLE`.
+- Access requires admin-compatible payloads or matching route/button permission codes.
+- Biz route keeps a conservative data-scope guard before delegating to the shared relation save.
+- No Java source, database schema, Composer, `.env`, frontend source, resource/permission grants, user CRUD, role CRUD, workflow, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list both added routes.
+- Requests without token should return business `code=401`.
+- Service smoke should save a temporary role assignment and restore the original target-user role relations.
