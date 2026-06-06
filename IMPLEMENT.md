@@ -630,3 +630,22 @@ Explicit non-goals:
 - No role permission grants, user add/edit/delete, enable/disable, reset-password-by-admin, import/export, or encrypted profile-field migration.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, role CRUD, or unrelated business module changes.
 
+## 2026-06-06 User Enable Disable Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserController.disableUser/enableUser`, `BizUserController.disableUser/enableUser`, `SysUserServiceImpl`, `BizUserServiceImpl`, and copied `sys/userApi.js` / `biz/bizUserApi.js` table switches.
+2. Added `UserController` handlers for system and business enable/disable routes.
+3. Added `UserDirectoryService::setUserStatus` to update only `sys_user.USER_STATUS` between `ENABLE` and `DISABLED`.
+4. Preserved Java's business data-scope behavior with conservative organization scope or current-user fallback.
+5. Registered protected `/sys/user/disableUser`, `/sys/user/enableUser`, `/biz/user/disableUser`, and `/biz/user/enableUser` in `route/app.php`.
+6. Updated status API docs, biz directory docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No user add/edit/delete implementation.
+- No reset-password-by-admin, import/export, token/session invalidation on status change, or route-permission middleware implementation.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, grants, or unrelated business module changes.
+

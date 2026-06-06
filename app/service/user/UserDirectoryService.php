@@ -25,6 +25,8 @@ class UserDirectoryService
     private const USER_HAS_ROLE = 'SYS_USER_HAS_ROLE';
     private const USER_HAS_RESOURCE = 'SYS_USER_HAS_RESOURCE';
     private const USER_HAS_PERMISSION = 'SYS_USER_HAS_PERMISSION';
+    private const USER_STATUS_ENABLE = 'ENABLE';
+    private const USER_STATUS_DISABLED = 'DISABLED';
     private const SCOPE_CATEGORIES = [
         'SCOPE_ALL',
         'SCOPE_SELF',
@@ -118,6 +120,38 @@ class UserDirectoryService
             ->where('OBJECT_ID', $id)
             ->where('CATEGORY', self::USER_HAS_ROLE)
             ->column('TARGET_ID')));
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function setUserStatus(array $input, mixed $payload, string $status, bool $bizScope = false): array
+    {
+        $id = trim((string)($input['id'] ?? ''));
+        if ($id === '') {
+            throw new RuntimeException('missing id', 400);
+        }
+        if (!in_array($status, [self::USER_STATUS_ENABLE, self::USER_STATUS_DISABLED], true)) {
+            throw new RuntimeException('invalid userStatus', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $user = $this->activeUserRow($id);
+        $this->ensureUserStatusAllowed($payload, $user, $bizScope, $status);
+        $this->ensureTenantCompatible($payload, $user);
+
+        Db::name('sys_user')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update(['USER_STATUS' => $status]);
+
+        return [
+            'id' => $id,
+            'userStatus' => $status,
+        ];
     }
 
     /**
@@ -768,6 +802,34 @@ class UserDirectoryService
      * @param array<string, mixed> $payload
      * @param array<string, mixed> $user
      */
+    private function ensureUserStatusAllowed(array $payload, array $user, bool $bizScope, string $status): void
+    {
+        $admin = $this->isAdminCompatible($payload);
+        if (!$admin && !$this->hasUserStatusPermission($payload, $bizScope, $status)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        if (!$bizScope || $admin) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $targetOrgId = trim((string)($user['ORG_ID'] ?? ''));
+        if ($scopeOrgIds !== [] && $targetOrgId !== '' && in_array($targetOrgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        if ($this->payloadUserId($payload) === (string)($user['ID'] ?? '')) {
+            return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $user
+     */
     private function ensureTenantCompatible(array $payload, array $user): void
     {
         $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
@@ -794,6 +856,34 @@ class UserDirectoryService
 
         foreach ($codes as $code) {
             $normalized = strtolower(str_replace([':', '_', '-'], '', $code));
+            $lower = strtolower($code);
+            foreach ($needles as $needle) {
+                if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function hasUserStatusPermission(array $payload, bool $bizScope, string $status): bool
+    {
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+        $action = $status === self::USER_STATUS_ENABLE ? 'enableuser' : 'disableuser';
+        $needles = $bizScope
+            ? ["/biz/user/{$action}", "bizuser{$action}", 'bizuserupdatastatus']
+            : ["/sys/user/{$action}", "sysuser{$action}", 'sysuserupdatestatus'];
+
+        foreach ($codes as $code) {
+            $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
             $lower = strtolower($code);
             foreach ($needles as $needle) {
                 if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {

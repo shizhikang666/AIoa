@@ -103,6 +103,8 @@ Route::group('sys/user', function () {
     Route::get('page', 'sys.UserController/page');
     Route::get('list/detail', 'sys.UserController/listDetail');
     Route::get('detail', 'sys.UserController/detail');
+    Route::post('disableUser', 'sys.UserController/disableUser');
+    Route::post('enableUser', 'sys.UserController/enableUser');
     Route::get('ownRole', 'sys.UserController/ownRole');
     Route::post('grantRole', 'sys.UserController/grantRole');
     Route::get('ownResource', 'sys.UserController/ownResource');
@@ -558,6 +560,8 @@ Route::group('biz/user', function () {
     Route::get('list/detail', 'sys.UserController/listDetail');
     Route::get('detail', 'sys.UserController/detail');
     Route::post('center/edit', 'sys.UserCenterController/centerEdit');
+    Route::post('disableUser', 'sys.UserController/bizDisableUser');
+    Route::post('enableUser', 'sys.UserController/bizEnableUser');
     Route::get('ownRole', 'sys.UserController/ownRole');
     Route::post('grantRole', 'sys.UserController/bizGrantRole');
     Route::get('orgTreeSelector', 'sys.UserController/orgTreeSelector');

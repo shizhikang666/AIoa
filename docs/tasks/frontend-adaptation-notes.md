@@ -1456,3 +1456,30 @@ This slice supports the copied system user permission-grant dialog:
 ### Deferred
 
 - Role resource grants, mobile resource grants, admin-side user CRUD, enable/disable, reset-password-by-admin, import/export, route-permission middleware, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Enable Disable Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user table status switches:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/disableUser` is now routed as a protected POST endpoint.
+- `/sys/user/enableUser` is now routed as a protected POST endpoint.
+- `/biz/user/disableUser` is now routed as a protected POST endpoint.
+- `/biz/user/enableUser` is now routed as a protected POST endpoint.
+- The endpoints accept `{ id }` and update only `sys_user.USER_STATUS`.
+- Business routes enforce conservative organization data-scope or current-user fallback.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Admin-side user add/edit/delete, reset-password-by-admin, import/export, route-permission middleware, token/session invalidation on status change, and encrypted profile-field migration remain out of scope.

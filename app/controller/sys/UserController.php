@@ -34,6 +34,46 @@ class UserController extends BaseSysController
         return $this->guard(fn () => $this->userDirectoryService->listDetail($request->get()));
     }
 
+    public function disableUser(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->setUserStatus(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            'DISABLED',
+            false
+        ));
+    }
+
+    public function enableUser(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->setUserStatus(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            'ENABLE',
+            false
+        ));
+    }
+
+    public function bizDisableUser(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->setUserStatus(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            'DISABLED',
+            true
+        ));
+    }
+
+    public function bizEnableUser(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->setUserStatus(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', []),
+            'ENABLE',
+            true
+        ));
+    }
+
     public function ownRole(Request $request): Response
     {
         return $this->guard(fn () => $this->userDirectoryService->ownRole($this->requiredString($request, 'id')));

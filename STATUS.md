@@ -7051,3 +7051,57 @@ Agent: api-agent
 
 - Commit this user permission grant save compatibility slice.
 - Continue with targeted permission/data-scope hardening or move to the next low-risk frontend-visible write route before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 14:10 +08:00 - user-agent/frontend-agent - User Enable Disable Compatibility
+
+### Completed
+
+- Added protected Java-compatible user status routes:
+  - `POST /sys/user/disableUser`
+  - `POST /sys/user/enableUser`
+  - `POST /biz/user/disableUser`
+  - `POST /biz/user/enableUser`
+- Added controller handlers for system and business user status switches.
+- Added `UserDirectoryService::setUserStatus` to update only `sys_user.USER_STATUS`.
+- Preserved business user data-scope guarding with organization scope or current-user fallback.
+- Updated status API docs, biz directory alias docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/user-status-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\UserController.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; all four status routes are listed, route rows count is 360.
+- Direct service smoke: passed; one active user's status was changed through the system path, restored through the business path, and then confirmed restored to the original value.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for all four new POST routes: returned business `code=401`.
+
+### Current Issues
+
+- User add/edit/delete, reset-password-by-admin, import/export, token/session invalidation on status change, and route-permission middleware remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this user enable/disable compatibility slice.
+- Continue with the next low-risk frontend-visible user write route, or move to targeted permission/data-scope hardening before side-effect-heavy workflow, finance, stock, and sale-project state writes.

@@ -3622,3 +3622,38 @@ Java exposes `/sys/user/grantPermission`, and the copied Vue system user permiss
 - `php think route:list` must list the added route.
 - Requests without token should return business `code=401`.
 - Service smoke should save a temporary permission assignment and restore the original target-user permission relations.
+
+---
+
+# Public File Change Request: User Enable Disable Routes
+
+## Request
+
+Register protected user status switch routes in `route/app.php`.
+
+## Reason
+
+Java exposes system and business user enable/disable endpoints, and the copied Vue user tables call them from the row status switch. Existing ThinkPHP user directory routes already read `USER_STATUS`; this slice opens the matching protected status mutations.
+
+## Applied Change
+
+`user-agent/frontend-agent` registers the following protected POST routes:
+
+- `POST /sys/user/disableUser`
+- `POST /sys/user/enableUser`
+- `POST /biz/user/disableUser`
+- `POST /biz/user/enableUser`
+
+## Guardrails
+
+- All four routes remain behind `AuthMiddleware`.
+- The service only updates `sys_user.USER_STATUS`.
+- Access requires admin-compatible payloads or matching route/button permission codes.
+- Business routes also enforce conservative organization data-scope or current-user fallback.
+- No Java source, database schema, Composer, `.env`, frontend source, user CRUD, password reset, import/export, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list all four routes.
+- Requests without token should return business `code=401`.
+- Service smoke should toggle one sampled active user's status and restore the original value.

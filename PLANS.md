@@ -7726,3 +7726,75 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement role resource grants, mobile resource grants, user add/edit/delete, reset password, enable/disable, import/export, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, route-permission middleware, or unrelated auth/workflow/business mutations.
+
+## Active Plan: user-agent/frontend-agent - User Enable Disable Compatibility
+
+Status: completed on 2026-06-06 after status-toggle service smoke with original status restoration, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected status switch endpoints used by the copied system and business user pages:
+
+- `POST /sys/user/disableUser`
+- `POST /sys/user/enableUser`
+- `POST /biz/user/disableUser`
+- `POST /biz/user/enableUser`
+
+This slice only updates `sys_user.USER_STATUS` between `ENABLE` and `DISABLED`.
+
+### 2. Involved Modules
+
+- user-agent user status compatibility
+- frontend-agent copied system/business user table switch compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- User status changes affect login/use access and must require admin-compatible payloads or matching route/button permission codes.
+- Java business user status changes enforce organization data-scope; this slice must keep a conservative data-scope/self fallback for `/biz/user/*`.
+- Smoke tests must restore the sampled user's original `USER_STATUS`.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\UserController.php
+php -l app\service\user\UserDirectoryService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- All four status routes are registered behind `AuthMiddleware`.
+- Requests accept Java-style `{ id }` JSON/body payloads.
+- System routes set `USER_STATUS` to `DISABLED` or `ENABLE` after admin/permission guard.
+- Business routes also enforce data-scope or current-user fallback before saving.
+- Only `sys_user.USER_STATUS` is changed; no user CRUD, role/resource/permission grants, password reset, or import/export behavior is added.
+- Java source, database schema, Composer files, `.env`, frontend source, workflow, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement user add/edit/delete, reset-password-by-admin, import/export, role/resource/permission grant changes, route-permission middleware, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
