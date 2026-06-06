@@ -89,6 +89,9 @@ Route::group('sys/org', function () {
     Route::get('orgTreeSelector', 'sys.OrgController/treeSelector');
     Route::get('userSelector', 'sys.OrgController/userSelector');
     Route::get('detail', 'sys.OrgController/detail');
+    Route::post('add', 'sys.OrgController/add');
+    Route::post('edit', 'sys.OrgController/edit');
+    Route::post('delete', 'sys.OrgController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('sys/position', function () {
@@ -557,6 +560,9 @@ Route::group('biz/org', function () {
     Route::get('detail', 'sys.OrgController/detail');
     Route::get('orgTreeSelector', 'sys.OrgController/treeSelector');
     Route::get('userSelector', 'sys.OrgController/userSelector');
+    Route::post('add', 'sys.OrgController/bizAdd');
+    Route::post('edit', 'sys.OrgController/bizEdit');
+    Route::post('delete', 'sys.OrgController/bizDelete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/user', function () {

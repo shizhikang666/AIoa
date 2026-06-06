@@ -20,6 +20,9 @@ The implementation reuses existing ThinkPHP read services for system organizatio
 | GET | `/biz/org/detail` | `sys.OrgController/detail` |
 | GET | `/biz/org/orgTreeSelector` | `sys.OrgController/treeSelector` |
 | GET | `/biz/org/userSelector` | `sys.OrgController/userSelector` |
+| POST | `/biz/org/add` | `sys.OrgController/bizAdd` |
+| POST | `/biz/org/edit` | `sys.OrgController/bizEdit` |
+| POST | `/biz/org/delete` | `sys.OrgController/bizDelete` |
 | GET | `/biz/user/page` | `sys.UserController/page` |
 | GET | `/biz/user/list/detail` | `sys.UserController/listDetail` |
 | GET | `/biz/user/detail` | `sys.UserController/detail` |
@@ -48,6 +51,7 @@ All routes are protected by `AuthMiddleware`.
 ## Compatibility Notes
 
 - `/biz/user/list/detail` returns sanitized user rows and never returns the `PASSWORD` field.
+- `/biz/org/add`, `/biz/org/edit`, and `/biz/org/delete` write base `sys_org` rows with conservative organization data-scope checks and dependency-protected logical delete.
 - `/biz/user/ownRole` reads role IDs from `sys_relation` where `CATEGORY = SYS_USER_HAS_ROLE`.
 - `/biz/user/add` and `/biz/user/edit` write base `sys_user` profile fields with conservative organization data-scope or current-user edit fallback.
 - `/biz/user/delete` logically deletes users and clears affected director references with conservative organization data-scope or current-user fallback.
@@ -58,7 +62,6 @@ All routes are protected by `AuthMiddleware`.
 
 ## Deferred
 
-- Organization add/edit/delete
 - User import/export
 - General organization-wide profile edit beyond `/biz/user/center/edit`
 - Position add/edit/delete
@@ -89,3 +92,17 @@ Still deferred:
 - token/session invalidation
 - Java data-change event publishing
 - full SM4 encrypted-field migration
+
+## 2026-06-06 Organization Add Edit Delete Alias
+
+`POST /biz/org/add`, `POST /biz/org/edit`, and `POST /biz/org/delete` are now routed for the copied business organization management page.
+
+The routes delegate to the shared organization service and mirror Java `BizOrgServiceImpl` behavior for base organization fields, category validation, same-level name uniqueness, parent cycle checks, dependency-protected delete, and organization data-scope guarding.
+
+The ThinkPHP implementation uses logical delete on `sys_org.DELETE_FLAG` during this staged refactor instead of Java's physical row removal.
+
+Still deferred:
+
+- position add/edit/delete
+- Java data-change event publishing
+- route-permission middleware

@@ -7277,3 +7277,64 @@ Agent: api-agent
 
 - Commit this user add/edit compatibility slice.
 - Continue with user import/export planning or move to the next browser-visible low-risk write/read gap before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 16:30 +08:00 - user-agent/frontend-agent - Organization Add Edit Delete Compatibility
+
+### Completed
+
+- Added protected Java-compatible organization write routes:
+  - `POST /sys/org/add`
+  - `POST /sys/org/edit`
+  - `POST /sys/org/delete`
+  - `POST /biz/org/add`
+  - `POST /biz/org/edit`
+  - `POST /biz/org/delete`
+- Added controller handlers for system and business organization forms and delete actions.
+- Added `OrgService::add`, `OrgService::edit`, and `OrgService::delete` for base `sys_org` writes.
+- Added validation for parent organization, category, sort code, same-level duplicate names, optional director, tenant compatibility, and parent cycle prevention.
+- Added dependency-protected organization delete checks for active users, user extra-position JSON, roles, and positions.
+- Used logical delete on `sys_org.DELETE_FLAG` during the staged refactor.
+- Preserved business organization data-scope guarding for add/edit/delete.
+- Updated organization API docs, biz directory docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/OrgController.php`
+- `app/service/user/OrgService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/org-write-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\OrgController.php`: passed.
+- `php -l app\service\user\OrgService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; all six organization write routes are listed, route rows count is 374.
+- Direct service smoke: passed; one temporary system organization and one temporary business organization were created, edited, logically deleted, verified, and physically removed by unique test ids.
+- Temporary data cleanup check: passed; remaining temporary org rows returned 0.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for all six new POST routes on the backend root path: returned business `code=401`.
+
+### Current Issues
+
+- Position add/edit/delete, user import/export, route-permission middleware, Java data-change event publishing, and Java physical delete behavior remain deferred.
+- Direct backend test path is the current PHP server root path; `/think/...` returns a ThinkPHP 404 in this local server mode, while the frontend proxy can still apply its own prefix behavior.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit and push this organization write compatibility slice.
+- Continue with the next low-risk browser-visible personnel module gap: position add/edit/delete planning or user import/export planning, before side-effect-heavy workflow, finance, stock, and sale-project state writes.

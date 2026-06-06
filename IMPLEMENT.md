@@ -714,3 +714,29 @@ Explicit non-goals:
 - No full SM4 encrypted-field migration.
 - No org/position CRUD, Java source, database schema, Composer, `.env`, frontend source, workflow, grants, or unrelated business module changes.
 
+## 2026-06-06 Organization Add Edit Delete Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysOrgController.add/edit/delete`, `BizOrgController.add/edit/delete`, `SysOrgServiceImpl`, `BizOrgServiceImpl`, copied `sys/orgApi.js`, `biz/bizOrgApi.js`, and both organization forms.
+2. Added system and business organization write controller handlers for copied organization maintenance pages.
+3. Added `OrgService::add`, `OrgService::edit`, and `OrgService::delete` for base `sys_org` writes only.
+4. Preserved Java-compatible form payloads for `parentId`, `name`, `category`, `sortCode`, `directorId`, `extJson`, and copied frontend delete arrays such as `[{ id }]`.
+5. Added validation for active parent organization, category values, same-level duplicate names, optional director, tenant compatibility, and parent cycle prevention.
+6. Added dependency-protected delete that expands selected organizations to children and blocks active user, extra-position JSON, role, and position references.
+7. Used logical `sys_org.DELETE_FLAG = DELETED` during the staged refactor instead of Java physical delete.
+8. Preserved Java-compatible business data-scope checks for add/edit/delete.
+9. Registered protected `/sys/org/add`, `/sys/org/edit`, `/sys/org/delete`, `/biz/org/add`, `/biz/org/edit`, and `/biz/org/delete` routes in `route/app.php`.
+10. Updated organization API docs, biz directory docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+Explicit non-goals:
+
+- No position add/edit/delete implementation.
+- No user import/export.
+- No route-permission middleware.
+- No Java data-change event publishing.
+- No Java physical delete behavior.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, finance, stock, or unrelated business module changes.
+

@@ -19,8 +19,8 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 364 | From `php think route:list` after user delete route addition |
-| Endpoints already covered by route path | 345 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, and selected low-risk writes |
+| Current ThinkPHP routes | 374 | From `php think route:list` after organization write route addition |
+| Endpoints already covered by route path | 351 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization write compatibility, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 149 | Add/edit/audit/import/export/workflow/finance/stock actions |
 
@@ -32,7 +32,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | --- | --- |
 | `auth` | Login, logout, current user, token/session reads |
 | `sys/index` | User info, menu, permissions, dashboard basics |
-| `sys/org` | Tree, selector, page/detail style reads |
+| `sys/org` | Tree, selector, page/detail style reads plus base add/edit/delete |
 | `sys/user` | User page/detail/list style reads, selectors, own-role, own-resource, own-permission, delete, grant saves, reset password, and enable/disable status switches |
 | `sys/position` | Position page/list/detail/selector reads |
 | `sys/role` | Role page/list/detail/resource/menu relation reads |
@@ -69,7 +69,7 @@ These are the highest-priority follow-ups because they affect pages the user can
 | Message SSE | Frontend components call `/dev/message/createSseConnect` | api-agent or workflow/test support | Review Java behavior before adding a safe compatibility route |
 | Upload compatibility | Frontend expects many `dev/file/upload*ReturnFile*` routes | api-agent | Do not implement storage writes until storage strategy is confirmed |
 | User profile center / homepage self-service | Current-user password, avatar, signature, profile, workbench, process-config edit, message detail mark-read, homepage all-mark-read, homepage schedule add/delete, and `/biz/user/center/edit` self-profile alias are covered | user-agent | Admin-side user CRUD/import/export and encrypted-field migration remain deferred |
-| Sys/biz user add/edit, grant, status, reset-password, and delete dialogs | `/sys/user/add`, `/sys/user/edit`, `/biz/user/add`, `/biz/user/edit`, `ownRole`, `ownResource`, `ownPermission`, `/sys/user/grantRole`, `/biz/user/grantRole`, `/sys/user/grantResource`, `/sys/user/grantPermission`, `/sys/user/delete`, `/biz/user/delete`, `/sys/user/disableUser`, `/sys/user/enableUser`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/sys/user/resetPassword`, and `/biz/user/resetPassword` are covered | user-agent/frontend-agent | User import/export and encrypted-field migration remain deferred |
+| Sys/biz org and user maintenance dialogs | `/sys/org/add`, `/sys/org/edit`, `/sys/org/delete`, `/biz/org/add`, `/biz/org/edit`, `/biz/org/delete`, `/sys/user/add`, `/sys/user/edit`, `/biz/user/add`, `/biz/user/edit`, `ownRole`, `ownResource`, `ownPermission`, `/sys/user/grantRole`, `/biz/user/grantRole`, `/sys/user/grantResource`, `/sys/user/grantPermission`, `/sys/user/delete`, `/biz/user/delete`, `/sys/user/disableUser`, `/sys/user/enableUser`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/sys/user/resetPassword`, and `/biz/user/resetPassword` are covered | user-agent/frontend-agent | Position CRUD, user import/export, and encrypted-field migration remain deferred |
 
 ## Priority 2: Safe Read-Only API Candidates
 
@@ -80,7 +80,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/saleproject` | Core read routes covered: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; sale-project follow-up `page/detail/add/edit/delete` covered in `biz/saleprojectfollowup`; sale-project state/write routes remain deferred |
 | `biz/salesprojectfieldchangelog` | `page`, `detail`, `add`, `edit`, and `delete` covered; sale-project change-generation side effects remain deferred |
 | `biz/customer` | `add`, `edit`, `delete`, `detail`, `detail/list`, `page`, and `head/edit` covered |
-| `biz/org` | `detail`, `list`, `orgTreeSelector`, `page`, `tree`, `userSelector` |
+| `biz/org` | `detail`, `list`, `orgTreeSelector`, `page`, `tree`, `userSelector`, `add`, `edit`, and `delete` |
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector`, `disableUser`, `enableUser` |
 | `biz/position` | `detail`, `list`, `orgTreeSelector`, `page`, `positionSelector` |
 | `biz/dict` | `page`, `tree`, `treeAll` |
@@ -118,7 +118,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleprojectproductitem` | Add/edit/delete, delivery/invoice/stock side effects | Product item `mark/edit` is covered |
 | `biz/customer` | SM4 plaintext search, file upload/storage, and related side effects | Customer base add/edit/delete and `head/edit` are covered |
 | `biz/customerfollowup` | Attachment upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file side effects remain deferred |
-| `biz/org`, `biz/user`, `biz/position` | org/position add/edit/delete, resource/permission grants | `/biz/user/add`, `/biz/user/edit`, `/biz/user/center/edit`, `/biz/user/delete`, `/biz/user/grantRole`, `/biz/user/disableUser`, `/biz/user/enableUser`, and `/biz/user/resetPassword` are covered; org/position add/edit remains deferred |
+| `biz/org`, `biz/user`, `biz/position` | position add/edit/delete, resource/permission grants | `/biz/org/add`, `/biz/org/edit`, `/biz/org/delete`, `/biz/user/add`, `/biz/user/edit`, `/biz/user/center/edit`, `/biz/user/delete`, `/biz/user/grantRole`, `/biz/user/disableUser`, `/biz/user/enableUser`, and `/biz/user/resetPassword` are covered; position add/edit remains deferred |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
 | `dev/file` | `upload*`, `delete` | Storage provider, file persistence, and cleanup strategy |

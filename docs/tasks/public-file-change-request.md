@@ -3762,3 +3762,41 @@ Java exposes system and business user add/edit endpoints, and the copied Vue use
 - `php think route:list` must list all four routes.
 - Requests without token should return business `code=401`.
 - Service smoke should create temporary system and business users, edit them, then remove only the temporary test rows.
+
+---
+
+# Public File Change Request: Organization Add Edit Delete Routes
+
+## Request
+
+Register protected organization add/edit/delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes system and business organization maintenance endpoints, and the copied Vue organization pages submit add/edit/delete actions to these paths. The existing ThinkPHP organization service already supports page/list/tree/detail reads, so this slice opens the matching protected base organization mutations.
+
+## Applied Change
+
+`user-agent/frontend-agent` registers the following protected POST routes:
+
+- `POST /sys/org/add`
+- `POST /sys/org/edit`
+- `POST /sys/org/delete`
+- `POST /biz/org/add`
+- `POST /biz/org/edit`
+- `POST /biz/org/delete`
+
+## Guardrails
+
+- All six routes remain behind `AuthMiddleware`.
+- The service writes only known `sys_org` base columns.
+- Add/edit validate parent organization, category, sort code, same-level duplicate names, optional director, tenant compatibility, and parent-cycle prevention.
+- Delete expands selected child organizations, blocks active user, extra-position, role, and position references, then logically deletes safe rows with `DELETE_FLAG = DELETED`.
+- Business routes enforce conservative organization data-scope checks.
+- No Java source, database schema, Composer, `.env`, frontend source, position CRUD, user import/export, Java data-change events, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list all six routes.
+- Requests without token should return business `code=401`.
+- Service smoke should create temporary system and business organizations, edit them, logically delete them, then physically remove only the temporary smoke rows.

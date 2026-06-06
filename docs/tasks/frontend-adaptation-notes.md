@@ -1566,3 +1566,36 @@ This slice supports copied system and business user add/edit forms:
 ### Deferred
 
 - Import/export, route-permission middleware, token/session invalidation after profile changes, Java data-change events, and full SM4 encrypted-field migration remain out of scope.
+
+## 2026-06-06 Organization Add Edit Delete Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business organization maintenance pages:
+
+- `snowy-admin-web/src/api/sys/orgApi.js`
+- `snowy-admin-web/src/api/biz/bizOrgApi.js`
+- `snowy-admin-web/src/views/sys/org/index.vue`
+- `snowy-admin-web/src/views/sys/org/form.vue`
+- `snowy-admin-web/src/views/biz/org/index.vue`
+- `snowy-admin-web/src/views/biz/org/form.vue`
+
+### Result
+
+- `/sys/org/add` is now routed as a protected POST endpoint.
+- `/sys/org/edit` is now routed as a protected POST endpoint.
+- `/sys/org/delete` is now routed as a protected POST endpoint.
+- `/biz/org/add` is now routed as a protected POST endpoint.
+- `/biz/org/edit` is now routed as a protected POST endpoint.
+- `/biz/org/delete` is now routed as a protected POST endpoint.
+- Add/edit accept the existing camelCase form payload: `parentId`, `name`, `category`, `sortCode`, `directorId`, and `extJson`.
+- Delete accepts copied frontend batch payloads such as `[{ id }]`.
+- Delete blocks organizations referenced by users, user extra-position JSON, roles, or positions, then logically deletes safe rows.
+- Business add/edit/delete enforces conservative organization data-scope checks.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Position add/edit/delete, user import/export, route-permission middleware, Java data-change events, Java physical delete behavior, and unrelated workflow/business side effects remain out of scope.

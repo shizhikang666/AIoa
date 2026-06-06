@@ -8017,3 +8017,80 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement import/export, route-permission middleware, Java data-change events, token/session invalidation, encrypted-field migration, org/position CRUD, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
+
+## Active Plan: user-agent/frontend-agent - Org Add Edit Delete Compatibility
+
+Status: completed on 2026-06-06 after sys/biz org add-edit-delete service smoke with temporary-row cleanup, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected organization maintenance endpoints used by copied system and business organization pages:
+
+- `POST /sys/org/add`
+- `POST /sys/org/edit`
+- `POST /sys/org/delete`
+- `POST /biz/org/add`
+- `POST /biz/org/edit`
+- `POST /biz/org/delete`
+
+This slice writes only base `sys_org` rows and protects referenced organizations from deletion.
+
+### 2. Involved Modules
+
+- user-agent organization tree maintenance compatibility
+- frontend-agent copied system/business organization form and table action compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/OrgController.php`
+- `app/service/user/OrgService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/org-write-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- Java physically removes organization rows, but this ThinkPHP slice should logically delete `sys_org.DELETE_FLAG` to preserve database safety during staged refactor.
+- Organization deletion can break users, extra-position JSON, roles, and positions, so dependency checks must block referenced orgs and child orgs.
+- Business organization writes must preserve Java's conservative data-scope behavior.
+- Parent changes must reject moving an organization below itself or a descendant.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\OrgController.php
+php -l app\service\user\OrgService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- All six organization write routes are registered behind `AuthMiddleware`.
+- Requests accept copied frontend form payloads and array delete payloads such as `[{ id }]`.
+- Add validates required parent/name/category/sort fields, valid categories, optional director, same-level duplicate names, tenant compatibility, and default organization code.
+- Edit validates active organization, parent existence, category, optional director, duplicate names, tenant compatibility, and parent cycle prevention.
+- Delete expands selected organizations to child organizations, blocks active user/extra-position/role/position references, and logically deletes only safe `sys_org` rows.
+- Business routes enforce conservative organization data-scope before writing.
+- Smoke tests create, edit, logically delete, and physically clean up only temporary organization rows.
+- Java source, database schema, Composer files, `.env`, frontend source, position CRUD, user CRUD, auth, workflow, finance, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement position CRUD, user import/export, route-permission middleware, Java data-change events, Java physical delete behavior, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
