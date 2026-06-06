@@ -56,6 +56,14 @@ class UserController extends BaseSysController
         ));
     }
 
+    public function grantPermission(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->grantPermission(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
     public function bizGrantRole(Request $request): Response
     {
         return $this->guard(fn () => $this->userDirectoryService->grantRole(

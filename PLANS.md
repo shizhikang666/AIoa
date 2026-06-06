@@ -7658,3 +7658,71 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement `/sys/user/grantPermission`, user add/edit/delete, reset password, enable/disable, import/export, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated auth/workflow/business mutations.
+
+## Active Plan: user-agent/frontend-agent - User Permission Grant Save Compatibility
+
+Status: completed on 2026-06-06 after permission-grant service smoke with original permission restoration, route check, strict PHP lint, backend/frontend reachability, and no-token auth smoke.
+
+Date: 2026-06-06
+
+### 1. Current Goal
+
+Add Java-compatible protected permission-grant save endpoint used by the copied system user page:
+
+- `POST /sys/user/grantPermission`
+
+This slice only clears and rewrites `sys_relation` rows where `CATEGORY = SYS_USER_HAS_PERMISSION` for the target user.
+
+### 2. Involved Modules
+
+- user-agent permission assignment compatibility
+- frontend-agent copied system user permission-grant dialog compatibility
+- Java read-only reference under `F:\AI\projects\testJava\OA`
+- ThinkPHP target under `F:\AI\projects\testJava\OA-ThinkPHP`
+
+### 3. Involved Files
+
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The route file is a locked public file; the change must be recorded in `docs/tasks/public-file-change-request.md`.
+- Permission grants affect API/data-scope access and must require admin-compatible payloads or matching route/button permission codes.
+- `scopeCategory` values must stay compatible with the copied frontend and Java data-scope model.
+- Empty `grantInfoList` should be accepted as a clear operation because Java relation save-with-clear can persist an empty target list.
+
+### 5. Test Commands
+
+```powershell
+php -l app\controller\sys\UserController.php
+php -l app\service\user\UserDirectoryService.php
+php -l route\app.php
+php think route:list
+composer dump-autoload
+php think
+Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
+git diff --check
+```
+
+### 6. Acceptance Criteria
+
+- `POST /sys/user/grantPermission` is registered behind `AuthMiddleware`.
+- Request accepts `id` and `grantInfoList` where each item contains `apiUrl`, `scopeCategory`, and `scopeDefineOrgIdList`.
+- Existing target user's `SYS_USER_HAS_PERMISSION` relations are cleared and rewritten with Java-compatible `EXT_JSON`.
+- Invalid or empty API urls and unsupported scope categories fail without partially changing target relations.
+- Custom organization ids are validated against active `sys_org` rows.
+- Java source, database schema, Composer files, `.env`, frontend source, role/resource grants, user CRUD, workflow, and unrelated modules remain unchanged.
+
+### 7. Forbidden Scope
+
+- Do not implement role resource grants, mobile resource grants, user add/edit/delete, reset password, enable/disable, import/export, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, route-permission middleware, or unrelated auth/workflow/business mutations.

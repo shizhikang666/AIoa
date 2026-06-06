@@ -1430,3 +1430,29 @@ This slice supports the copied system user resource-grant dialog:
 ### Deferred
 
 - Permission grants, role resource grants, mobile resource grants, admin-side user CRUD, enable/disable, reset-password-by-admin, import/export, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Permission Grant Save Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied system user permission-grant dialog:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/views/sys/user/grantPermissionForm.vue`
+- `snowy-admin-web/src/views/sys/user/scopeDefineOrg.vue`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+
+### Result
+
+- `/sys/user/grantPermission` is now routed as a protected POST endpoint.
+- The endpoint accepts `{ id, grantInfoList: [{ apiUrl, scopeCategory, scopeDefineOrgIdList }] }` from the copied frontend form.
+- Save clears existing direct user permission relations and rewrites `SYS_USER_HAS_PERMISSION` rows.
+- Each relation stores Java-compatible `EXT_JSON` with API url, data-scope category, and custom organization ids.
+- Custom organization ids are validated against active organization rows.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Role resource grants, mobile resource grants, admin-side user CRUD, enable/disable, reset-password-by-admin, import/export, route-permission middleware, and encrypted profile-field migration remain out of scope.

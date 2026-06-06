@@ -6998,3 +6998,56 @@ Agent: api-agent
 
 - Commit this user resource grant save compatibility slice.
 - Continue with user permission grant save compatibility, or pause user grants and move to targeted permission/data-scope hardening before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 13:45 +08:00 - user-agent/frontend-agent - User Permission Grant Save Compatibility
+
+### Completed
+
+- Added protected Java-compatible permission grant save route:
+  - `POST /sys/user/grantPermission`
+- Added controller handler for system user permission grant saves.
+- Added `UserDirectoryService::grantPermission` to clear and rewrite `SYS_USER_HAS_PERMISSION` relations for a target user.
+- Preserved Java-compatible `EXT_JSON` with `apiUrl`, `scopeCategory`, and `scopeDefineOrgIdList`.
+- Validated active users, supported data-scope categories, custom organization ids, and admin-compatible payloads or route/button permission payloads.
+- Kept empty `grantInfoList` as a supported clear operation.
+- Updated grant API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\UserController.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; `/sys/user/grantPermission` is listed.
+- Direct service smoke: passed; one active user's permission grants were replaced with one API/data-scope grant, then the original `SYS_USER_HAS_PERMISSION` relation rows were restored.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/think`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for the new POST route: returned business `code=401`.
+
+### Current Issues
+
+- Route-permission middleware remains deferred; this slice uses payload-based admin/route/button guards.
+- Role permission grants, admin-side user CRUD, enable/disable, reset-password-by-admin, import/export, and encrypted profile-field migration remain deferred.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this user permission grant save compatibility slice.
+- Continue with targeted permission/data-scope hardening or move to the next low-risk frontend-visible write route before side-effect-heavy workflow, finance, stock, and sale-project state writes.

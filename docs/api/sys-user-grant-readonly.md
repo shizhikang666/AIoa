@@ -22,6 +22,7 @@ The Java source project remains read-only:
 | GET | `/sys/user/ownPermission` | Read API permission and data-scope grants directly assigned to a user. |
 | POST | `/sys/user/grantRole` | Clear and rewrite user role relations. |
 | POST | `/sys/user/grantResource` | Clear and rewrite user menu/button resource relations. |
+| POST | `/sys/user/grantPermission` | Clear and rewrite user API/data-scope permission relations. |
 | POST | `/biz/user/grantRole` | Clear and rewrite business user role relations with conservative data-scope checks. |
 
 All routes are protected by `AuthMiddleware`.
@@ -44,12 +45,16 @@ All routes are protected by `AuthMiddleware`.
 - `EXT_JSON` preserves Java-compatible `{ menuId, buttonInfo }` payloads.
 - Invalid menu or button resource ids fail before existing relations are changed.
 - System-module resources are rejected when the target user does not have the super-admin-compatible role.
+- `grantPermission` accepts `{ id, grantInfoList: [{ apiUrl, scopeCategory, scopeDefineOrgIdList }] }`.
+- Permission save writes only `sys_relation` rows where `CATEGORY = SYS_USER_HAS_PERMISSION`.
+- `EXT_JSON` preserves Java-compatible `{ apiUrl, scopeCategory, scopeDefineOrgIdList }` payloads.
+- `scopeCategory` is constrained to Java/frontend data-scope values.
+- Custom data-scope organization ids are validated against active `sys_org` rows.
 
 ## Deferred
 
 The following remain intentionally deferred:
 
-- `/sys/user/grantPermission`
 - user add/edit/delete
 - enable/disable user
 - reset password

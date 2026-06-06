@@ -69,7 +69,7 @@ These are the highest-priority follow-ups because they affect pages the user can
 | Message SSE | Frontend components call `/dev/message/createSseConnect` | api-agent or workflow/test support | Review Java behavior before adding a safe compatibility route |
 | Upload compatibility | Frontend expects many `dev/file/upload*ReturnFile*` routes | api-agent | Do not implement storage writes until storage strategy is confirmed |
 | User profile center / homepage self-service | Current-user password, avatar, signature, profile, workbench, process-config edit, message detail mark-read, homepage all-mark-read, homepage schedule add/delete, and `/biz/user/center/edit` self-profile alias are covered | user-agent | Admin-side user management and encrypted-field migration remain deferred |
-| Sys user grant dialogs | `ownRole`, `ownResource`, `ownPermission`, `/sys/user/grantRole`, `/biz/user/grantRole`, and `/sys/user/grantResource` are covered | user-agent/frontend-agent | Permission grant save endpoint remains deferred |
+| Sys user grant dialogs | `ownRole`, `ownResource`, `ownPermission`, `/sys/user/grantRole`, `/biz/user/grantRole`, `/sys/user/grantResource`, and `/sys/user/grantPermission` are covered | user-agent/frontend-agent | User CRUD and admin account actions remain deferred |
 
 ## Priority 2: Safe Read-Only API Candidates
 
@@ -132,7 +132,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/bizuservacation` | `add`, `edit`, `delete`, generation/reduction helpers | Vacation balance writes affect leave workflow and payroll-facing data |
 | `biz/bizhistoryexcel` | Import/export parsing, `biz_history_excel_row` writes | Base add/edit/delete writes are covered; parser/storage changes remain deferred |
 | `biz/projectrate` | `edit`, image upload/storage cleanup | Add/delete base row writes are covered; Java controller does not expose edit in the current reference |
-| `sys/user`, `sys/userCenter`, and `sys/index` | `import`, admin-side profile edits, reset-password-by-admin, permission grant actions | Current-user profile/password/workbench/process-config writes, user role/resource grant saves, homepage schedule, and message read-state writes are covered; admin-side mutations still need security and audit requirements |
+| `sys/user`, `sys/userCenter`, and `sys/index` | `import`, admin-side profile edits, reset-password-by-admin | Current-user profile/password/workbench/process-config writes, user role/resource/permission grant saves, homepage schedule, and message read-state writes are covered; admin-side mutations still need security and audit requirements |
 | `gen/basic` | `add`, `edit`, `delete`, `previewGen`, `execGenZip`, `execGenPro` | Generator writes or code generation output require a separate module plan |
 
 ## Authentication And Session Gaps

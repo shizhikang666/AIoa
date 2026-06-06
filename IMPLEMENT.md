@@ -610,3 +610,23 @@ Explicit non-goals:
 - No role resource grants, mobile resource grants, user add/edit/delete, enable/disable, reset-password-by-admin, import/export, or encrypted profile-field migration.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, role CRUD, or unrelated business module changes.
 
+## 2026-06-06 User Permission Grant Save Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserController.grantPermission`, `SysUserServiceImpl.grantPermission`, `SysUserGrantPermissionParam`, and copied `sys/userApi.js` / `sys/user/grantPermissionForm.vue`.
+2. Added `UserController.grantPermission` for the copied system user API/data-scope grant dialog.
+3. Added `UserDirectoryService::grantPermission` to clear and rewrite only `sys_relation` rows where `CATEGORY = SYS_USER_HAS_PERMISSION`.
+4. Preserved Java-compatible permission `EXT_JSON` with `apiUrl`, `scopeCategory`, and `scopeDefineOrgIdList`.
+5. Validated active target users, supported Java/frontend scope categories, custom organization ids, and admin-compatible payloads or route/button permission payloads.
+6. Registered protected `/sys/user/grantPermission` in `route/app.php`.
+7. Updated grant API docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No route-permission middleware implementation.
+- No role permission grants, user add/edit/delete, enable/disable, reset-password-by-admin, import/export, or encrypted profile-field migration.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, role CRUD, or unrelated business module changes.
+

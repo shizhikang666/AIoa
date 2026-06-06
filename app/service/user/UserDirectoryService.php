@@ -25,6 +25,13 @@ class UserDirectoryService
     private const USER_HAS_ROLE = 'SYS_USER_HAS_ROLE';
     private const USER_HAS_RESOURCE = 'SYS_USER_HAS_RESOURCE';
     private const USER_HAS_PERMISSION = 'SYS_USER_HAS_PERMISSION';
+    private const SCOPE_CATEGORIES = [
+        'SCOPE_ALL',
+        'SCOPE_SELF',
+        'SCOPE_ORG',
+        'SCOPE_ORG_CHILD',
+        'SCOPE_ORG_DEFINE',
+    ];
     private const DEFAULT_PROCESS_NAMES = [
         'Process_reimbursement',
         'Process_make_payment',
@@ -206,6 +213,62 @@ class UserDirectoryService
                     'OBJECT_ID' => $id,
                     'TARGET_ID' => $grantInfo['menuId'],
                     'CATEGORY' => self::USER_HAS_RESOURCE,
+                    'EXT_JSON' => $extJson === false ? '{}' : $extJson,
+                ];
+            }
+
+            if ($rows !== []) {
+                Db::name('sys_relation')->insertAll($rows);
+            }
+
+            return [
+                'id' => $id,
+                'grantInfoList' => $grantInfoList,
+                'count' => count($grantInfoList),
+            ];
+        });
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function grantPermission(array $input, mixed $payload = []): array
+    {
+        $id = trim((string)($input['id'] ?? ''));
+        if ($id === '') {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        if (!array_key_exists('grantInfoList', $input)) {
+            throw new RuntimeException('missing grantInfoList', 400);
+        }
+
+        $grantInfoList = $this->permissionGrantInfoList($input['grantInfoList']);
+        $payload = is_array($payload) ? $payload : [];
+        $user = $this->activeUserRow($id);
+
+        if (!$this->isAdminCompatible($payload) && !$this->hasGrantPermissionPermission($payload)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $this->ensureTenantCompatible($payload, $user);
+        $this->assertActivePermissionScopeOrgs($grantInfoList);
+
+        return Db::transaction(function () use ($id, $grantInfoList): array {
+            Db::name('sys_relation')
+                ->where('OBJECT_ID', $id)
+                ->where('CATEGORY', self::USER_HAS_PERMISSION)
+                ->delete();
+
+            $rows = [];
+            foreach ($grantInfoList as $grantInfo) {
+                $extJson = json_encode($grantInfo, JSON_UNESCAPED_UNICODE);
+                $rows[] = [
+                    'ID' => $this->newId(),
+                    'OBJECT_ID' => $id,
+                    'TARGET_ID' => $grantInfo['apiUrl'],
+                    'CATEGORY' => self::USER_HAS_PERMISSION,
                     'EXT_JSON' => $extJson === false ? '{}' : $extJson,
                 ];
             }
@@ -740,6 +803,97 @@ class UserDirectoryService
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function hasGrantPermissionPermission(array $payload): bool
+    {
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+        $needles = ['/sys/user/grantpermission', 'sysusergrantpermission'];
+
+        foreach ($codes as $code) {
+            $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
+            $lower = strtolower($code);
+            foreach ($needles as $needle) {
+                if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array<int, array{apiUrl: string, scopeCategory: string, scopeDefineOrgIdList: array<int, string>}>
+     */
+    private function permissionGrantInfoList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $byApiUrl = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('invalid grantInfoList', 400);
+            }
+
+            $apiUrl = trim((string)($item['apiUrl'] ?? $item['api_url'] ?? ''));
+            if ($apiUrl === '') {
+                throw new RuntimeException('missing apiUrl', 400);
+            }
+
+            $scopeCategory = trim((string)($item['scopeCategory'] ?? $item['scope_category'] ?? ''));
+            if (!in_array($scopeCategory, self::SCOPE_CATEGORIES, true)) {
+                throw new RuntimeException('invalid scopeCategory', 400);
+            }
+
+            if (!array_key_exists('scopeDefineOrgIdList', $item) && !array_key_exists('scope_define_org_id_list', $item)) {
+                throw new RuntimeException('missing scopeDefineOrgIdList', 400);
+            }
+
+            $orgIds = $this->roleIdList($item['scopeDefineOrgIdList'] ?? $item['scope_define_org_id_list'] ?? []);
+            $byApiUrl[$apiUrl] = [
+                'apiUrl' => $apiUrl,
+                'scopeCategory' => $scopeCategory,
+                'scopeDefineOrgIdList' => $orgIds,
+            ];
+        }
+
+        return array_values($byApiUrl);
+    }
+
+    /**
+     * @param array<int, array{apiUrl: string, scopeCategory: string, scopeDefineOrgIdList: array<int, string>}> $grantInfoList
+     */
+    private function assertActivePermissionScopeOrgs(array $grantInfoList): void
+    {
+        $orgIds = [];
+        foreach ($grantInfoList as $grantInfo) {
+            $orgIds = array_merge($orgIds, $grantInfo['scopeDefineOrgIdList']);
+        }
+        $orgIds = array_values(array_unique($orgIds));
+        if ($orgIds === []) {
+            return;
+        }
+
+        $validIds = array_values(array_filter(array_map('strval', Db::name('sys_org')
+            ->whereIn('ID', $orgIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->column('ID'))));
+        $missing = array_values(array_diff($orgIds, $validIds));
+        if ($missing !== []) {
+            throw new RuntimeException('scope org not found', 404);
+        }
     }
 
     /**
