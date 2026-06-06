@@ -7161,3 +7161,60 @@ Agent: api-agent
 
 - Commit this user reset-password compatibility slice.
 - Continue with a focused user CRUD planning slice or targeted permission/data-scope hardening before side-effect-heavy workflow, finance, stock, and sale-project state writes.
+
+## 2026-06-06 15:05 +08:00 - user-agent/frontend-agent - User Delete Compatibility
+
+### Completed
+
+- Added protected Java-compatible user delete routes:
+  - `POST /sys/user/delete`
+  - `POST /biz/user/delete`
+- Added controller handlers for system and business user row-delete/batch-delete actions.
+- Added `UserDirectoryService::deleteUsers` to logically delete only `sys_user` rows by setting `DELETE_FLAG = DELETED`.
+- Added payload compatibility for copied frontend array deletes and common `id`, `ids`, `idList`, and `userIds` forms.
+- Added Java-compatible cleanup for `sys_user.DIRECTOR_ID`, `sys_user.POSITION_JSON[*].directorId`, and `sys_org.DIRECTOR_ID`.
+- Preserved business user data-scope guarding with organization scope or current-user fallback.
+- Rejected built-in/admin-compatible accounts from deletion.
+- Updated user-delete API docs, biz directory alias docs, user grant/status docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, implementation notes, and active plan status.
+
+### Modified Files
+
+- `IMPLEMENT.md`
+- `PLANS.md`
+- `STATUS.md`
+- `app/controller/sys/UserController.php`
+- `app/service/user/UserDirectoryService.php`
+- `route/app.php`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/sys-user-grant-readonly.md`
+- `docs/api/user-delete-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+
+### Test Results
+
+- `php -l app\controller\sys\UserController.php`: passed.
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed; both delete routes are listed, route rows count is 364.
+- Direct service smoke: passed; one sampled non-admin active user was logically deleted through both system and business paths, affected user and organization director references were cleared, `POSITION_JSON` supervisor data was cleaned, and all touched values were restored.
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- Strict PHP lint for `app`, `config`, and `route`: passed, 235 files.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Backend `http://127.0.0.1:82/`: HTTP 200.
+- Frontend `http://127.0.0.1:83/`: HTTP 200.
+- No-token HTTP smoke for both new POST routes on the backend root path: returned business `code=401`.
+
+### Current Issues
+
+- User add/edit, import/export, token/session invalidation after delete, Java data-change event publishing, route-permission middleware, and encrypted profile-field migration remain deferred.
+- Direct backend test path is the current PHP server root path; `/think/...` returns a ThinkPHP 404 in this local server mode, while the frontend proxy can still apply its own prefix behavior.
+- Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
+
+### Next Plan
+
+- Commit this user delete compatibility slice.
+- Continue with a focused user add/edit planning slice, because that path needs broader field validation, default-password hashing, org/position validation, uniqueness checks, and role grant coordination.

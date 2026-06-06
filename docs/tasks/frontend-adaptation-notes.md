@@ -1509,3 +1509,30 @@ This slice supports copied system and business user reset-password row actions:
 ### Deferred
 
 - Admin-side user add/edit/delete, import/export, route-permission middleware, token/session invalidation after reset, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Delete Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user delete actions:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/delete` is now routed as a protected POST endpoint.
+- `/biz/user/delete` is now routed as a protected POST endpoint.
+- Both endpoints accept copied frontend batch payloads such as `[{ id }]`.
+- Delete uses logical `sys_user.DELETE_FLAG = DELETED`.
+- Affected supervisor references are cleared from direct user director fields, extra position JSON, and organization director fields.
+- Business delete enforces conservative organization data-scope or current-user fallback.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Admin-side user add/edit, import/export, route-permission middleware, token/session invalidation after delete, Java data-change events, and encrypted profile-field migration remain out of scope.

@@ -20,6 +20,7 @@ use think\facade\Db;
 class UserDirectoryService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const WORKBENCH_CATEGORY = 'SYS_USER_WORKBENCH_DATA';
     private const DEFAULT_WORKBENCH_KEY = 'SNOWY_SYS_DEFAULT_WORKBENCH_DATA';
     private const DEFAULT_PASSWORD_KEY = 'SNOWY_SYS_DEFAULT_PASSWORD';
@@ -180,6 +181,45 @@ class UserDirectoryService
             ->update(['PASSWORD' => $this->defaultPasswordHash()]);
 
         return ['id' => $id];
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function deleteUsers(array $ids, mixed $payload = [], bool $bizScope = false): array
+    {
+        $idList = $this->idInputList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $users = $this->activeUserRows($idList);
+        $this->ensureDeleteUsersAllowed($payload, $users, $bizScope);
+        foreach ($users as $user) {
+            $this->ensureTenantCompatible($payload, $user);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $this->clearUserDirectorReferences($idList, $payload);
+
+            $updated = Db::name('sys_user')
+                ->whereIn('ID', $idList)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $this->payloadUserId($payload) !== '' ? $this->payloadUserId($payload) : null,
+                ]);
+
+            return [
+                'ids' => $idList,
+                'count' => $updated,
+            ];
+        });
     }
 
     /**
@@ -768,6 +808,33 @@ class UserDirectoryService
     }
 
     /**
+     * @param array<int, string> $ids
+     * @return array<int, array<string, mixed>>
+     */
+    private function activeUserRows(array $ids): array
+    {
+        $rows = Db::name('sys_user')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->select()
+            ->toArray();
+
+        $rowsById = [];
+        foreach ($rows as $row) {
+            $rowsById[(string)($row['ID'] ?? '')] = $row;
+        }
+
+        $missing = array_values(array_diff($ids, array_keys($rowsById)));
+        if ($missing !== []) {
+            throw new RuntimeException('user not found', 404);
+        }
+
+        return array_values(array_intersect_key($rowsById, array_flip($ids)));
+    }
+
+    /**
      * @param array<int, string> $roleIds
      */
     private function assertActiveRoles(array $roleIds, string $tenantId): void
@@ -884,6 +951,47 @@ class UserDirectoryService
 
     /**
      * @param array<string, mixed> $payload
+     * @param array<int, array<string, mixed>> $users
+     */
+    private function ensureDeleteUsersAllowed(array $payload, array $users, bool $bizScope): void
+    {
+        foreach ($users as $user) {
+            $account = strtolower(trim((string)($user['ACCOUNT'] ?? '')));
+            if (in_array($account, ['superadmin', 'bizadmin', 'tenantadmin'], true)) {
+                throw new RuntimeException('built-in user cannot be deleted', 403);
+            }
+        }
+
+        $admin = $this->isAdminCompatible($payload);
+        if (!$admin && !$this->hasDeleteUserPermission($payload, $bizScope)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        if (!$bizScope || $admin) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== []) {
+            foreach ($users as $user) {
+                $targetOrgId = trim((string)($user['ORG_ID'] ?? ''));
+                if ($targetOrgId === '' || !in_array($targetOrgId, $scopeOrgIds, true)) {
+                    throw new RuntimeException('permission denied', 403);
+                }
+            }
+
+            return;
+        }
+
+        if (count($users) === 1 && $this->payloadUserId($payload) === (string)($users[0]['ID'] ?? '')) {
+            return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
      * @param array<string, mixed> $user
      */
     private function ensureTenantCompatible(array $payload, array $user): void
@@ -964,6 +1072,33 @@ class UserDirectoryService
         $needles = $bizScope
             ? ['/biz/user/resetpassword', 'bizuserresetpassword', 'bizuserpwdreset']
             : ['/sys/user/resetpassword', 'sysuserresetpassword', 'sysuserpwdreset'];
+
+        foreach ($codes as $code) {
+            $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
+            $lower = strtolower($code);
+            foreach ($needles as $needle) {
+                if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function hasDeleteUserPermission(array $payload, bool $bizScope): bool
+    {
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+        $needles = $bizScope
+            ? ['/biz/user/delete', 'bizuserdelete']
+            : ['/sys/user/delete', 'sysuserdelete'];
 
         foreach ($codes as $code) {
             $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
@@ -1174,6 +1309,104 @@ class UserDirectoryService
         }
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int, string>
+     */
+    private function idInputList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $id = trim((string)($item['id'] ?? $item['userId'] ?? $item['value'] ?? $item['key'] ?? ''));
+            } else {
+                $id = trim((string)$item);
+            }
+
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param array<int, string> $userIds
+     * @param array<string, mixed> $payload
+     */
+    private function clearUserDirectorReferences(array $userIds, array $payload): void
+    {
+        $updateUser = $this->payloadUserId($payload);
+        $audit = [
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $updateUser !== '' ? $updateUser : null,
+        ];
+
+        Db::name('sys_user')
+            ->whereIn('DIRECTOR_ID', $userIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update(array_merge(['DIRECTOR_ID' => null], $audit));
+
+        Db::name('sys_org')
+            ->whereIn('DIRECTOR_ID', $userIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update(array_merge(['DIRECTOR_ID' => null], $audit));
+
+        $positionRows = Db::name('sys_user')
+            ->whereNotNull('POSITION_JSON')
+            ->where('POSITION_JSON', '<>', '')
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->field(['ID', 'POSITION_JSON'])
+            ->select()
+            ->toArray();
+
+        foreach ($positionRows as $row) {
+            $positionJson = (string)($row['POSITION_JSON'] ?? '');
+            $decoded = json_decode($positionJson, true);
+            if (!is_array($decoded)) {
+                continue;
+            }
+
+            $changed = false;
+            foreach ($decoded as &$position) {
+                if (!is_array($position)) {
+                    continue;
+                }
+                $directorId = trim((string)($position['directorId'] ?? ''));
+                if ($directorId !== '' && in_array($directorId, $userIds, true)) {
+                    unset($position['directorId']);
+                    $changed = true;
+                }
+            }
+            unset($position);
+
+            if (!$changed) {
+                continue;
+            }
+
+            $encoded = json_encode($decoded, JSON_UNESCAPED_UNICODE);
+            Db::name('sys_user')
+                ->where('ID', (string)($row['ID'] ?? ''))
+                ->update(array_merge([
+                    'POSITION_JSON' => $encoded === false ? '[]' : $encoded,
+                ], $audit));
+        }
     }
 
     /**

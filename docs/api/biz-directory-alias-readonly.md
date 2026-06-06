@@ -24,6 +24,7 @@ The implementation reuses existing ThinkPHP read services for system organizatio
 | GET | `/biz/user/list/detail` | `sys.UserController/listDetail` |
 | GET | `/biz/user/detail` | `sys.UserController/detail` |
 | GET | `/biz/user/ownRole` | `sys.UserController/ownRole` |
+| POST | `/biz/user/delete` | `sys.UserController/bizDelete` |
 | POST | `/biz/user/disableUser` | `sys.UserController/bizDisableUser` |
 | POST | `/biz/user/enableUser` | `sys.UserController/bizEnableUser` |
 | POST | `/biz/user/resetPassword` | `sys.UserController/bizResetPassword` |
@@ -46,6 +47,7 @@ All routes are protected by `AuthMiddleware`.
 
 - `/biz/user/list/detail` returns sanitized user rows and never returns the `PASSWORD` field.
 - `/biz/user/ownRole` reads role IDs from `sys_relation` where `CATEGORY = SYS_USER_HAS_ROLE`.
+- `/biz/user/delete` logically deletes users and clears affected director references with conservative organization data-scope or current-user fallback.
 - `/biz/user/disableUser` and `/biz/user/enableUser` update only `sys_user.USER_STATUS` with conservative organization data-scope or current-user fallback.
 - `/biz/user/resetPassword` updates only `sys_user.PASSWORD` to the configured default password hash with conservative organization data-scope or current-user fallback.
 - `/biz/dict/treeAll` returns the dictionary tree without tenant-specific filtering for frontend compatibility.
@@ -54,8 +56,8 @@ All routes are protected by `AuthMiddleware`.
 ## Deferred
 
 - Organization add/edit/delete
-- User add/edit/delete, profile edit, enable/disable, reset password, import/export
-- Role granting via `/biz/user/grantRole`
+- User add/edit and import/export
+- General organization-wide profile edit beyond `/biz/user/center/edit`
 - Position add/edit/delete
 - Dictionary edit
 - Java source changes
@@ -72,5 +74,4 @@ Still deferred:
 
 - `/biz/user/add`
 - `/biz/user/edit`
-- `/biz/user/delete`
 - import/export and organization-wide user management writes

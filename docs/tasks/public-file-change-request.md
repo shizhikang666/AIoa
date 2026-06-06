@@ -3691,3 +3691,38 @@ Java exposes system and business user reset-password endpoints, and the copied V
 - `php think route:list` must list both routes.
 - Requests without token should return business `code=401`.
 - Service smoke should reset one sampled active user's password and restore the original hash.
+
+---
+
+# Public File Change Request: User Delete Routes
+
+## Request
+
+Register protected user delete routes in `route/app.php`.
+
+## Reason
+
+Java exposes system and business user delete endpoints, and the copied Vue user tables call these endpoints from row delete and batch delete actions. Existing ThinkPHP user directory routes already filter by `DELETE_FLAG`, so this slice opens the matching protected logical-delete mutation.
+
+## Applied Change
+
+`user-agent/frontend-agent` registers the following protected POST routes:
+
+- `POST /sys/user/delete`
+- `POST /biz/user/delete`
+
+## Guardrails
+
+- Both routes remain behind `AuthMiddleware`.
+- The service only logically deletes `sys_user` rows by setting `DELETE_FLAG = DELETED`.
+- Access requires admin-compatible payloads or matching route/button permission codes.
+- Business route also enforces conservative organization data-scope or current-user fallback.
+- Java-compatible cleanup clears affected user and organization director references.
+- Built-in/admin-compatible accounts are rejected.
+- No Java source, database schema, Composer, `.env`, frontend source, user add/edit/import/export, role/resource/permission grants, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list both routes.
+- Requests without token should return business `code=401`.
+- Service smoke should logically delete one sampled active user and restore the original user row plus touched director references.

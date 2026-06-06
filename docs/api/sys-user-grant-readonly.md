@@ -20,6 +20,7 @@ The Java source project remains read-only:
 | GET | `/sys/user/ownRole` | Read role ids directly granted to a user. |
 | GET | `/sys/user/ownResource` | Read menu and button resource grants directly assigned to a user. |
 | GET | `/sys/user/ownPermission` | Read API permission and data-scope grants directly assigned to a user. |
+| POST | `/sys/user/delete` | Logically delete users and clear affected director references. |
 | POST | `/sys/user/grantRole` | Clear and rewrite user role relations. |
 | POST | `/sys/user/grantResource` | Clear and rewrite user menu/button resource relations. |
 | POST | `/sys/user/grantPermission` | Clear and rewrite user API/data-scope permission relations. |
@@ -37,6 +38,8 @@ All routes are protected by `AuthMiddleware`.
 - `grantInfoList` preserves Java-compatible `EXT_JSON` payloads when present.
 - Empty or malformed `EXT_JSON` falls back to the relation `TARGET_ID`.
 - User list/detail rows continue to remove `PASSWORD`.
+- `delete` accepts array payloads such as `[{ id }]`, plus `id`, `ids`, `idList`, and `userIds`.
+- Delete writes only `sys_user.DELETE_FLAG = DELETED` for target users, clears affected user/organization director references, and rejects built-in/admin-compatible accounts.
 - `grantRole` accepts `{ id, roleIdList }`.
 - `roleIdList` may be an empty array to clear direct user role grants.
 - Role save writes only `sys_relation` rows where `CATEGORY = SYS_USER_HAS_ROLE`.
@@ -59,8 +62,7 @@ All routes are protected by `AuthMiddleware`.
 
 The following remain intentionally deferred:
 
-- user add/edit/delete
-- enable/disable user
+- user add/edit
 - import/export
 - Java source changes
 - database schema changes

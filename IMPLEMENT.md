@@ -669,3 +669,25 @@ Explicit non-goals:
 - No import/export, token/session invalidation after reset, route-permission middleware implementation, or encrypted profile-field migration.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, grants, or unrelated business module changes.
 
+## 2026-06-06 User Delete Implementation
+
+Agent: user-agent / frontend-agent
+
+Execution summary:
+
+1. Analyzed Java `SysUserController.delete`, `SysUserServiceImpl.delete`, `BizUserController.delete`, `BizUserServiceImpl.delete`, and copied `sys/userApi.js` / `biz/bizUserApi.js`.
+2. Added `UserController.delete` and `UserController.bizDelete` for copied system and business user row-delete and batch-delete actions.
+3. Added `UserDirectoryService::deleteUsers` to logically delete `sys_user` rows by setting `DELETE_FLAG = DELETED`.
+4. Accepted copied frontend array payloads such as `[{ id }]`, plus common `id`, `ids`, `idList`, and `userIds` forms.
+5. Preserved Java-compatible cleanup by clearing affected direct user supervisor fields, extra-position `directorId` values in `POSITION_JSON`, and organization supervisor fields.
+6. Preserved Java's business data-scope behavior with conservative organization scope or current-user fallback.
+7. Protected built-in/admin-compatible accounts from deletion.
+8. Registered protected `/sys/user/delete` and `/biz/user/delete` routes in `route/app.php`.
+9. Updated user-delete API docs, biz directory docs, user grant/status docs, frontend adaptation notes, API gap map, public route-change request, progress dashboard, and status tracking.
+
+Explicit non-goals:
+
+- No user add/edit implementation.
+- No import/export, token/session invalidation after delete, Java data-change event publishing, route-permission middleware implementation, or encrypted profile-field migration.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, grants, or unrelated business module changes.
+
