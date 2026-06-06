@@ -8,6 +8,7 @@ Thumbs.db
 /vendor
 /runtime/*
 !/runtime/.gitignore
+snowy-admin-web/vite.config.mjs.timestamp-*.mjs
 /.settings
 /.buildpath
 /.project
