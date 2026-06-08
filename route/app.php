@@ -258,6 +258,7 @@ Route::group('dev/monitor', function () {
 Route::group('dev/log', function () {
     Route::get('page', 'dev.LogController/page');
     Route::get('detail', 'dev.LogController/detail');
+    Route::post('delete', 'dev.LogController/delete');
     Route::get('vis/lineChartData', 'dev.LogController/visLineChartData');
     Route::get('vis/pieChartData', 'dev.LogController/visPieChartData');
     Route::get('op/barChartData', 'dev.LogController/opBarChartData');

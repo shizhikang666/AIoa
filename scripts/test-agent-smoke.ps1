@@ -5,6 +5,7 @@ param(
     [switch]$DevFileHttpSmoke,
     [switch]$DevEmailSmsHttpSmoke,
     [switch]$DevConfigHttpSmoke,
+    [switch]$DevLogHttpSmoke,
     [switch]$FileRelationHttpSmoke
 )
 
@@ -141,6 +142,7 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'dev/config/add',
         'dev/config/edit',
         'dev/config/delete',
+        'dev/log/delete',
         'biz/dict/page',
         'biz/org/page',
         'biz/user/page',
@@ -581,6 +583,82 @@ require getcwd() . '/vendor/autoload.php';
 `$sysId = '$sysId';
 if (`$configId !== '') { think\facade\Db::name('dev_config')->where('ID', `$configId)->delete(); }
 if (`$sysId !== '') { think\facade\Db::name('dev_config')->where('ID', `$sysId)->delete(); }
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
+            }
+        }
+    }
+}
+
+if ($DevLogHttpSmoke) {
+    Invoke-TestStep 'authenticated dev log HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -DevLogHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -DevLogHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_DEV_LOG_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_LOG_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $category = $prefix + '_TARGET'
+        $otherCategory = $prefix + '_OTHER'
+        $targetId = '60060000000000' + [string](Get-Random -Minimum 100000 -Maximum 999999)
+        $otherId = '60060000000001' + [string](Get-Random -Minimum 100000 -Maximum 999999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+
+        try {
+            $insertCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('dev_log')->insert(['ID' => '$targetId', 'CATEGORY' => '$category', 'NAME' => 'codex dev log target', 'EXE_STATUS' => 'SUCCESS', 'TENANT_ID' => '1', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'OP_TIME' => date('Y-m-d H:i:s')]);
+think\facade\Db::name('dev_log')->insert(['ID' => '$otherId', 'CATEGORY' => '$otherCategory', 'NAME' => 'codex dev log other', 'EXE_STATUS' => 'SUCCESS', 'TENANT_ID' => '1', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'OP_TIME' => date('Y-m-d H:i:s')]);
+"@
+            & php -r $insertCode | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to insert temporary log rows'
+            }
+
+            $body = @{ category = $category } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/dev/log/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'dev log delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200 -or $null -ne $delete.data) {
+                throw "unexpected dev log delete response: $deleteRaw"
+            }
+
+            $counts = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (int)think\facade\Db::name('dev_log')->where('ID', '$targetId')->count() . ':' . (int)think\facade\Db::name('dev_log')->where('ID', '$otherId')->count();"
+            if ([string]$counts -ne '0:1') {
+                throw "dev log delete affected unexpected rows: $counts"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('dev_log')->whereIn('ID', ['$targetId', '$otherId'])->delete();
 "@
             & php -r $cleanupCode | Out-Null
             if (Test-Path -LiteralPath $jsonTmp) {

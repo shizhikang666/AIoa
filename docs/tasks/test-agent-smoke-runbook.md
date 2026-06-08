@@ -54,6 +54,7 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - `DevFileService` local download, upload, tenant-scoped logical delete, and no physical delete behavior
 - `DevEmailService` and `DevSmsService` tenant-scoped logical delete behavior
 - `DevConfigService` `BIZ_DEFINE` add/edit/delete behavior, duplicate-key rejection, sensitive mask preservation, `SYS_BASE` delete rejection, and logical delete behavior
+- `DevLogService` category physical delete behavior, tenant isolation, other-category preservation, and empty-category rejection
 - local file upload plus `BizFileRelationService` add/list/edit/delete behavior
 - file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
 
@@ -96,6 +97,16 @@ Start the ThinkPHP server separately, then run:
 ```
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/dev/config/add`, `/dev/config/edit`, and `/dev/config/delete` for a temporary `BIZ_DEFINE` row, verifies add/edit/delete return `data = null`, verifies malformed mixed delete payloads do not partially delete valid ids, verifies temporary `SYS_BASE` delete is rejected, confirms `DELETE_FLAG = DELETED`, and then removes temporary rows. It does not print tokens or local credentials.
+
+## Optional Dev Log HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevLogHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, inserts temporary `dev_log` rows, calls `/dev/log/delete` with `{ "category": "..." }`, verifies the response returns `data = null`, confirms only the target category row is physically deleted, confirms another temporary category remains until cleanup, and then removes temporary rows. It does not print tokens or local credentials.
 
 ## Optional File Relation HTTP Smoke
 
@@ -157,5 +168,6 @@ Add these only when a backend and frontend browser session are already available
 - optional dev-file HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevFileHttpSmoke`
 - optional dev-email/SMS HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevEmailSmsHttpSmoke`
 - optional dev-config HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevConfigHttpSmoke`
+- optional dev-log HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevLogHttpSmoke`
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
 - browser smoke through the copied Vue frontend for affected visible pages, including dev config "other config" maintenance when `/dev/config/add|edit|delete` changes

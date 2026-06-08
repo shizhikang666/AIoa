@@ -3947,3 +3947,37 @@ The copied Vue "other config" page calls Java-style `/dev/config/add`, `/dev/con
 - DB smoke should cover add/edit/delete, duplicate rejection, sensitive value preservation, `SYS_BASE` delete rejection, logical delete, and cleanup.
 - Authenticated HTTP smoke should cover good and malformed delete payloads.
 - Browser smoke should verify the copied `/dev/config` other-config tab can add, edit, delete, refresh the table, and clean temporary rows.
+
+---
+
+# Public File Change Request: Dev Log Category Delete Route
+
+## Request
+
+Register the protected dev log category-clear route in `route/app.php`.
+
+## Reason
+
+Java exposes `/dev/log/delete` for clearing logs by category, and the copied Vue API wrapper already contains `logDelete(data)`. Existing ThinkPHP log routes cover page/detail/chart reads, so this slice opens only the narrow category clear route.
+
+## Applied Change
+
+`api-agent/test-agent` registers the following protected POST route:
+
+- `POST /dev/log/delete`
+
+## Guardrails
+
+- The route remains behind `AuthMiddleware`.
+- The request body must contain a non-empty `category` field.
+- Empty or missing category returns a business error and cannot clear the table.
+- The service physically deletes rows with the target `CATEGORY`.
+- ThinkPHP applies `TENANT_ID = current token tenant` when the token has a tenant id. This is intentionally more conservative than Java's global category clear.
+- No Java source, database schema, Composer, `.env`, frontend source, soft-delete flags, chart logic, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list `POST /dev/log/delete`.
+- Requests without token should return business `code=401`.
+- DB smoke should insert temporary target-category, other-category, and other-tenant rows, then verify only the current-tenant target-category row is physically deleted.
+- Authenticated HTTP smoke should call `/dev/log/delete` with `{ "category": "..." }`, verify `data = null`, and confirm only the temporary target category row is deleted.

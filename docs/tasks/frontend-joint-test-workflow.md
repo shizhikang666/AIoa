@@ -217,6 +217,19 @@ Cleanup:
 
 - Temporary `CODEX_UI_CONFIG_*` `dev_config` rows were removed after verification.
 
+## Dev Log Delete HTTP Smoke, 2026-06-08
+
+Verified after `/dev/log/delete` compatibility was added:
+
+- Copied frontend API wrapper: `snowy-admin-web/src/api/dev/logApi.js`
+- Target copied frontend page: not present in `snowy-admin-web/src/views/dev/log` at the time of this slice, so no real page-button browser smoke was possible.
+- Authenticated HTTP smoke inserted temporary `dev_log` rows, posted `{ "category": "CODEX_HTTP_LOG_*" }` to `POST /dev/log/delete`, and verified the response returned `code=200` with `data = null`.
+- Database verification confirmed the target category row was physically deleted and a different temporary category remained until cleanup.
+
+Cleanup:
+
+- Temporary `CODEX_HTTP_LOG_*` `dev_log` rows were removed.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:

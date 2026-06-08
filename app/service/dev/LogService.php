@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\service\dev;
 
 use DateTimeImmutable;
+use RuntimeException;
 use think\facade\Db;
 
 /**
@@ -82,6 +83,22 @@ class LogService
         }
 
         return $this->logRow(is_array($row) ? $row : $row->toArray(), true);
+    }
+
+    public function delete(string $category, ?string $tenantId = null): ?array
+    {
+        $category = trim($category);
+        if ($category === '') {
+            throw new RuntimeException('missing category', 400);
+        }
+
+        $query = Db::name('dev_log')->where('CATEGORY', $category);
+        if ($tenantId !== null && $tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+        $query->delete();
+
+        return null;
     }
 
     /**

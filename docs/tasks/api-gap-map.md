@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 416 | Existing route-entry scan count plus `/dev/config/add`, `/dev/config/edit`, and `/dev/config/delete`; `php think route:list` also confirms the three concrete routes |
-| Endpoints already covered by route path | 388 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
+| Current ThinkPHP routes | 417 | Existing route-entry scan count plus `/dev/log/delete`; `php think route:list` also confirms the concrete route |
+| Endpoints already covered by route path | 389 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 145 | Add/edit/audit/import/export/workflow/finance/stock actions; dev config `BIZ_DEFINE` add/edit/delete moved out of deferred scope |
+| Deferred write/side-effect candidates | 144 | Add/edit/audit/import/export/workflow/finance/stock actions; dev config `BIZ_DEFINE` add/edit/delete and dev log category delete moved out of deferred scope |
 
 ## Already Covered Route Groups
 
@@ -37,7 +37,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `sys/position` | Position page/list/detail/selector reads plus base add/edit/delete |
 | `sys/role` | Role page/list/detail/resource/menu relation reads |
 | `sys/menu`, `sys/field`, and `sys/resource` | Menu/resource tree, field page/tree/detail, and selector reads |
-| `dev/config`, `dev/dict`, `dev/log` | Common management reads plus dev config `BIZ_DEFINE` add/edit/delete and BIZ dictionary maintenance writes |
+| `dev/config`, `dev/dict`, `dev/log` | Common management reads plus dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, and BIZ dictionary maintenance writes |
 | `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | File metadata/list/detail, LOCAL/dynamic upload, file/email/SMS metadata logical delete, public local-file download compatibility, cloud upload unsupported stubs, and monitor reads; real cloud storage and provider send actions remain deferred |
 | `mobile/menu` and `mobile/resource` | Mobile menu/resource read compatibility |
 | `gen/basic`, `gen/config`, `tenant` | Read-only compatibility routes |
@@ -123,6 +123,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
 | `dev/file` | cloud `upload*`, physical file cleanup | LOCAL/dynamic upload, public local download, metadata logical delete, and business relation binding are covered; cloud storage and optional physical cleanup still need dedicated plans |
 | `dev/config` | `editBatch`, `SYS_BASE` writes, provider/system config cache mutation | `BIZ_DEFINE` add/edit/delete are covered with Java-style success envelopes, malformed delete payload rejection, sensitive-mask preservation, and logical delete |
+| `dev/log` | Cross-tenant/global clear behavior | Category delete is covered with physical deletion and current-tenant protection when the token payload has a tenant id; Java clears globally by category |
 | `dev/message` | Full realtime push | User-center/index detail mark-read, homepage all-mark-read, minimal SSE compatibility, message send, and message delete are covered; full SSE/WebPush parity remains deferred |
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |

@@ -643,6 +643,55 @@ try {
     }
 }
 
+Invoke-TestStep 'DevLogService category delete' {
+$probe = @'
+<?php
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+$service = new app\service\dev\LogService();
+$prefix = 'CODEX_LOG_' . date('YmdHis') . random_int(1000, 9999);
+$category = $prefix . '_TARGET';
+$otherCategory = $prefix . '_OTHER';
+$targetId = '60070000000000' . random_int(100000, 999999);
+$sameCategoryOtherTenantId = '60070000000001' . random_int(100000, 999999);
+$otherCategoryId = '60070000000002' . random_int(100000, 999999);
+$rows = [
+    ['ID' => $targetId, 'CATEGORY' => $category, 'NAME' => 'codex target log', 'EXE_STATUS' => 'SUCCESS', 'TENANT_ID' => '1', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'OP_TIME' => date('Y-m-d H:i:s')],
+    ['ID' => $sameCategoryOtherTenantId, 'CATEGORY' => $category, 'NAME' => 'codex other tenant log', 'EXE_STATUS' => 'SUCCESS', 'TENANT_ID' => '2', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'OP_TIME' => date('Y-m-d H:i:s')],
+    ['ID' => $otherCategoryId, 'CATEGORY' => $otherCategory, 'NAME' => 'codex other category log', 'EXE_STATUS' => 'SUCCESS', 'TENANT_ID' => '1', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'OP_TIME' => date('Y-m-d H:i:s')],
+];
+try {
+    think\facade\Db::name('dev_log')->insertAll($rows);
+    $service->delete($category, '1');
+    $targetCount = (int)think\facade\Db::name('dev_log')->where('ID', $targetId)->count();
+    $sameCategoryOtherTenantCount = (int)think\facade\Db::name('dev_log')->where('ID', $sameCategoryOtherTenantId)->count();
+    $otherCategoryCount = (int)think\facade\Db::name('dev_log')->where('ID', $otherCategoryId)->count();
+    if ($targetCount !== 0 || $sameCategoryOtherTenantCount !== 1 || $otherCategoryCount !== 1) {
+        throw new RuntimeException('category delete affected unexpected log rows');
+    }
+    $failed = false;
+    try { $service->delete('', '1'); } catch (RuntimeException $exception) { $failed = $exception->getCode() === 400; }
+    if (!$failed) { throw new RuntimeException('empty category should fail'); }
+    echo "DevLogService category delete checks passed\n";
+} finally {
+    think\facade\Db::name('dev_log')->whereIn('ID', [$targetId, $sameCategoryOtherTenantId, $otherCategoryId])->delete();
+}
+'@
+    $tmpProbe = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-dev-log-delete-{0}.php" -f ([Guid]::NewGuid().ToString('N')))
+    try {
+        [System.IO.File]::WriteAllText($tmpProbe, $probe, [System.Text.UTF8Encoding]::new($false))
+        $output = & php $tmpProbe 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php DevLogService delete probe failed: $output"
+        }
+        Write-Host ([string]($output | Out-String)).Trim()
+    } finally {
+        if (Test-Path -LiteralPath $tmpProbe) {
+            Remove-Item -LiteralPath $tmpProbe -Force
+        }
+    }
+}
+
 Invoke-TestStep 'BizFileRelationService writes' {
 $probe = @'
 <?php
