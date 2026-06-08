@@ -245,6 +245,20 @@ Cleanup:
 
 - Temporary `CODEX_UI_JOB_*` `dev_job` rows were removed.
 
+## Gen Config EditBatch HTTP Smoke, 2026-06-08
+
+Verified after `/gen/config/editBatch` compatibility was added:
+
+- Copied frontend API wrapper: `snowy-admin-web/src/api/gen/genConfigApi.js`
+- Copied frontend component: `snowy-admin-web/src/views/gen/config.vue`
+- Target copied frontend component is nested inside generator metadata editing rather than a stable standalone route, so this slice used authenticated HTTP smoke instead of browser button automation.
+- Authenticated HTTP smoke inserted temporary `gen_config` rows, posted a malformed mixed array to `POST /gen/config/editBatch`, and verified the valid row was not partially updated.
+- Authenticated HTTP smoke posted a valid Java-style array to `POST /gen/config/editBatch`, verified the response returned `code=200` with `data = null`, and confirmed both temporary rows were updated while `DELETE_FLAG` was not client-overwritten.
+
+Cleanup:
+
+- Temporary `CODEX_HTTP_GENCFG_*` `gen_config` rows were removed.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:

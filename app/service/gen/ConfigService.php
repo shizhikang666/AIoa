@@ -4,14 +4,46 @@ declare(strict_types=1);
 
 namespace app\service\gen;
 
+use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only generator field configuration queries compatible with Java GenConfigController.
+ * Generator field configuration queries and metadata saves compatible with Java GenConfigController.
  */
 class ConfigService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const REQUIRED_EDIT_FIELDS = [
+        'basicId',
+        'isTableKey',
+        'fieldName',
+        'fieldRemark',
+        'fieldType',
+        'fieldJavaType',
+        'effectType',
+        'whetherTable',
+        'whetherRetract',
+        'whetherAddUpdate',
+        'whetherRequired',
+        'queryWhether',
+    ];
+    private const EDIT_FIELD_MAP = [
+        'basicId' => 'BASIC_ID',
+        'isTableKey' => 'IS_TABLE_KEY',
+        'fieldName' => 'FIELD_NAME',
+        'fieldRemark' => 'FIELD_REMARK',
+        'fieldType' => 'FIELD_TYPE',
+        'fieldJavaType' => 'FIELD_JAVA_TYPE',
+        'effectType' => 'EFFECT_TYPE',
+        'dictTypeCode' => 'DICT_TYPE_CODE',
+        'whetherTable' => 'WHETHER_TABLE',
+        'whetherRetract' => 'WHETHER_RETRACT',
+        'whetherAddUpdate' => 'WHETHER_ADD_UPDATE',
+        'whetherRequired' => 'WHETHER_REQUIRED',
+        'queryWhether' => 'QUERY_WHETHER',
+        'queryType' => 'QUERY_TYPE',
+        'sortCode' => 'SORT_CODE',
+    ];
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
         'basicId' => 'BASIC_ID',
@@ -61,6 +93,60 @@ class ConfigService
         return $this->configRow(is_array($row) ? $row : $row->toArray());
     }
 
+    /**
+     * @param array<string|int, mixed> $items
+     * @param array<string, mixed> $payload
+     */
+    public function editBatch(array $items, array $payload = []): ?array
+    {
+        if (!$this->isList($items) || $items === []) {
+            throw new RuntimeException('missing config list', 400);
+        }
+
+        $updates = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('invalid config item', 400);
+            }
+
+            $updates[] = $this->editPayload($item);
+        }
+
+        $ids = array_values(array_unique(array_map(static fn (array $update): string => $update['id'], $updates)));
+        $existingIds = Db::name('gen_config')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->column('ID');
+        $existingIds = array_map('strval', $existingIds);
+        foreach ($ids as $id) {
+            if (!in_array($id, $existingIds, true)) {
+                throw new RuntimeException('config not found', 404);
+            }
+        }
+
+        Db::transaction(function () use ($updates, $payload): void {
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->payloadUserId($payload);
+            foreach ($updates as $update) {
+                $id = $update['id'];
+                unset($update['id']);
+                $update['UPDATE_TIME'] = $now;
+                $update['UPDATE_USER'] = $userId;
+
+                Db::name('gen_config')
+                    ->where('ID', $id)
+                    ->where(function ($query): void {
+                        $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                    })
+                    ->update($update);
+            }
+        });
+
+        return null;
+    }
+
     private function configQuery(array $filters)
     {
         $query = Db::name('gen_config')
@@ -96,6 +182,101 @@ class ConfigService
         return $query->order('SORT_CODE', 'asc')->order('ID', 'asc');
     }
 
+    /**
+     * @param array<string|int, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function editPayload(array $item): array
+    {
+        $payload = ['id' => $this->requiredValue($item, 'id')];
+
+        foreach (self::REQUIRED_EDIT_FIELDS as $field) {
+            $payload[self::EDIT_FIELD_MAP[$field]] = $this->requiredValue($item, $field);
+        }
+
+        $payload['DICT_TYPE_CODE'] = $this->optionalString($item, 'dictTypeCode');
+        $payload['QUERY_TYPE'] = $this->optionalString($item, 'queryType');
+        $payload['SORT_CODE'] = $this->optionalInt($item, 'sortCode');
+
+        return $payload;
+    }
+
+    /**
+     * @param array<string|int, mixed> $item
+     */
+    private function requiredValue(array $item, string $field): string
+    {
+        $value = $this->fieldValue($item, $field);
+        if (is_bool($value)) {
+            return $value ? 'Y' : 'N';
+        }
+
+        $value = trim((string)$value);
+        if ($value === '') {
+            throw new RuntimeException('missing ' . $field, 400);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string|int, mixed> $item
+     */
+    private function optionalString(array $item, string $field): ?string
+    {
+        $value = $this->fieldValue($item, $field);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string)$value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @param array<string|int, mixed> $item
+     */
+    private function optionalInt(array $item, string $field): ?int
+    {
+        $value = $this->fieldValue($item, $field);
+        if ($value === null || trim((string)$value) === '') {
+            return null;
+        }
+
+        if (!is_numeric($value)) {
+            throw new RuntimeException('invalid ' . $field, 400);
+        }
+
+        return (int)$value;
+    }
+
+    /**
+     * @param array<string|int, mixed> $item
+     */
+    private function fieldValue(array $item, string $field): mixed
+    {
+        if (array_key_exists($field, $item)) {
+            return $item[$field];
+        }
+
+        $column = self::EDIT_FIELD_MAP[$field] ?? strtoupper((string)preg_replace('/(?<!^)[A-Z]/', '_$0', $field));
+        if (array_key_exists($column, $item)) {
+            return $item[$column];
+        }
+
+        return null;
+    }
+
+    private function isList(array $items): bool
+    {
+        if ($items === []) {
+            return true;
+        }
+
+        return array_keys($items) === range(0, count($items) - 1);
+    }
+
     private function configRow(array $row): array
     {
         return [
@@ -121,5 +302,12 @@ class ConfigService
             'updateTime' => $row['UPDATE_TIME'] ?? null,
             'updateUser' => $row['UPDATE_USER'] ?? null,
         ];
+    }
+
+    private function payloadUserId(array $payload): ?string
+    {
+        $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+
+        return $userId === '' ? null : $userId;
     }
 }

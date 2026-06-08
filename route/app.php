@@ -285,6 +285,7 @@ Route::group('gen/basic', function () {
 Route::group('gen/config', function () {
     Route::get('list', 'gen.ConfigController/list');
     Route::get('detail', 'gen.ConfigController/detail');
+    Route::post('editBatch', 'gen.ConfigController/editBatch');
 })->middleware(AuthMiddleware::class);
 
 Route::group('tenants/tenant', function () {

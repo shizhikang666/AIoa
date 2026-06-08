@@ -4018,3 +4018,38 @@ The copied Vue scheduled-job page calls `/dev/job/delete` for row and batch dele
 - DB smoke should insert temporary jobs, verify malformed batches do not partially delete, logically delete one job, verify page hiding, and clean temporary rows.
 - Authenticated HTTP smoke should cover good and malformed delete payloads.
 - Browser smoke should verify the copied `/dev/job/index` row delete posts to `/api/dev/job/delete`, refreshes the table, and marks the row as `DELETED`.
+
+---
+
+# Public File Change Request: Gen Config EditBatch Route
+
+## Request
+
+Register the protected generator field-configuration batch-save route in `route/app.php`.
+
+## Reason
+
+The copied Vue generator field configuration component posts the edited table rows to Java-style `/gen/config/editBatch`. Existing ThinkPHP generator routes already cover `/gen/config/list` and `/gen/config/detail`, so this slice opens only the saved metadata batch update that the copied component needs.
+
+## Applied Change
+
+`api-agent/test-agent` registers the following protected POST route:
+
+- `POST /gen/config/editBatch`
+
+## Guardrails
+
+- The route remains behind `AuthMiddleware`.
+- The request body must be a non-empty JSON array.
+- The service validates the whole batch before writing and rejects deleted or missing `gen_config` rows.
+- Only Java `GenConfigEditParam` fields are written.
+- Client-supplied `deleteFlag`, `createTime`, `createUser`, `updateTime`, and `updateUser` are ignored.
+- Batch updates run in a transaction and return Java-compatible success envelopes with `data = null`.
+- No Java source, database schema, Composer, `.env`, frontend source, generator basic-row writes, code preview, ZIP generation, file writing, or code-generation side effects are changed.
+
+## Verification
+
+- `php think route:list` must list `POST /gen/config/editBatch`.
+- Requests without token should return business `code=401`.
+- DB smoke should insert temporary `gen_config` rows, verify whitelist writes, optional-field nulling, deleted-row rejection, and failed-batch rollback.
+- Authenticated HTTP smoke should cover good and malformed mixed `editBatch` payloads.

@@ -7,6 +7,7 @@ param(
     [switch]$DevConfigHttpSmoke,
     [switch]$DevLogHttpSmoke,
     [switch]$DevJobHttpSmoke,
+    [switch]$GenConfigHttpSmoke,
     [switch]$FileRelationHttpSmoke
 )
 
@@ -145,6 +146,7 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'dev/config/delete',
         'dev/log/delete',
         'dev/job/delete',
+        'gen/config/editBatch',
         'biz/dict/page',
         'biz/org/page',
         'biz/user/page',
@@ -750,6 +752,157 @@ think\facade\Db::name('dev_job')->insert(['ID' => '$otherId', 'NAME' => '$($pref
 require getcwd() . '/vendor/autoload.php';
 (new think\App(getcwd()))->initialize();
 think\facade\Db::name('dev_job')->whereIn('ID', ['$jobId', '$otherId'])->delete();
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
+            }
+        }
+    }
+}
+
+if ($GenConfigHttpSmoke) {
+    Invoke-TestStep 'authenticated gen config editBatch HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -GenConfigHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -GenConfigHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_GEN_CONFIG_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_GENCFG_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $baseId = [Int64]601200000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999)
+        $idA = [string]$baseId
+        $idB = [string]($baseId + 1)
+        $deletedId = [string]($baseId + 2)
+        $basicId = [string]([Int64]601300000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+
+        function New-GenConfigSmokePayload {
+            param(
+                [string]$Id,
+                [string]$BasicId,
+                [string]$FieldName,
+                [string]$Remark,
+                [int]$SortCode
+            )
+
+            return @{
+                id = $Id
+                basicId = $BasicId
+                isTableKey = 'N'
+                fieldName = $FieldName
+                fieldRemark = $Remark
+                fieldType = 'varchar(255)'
+                fieldJavaType = 'String'
+                effectType = 'input'
+                dictTypeCode = ''
+                whetherTable = 'Y'
+                whetherRetract = 'N'
+                whetherAddUpdate = 'Y'
+                whetherRequired = 'N'
+                queryWhether = 'Y'
+                queryType = 'like'
+                sortCode = $SortCode
+                deleteFlag = 'DELETED'
+                updateUser = 'client-spoof'
+            }
+        }
+
+        try {
+            $insertCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$now = date('Y-m-d H:i:s');
+`$rows = [];
+foreach ([['$idA', '$($prefix)_FIELD_A', 'NOT_DELETE'], ['$idB', '$($prefix)_FIELD_B', 'NOT_DELETE'], ['$deletedId', '$($prefix)_FIELD_DELETED', 'DELETED']] as `$row) {
+    `$rows[] = [
+        'ID' => `$row[0],
+        'BASIC_ID' => '$basicId',
+        'IS_TABLE_KEY' => 'N',
+        'FIELD_NAME' => `$row[1],
+        'FIELD_REMARK' => `$row[1] . ' remark',
+        'FIELD_TYPE' => 'varchar(255)',
+        'FIELD_JAVA_TYPE' => 'String',
+        'EFFECT_TYPE' => 'input',
+        'WHETHER_TABLE' => 'Y',
+        'WHETHER_RETRACT' => 'N',
+        'WHETHER_ADD_UPDATE' => 'Y',
+        'WHETHER_REQUIRED' => 'N',
+        'QUERY_WHETHER' => 'N',
+        'SORT_CODE' => 10,
+        'DELETE_FLAG' => `$row[2],
+        'CREATE_TIME' => `$now,
+        'CREATE_USER' => 'codex-smoke',
+    ];
+}
+think\facade\Db::name('gen_config')->insertAll(`$rows);
+"@
+            & php -r $insertCode | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to insert temporary gen_config rows'
+            }
+
+            $badBody = @(
+                (New-GenConfigSmokePayload -Id $idA -BasicId $basicId -FieldName ($prefix + '_FIELD_A') -Remark ($prefix + '_SHOULD_NOT_SAVE') -SortCode 31),
+                (New-GenConfigSmokePayload -Id $deletedId -BasicId $basicId -FieldName ($prefix + '_FIELD_DELETED') -Remark ($prefix + '_DELETED') -SortCode 32)
+            ) | ConvertTo-Json -Depth 4 -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $badBody -Encoding ASCII
+            $badRaw = & curl.exe -sS -X POST "$base/gen/config/editBatch" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'bad gen config editBatch request failed'
+            }
+            $bad = $badRaw | ConvertFrom-Json
+            if ([int]$bad.code -eq 200) {
+                throw "bad gen config editBatch payload should fail: $badRaw"
+            }
+            $remark = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('gen_config')->where('ID', '$idA')->value('FIELD_REMARK');"
+            if ([string]$remark -eq ($prefix + '_SHOULD_NOT_SAVE')) {
+                throw 'bad editBatch payload should not partially update valid rows'
+            }
+
+            $body = @(
+                (New-GenConfigSmokePayload -Id $idA -BasicId $basicId -FieldName ($prefix + '_FIELD_A') -Remark ($prefix + '_A_HTTP_EDITED') -SortCode 41),
+                (New-GenConfigSmokePayload -Id $idB -BasicId $basicId -FieldName ($prefix + '_FIELD_B') -Remark ($prefix + '_B_HTTP_EDITED') -SortCode 42)
+            ) | ConvertTo-Json -Depth 4 -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editRaw = & curl.exe -sS -X POST "$base/gen/config/editBatch" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'gen config editBatch request failed'
+            }
+            $edit = $editRaw | ConvertFrom-Json
+            if ([int]$edit.code -ne 200 -or $null -ne $edit.data) {
+                throw "unexpected gen config editBatch response: $editRaw"
+            }
+
+            $state = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$a = think\facade\Db::name('gen_config')->where('ID', '$idA')->find(); `$b = think\facade\Db::name('gen_config')->where('ID', '$idB')->find(); echo `$a['FIELD_REMARK'] . ':' . `$b['FIELD_REMARK'] . ':' . `$a['DELETE_FLAG'];"
+            if ([string]$state -ne "$($prefix)_A_HTTP_EDITED:$($prefix)_B_HTTP_EDITED:NOT_DELETE") {
+                throw "gen config editBatch did not update expected rows: $state"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('gen_config')->whereIn('ID', ['$idA', '$idB', '$deletedId'])->delete();
 "@
             & php -r $cleanupCode | Out-Null
             if (Test-Path -LiteralPath $jsonTmp) {

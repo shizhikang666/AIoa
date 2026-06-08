@@ -56,6 +56,7 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - `DevConfigService` `BIZ_DEFINE` add/edit/delete behavior, duplicate-key rejection, sensitive mask preservation, `SYS_BASE` delete rejection, and logical delete behavior
 - `DevLogService` category physical delete behavior, tenant isolation, other-category preservation, and empty-category rejection
 - `DevJobService` Java-style array delete behavior, malformed payload safety, logical delete behavior, and active-page hiding
+- `GenConfigService` Java-style `editBatch` behavior, whitelist writes, optional-field nulling, deleted-row rejection, and failed-batch rollback safety
 - local file upload plus `BizFileRelationService` add/list/edit/delete behavior
 - file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
 
@@ -119,6 +120,16 @@ Start the ThinkPHP server separately, then run:
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, inserts temporary `dev_job` rows, verifies malformed Java-style array delete payloads do not partially delete valid ids, calls `/dev/job/delete`, verifies the response returns `data = null`, confirms only the target row reaches `DELETE_FLAG = DELETED`, and then removes temporary rows. It does not print tokens or local credentials.
 
+## Optional Gen Config HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -GenConfigHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, inserts temporary `gen_config` rows, verifies a malformed mixed `editBatch` payload does not partially update valid rows, calls `/gen/config/editBatch`, verifies the response returns `data = null`, confirms only Java edit-parameter fields are updated, and then removes temporary rows. It does not print tokens or local credentials.
+
 ## Optional File Relation HTTP Smoke
 
 Start the ThinkPHP server separately, then run:
@@ -181,5 +192,6 @@ Add these only when a backend and frontend browser session are already available
 - optional dev-config HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevConfigHttpSmoke`
 - optional dev-log HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevLogHttpSmoke`
 - optional dev-job HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevJobHttpSmoke`
+- optional gen-config HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -GenConfigHttpSmoke`
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
 - browser smoke through the copied Vue frontend for affected visible pages, including dev config "other config" maintenance when `/dev/config/add|edit|delete` changes

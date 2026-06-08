@@ -738,6 +738,181 @@ try {
     }
 }
 
+Invoke-TestStep 'GenConfigService editBatch' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$service = new app\service\gen\ConfigService();
+$prefix = 'CODEX_GEN_CONFIG_' . date('YmdHis') . random_int(1000, 9999);
+$baseId = '601000000000' . random_int(100000, 999999);
+$idA = $baseId;
+$idB = (string)((int)$baseId + 1);
+$deletedId = (string)((int)$baseId + 2);
+$basicId = '601100000000' . random_int(100000, 999999);
+$now = date('Y-m-d H:i:s');
+
+function gen_config_smoke_row(string $id, string $basicId, string $name, string $deleteFlag, string $now): array {
+    return [
+        'ID' => $id,
+        'BASIC_ID' => $basicId,
+        'IS_TABLE_KEY' => 'N',
+        'FIELD_NAME' => $name,
+        'FIELD_REMARK' => $name . ' remark',
+        'FIELD_TYPE' => 'varchar(255)',
+        'FIELD_JAVA_TYPE' => 'String',
+        'EFFECT_TYPE' => 'input',
+        'DICT_TYPE_CODE' => null,
+        'WHETHER_TABLE' => 'Y',
+        'WHETHER_RETRACT' => 'N',
+        'WHETHER_ADD_UPDATE' => 'Y',
+        'WHETHER_REQUIRED' => 'N',
+        'QUERY_WHETHER' => 'N',
+        'QUERY_TYPE' => null,
+        'SORT_CODE' => 10,
+        'DELETE_FLAG' => $deleteFlag,
+        'CREATE_TIME' => $now,
+        'CREATE_USER' => 'codex-smoke',
+    ];
+}
+
+try {
+    think\facade\Db::name('gen_config')->insertAll([
+        gen_config_smoke_row($idA, $basicId, $prefix . '_FIELD_A', 'NOT_DELETE', $now),
+        gen_config_smoke_row($idB, $basicId, $prefix . '_FIELD_B', 'NOT_DELETE', $now),
+        gen_config_smoke_row($deletedId, $basicId, $prefix . '_FIELD_DELETED', 'DELETED', $now),
+    ]);
+
+    $service->editBatch([
+        [
+            'id' => $idA,
+            'basicId' => $basicId,
+            'isTableKey' => 'N',
+            'fieldName' => $prefix . '_FIELD_A',
+            'fieldRemark' => $prefix . '_A_EDITED',
+            'fieldType' => 'varchar(128)',
+            'fieldJavaType' => 'String',
+            'effectType' => 'input',
+            'dictTypeCode' => '',
+            'whetherTable' => 'Y',
+            'whetherRetract' => 'Y',
+            'whetherAddUpdate' => 'Y',
+            'whetherRequired' => 'Y',
+            'queryWhether' => 'Y',
+            'queryType' => 'like',
+            'sortCode' => '',
+            'deleteFlag' => 'DELETED',
+            'createTime' => '2000-01-01 00:00:00',
+            'updateUser' => 'client-spoof',
+        ],
+        [
+            'id' => $idB,
+            'basicId' => $basicId,
+            'isTableKey' => 'N',
+            'fieldName' => $prefix . '_FIELD_B',
+            'fieldRemark' => $prefix . '_B_EDITED',
+            'fieldType' => 'int',
+            'fieldJavaType' => 'Integer',
+            'effectType' => 'inputNumber',
+            'dictTypeCode' => null,
+            'whetherTable' => true,
+            'whetherRetract' => false,
+            'whetherAddUpdate' => true,
+            'whetherRequired' => false,
+            'queryWhether' => false,
+            'queryType' => null,
+            'sortCode' => 22,
+        ],
+    ], ['user_id' => 'codexGenCfg']);
+
+    $rowA = think\facade\Db::name('gen_config')->where('ID', $idA)->find();
+    $rowB = think\facade\Db::name('gen_config')->where('ID', $idB)->find();
+    if (($rowA['FIELD_REMARK'] ?? '') !== $prefix . '_A_EDITED' || ($rowA['QUERY_TYPE'] ?? '') !== 'like') {
+        throw new RuntimeException('row A did not update expected fields');
+    }
+    if (($rowA['DICT_TYPE_CODE'] ?? null) !== null || !array_key_exists('SORT_CODE', $rowA) || $rowA['SORT_CODE'] !== null) {
+        throw new RuntimeException('optional empty fields were not saved as null');
+    }
+    if (($rowA['DELETE_FLAG'] ?? '') !== 'NOT_DELETE' || ($rowA['CREATE_TIME'] ?? '') !== $now) {
+        throw new RuntimeException('client audit/delete fields should not be written');
+    }
+    if (($rowA['UPDATE_USER'] ?? '') !== 'codexGenCfg') {
+        throw new RuntimeException('update user mismatch');
+    }
+    if (($rowB['FIELD_JAVA_TYPE'] ?? '') !== 'Integer' || ($rowB['WHETHER_TABLE'] ?? '') !== 'Y' || ($rowB['WHETHER_RETRACT'] ?? '') !== 'N') {
+        throw new RuntimeException('row B boolean normalization failed');
+    }
+
+    $failed = false;
+    try {
+        $service->editBatch([
+            [
+                'id' => $idA,
+                'basicId' => $basicId,
+                'isTableKey' => 'N',
+                'fieldName' => $prefix . '_FIELD_A',
+                'fieldRemark' => $prefix . '_SHOULD_ROLL_BACK',
+                'fieldType' => 'varchar(128)',
+                'fieldJavaType' => 'String',
+                'effectType' => 'input',
+                'whetherTable' => 'Y',
+                'whetherRetract' => 'Y',
+                'whetherAddUpdate' => 'Y',
+                'whetherRequired' => 'Y',
+                'queryWhether' => 'Y',
+            ],
+            [
+                'id' => $deletedId,
+                'basicId' => $basicId,
+                'isTableKey' => 'N',
+                'fieldName' => $prefix . '_FIELD_DELETED',
+                'fieldRemark' => $prefix . '_DELETED',
+                'fieldType' => 'varchar(128)',
+                'fieldJavaType' => 'String',
+                'effectType' => 'input',
+                'whetherTable' => 'Y',
+                'whetherRetract' => 'Y',
+                'whetherAddUpdate' => 'Y',
+                'whetherRequired' => 'Y',
+                'queryWhether' => 'Y',
+            ],
+        ], ['user_id' => 'codexGenCfg']);
+    } catch (RuntimeException $exception) {
+        $failed = $exception->getCode() === 404;
+    }
+    if (!$failed) {
+        throw new RuntimeException('deleted row batch should fail');
+    }
+
+    $remarkAfterFailure = think\facade\Db::name('gen_config')->where('ID', $idA)->value('FIELD_REMARK');
+    if ($remarkAfterFailure !== $prefix . '_A_EDITED') {
+        throw new RuntimeException('failed batch partially updated row A');
+    }
+
+    echo "GenConfigService editBatch checks passed\n";
+} finally {
+    think\facade\Db::name('gen_config')->whereIn('ID', [$idA, $idB, $deletedId])->delete();
+}
+'@
+
+    $tmpProbe = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-gen-config-edit-batch-{0}.php" -f ([Guid]::NewGuid().ToString('N')))
+    try {
+        [System.IO.File]::WriteAllText($tmpProbe, $probe, [System.Text.UTF8Encoding]::new($false))
+        $output = & php $tmpProbe 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php GenConfigService editBatch probe failed: $output"
+        }
+        Write-Host ([string]($output | Out-String)).Trim()
+    } finally {
+        if (Test-Path -LiteralPath $tmpProbe) {
+            Remove-Item -LiteralPath $tmpProbe -Force
+        }
+    }
+}
+
 Invoke-TestStep 'BizFileRelationService writes' {
 $probe = @'
 <?php

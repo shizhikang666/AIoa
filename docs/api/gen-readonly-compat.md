@@ -1,8 +1,8 @@
-# Gen Metadata Read-Only Compatibility
+# Gen Metadata Compatibility
 
 ## Scope
 
-This slice adds authenticated, read-only compatibility for saved generator metadata and field configuration endpoints.
+This document tracks authenticated compatibility for saved generator metadata and field configuration endpoints.
 
 ## Java Reference
 
@@ -20,9 +20,12 @@ Protected routes:
 
 - `GET /gen/basic/page`
 - `GET /gen/basic/detail`
+- `GET /gen/basic/tables`
+- `GET /gen/basic/tableColumns`
 - `GET /gen/basic/mobileModuleSelector`
 - `GET /gen/config/list`
 - `GET /gen/config/detail`
+- `POST /gen/config/editBatch`
 
 ## Response Shape
 
@@ -76,6 +79,31 @@ Protected routes:
 - `queryType`
 - `sortCode`
 
+## Write Compatibility
+
+`POST /gen/config/editBatch` accepts the copied frontend's Java-style JSON array body and updates active `gen_config` rows.
+
+Each item supports:
+
+- `id`
+- `basicId`
+- `isTableKey`
+- `fieldName`
+- `fieldRemark`
+- `fieldType`
+- `fieldJavaType`
+- `effectType`
+- `dictTypeCode`
+- `whetherTable`
+- `whetherRetract`
+- `whetherAddUpdate`
+- `whetherRequired`
+- `queryWhether`
+- `queryType`
+- `sortCode`
+
+The implementation validates the full batch before writing, rejects deleted or missing rows, updates only the Java edit-parameter column whitelist, ignores client-supplied audit/delete fields, writes update audit metadata from the bearer-token payload when available, and returns `data = null`.
+
 ## Supported Filters
 
 `/gen/basic/page` supports:
@@ -105,9 +133,6 @@ Protected routes:
 - No `/gen/basic/delete` route is implemented.
 - No `/gen/config/edit` route is implemented.
 - No `/gen/config/delete` route is implemented.
-- No `/gen/config/editBatch` route is implemented.
-- No `/gen/basic/tables` route is implemented.
-- No `/gen/basic/tableColumns` route is implemented.
 - No `/gen/basic/execGenZip` route is implemented.
 - No `/gen/basic/execGenPro` route is implemented.
 - No `/gen/basic/previewGen` route is implemented.

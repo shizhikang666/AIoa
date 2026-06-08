@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 418 | Existing route-entry scan count plus `/dev/job/delete`; `php think route:list` also confirms the concrete route |
-| Endpoints already covered by route path | 390 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
+| Current ThinkPHP routes | 419 | Existing route-entry scan count plus `/gen/config/editBatch`; `php think route:list` also confirms the concrete route |
+| Endpoints already covered by route path | 391 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 143 | Add/edit/audit/import/export/workflow/finance/stock actions; dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, and dev job metadata delete moved out of deferred scope |
+| Deferred write/side-effect candidates | 142 | Add/edit/audit/import/export/workflow/finance/stock actions; dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, and gen config editBatch moved out of deferred scope |
 
 ## Already Covered Route Groups
 
@@ -40,7 +40,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `dev/config`, `dev/dict`, `dev/log` | Common management reads plus dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, and BIZ dictionary maintenance writes |
 | `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | File metadata/list/detail, LOCAL/dynamic upload, file/email/SMS/job metadata logical delete, public local-file download compatibility, cloud upload unsupported stubs, and monitor reads; real cloud storage, scheduler runtime, and provider send actions remain deferred |
 | `mobile/menu` and `mobile/resource` | Mobile menu/resource read compatibility |
-| `gen/basic`, `gen/config`, `tenant` | Read-only compatibility routes |
+| `gen/basic`, `gen/config`, `tenant` | Generator metadata reads plus `gen/config/editBatch` field-configuration saves and tenant reads |
 | `biz/product`, `biz/supplier`, `biz/settlementaccount` | Core master-data read adapters; product base add/edit/delete, kit relation maintenance, product status/reconciliation, and supplier base add/edit/delete are covered |
 | `biz/bizpaymentrecord`, `biz/bizexpenditurerecord`, `biz/bizdebitnote` | Finance read adapters |
 | `biz/bizpurchaserequest`, `biz/bizpurchaseorder`, `biz/warehouses`, `biz/inventory`, `biz/delivery`, `biz/returnorder` | Purchase, warehouse, inventory, delivery, return read slices; warehouse base add/edit/delete is covered |
@@ -103,7 +103,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/bizteamprojecttaskuser` | `page` and `detail` covered; task-detail assignment sync is covered through `/biz/bizteamprojecttask/user/edit`; standalone `add`, `edit`, and `delete` remain deferred |
 | `dev/monitor` | `serverInfo` and `networkInfo` covered |
 | `sys/field` | `page`, `tree`, `detail`, and `MenuTreeSelector` covered; add/edit/delete remain deferred |
-| `gen/basic` | `page`, `detail`, `tables`, `tableColumns`, and `mobileModuleSelector` covered; add/edit/delete/previewGen/execGen routes remain deferred |
+| `gen/basic` and `gen/config` | `gen/basic/page`, `detail`, `tables`, `tableColumns`, `mobileModuleSelector`, `gen/config/list`, `detail`, and `editBatch` covered; generator add/edit/delete/previewGen/execGen routes remain deferred |
 
 ## Deferred Write And Side-Effect Groups
 
@@ -136,7 +136,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/bizhistoryexcel` | Import/export parsing, `biz_history_excel_row` writes | Base add/edit/delete writes are covered; parser/storage changes remain deferred |
 | `biz/projectrate` | `edit`, image upload/storage cleanup | Add/delete base row writes are covered; Java controller does not expose edit in the current reference |
 | `sys/user`, `sys/userCenter`, and `sys/index` | real `.docx` rendering and encrypted-field migration | Current-user profile/password/workbench/process-config writes, admin-side user add/edit/import, user delete, user role/resource/permission grant saves, user enable/disable, admin reset password, homepage schedule, message read-state writes, and user export/download blobs are covered |
-| `gen/basic` | `add`, `edit`, `delete`, `previewGen`, `execGenZip`, `execGenPro` | Generator writes or code generation output require a separate module plan |
+| `gen/basic` and generator execution | `gen/basic/add`, `edit`, `delete`, `previewGen`, `execGenZip`, `execGenPro`, direct `/gen/config/edit`, `/gen/config/delete` | Generator basic-row writes, direct config single-row writes, delete, preview, and code generation output require a separate module plan; `/gen/config/editBatch` is covered for saved field metadata |
 
 ## Authentication And Session Gaps
 
