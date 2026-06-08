@@ -343,6 +343,10 @@ Route::group('biz/bizfilerelation', function () {
     Route::get('page', 'biz.FileRelationController/page');
     Route::get('list', 'biz.FileRelationController/list');
     Route::get('detail', 'biz.FileRelationController/detail');
+    Route::post('add', 'biz.FileRelationController/add');
+    Route::post('edit', 'biz.FileRelationController/edit');
+    Route::post('delete', 'biz.FileRelationController/delete');
+    Route::get('projectCase/del', 'biz.FileRelationController/projectCaseDelete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizhistoryexcel', function () {

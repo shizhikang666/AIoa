@@ -51,6 +51,8 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - `UserDirectoryService::exportUsers(true, ...)` returns a valid CSV download descriptor
 - `UserDirectoryService::exportUserInfoFile(...)` returns a valid text download descriptor
 - sampled export content does not include `PASSWORD`
+- local file upload plus `BizFileRelationService` add/list/edit/delete behavior
+- file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
 
 ## Optional Backend No-Token Smoke
 
@@ -61,6 +63,16 @@ Start the ThinkPHP server separately, then run:
 ```
 
 The optional smoke checks current protected download routes and expects an unauthenticated business response with `code = 401`.
+
+## Optional File Relation HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, uploads a temporary local file, calls `/biz/bizfilerelation/add` with JSON, verifies the relation row, calls `/biz/bizfilerelation/projectCase/del`, and cleans up the temporary database and disk rows. It does not print tokens or local credentials.
 
 ## Local Runtime Services
 
@@ -109,4 +121,5 @@ Verified:
 Add these only when a backend and frontend browser session are already available:
 
 - optional no-token HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -NoTokenSmoke`
+- optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
 - browser smoke through the copied Vue frontend for user export/download buttons

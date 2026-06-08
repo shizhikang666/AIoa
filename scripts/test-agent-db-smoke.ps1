@@ -377,6 +377,218 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'BizFileRelationService writes' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+$app = (new think\App(getcwd()))->initialize();
+
+$fileService = new app\service\dev\FileService();
+$relationService = new app\service\biz\FileRelationService();
+$payload = [
+    'user_id' => 'codex-smoke',
+    'tenant_id' => '1',
+];
+$prefix = 'CODEX_REL_' . date('YmdHis') . random_int(1000, 9999);
+$tmp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $prefix . '.txt';
+$content = "codex relation smoke\n";
+$objectId = $prefix . '_OBJECT';
+$createdFileIds = [];
+$storedPaths = [];
+$relationIds = [];
+
+file_put_contents($tmp, $content);
+
+function relation_smoke_uploaded_file(string $path, string $name): think\file\UploadedFile {
+    return new think\file\UploadedFile($path, $name, 'text/plain', UPLOAD_ERR_OK, true);
+}
+
+try {
+    $fileA = $fileService->uploadReturnFile('LOCAL', relation_smoke_uploaded_file($tmp, $prefix . '-a.txt'), $payload);
+    $fileB = $fileService->uploadReturnFile('LOCAL', relation_smoke_uploaded_file($tmp, $prefix . '-b.txt'), $payload);
+    foreach ([$fileA, $fileB] as $file) {
+        $createdFileIds[] = (string)$file['id'];
+        $storedPaths[] = (string)$file['storagePath'];
+    }
+
+    $relationService->add([
+        'objectId' => $objectId,
+        'targetId' => (string)$fileA['id'],
+        'category' => 'SALE_PROJECT',
+    ], $payload);
+
+    $row = think\facade\Db::name('biz_file_relation')
+        ->where('OBJECT_ID', $objectId)
+        ->where('TARGET_ID', (string)$fileA['id'])
+        ->where('CATEGORY', 'SALE_PROJECT')
+        ->where('TENANT_ID', '1')
+        ->where('DELETE_FLAG', 'NOT_DELETE')
+        ->find();
+    if (!is_array($row) || $row === []) {
+        throw new RuntimeException('relation row missing after add');
+    }
+    $relationIds[] = (string)$row['ID'];
+    if ((string)$row['FILE_NAME'] !== $prefix . '-a.txt') {
+        throw new RuntimeException('relation fileName did not copy dev_file.NAME');
+    }
+
+    $list = $relationService->list(['objectId' => $objectId, 'category' => 'SALE_PROJECT'], $payload);
+    if (count($list) !== 1) {
+        throw new RuntimeException('relation list did not return one active row');
+    }
+    if (($list[0]['downloadPath'] ?? '') !== '/api/dev/file/download?id=' . rawurlencode((string)$fileA['id'])) {
+        throw new RuntimeException('relation downloadPath was not normalized');
+    }
+
+    $spoofedTenantList = $relationService->list([
+        'objectId' => $objectId,
+        'category' => 'SALE_PROJECT',
+        'tenantId' => '2',
+    ], $payload);
+    if (count($spoofedTenantList) !== 1) {
+        throw new RuntimeException('client tenantId should not override token tenant');
+    }
+
+    $tenantTwoObjectId = $prefix . '_TENANT2_OBJECT';
+    $tenantTwoRelationId = '7' . (string)random_int(10000000000000000, 99999999999999999);
+    think\facade\Db::name('biz_file_relation')->insert([
+        'ID' => $tenantTwoRelationId,
+        'OBJECT_ID' => $tenantTwoObjectId,
+        'TARGET_ID' => (string)$fileA['id'],
+        'CATEGORY' => 'SALE_PROJECT',
+        'FILE_NAME' => $prefix . '-tenant2.txt',
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => date('Y-m-d H:i:s'),
+        'CREATE_USER' => 'codex-smoke',
+        'EXT_JSON' => null,
+        'TENANT_ID' => '2',
+    ]);
+    $relationIds[] = $tenantTwoRelationId;
+    $crossTenantRead = $relationService->list([
+        'objectId' => $tenantTwoObjectId,
+        'category' => 'SALE_PROJECT',
+        'tenantId' => '2',
+    ], $payload);
+    if ($crossTenantRead !== []) {
+        throw new RuntimeException('cross-tenant relation read was not blocked');
+    }
+
+    $edit = $relationService->edit([
+        'id' => $relationIds[0],
+        'objectId' => $objectId,
+        'targetId' => (string)$fileB['id'],
+        'category' => 'SALE_PROJECT_CASE',
+    ], $payload);
+    if (($edit['id'] ?? '') !== $relationIds[0] || (int)($edit['count'] ?? 0) !== 1) {
+        throw new RuntimeException('relation edit result mismatch');
+    }
+
+    $detail = $relationService->detail($relationIds[0], $payload);
+    if (($detail['targetId'] ?? '') !== (string)$fileB['id'] || ($detail['category'] ?? '') !== 'SALE_PROJECT_CASE') {
+        throw new RuntimeException('relation detail did not reflect edit');
+    }
+    if (($detail['fileName'] ?? '') !== $prefix . '-b.txt') {
+        throw new RuntimeException('relation edit did not refresh fileName');
+    }
+
+    $badCategory = false;
+    try {
+        $relationService->add([
+            'objectId' => $objectId,
+            'targetId' => (string)$fileB['id'],
+            'category' => 'Process_procure',
+        ], $payload);
+    } catch (RuntimeException $exception) {
+        $badCategory = $exception->getCode() === 400;
+    }
+    if (!$badCategory) {
+        throw new RuntimeException('bad category was not rejected');
+    }
+
+    $missingFile = false;
+    try {
+        $relationService->add([
+            'objectId' => $objectId,
+            'targetId' => '999999999999999999',
+            'category' => 'SALE_PROJECT',
+        ], $payload);
+    } catch (RuntimeException $exception) {
+        $missingFile = $exception->getCode() === 404;
+    }
+    if (!$missingFile) {
+        throw new RuntimeException('missing file was not rejected');
+    }
+
+    think\facade\Db::name('dev_file')->where('ID', (string)$fileB['id'])->update(['TENANT_ID' => '2']);
+    $crossTenant = false;
+    try {
+        $relationService->add([
+            'objectId' => $objectId,
+            'targetId' => (string)$fileB['id'],
+            'category' => 'SALE_PROJECT',
+        ], $payload);
+    } catch (RuntimeException $exception) {
+        $crossTenant = $exception->getCode() === 404;
+    }
+    think\facade\Db::name('dev_file')->where('ID', (string)$fileB['id'])->update(['TENANT_ID' => '1']);
+    if (!$crossTenant) {
+        throw new RuntimeException('cross-tenant file binding was not rejected');
+    }
+
+    $relationService->delete([$relationIds[0]], $payload);
+    $activeCount = think\facade\Db::name('biz_file_relation')
+        ->where('ID', $relationIds[0])
+        ->where('DELETE_FLAG', 'NOT_DELETE')
+        ->count();
+    if ((int)$activeCount !== 0) {
+        throw new RuntimeException('relation delete did not mark row deleted');
+    }
+    $remainingFileCount = think\facade\Db::name('dev_file')
+        ->whereIn('ID', $createdFileIds)
+        ->where('DELETE_FLAG', 'NOT_DELETE')
+        ->count();
+    if ((int)$remainingFileCount !== 2) {
+        throw new RuntimeException('relation delete affected dev_file rows');
+    }
+
+    echo "BizFileRelationService write checks passed\n";
+} finally {
+    if ($relationIds !== []) {
+        think\facade\Db::name('biz_file_relation')->whereIn('ID', $relationIds)->delete();
+    }
+    think\facade\Db::name('biz_file_relation')->whereLike('OBJECT_ID', $prefix . '%')->delete();
+    if ($createdFileIds !== []) {
+        think\facade\Db::name('dev_file')->whereIn('ID', $createdFileIds)->delete();
+    }
+    foreach ($storedPaths as $path) {
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+    if (is_file($tmp)) {
+        @unlink($tmp);
+    }
+}
+'@
+
+    $probePath = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-file-relation-smoke-$([guid]::NewGuid()).php")
+    try {
+        Set-Content -LiteralPath $probePath -Value $probe -Encoding UTF8
+        $output = & php $probePath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php BizFileRelationService write probe failed: $output"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $probePath) {
+            Remove-Item -LiteralPath $probePath -Force
+        }
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'UserDirectoryService exports' {
 $probe = @'
 <?php

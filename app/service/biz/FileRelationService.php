@@ -9,11 +9,17 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only file-relation queries compatible with Java BizFileRelationController.
+ * File-relation queries and base writes compatible with Java BizFileRelationController.
  */
 class FileRelationService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
+    private const ALLOWED_CATEGORIES = [
+        'SALE_PROJECT',
+        'Process_reimbursement',
+        'SALE_PROJECT_CASE',
+    ];
     private const RELATION_FIELDS = <<<SQL
 r.ID AS ID,
 r.OBJECT_ID AS OBJECT_ID,
@@ -100,6 +106,84 @@ SQL;
         return $this->relationRows([$row])[0];
     }
 
+    public function add(array $input, array $payload = []): array
+    {
+        $objectId = $this->requiredInput($input, 'objectId');
+        $targetId = $this->requiredInput($input, 'targetId');
+        $category = $this->requiredInput($input, 'category');
+        $this->assertCategory($category);
+        $tenantId = $this->tenantId($payload);
+        $file = $this->activeFile($targetId, $tenantId);
+
+        $id = $this->newId();
+        Db::transaction(function () use ($id, $objectId, $targetId, $category, $file, $payload, $tenantId): void {
+            Db::name('biz_file_relation')->insert([
+                'ID' => $id,
+                'OBJECT_ID' => $objectId,
+                'TARGET_ID' => $targetId,
+                'CATEGORY' => $category,
+                'FILE_NAME' => $file['NAME'] ?? null,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => date('Y-m-d H:i:s'),
+                'CREATE_USER' => $this->currentUserId($payload),
+                'EXT_JSON' => null,
+                'TENANT_ID' => $tenantId,
+            ]);
+        });
+
+        return [];
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $objectId = $this->requiredInput($input, 'objectId');
+        $targetId = $this->requiredInput($input, 'targetId');
+        $category = $this->requiredInput($input, 'category');
+        $this->assertCategory($category);
+        $tenantId = $this->tenantId($payload);
+        $file = $this->activeFile($targetId, $tenantId);
+        $this->activeRelation($id, $tenantId);
+
+        $updated = Db::transaction(function () use ($id, $objectId, $targetId, $category, $file, $tenantId): int {
+            return Db::name('biz_file_relation')
+                ->where('ID', $id)
+                ->where('TENANT_ID', $tenantId)
+                ->update([
+                    'OBJECT_ID' => $objectId,
+                    'TARGET_ID' => $targetId,
+                    'CATEGORY' => $category,
+                    'FILE_NAME' => $file['NAME'] ?? null,
+                ]);
+        });
+
+        return ['id' => $id, 'count' => $updated];
+    }
+
+    /**
+     * @param array<int, string> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $ids))));
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $tenantId = $this->tenantId($payload);
+        Db::transaction(function () use ($ids, $tenantId): void {
+            Db::name('biz_file_relation')
+                ->whereIn('ID', $ids)
+                ->where('TENANT_ID', $tenantId)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update(['DELETE_FLAG' => self::DELETED]);
+        });
+
+        return [];
+    }
+
     private function relationQuery(array $filters, array $payload)
     {
         $query = Db::name('biz_file_relation')
@@ -110,7 +194,7 @@ SQL;
                 $query->whereNull('r.DELETE_FLAG')->whereOr('r.DELETE_FLAG', '=', self::NOT_DELETE);
             });
 
-        $tenantId = trim((string)($filters['tenantId'] ?? $payload['tenant_id'] ?? ''));
+        $tenantId = $this->tenantId($payload);
         if ($tenantId !== '') {
             $query->where('r.TENANT_ID', $tenantId);
         }
@@ -165,6 +249,55 @@ SQL;
         if ($start !== '' && $end !== '') {
             $query->whereBetweenTime($column, $start, $end);
         }
+    }
+
+    private function activeRelation(string $id, string $tenantId): array
+    {
+        $row = Db::name('biz_file_relation')
+            ->where('ID', $id)
+            ->where('TENANT_ID', $tenantId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('file relation not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function activeFile(string $id, string $tenantId): array
+    {
+        $row = Db::name('dev_file')
+            ->where('ID', $id)
+            ->where('TENANT_ID', $tenantId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('file not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertCategory(string $category): void
+    {
+        if (!in_array($category, self::ALLOWED_CATEGORIES, true)) {
+            throw new RuntimeException('unsupported file relation category: ' . $category, 400);
+        }
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
     }
 
     private function applySort($query, array $filters)
@@ -241,6 +374,25 @@ SQL;
         }
 
         return (int)$value;
+    }
+
+    private function currentUserId(array $payload): ?string
+    {
+        $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+
+        return $userId === '' ? null : $userId;
+    }
+
+    private function tenantId(array $payload): string
+    {
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId === '' ? '1' : $tenantId;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function value(array $row, string ...$keys): mixed
