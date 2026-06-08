@@ -913,6 +913,137 @@ try {
     }
 }
 
+Invoke-TestStep 'SaleProjectBillingService invoicing complete' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$service = new app\service\biz\SaleProjectBillingService();
+$prefix = 'CODEX_INVOICING_' . date('YmdHis') . random_int(1000, 9999);
+$projectId = '602000000000' . random_int(100000, 999999);
+$invoicingId = (string)((int)$projectId + 1);
+$otherTenantId = (string)((int)$projectId + 2);
+$now = date('Y-m-d H:i:s');
+
+function invoicing_smoke_project(string $id, string $prefix, string $tenantId, string $now): array {
+    return [
+        'ID' => $id,
+        'CUSTOMER' => '0',
+        'PROJECT_NAME' => $prefix . '_PROJECT',
+        'PROJECT_STATE' => 'SHIPPED',
+        'PLAY_STATE' => 'NORMAL',
+        'VISIBILITY' => 'PUBLIC',
+        'INIT_PRICE' => 0,
+        'TOTAL_PRICE' => 0,
+        'AMOUNT_COLLECTED' => 0,
+        'PROJECT_CATEGORY' => 'SALE_PROJECT',
+        'USER' => 'codexUser',
+        'ORG' => '0',
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => $now,
+        'CREATE_USER' => 'codex-smoke',
+        'TENANT_ID' => $tenantId,
+        'VERSION' => 0,
+        'DEAL_AMOUNT' => 0,
+        'HISTORY_AMOUNT' => 0,
+    ];
+}
+
+function invoicing_smoke_row(string $id, string $projectId, string $prefix, string $tenantId, string $state, string $now): array {
+    return [
+        'ID' => $id,
+        'PROJECT_ID' => $projectId,
+        'AMOUNT' => 123.45,
+        'INVOICING_STATE' => $state,
+        'INVOICING_CATEGORY' => 'COMMON',
+        'PROCESS_ID' => $prefix . '_PROCESS',
+        'REMARK' => 'codex smoke',
+        'COMPANY_NAME' => $prefix . '_COMPANY',
+        'CUSTOMER_COMPANY' => $prefix . '_CUSTOMER',
+        'UNIT' => $prefix . '_UNIT',
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => $now,
+        'CREATE_USER' => 'codex-smoke',
+        'TENANT_ID' => $tenantId,
+    ];
+}
+
+try {
+    think\facade\Db::name('biz_sale_project')->insertAll([
+        invoicing_smoke_project($projectId, $prefix, '1', $now),
+        invoicing_smoke_project($otherTenantId, $prefix . '_TENANT2', '2', $now),
+    ]);
+    think\facade\Db::name('biz_sale_project_invoicing')->insertAll([
+        invoicing_smoke_row($invoicingId, $projectId, $prefix, '1', 'INVOICING_STATE_WAIT', $now),
+        invoicing_smoke_row($otherTenantId, $otherTenantId, $prefix . '_TENANT2', '2', 'INVOICING_STATE_WAIT', $now),
+    ]);
+
+    $service->invoicingComplete($invoicingId, [
+        'user_id' => 'codexBilling',
+        'tenant_id' => '1',
+        'account' => 'bizAdmin',
+        'role_codes' => ['bizAdmin'],
+    ]);
+    $state = think\facade\Db::name('biz_sale_project_invoicing')->where('ID', $invoicingId)->value('INVOICING_STATE');
+    if ($state !== 'INVOICING_STATE_COMPLETE') {
+        throw new RuntimeException('invoicing complete did not update state');
+    }
+    $updateUser = think\facade\Db::name('biz_sale_project_invoicing')->where('ID', $invoicingId)->value('UPDATE_USER');
+    if ($updateUser !== 'codexBilling') {
+        throw new RuntimeException('invoicing complete update user mismatch');
+    }
+
+    $service->invoicingComplete($invoicingId, [
+        'user_id' => 'codexBilling',
+        'tenant_id' => '1',
+        'account' => 'bizAdmin',
+        'role_codes' => ['bizAdmin'],
+    ]);
+
+    $failed = false;
+    try {
+        $service->invoicingComplete($otherTenantId, [
+            'user_id' => 'codexBilling',
+            'tenant_id' => '1',
+            'account' => 'bizAdmin',
+            'role_codes' => ['bizAdmin'],
+        ]);
+    } catch (RuntimeException $exception) {
+        $failed = $exception->getCode() === 404;
+    }
+    if (!$failed) {
+        throw new RuntimeException('cross-tenant invoicing complete should fail');
+    }
+    $otherState = think\facade\Db::name('biz_sale_project_invoicing')->where('ID', $otherTenantId)->value('INVOICING_STATE');
+    if ($otherState !== 'INVOICING_STATE_WAIT') {
+        throw new RuntimeException('cross-tenant invoicing complete modified row');
+    }
+
+    echo "SaleProjectBillingService invoicing complete checks passed\n";
+} finally {
+    think\facade\Db::name('biz_sale_project_invoicing')->whereIn('ID', [$invoicingId, $otherTenantId])->delete();
+    think\facade\Db::name('biz_sale_project')->whereIn('ID', [$projectId, $otherTenantId])->delete();
+}
+'@
+
+    $tmpProbe = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-invoicing-complete-{0}.php" -f ([Guid]::NewGuid().ToString('N')))
+    try {
+        [System.IO.File]::WriteAllText($tmpProbe, $probe, [System.Text.UTF8Encoding]::new($false))
+        $output = & php $tmpProbe 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php SaleProjectBillingService invoicing complete probe failed: $output"
+        }
+        Write-Host ([string]($output | Out-String)).Trim()
+    } finally {
+        if (Test-Path -LiteralPath $tmpProbe) {
+            Remove-Item -LiteralPath $tmpProbe -Force
+        }
+    }
+}
+
 Invoke-TestStep 'BizFileRelationService writes' {
 $probe = @'
 <?php

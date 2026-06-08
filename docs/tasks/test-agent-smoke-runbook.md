@@ -57,6 +57,7 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - `DevLogService` category physical delete behavior, tenant isolation, other-category preservation, and empty-category rejection
 - `DevJobService` Java-style array delete behavior, malformed payload safety, logical delete behavior, and active-page hiding
 - `GenConfigService` Java-style `editBatch` behavior, whitelist writes, optional-field nulling, deleted-row rejection, and failed-batch rollback safety
+- `SaleProjectBillingService` invoicing complete behavior, tenant-scoped row lookup, idempotent state update, and cross-tenant rejection
 - local file upload plus `BizFileRelationService` add/list/edit/delete behavior
 - file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
 
@@ -130,6 +131,16 @@ Start the ThinkPHP server separately, then run:
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, inserts temporary `gen_config` rows, verifies a malformed mixed `editBatch` payload does not partially update valid rows, calls `/gen/config/editBatch`, verifies the response returns `data = null`, confirms only Java edit-parameter fields are updated, and then removes temporary rows. It does not print tokens or local credentials.
 
+## Optional Sale Project Invoicing HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SaleProjectInvoicingHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, inserts temporary `biz_sale_project` and `biz_sale_project_invoicing` rows, verifies a cross-tenant complete request fails without updating the row, calls `/biz/saleprojectinvoicing/complete`, verifies the response returns `data = null`, confirms `INVOICING_STATE = INVOICING_STATE_COMPLETE`, and then removes temporary rows. It does not print tokens or local credentials.
+
 ## Optional File Relation HTTP Smoke
 
 Start the ThinkPHP server separately, then run:
@@ -193,5 +204,6 @@ Add these only when a backend and frontend browser session are already available
 - optional dev-log HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevLogHttpSmoke`
 - optional dev-job HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevJobHttpSmoke`
 - optional gen-config HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -GenConfigHttpSmoke`
+- optional sale-project invoicing HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SaleProjectInvoicingHttpSmoke`
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
 - browser smoke through the copied Vue frontend for affected visible pages, including dev config "other config" maintenance when `/dev/config/add|edit|delete` changes

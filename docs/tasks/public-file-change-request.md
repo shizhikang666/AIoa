@@ -4053,3 +4053,38 @@ The copied Vue generator field configuration component posts the edited table ro
 - Requests without token should return business `code=401`.
 - DB smoke should insert temporary `gen_config` rows, verify whitelist writes, optional-field nulling, deleted-row rejection, and failed-batch rollback.
 - Authenticated HTTP smoke should cover good and malformed mixed `editBatch` payloads.
+
+---
+
+# Public File Change Request: Sale Project Invoicing Complete Route
+
+## Request
+
+Register the protected sale-project invoicing complete route in `route/app.php`.
+
+## Reason
+
+The copied Vue sale-project invoicing page calls Java-style `/biz/saleprojectinvoicing/complete` from the visible row action that marks an invoice application as completed. Existing ThinkPHP billing routes already cover invoicing page/customer/detail reads, so this slice opens only the narrow complete marker.
+
+## Applied Change
+
+`api-agent/test-agent` registers the following protected POST route:
+
+- `POST /biz/saleprojectinvoicing/complete`
+
+## Guardrails
+
+- The route remains behind `AuthMiddleware`.
+- The request body must contain a non-empty `id`.
+- The service resolves the row through existing sale-project scope and tenant filters.
+- The service only updates `biz_sale_project_invoicing.INVOICING_STATE = INVOICING_STATE_COMPLETE` plus audit update fields.
+- Cross-tenant or out-of-scope rows are rejected and are not updated.
+- The endpoint returns a Java-compatible success envelope with `data = null`.
+- No Java source, database schema, Composer, `.env`, frontend source, invoice add/edit/delete, delivery invoice writes, reissue order writes, workflow side effects, inventory stock mutations, finance mutations, settlement, payment, refund, or cost behavior is changed.
+
+## Verification
+
+- `php think route:list` must list `POST /biz/saleprojectinvoicing/complete`.
+- Requests without token should return business `code=401`.
+- DB smoke should insert temporary project and invoicing rows, complete the current-tenant row, verify idempotent state update, verify cross-tenant rejection, and clean temporary rows.
+- Authenticated HTTP smoke should cover cross-tenant rejection and successful complete with `data = null`.

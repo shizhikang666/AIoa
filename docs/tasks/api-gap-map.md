@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 419 | Existing route-entry scan count plus `/gen/config/editBatch`; `php think route:list` also confirms the concrete route |
-| Endpoints already covered by route path | 391 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
+| Current ThinkPHP routes | 420 | Existing route-entry scan count plus `/biz/saleprojectinvoicing/complete`; `php think route:list` also confirms the concrete route |
+| Endpoints already covered by route path | 392 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 142 | Add/edit/audit/import/export/workflow/finance/stock actions; dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, and gen config editBatch moved out of deferred scope |
+| Deferred write/side-effect candidates | 141 | Add/edit/audit/import/export/workflow/finance/stock actions; dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, and sale-project invoicing complete moved out of deferred scope |
 
 ## Already Covered Route Groups
 
@@ -90,7 +90,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/ccrecords` | `page`, `detail`, and `delete` covered; add/edit and workflow copy-generation remain deferred |
 | `biz/bizdraft` | `detail` covered; `saleproject/add` remains deferred |
 | `biz/bizhistoryexcel` | `page`, `detail`, `add`, `edit`, and `delete` covered; import/export parsing and row-table storage remain deferred |
-| `biz/saleprojectinvoicing` | `customer`, `detail`, `page` |
+| `biz/saleprojectinvoicing` | `customer`, `detail`, `page`, and `complete` covered; add/edit/delete remain deferred |
 | `biz/saleprojectinvoiceItem` | `page` covered; invoice item writes remain deferred |
 | `biz/projectrate` | `page`, `list`, `detail`, `add`, and `delete` covered; edit and file upload/storage remain deferred |
 | `biz/saleprojectreissueorder` | `list/query` |
@@ -126,7 +126,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `dev/log` | Cross-tenant/global clear behavior | Category delete is covered with physical deletion and current-tenant protection when the token payload has a tenant id; Java clears globally by category |
 | `dev/job` | `add`, `edit`, `stopJob`, `runJob`, `runJobNow`, scheduler lifecycle | Metadata delete is covered as logical delete with malformed-payload protection; scheduler stop/remove behavior remains deferred until a ThinkPHP scheduler exists |
 | `dev/message` | Full realtime push | User-center/index detail mark-read, homepage all-mark-read, minimal SSE compatibility, message send, and message delete are covered; full SSE/WebPush parity remains deferred |
-| `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
+| `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | payroll/leave `add`, `edit`, `delete`, import/generate actions; invoicing add/edit/delete | Business validation and transactional side effects; invoicing complete is covered as a single-field marker |
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
 | `biz/bizproduct` | Inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and data-change/cache side effects | Product base add/edit/delete, kit relation maintenance, status toggle, and reconciliation edits are covered |
 | `biz/salesprojectfieldchangelog` | Sale-project amount/change generation, workflow, finance, audit side effects | Add/edit/delete base log-row writes are covered |

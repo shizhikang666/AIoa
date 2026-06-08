@@ -259,6 +259,20 @@ Cleanup:
 
 - Temporary `CODEX_HTTP_GENCFG_*` `gen_config` rows were removed.
 
+## Sale Project Invoicing Complete HTTP Smoke, 2026-06-08
+
+Verified after `/biz/saleprojectinvoicing/complete` compatibility was added:
+
+- Copied frontend API wrapper: `snowy-admin-web/src/api/biz/bizSaleProjectInvoicingApi.js`
+- Copied frontend page: `snowy-admin-web/src/views/biz/saleprojectinvoicing/index.vue`
+- Authenticated HTTP smoke inserted temporary `biz_sale_project` and `biz_sale_project_invoicing` rows.
+- A cross-tenant complete request to `POST /biz/saleprojectinvoicing/complete` returned a business error and did not update the row.
+- A valid complete request returned `code=200` with `data = null` and updated the target row to `INVOICING_STATE_COMPLETE`.
+
+Cleanup:
+
+- Temporary `CODEX_HTTP_INVOICING_*` project and invoicing rows were removed.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:

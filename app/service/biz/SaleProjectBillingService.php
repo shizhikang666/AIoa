@@ -24,6 +24,7 @@ class SaleProjectBillingService
         'SHIPPED',
         'COMPLETED',
     ];
+    private const INVOICING_STATE_COMPLETE = 'INVOICING_STATE_COMPLETE';
 
     private const INVOICING_SORT_FIELDS = [
         'id' => 'i.ID',
@@ -114,6 +115,28 @@ class SaleProjectBillingService
         }
 
         return $this->rows([$row])[0];
+    }
+
+    public function invoicingComplete(string $id, array $payload = []): ?array
+    {
+        return Db::transaction(function () use ($id, $payload): ?array {
+            $row = $this->invoicingQuery(['id' => $id], $payload, false)
+                ->field('i.ID, i.INVOICING_STATE')
+                ->find();
+            if (!is_array($row) || $row === []) {
+                throw new RuntimeException('sale project invoicing not found', 404);
+            }
+
+            Db::name('biz_sale_project_invoicing')
+                ->where('ID', $id)
+                ->update([
+                    'INVOICING_STATE' => self::INVOICING_STATE_COMPLETE,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+                ]);
+
+            return null;
+        });
     }
 
     public function invoicePage(array $filters = [], array $payload = []): array

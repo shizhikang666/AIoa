@@ -8,6 +8,7 @@ param(
     [switch]$DevLogHttpSmoke,
     [switch]$DevJobHttpSmoke,
     [switch]$GenConfigHttpSmoke,
+    [switch]$SaleProjectInvoicingHttpSmoke,
     [switch]$FileRelationHttpSmoke
 )
 
@@ -147,6 +148,7 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'dev/log/delete',
         'dev/job/delete',
         'gen/config/editBatch',
+        'biz/saleprojectinvoicing/complete',
         'biz/dict/page',
         'biz/org/page',
         'biz/user/page',
@@ -903,6 +905,160 @@ think\facade\Db::name('gen_config')->insertAll(`$rows);
 require getcwd() . '/vendor/autoload.php';
 (new think\App(getcwd()))->initialize();
 think\facade\Db::name('gen_config')->whereIn('ID', ['$idA', '$idB', '$deletedId'])->delete();
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
+            }
+        }
+    }
+}
+
+if ($SaleProjectInvoicingHttpSmoke) {
+    Invoke-TestStep 'authenticated sale project invoicing complete HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -SaleProjectInvoicingHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -SaleProjectInvoicingHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_INVOICING_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_INVOICING_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $baseId = [Int64]602200000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999)
+        $projectId = [string]$baseId
+        $invoicingId = [string]($baseId + 1)
+        $otherTenantProjectId = [string]($baseId + 2)
+        $otherTenantInvoicingId = [string]($baseId + 3)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+
+        try {
+            $insertCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$now = date('Y-m-d H:i:s');
+think\facade\Db::name('biz_sale_project')->insertAll([
+    [
+        'ID' => '$projectId',
+        'CUSTOMER' => '0',
+        'PROJECT_NAME' => '$($prefix)_PROJECT',
+        'PROJECT_STATE' => 'SHIPPED',
+        'PLAY_STATE' => 'NORMAL',
+        'VISIBILITY' => 'PUBLIC',
+        'INIT_PRICE' => 0,
+        'TOTAL_PRICE' => 0,
+        'AMOUNT_COLLECTED' => 0,
+        'PROJECT_CATEGORY' => 'SALE_PROJECT',
+        'USER' => 'codexUser',
+        'ORG' => '0',
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => `$now,
+        'CREATE_USER' => 'codex-smoke',
+        'TENANT_ID' => '1',
+        'VERSION' => 0,
+        'DEAL_AMOUNT' => 0,
+        'HISTORY_AMOUNT' => 0,
+    ],
+    [
+        'ID' => '$otherTenantProjectId',
+        'CUSTOMER' => '0',
+        'PROJECT_NAME' => '$($prefix)_TENANT2_PROJECT',
+        'PROJECT_STATE' => 'SHIPPED',
+        'PLAY_STATE' => 'NORMAL',
+        'VISIBILITY' => 'PUBLIC',
+        'INIT_PRICE' => 0,
+        'TOTAL_PRICE' => 0,
+        'AMOUNT_COLLECTED' => 0,
+        'PROJECT_CATEGORY' => 'SALE_PROJECT',
+        'USER' => 'codexUser',
+        'ORG' => '0',
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => `$now,
+        'CREATE_USER' => 'codex-smoke',
+        'TENANT_ID' => '2',
+        'VERSION' => 0,
+        'DEAL_AMOUNT' => 0,
+        'HISTORY_AMOUNT' => 0,
+    ],
+]);
+foreach ([['$invoicingId', '$projectId', '1', '$($prefix)_COMPANY'], ['$otherTenantInvoicingId', '$otherTenantProjectId', '2', '$($prefix)_TENANT2_COMPANY']] as `$row) {
+    think\facade\Db::name('biz_sale_project_invoicing')->insert([
+        'ID' => `$row[0],
+        'PROJECT_ID' => `$row[1],
+        'AMOUNT' => 123.45,
+        'INVOICING_STATE' => 'INVOICING_STATE_WAIT',
+        'INVOICING_CATEGORY' => 'COMMON',
+        'PROCESS_ID' => '$($prefix)_PROCESS',
+        'REMARK' => 'codex http smoke',
+        'COMPANY_NAME' => `$row[3],
+        'CUSTOMER_COMPANY' => '$($prefix)_CUSTOMER',
+        'UNIT' => '$($prefix)_UNIT',
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => `$now,
+        'CREATE_USER' => 'codex-smoke',
+        'TENANT_ID' => `$row[2],
+    ]);
+}
+"@
+            & php -r $insertCode | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to insert temporary invoicing rows'
+            }
+
+            $body = @{ id = $otherTenantInvoicingId } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $badRaw = & curl.exe -sS -X POST "$base/biz/saleprojectinvoicing/complete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'cross-tenant invoicing complete request failed'
+            }
+            $bad = $badRaw | ConvertFrom-Json
+            if ([int]$bad.code -eq 200) {
+                throw "cross-tenant invoicing complete should fail: $badRaw"
+            }
+            $otherState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('biz_sale_project_invoicing')->where('ID', '$otherTenantInvoicingId')->value('INVOICING_STATE');"
+            if ([string]$otherState -ne 'INVOICING_STATE_WAIT') {
+                throw 'cross-tenant invoicing complete should not update row'
+            }
+
+            $body = @{ id = $invoicingId } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $completeRaw = & curl.exe -sS -X POST "$base/biz/saleprojectinvoicing/complete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'invoicing complete request failed'
+            }
+            $complete = $completeRaw | ConvertFrom-Json
+            if ([int]$complete.code -ne 200 -or $null -ne $complete.data) {
+                throw "unexpected invoicing complete response: $completeRaw"
+            }
+
+            $state = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('biz_sale_project_invoicing')->where('ID', '$invoicingId')->value('INVOICING_STATE');"
+            if ([string]$state -ne 'INVOICING_STATE_COMPLETE') {
+                throw 'invoicing complete did not update state'
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('biz_sale_project_invoicing')->whereIn('ID', ['$invoicingId', '$otherTenantInvoicingId'])->delete();
+think\facade\Db::name('biz_sale_project')->whereIn('ID', ['$projectId', '$otherTenantProjectId'])->delete();
 "@
             & php -r $cleanupCode | Out-Null
             if (Test-Path -LiteralPath $jsonTmp) {

@@ -508,6 +508,7 @@ Route::group('biz/saleprojectinvoicing', function () {
     Route::get('page', 'biz.SaleProjectInvoicingController/page');
     Route::get('customer', 'biz.SaleProjectInvoicingController/customer');
     Route::get('detail', 'biz.SaleProjectInvoicingController/detail');
+    Route::post('complete', 'biz.SaleProjectInvoicingController/complete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/saleprojectinvoice', function () {

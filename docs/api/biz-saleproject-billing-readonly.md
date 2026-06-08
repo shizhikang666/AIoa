@@ -6,7 +6,7 @@ Agent: api-agent / frontend-agent
 
 ## Scope
 
-This document records the ThinkPHP compatibility slice for Java sales-project billing-adjacent endpoints. Most endpoints remain read-only; project rating now includes narrow `add` and logical `delete` support for the copied sale-project case/rating tab.
+This document records the ThinkPHP compatibility slice for Java sales-project billing-adjacent endpoints. Most endpoints remain read-only; project rating includes narrow `add` and logical `delete` support, and sale-project invoicing includes the narrow Java-style complete marker.
 
 Implemented routes:
 
@@ -15,6 +15,7 @@ Implemented routes:
 | GET | `/biz/saleprojectinvoicing/page` | `BizSaleProjectInvoicingController.page` | Invoice application page list |
 | GET | `/biz/saleprojectinvoicing/customer` | `BizSaleProjectInvoicingService.findLastEntityByCustomerId` | Latest invoice information for a customer |
 | GET | `/biz/saleprojectinvoicing/detail` | `BizSaleProjectInvoicingController.detail` | Invoice application detail |
+| POST | `/biz/saleprojectinvoicing/complete` | `BizSaleProjectInvoicingController.complete` | Mark invoice application as complete |
 | GET | `/biz/saleprojectinvoice/page` | `BizSaleProjectInvoiceController.page` | Delivery invoice page list |
 | GET | `/biz/saleprojectinvoice/list` | `BizSaleProjectInvoiceController.list` | Delivery invoices grouped with invoice items by project |
 | GET | `/biz/saleprojectreissueorder/list/query` | `BizSaleProjectReissueOrderController.listQuery` | Reissue orders with nested product items |
@@ -36,13 +37,14 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/projectrate/detail` keeps the same normalized row shape as `/page` and `/list`, including raw `extJson`.
 - `/biz/projectrate/add` requires `projectId` and `subject`, defaults missing `rateAmount` to `0.00`, defaults missing `content` to an empty string, and stores submitted `imgList` under `EXT_JSON` as `{"imgList":[...]}`.
 - `/biz/projectrate/delete` accepts Java-style `[{id: ...}]`, `idList`, `ids`, or a single `id`; it uses `DELETE_FLAG = DELETED` instead of physical removal.
+- `/biz/saleprojectinvoicing/complete` accepts `{ "id": "..." }`, validates the row through the existing project scope and tenant filters, updates only `INVOICING_STATE = INVOICING_STATE_COMPLETE` plus audit update fields, and returns `data = null`.
 - Query responses include project/customer display aliases where useful, such as `projectName`, `customerName`, `orgName`, and `headName`.
 
 ## Deferred
 
 The following endpoints and behaviors are intentionally not implemented in this slice:
 
-- Invoice application add/edit/complete
+- Invoice application add/edit/delete
 - Delivery invoice add/edit/delete
 - Reissue order add/start process
 - Project rate edit
