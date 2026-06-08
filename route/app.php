@@ -192,6 +192,9 @@ Route::group('dev/dict', function () {
     Route::get('list', 'dev.DictController/list');
     Route::get('tree', 'dev.DictController/tree');
     Route::get('detail', 'dev.DictController/detail');
+    Route::post('add', 'dev.DictController/add');
+    Route::post('edit', 'dev.DictController/edit');
+    Route::post('delete', 'dev.DictController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('dev/config', function () {
@@ -607,7 +610,7 @@ Route::group('biz/dict', function () {
     Route::get('page', 'dev.DictController/page');
     Route::get('tree', 'dev.DictController/tree');
     Route::get('treeAll', 'dev.DictController/treeAll');
-    Route::post('edit', 'dev.DictController/edit');
+    Route::post('edit', 'dev.DictController/bizEdit');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/returnorder', function () {

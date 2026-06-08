@@ -146,11 +146,21 @@ Still deferred:
 
 `POST /biz/dict/edit` is now routed for the copied business dictionary maintenance page.
 
-The route delegates to the shared dictionary service and updates only active `dev_dict` rows where `CATEGORY = BIZ`. It validates required `id`, `dictLabel`, and numeric `sortCode`, supports optional `parentId` and `extJson`, blocks same-parent duplicate business dictionary labels, and preserves category, dictionary value, tenant, and create metadata.
+The route delegates to the shared dictionary service and updates only active `dev_dict` rows where `CATEGORY = BIZ`. It validates required `id`, `dictLabel`, and numeric `sortCode`, supports optional `extJson`, blocks duplicate business dictionary labels for the same tenant, and preserves parent, dictionary value, category, tenant, and create metadata.
+
+## 2026-06-08 Dev BIZ Dictionary Writes
+
+The legacy maintenance page that exposes BIZ dictionary add/delete actions posts through `/dev/dict/add`, `/dev/dict/edit`, and `/dev/dict/delete`, not `/biz/dict/add` or `/biz/dict/delete`. Those `/dev/dict` write routes now support `CATEGORY = BIZ` rows only:
+
+- `POST /dev/dict/add`
+- `POST /dev/dict/edit`
+- `POST /dev/dict/delete`
+
+Deletes are soft deletes and include active BIZ descendants. `/biz/dict/add` and `/biz/dict/delete` remain unregistered because the Java business dictionary controller does not expose them.
 
 Still deferred:
 
 - `/biz/dict/add`
 - `/biz/dict/delete`
-- system dictionary writes under `/dev/dict`
+- FRM/system dictionary writes under `/dev/dict`
 - dictionary cache invalidation parity with Java

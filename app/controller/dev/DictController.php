@@ -40,10 +40,34 @@ class DictController extends BaseSysController
         return $this->guard(fn () => $this->dictService->detail($this->requiredString($request, 'id'), $this->tenantId($request)));
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->dictService->addBizDict(
+            $this->bodyInput($request),
+            $this->authPayload($request)
+        ));
+    }
+
     public function edit(Request $request): Response
     {
         return $this->guard(fn () => $this->dictService->editBizDict(
             $this->bodyInput($request),
+            $this->authPayload($request)
+        ));
+    }
+
+    public function bizEdit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->dictService->editBizDictBusiness(
+            $this->bodyInput($request),
+            $this->authPayload($request)
+        ));
+    }
+
+    public function delete(Request $request): Response
+    {
+        return $this->guard(fn () => $this->dictService->deleteBizDicts(
+            $this->deleteIds($this->bodyInput($request)),
             $this->authPayload($request)
         ));
     }
@@ -95,5 +119,37 @@ class DictController extends BaseSysController
         $tenantId = (string)($payload['tenant_id'] ?? $payload['tenantId'] ?? '');
 
         return $tenantId === '' ? null : $tenantId;
+    }
+
+    /**
+     * @param array<string, mixed> $input
+     * @return array<int, string>
+     */
+    private function deleteIds(array $input): array
+    {
+        $items = $input;
+        if (isset($input['idList']) || isset($input['ids'])) {
+            $items = $input['idList'] ?? $input['ids'];
+        } elseif (isset($input['id']) || isset($input['ID'])) {
+            $items = [$input];
+        }
+
+        if (is_string($items)) {
+            $items = explode(',', $items);
+        }
+        if (!is_array($items)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($items as $item) {
+            $id = is_array($item) ? (string)($item['id'] ?? $item['ID'] ?? '') : (string)$item;
+            $id = trim($id);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 }

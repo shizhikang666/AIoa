@@ -212,4 +212,100 @@ echo "UserDirectoryService export checks passed\n";
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'Biz dictionary writes' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+$app = (new think\App(getcwd()))->initialize();
+
+$service = new app\service\dev\DictService();
+$payload = [
+    'user_id' => 'codex-smoke',
+    'tenant_id' => '1',
+    'role_codes' => ['superadmin'],
+];
+$prefix = 'CODEX_BIZ_DICT_' . date('YmdHis') . random_int(1000, 9999);
+$created = [];
+
+try {
+    $root = $service->addBizDict([
+        'parentId' => '0',
+        'dictLabel' => $prefix . '_ROOT',
+        'dictValue' => $prefix . '_ROOT_VALUE',
+        'category' => 'BIZ',
+        'sortCode' => 98,
+        'viewState' => 'NOT_VISIBLE',
+        'editState' => 'EDIT',
+    ], $payload);
+    $created[] = $root['id'];
+
+    $child = $service->addBizDict([
+        'parentId' => $root['id'],
+        'dictLabel' => $prefix . '_CHILD',
+        'dictValue' => $prefix . '_CHILD_VALUE',
+        'category' => 'BIZ',
+        'sortCode' => 99,
+        'viewState' => 'NOT_VISIBLE',
+        'editState' => 'EDIT',
+    ], $payload);
+    $created[] = $child['id'];
+
+    $edited = $service->editBizDict([
+        'id' => $child['id'],
+        'parentId' => $root['id'],
+        'dictLabel' => $prefix . '_CHILD_DEV_EDIT',
+        'dictValue' => $prefix . '_CHILD_DEV_VALUE',
+        'category' => 'BIZ',
+        'sortCode' => 97,
+        'viewState' => 'NOT_VISIBLE',
+        'editState' => 'EDIT',
+    ], $payload);
+    if ($edited['dictValue'] !== $prefix . '_CHILD_DEV_VALUE') {
+        throw new RuntimeException('dev edit did not update dictValue');
+    }
+
+    $bizEdited = $service->editBizDictBusiness([
+        'id' => $child['id'],
+        'parentId' => '0',
+        'dictLabel' => $prefix . '_CHILD_BIZ_EDIT',
+        'dictValue' => $prefix . '_SHOULD_NOT_WRITE',
+        'sortCode' => 96,
+    ], $payload);
+    if ($bizEdited['parentId'] !== $root['id']) {
+        throw new RuntimeException('biz edit changed parentId');
+    }
+    if ($bizEdited['dictValue'] !== $prefix . '_CHILD_DEV_VALUE') {
+        throw new RuntimeException('biz edit changed dictValue');
+    }
+
+    $deleted = $service->deleteBizDicts([$root['id']], $payload);
+    if (!in_array($child['id'], $deleted['ids'], true)) {
+        throw new RuntimeException('delete did not include child id');
+    }
+    $remaining = think\facade\Db::name('dev_dict')
+        ->whereIn('ID', [$root['id'], $child['id']])
+        ->where('DELETE_FLAG', 'NOT_DELETE')
+        ->count();
+    if ($remaining !== 0) {
+        throw new RuntimeException('soft delete did not mark all smoke rows');
+    }
+
+    echo "Biz dictionary write checks passed\n";
+} finally {
+    if ($created !== []) {
+        think\facade\Db::name('dev_dict')->whereIn('ID', $created)->delete();
+    }
+}
+'@
+
+    $output = $probe | & php 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "php Biz dictionary write probe failed: $output"
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Write-Host '[test-agent-db] db smoke run completed'

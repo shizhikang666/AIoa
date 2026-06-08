@@ -1,17 +1,22 @@
-# Dev Dict Read-Only Compatibility
+# Dev Dict Compatibility
 
 Date: 2026-05-29
 
-Agent: merge-agent
+Updated: 2026-06-08
+
+Agent: merge-agent, api-agent
 
 ## Scope
 
-This slice adds read-only compatibility for old Java OA dictionary APIs:
+This document records compatibility for old Java OA dictionary APIs:
 
 - `/dev/dict/page`
 - `/dev/dict/list`
 - `/dev/dict/tree`
 - `/dev/dict/detail`
+- `/dev/dict/add`
+- `/dev/dict/edit`
+- `/dev/dict/delete`
 
 All routes are protected by `AuthMiddleware`.
 
@@ -28,13 +33,20 @@ The old frontend loads `/dev/dict/tree` after login and stores the response as `
 - `page`, `list`, and `tree` support `category`, `parentId`, and `searchKey` filters.
 - Tenant visibility follows the Java read pattern for page/tree compatibility: system dictionaries with `CATEGORY = FRM` plus rows for the current token tenant.
 - Pagination supports `current`, `page`, `pageNo`, `size`, `limit`, and `pageSize`.
+- Write routes are currently limited to `CATEGORY = BIZ`, which covers the copied business-dictionary maintenance page that posts through `/dev/dict/add`, `/dev/dict/edit`, and `/dev/dict/delete`.
+- `add` requires `dictLabel`, `dictValue`, and numeric `sortCode`; it defaults empty `parentId` to `0`, writes current tenant/audit fields, and stores optional `viewState`, `editState`, and `extJson`.
+- `edit` supports business maintenance fields including `parentId`, `dictLabel`, `dictValue`, `sortCode`, `viewState`, `editState`, and `extJson`.
+- `delete` soft-deletes selected BIZ rows and active BIZ descendants by setting `DELETE_FLAG = DELETED`.
+- Write routes require an admin-compatible role or the matching route permission code in the token payload.
+- Parent changes reject self-parenting and moving a node under one of its active descendants.
+- Delete recursion and the final update are tenant-bound to the selected BIZ rows.
 
 ## Deferred
 
 The following Java endpoints remain intentionally deferred:
 
-- dictionary add/edit/delete
 - translation cache refresh behavior
 - cross-tenant dictionary administration policy
+- FRM/system dictionary write management
 
 No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.

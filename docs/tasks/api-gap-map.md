@@ -83,7 +83,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/org` | `detail`, `list`, `orgTreeSelector`, `page`, `tree`, `userSelector`, `add`, `edit`, and `delete` |
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector`, `disableUser`, `enableUser`, `export`, and `exportUserInfo` |
 | `biz/position` | `detail`, `list`, `orgTreeSelector`, `page`, `positionSelector`, `add`, `edit`, and `delete` |
-| `biz/dict` | `page`, `tree`, `treeAll`, and `edit` covered; add/delete remain deferred |
+| `biz/dict` | `page`, `tree`, `treeAll`, and Java-compatible `edit` covered; business add/delete remain intentionally absent like Java |
 | `biz/process` | Read aliases added for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and `query/list`; write/start/cancel routes remain deferred |
 | `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
 | `biz/bizuservacation` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
@@ -118,7 +118,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleprojectproductitem` | Add/edit/delete, delivery/invoice/stock side effects | Product item `mark/edit` is covered |
 | `biz/customer` | SM4 plaintext search, file upload/storage, and related side effects | Customer base add/edit/delete and `head/edit` are covered |
 | `biz/customerfollowup` | Attachment upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file side effects remain deferred |
-| `biz/org`, `biz/user`, `biz/position`, `biz/dict` | user import, real Office export rendering, resource/permission grants, dictionary add/delete | `/biz/org/add`, `/biz/org/edit`, `/biz/org/delete`, `/biz/position/add`, `/biz/position/edit`, `/biz/position/delete`, `/biz/user/add`, `/biz/user/edit`, `/biz/user/center/edit`, `/biz/user/delete`, `/biz/user/grantRole`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/biz/user/resetPassword`, `/biz/user/export`, `/biz/user/exportUserInfo`, and `/biz/dict/edit` are covered; user import, real `.xlsx`/`.docx` rendering, and dictionary add/delete remain deferred |
+| `biz/org`, `biz/user`, `biz/position`, `biz/dict` | user import, real Office export rendering, resource/permission grants, business dictionary add/delete | `/biz/org/add`, `/biz/org/edit`, `/biz/org/delete`, `/biz/position/add`, `/biz/position/edit`, `/biz/position/delete`, `/biz/user/add`, `/biz/user/edit`, `/biz/user/center/edit`, `/biz/user/delete`, `/biz/user/grantRole`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/biz/user/resetPassword`, `/biz/user/export`, `/biz/user/exportUserInfo`, and `/biz/dict/edit` are covered; `/dev/dict/add|edit|delete` cover BIZ maintenance; user import, real `.xlsx`/`.docx` rendering, and business dictionary add/delete remain deferred |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
 | `dev/file` | `upload*`, `delete` | Storage provider, file persistence, and cleanup strategy |
