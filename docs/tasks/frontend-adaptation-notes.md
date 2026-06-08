@@ -1662,3 +1662,33 @@ This slice supports copied system and business user download actions:
 ### Deferred
 
 - `POST /sys/user/import`, real `.xlsx` generation, real `.docx` rendering, upload/storage behavior, route-permission middleware, Java data-change events, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-08 Team Project Base Add Edit Delete Compatibility
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports copied team-project project-card and project-detail maintenance calls:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/index.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/form.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/index.vue`
+
+### Result
+
+- `/biz/bizteamproject/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamproject/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamproject/delete` is now routed as a protected POST endpoint.
+- Add accepts the copied form payload `name` and `description`.
+- Add creates the current user as project owner and inserts a `LEADER` row in `biz_team_project_user`.
+- Add syncs `biz_relation.CATEGORY = TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` with Java leader permission codes.
+- Edit accepts `id`, `name`, `description`, `projectStatus`, and `completionTime`, then increments `VERSION`.
+- Edit/delete require existing `delProject` team-project permission.
+- Delete accepts copied frontend batch payloads such as `[{ id }]` and logically deletes project plus active member rows.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Member role edit, notification push, Java data-change events, Java physical delete behavior, relation cleanup policy, and unrelated task/comment/workflow side effects remain out of scope.

@@ -9,7 +9,8 @@ param(
     [switch]$DevJobHttpSmoke,
     [switch]$GenConfigHttpSmoke,
     [switch]$SaleProjectInvoicingHttpSmoke,
-    [switch]$FileRelationHttpSmoke
+    [switch]$FileRelationHttpSmoke,
+    [switch]$TeamProjectHttpSmoke
 )
 
 Set-StrictMode -Version Latest
@@ -149,6 +150,9 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'dev/job/delete',
         'gen/config/editBatch',
         'biz/saleprojectinvoicing/complete',
+        'biz/bizteamproject/add',
+        'biz/bizteamproject/edit',
+        'biz/bizteamproject/delete',
         'biz/dict/page',
         'biz/org/page',
         'biz/user/page',
@@ -1162,6 +1166,107 @@ if (`$fileId !== '') {
                 if (Test-Path -LiteralPath $path) {
                     Remove-Item -LiteralPath $path -Force
                 }
+            }
+        }
+    }
+}
+
+if ($TeamProjectHttpSmoke) {
+    Invoke-TestStep 'authenticated team project base write HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -TeamProjectHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -TeamProjectHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_TEAM_PROJECT_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_TP_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $projectId = ''
+
+        try {
+            $body = @{ name = 'CODEX_HTTP_TP'; description = ($prefix + '_ADD') } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $addRaw = & curl.exe -sS -X POST "$base/biz/bizteamproject/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'team project add request failed'
+            }
+            $add = $addRaw | ConvertFrom-Json
+            if ([int]$add.code -ne 200 -or -not $add.data.id) {
+                throw "unexpected team project add response: $addRaw"
+            }
+            $projectId = [string]$add.data.id
+
+            $createdState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$p = think\facade\Db::name('biz_team_project')->where('ID', '$projectId')->find(); `$m = think\facade\Db::name('biz_team_project_user')->where('TEAM_PROJECT_ID', '$projectId')->where('ROLE_TYPE', 'LEADER')->find(); `$r = think\facade\Db::name('biz_relation')->where('OBJECT_ID', '$projectId')->where('CATEGORY', 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION')->find(); echo (string)`$p['DESCRIPTION'] . ':' . (string)`$m['ROLE_TYPE'] . ':' . (string)(str_contains((string)`$r['EXT_JSON'], 'delProject') ? 'PERM' : 'NOPERM');"
+            if ([string]$createdState -ne "$($prefix)_ADD:LEADER:PERM") {
+                throw "team project add did not create expected rows: $createdState"
+            }
+
+            $body = @{ id = $projectId; description = ($prefix + '_EDIT'); projectStatus = 'COMPLETE'; completionTime = '2026-06-08 10:00:00' } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editRaw = & curl.exe -sS -X POST "$base/biz/bizteamproject/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'team project edit request failed'
+            }
+            $edit = $editRaw | ConvertFrom-Json
+            if ([int]$edit.code -ne 200) {
+                throw "unexpected team project edit response: $editRaw"
+            }
+
+            $editedState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$p = think\facade\Db::name('biz_team_project')->where('ID', '$projectId')->find(); echo (string)`$p['DESCRIPTION'] . ':' . (string)`$p['PROJECT_STATUS'] . ':' . (int)`$p['VERSION'];"
+            $editedParts = ([string]$editedState).Split(':')
+            if ($editedParts.Length -ne 3 -or $editedParts[0] -ne "$($prefix)_EDIT" -or $editedParts[1] -ne 'COMPLETE' -or [int]$editedParts[2] -lt 1) {
+                throw "team project edit did not update expected fields: $editedState"
+            }
+
+            $body = @(@{ id = $projectId }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/biz/bizteamproject/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'team project delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200) {
+                throw "unexpected team project delete response: $deleteRaw"
+            }
+
+            $deleteState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('biz_team_project')->where('ID', '$projectId')->value('DELETE_FLAG') . ':' . (string)think\facade\Db::name('biz_team_project_user')->where('TEAM_PROJECT_ID', '$projectId')->value('DELETE_FLAG');"
+            if ([string]$deleteState -ne 'DELETED:DELETED') {
+                throw "team project delete did not soft-delete expected rows: $deleteState"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$projectId = '$projectId';
+if (`$projectId !== '') {
+    think\facade\Db::name('biz_team_project_user')->where('TEAM_PROJECT_ID', `$projectId)->delete();
+    think\facade\Db::name('biz_relation')->where('OBJECT_ID', `$projectId)->where('CATEGORY', 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION')->delete();
+    think\facade\Db::name('biz_team_project')->where('ID', `$projectId)->delete();
+}
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
             }
         }
     }

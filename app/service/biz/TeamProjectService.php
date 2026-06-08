@@ -130,6 +130,129 @@ SQL;
         ];
     }
 
+    public function projectAdd(array $input, array $payload = []): array
+    {
+        $name = $this->requiredInput($input, 'name');
+        $description = array_key_exists('description', $input) ? (string)$input['description'] : null;
+
+        return Db::transaction(function () use ($name, $description, $payload): array {
+            $projectId = $this->newId();
+            $memberId = $this->newId();
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            $tenantId = $this->tenantIdFromProject($payload, []);
+
+            Db::name('biz_team_project')->insert([
+                'ID' => $projectId,
+                'NAME' => $name,
+                'DESCRIPTION' => $description,
+                'PROJECT_STATUS' => null,
+                'COMPLETION_TIME' => null,
+                'USER' => $currentUserId,
+                'ORG' => $this->currentOrgId($payload, $currentUserId),
+                'VERSION' => 0,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $currentUserId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId,
+            ]);
+
+            Db::name('biz_team_project_user')->insert([
+                'ID' => $memberId,
+                'TEAM_PROJECT_ID' => $projectId,
+                'USER_ID' => $currentUserId,
+                'ROLE_TYPE' => 'LEADER',
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $currentUserId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId,
+            ]);
+            $this->syncMemberRelation($projectId, $currentUserId, 'LEADER', $tenantId);
+
+            return ['id' => $projectId, 'memberId' => $memberId];
+        });
+    }
+
+    public function projectEdit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $this->assertProjectPermission($id, $payload, 'delProject', 'edit team project');
+
+            $updates = [];
+            if (array_key_exists('name', $input)) {
+                $name = trim((string)$input['name']);
+                if ($name === '') {
+                    throw new RuntimeException('missing name', 400);
+                }
+                $updates['NAME'] = $name;
+            }
+            if (array_key_exists('description', $input)) {
+                $updates['DESCRIPTION'] = (string)$input['description'];
+            }
+            if (array_key_exists('projectStatus', $input)) {
+                $updates['PROJECT_STATUS'] = trim((string)$input['projectStatus']) !== '' ? trim((string)$input['projectStatus']) : null;
+            }
+            if (array_key_exists('completionTime', $input)) {
+                $completionTime = trim((string)$input['completionTime']);
+                $updates['COMPLETION_TIME'] = $completionTime !== '' ? $completionTime : null;
+            }
+
+            if ($updates === []) {
+                return ['id' => $id, 'count' => 0];
+            }
+
+            $updates['UPDATE_TIME'] = date('Y-m-d H:i:s');
+            $updates['UPDATE_USER'] = $this->currentUserId($payload);
+            $updates['VERSION'] = Db::raw('VERSION + 1');
+
+            $query = Db::name('biz_team_project')->where('ID', $id);
+            $this->whereNotDeleted($query, 'DELETE_FLAG');
+            $affected = $query->update($updates);
+
+            return ['id' => $id, 'count' => $affected];
+        });
+    }
+
+    public function projectDelete(array $input, array $payload = []): array
+    {
+        $ids = $this->idList($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            $affected = 0;
+
+            foreach ($ids as $id) {
+                $this->assertProjectPermission($id, $payload, 'delProject', 'delete team project');
+
+                $query = Db::name('biz_team_project')->where('ID', $id);
+                $this->whereNotDeleted($query, 'DELETE_FLAG');
+                $affected += $query->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId,
+                    'VERSION' => Db::raw('VERSION + 1'),
+                ]);
+
+                $memberQuery = Db::name('biz_team_project_user')->where('TEAM_PROJECT_ID', $id);
+                $this->whereNotDeleted($memberQuery, 'DELETE_FLAG');
+                $memberQuery->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId,
+                ]);
+            }
+
+            return ['ids' => $ids, 'count' => $affected];
+        });
+    }
+
     public function memberPage(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
@@ -653,6 +776,18 @@ SQL;
         $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? $project['TENANT_ID'] ?? ''));
 
         return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function currentOrgId(array $payload, string $userId): ?string
+    {
+        $orgId = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($orgId !== '') {
+            return $orgId;
+        }
+
+        $orgId = trim((string)Db::name('sys_user')->where('ID', $userId)->value('ORG_ID'));
+
+        return $orgId !== '' ? $orgId : null;
     }
 
     private function whereNotDeleted($query, string $column): void

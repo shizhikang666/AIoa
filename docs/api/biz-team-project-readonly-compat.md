@@ -30,6 +30,9 @@ All routes are protected by `AuthMiddleware`.
 | Method | Path | Notes |
 | --- | --- | --- |
 | GET | `/biz/bizteamproject/page` | Paginated current-member project cards. |
+| POST | `/biz/bizteamproject/add` | Create a project, set current user as owner, create `LEADER` member, and sync project permission relation. |
+| POST | `/biz/bizteamproject/edit` | Update base project fields after `delProject` permission check. |
+| POST | `/biz/bizteamproject/delete` | Logically delete projects and active member rows after `delProject` permission check. |
 | GET | `/biz/bizteamproject/detail` | Project detail plus current member role. |
 | GET | `/biz/bizteamprojectuser/page` | Paginated team-member list. |
 | GET | `/biz/bizteamprojectuser/list` | Non-paginated members for a project. |
@@ -40,11 +43,8 @@ All routes are protected by `AuthMiddleware`.
 
 ## Explicitly Deferred Routes
 
-These Java/frontend routes are not implemented in this slice because they mutate team projects, team members, role permissions, or data-change events:
+This Java/frontend route is still not implemented because project-member role editing needs a separate permission and data-change plan:
 
-- `POST /biz/bizteamproject/add`
-- `POST /biz/bizteamproject/edit`
-- `POST /biz/bizteamproject/delete`
 - `POST /biz/bizteamprojectuser/edit`
 
 ## Query Compatibility
@@ -103,11 +103,33 @@ Member rows return:
 - `roleType`, `roleName`, `permissionCode`
 - `deleteFlag`, `createTime`, `createUser`, `updateTime`, `updateUser`, `tenantId`
 
+## Write Compatibility
+
+Project add accepts:
+
+- `name` (required)
+- `description`
+
+It mirrors Java's `BIZ_TEAM_PROJECT` add event by creating a `biz_team_project_user` row for the current user with `ROLE_TYPE = LEADER`, then syncing `biz_relation.CATEGORY = TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` with the Java leader permission codes. The frontend `users` selector is currently commented out, and the Java add service does not persist submitted `users` directly; adding other members remains covered through `/biz/bizteamprojectuser/add` and `/manage/add`.
+
+Project edit accepts:
+
+- `id` (required)
+- `name`
+- `description`
+- `projectStatus`
+- `completionTime`
+
+Project delete accepts Java-style `[{ id }]` arrays plus existing compatible `idList`, `ids`, or single `id` payloads.
+
 ## Notes
 
 - Java project page joins `biz_team_project_user` and only lists projects that include the current login user. This ThinkPHP query preserves that gate.
 - Java project detail loads the current user's `BizTeamProjectUser` record and returns it as `user`; this slice mirrors that shape.
 - Role permission codes are mapped from Java `BizTeamProjectUserRoleEnum`.
+- Project add/edit/delete are opened for copied frontend project-card and project-detail maintenance flows.
+- Project base maintenance uses existing `delProject` resource permission semantics for edit/delete.
 - Member add/manage-add writes `biz_team_project_user` rows and keeps `biz_relation.CATEGORY = TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` JSON compatible with Java role defaults.
 - Member delete uses logical deletion through `DELETE_FLAG = DELETED` instead of Java's physical remove, and it rejects leader/current-user removal.
+- Project delete also uses logical deletion and marks active project members deleted; the permission relation row is retained until cleanup or later relation-maintenance work.
 - This slice does not modify Java source, database schema, Composer files, `.env`, notification push, data-change events, or frontend source.

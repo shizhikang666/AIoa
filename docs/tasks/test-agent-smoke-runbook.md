@@ -60,6 +60,7 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - `SaleProjectBillingService` invoicing complete behavior, tenant-scoped row lookup, idempotent state update, and cross-tenant rejection
 - local file upload plus `BizFileRelationService` add/list/edit/delete behavior
 - file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
+- `TeamProjectService` base add/edit/delete behavior, automatic current-user `LEADER` member creation, project permission relation sync, version increment, and project/member logical delete
 
 ## Optional Backend No-Token Smoke
 
@@ -151,6 +152,16 @@ Start the ThinkPHP server separately, then run:
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, uploads a temporary local file, calls `/biz/bizfilerelation/add` with JSON, verifies the relation row, calls `/biz/bizfilerelation/projectCase/del`, and cleans up the temporary database and disk rows. It does not print tokens or local credentials.
 
+## Optional Team Project HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -TeamProjectHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/biz/bizteamproject/add`, verifies the created project, current-user `LEADER` member, and `TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` relation, calls `/biz/bizteamproject/edit`, verifies base field updates and version increment, calls `/biz/bizteamproject/delete`, verifies project/member logical delete, and cleans up temporary rows. It does not print tokens or local credentials.
+
 ## Local Runtime Services
 
 Use the user-provided local service bundle before DB-backed smoke tests:
@@ -206,4 +217,5 @@ Add these only when a backend and frontend browser session are already available
 - optional gen-config HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -GenConfigHttpSmoke`
 - optional sale-project invoicing HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SaleProjectInvoicingHttpSmoke`
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
+- optional team-project base HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -TeamProjectHttpSmoke`
 - browser smoke through the copied Vue frontend for affected visible pages, including dev config "other config" maintenance when `/dev/config/add|edit|delete` changes

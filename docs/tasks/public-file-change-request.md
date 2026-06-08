@@ -4088,3 +4088,40 @@ The copied Vue sale-project invoicing page calls Java-style `/biz/saleprojectinv
 - Requests without token should return business `code=401`.
 - DB smoke should insert temporary project and invoicing rows, complete the current-tenant row, verify idempotent state update, verify cross-tenant rejection, and clean temporary rows.
 - Authenticated HTTP smoke should cover cross-tenant rejection and successful complete with `data = null`.
+
+---
+
+# Public File Change Request: Team Project Base Maintenance Routes
+
+## Request
+
+Register the protected team-project base maintenance routes in `route/app.php`.
+
+## Reason
+
+The copied Vue team-project list and detail pages call Java-style `/biz/bizteamproject/add`, `/edit`, and `/delete` when users create a project card, edit the project description, or delete a project. Existing ThinkPHP routes already cover project/member reads and later member/task/comment writes, so this slice opens the narrow project-row maintenance entry points.
+
+## Applied Change
+
+`api-agent/test-agent` registers the following protected POST routes:
+
+- `POST /biz/bizteamproject/add`
+- `POST /biz/bizteamproject/edit`
+- `POST /biz/bizteamproject/delete`
+
+## Guardrails
+
+- The routes remain behind `AuthMiddleware`.
+- Add requires `name`; `description` is optional.
+- Add writes `biz_team_project`, creates the current user as `LEADER` in `biz_team_project_user`, and syncs `biz_relation.CATEGORY = TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION`.
+- Edit writes only base Java project fields: `name`, `description`, `projectStatus`, and `completionTime`, plus audit fields and `VERSION + 1`.
+- Edit and delete require the current user's imported `delProject` permission.
+- Delete accepts Java-style array payloads such as `[{ "id": "..." }]` and logically deletes project rows plus active member rows.
+- No Java source, database schema, Composer, `.env`, frontend source, notification push, data-change events, Java physical delete behavior, or unrelated task/comment/workflow side effects are changed.
+
+## Verification
+
+- `php think route:list` must list `POST /biz/bizteamproject/add`, `/edit`, and `/delete`.
+- Requests without token should return business `code=401`.
+- DB smoke should create a temporary project, verify current-user leader membership and permission relation, edit fields with version increment, delete project/member rows logically, and clean temporary rows.
+- Authenticated HTTP smoke should cover add, edit, delete, database back-checks, and cleanup through `-TeamProjectHttpSmoke`.

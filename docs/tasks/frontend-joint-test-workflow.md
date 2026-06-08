@@ -173,6 +173,26 @@ Not verified:
 
 - Rich-text image upload was not browser-smoked because the currently tested visible pages do not expose a TinyMCE image-upload control. When a rich-text page is exposed, smoke the TinyMCE image button against `/dev/file/uploadDynamicReturnUrl`.
 
+## Team Project Base HTTP Smoke, 2026-06-08
+
+Verified after `/biz/bizteamproject/add`, `/edit`, and `/delete` compatibility was added:
+
+- Backend: `http://127.0.0.1:82`
+- Command: `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -TeamProjectHttpSmoke`
+- Add posted JSON to `/biz/bizteamproject/add`, returned `code=200`, and created a temporary project.
+- Database back-check confirmed the current token user became `LEADER` in `biz_team_project_user`.
+- Database back-check confirmed `biz_relation.CATEGORY = TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` includes `delProject`.
+- Edit posted JSON to `/biz/bizteamproject/edit`, returned `code=200`, updated description/status, and incremented `VERSION`.
+- Delete posted Java-style `[{ id }]` JSON to `/biz/bizteamproject/delete`, returned `code=200`, and marked project/member rows `DELETED`.
+
+Cleanup:
+
+- Temporary `biz_team_project_user`, `biz_relation`, and `biz_team_project` rows were deleted.
+
+Not verified:
+
+- The visible Vue team-project page button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied page.
+
 ## Browser Dev File Delete Smoke, 2026-06-08
 
 Verified after `/dev/file/delete` compatibility was added:

@@ -368,6 +368,9 @@ Route::group('biz/bizhistoryexcel', function () {
 
 Route::group('biz/bizteamproject', function () {
     Route::get('page', 'biz.TeamProjectController/page');
+    Route::post('add', 'biz.TeamProjectController/add');
+    Route::post('edit', 'biz.TeamProjectController/edit');
+    Route::post('delete', 'biz.TeamProjectController/delete');
     Route::get('detail', 'biz.TeamProjectController/detail');
 })->middleware(AuthMiddleware::class);
 

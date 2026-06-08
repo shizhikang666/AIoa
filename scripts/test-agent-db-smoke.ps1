@@ -88,6 +88,7 @@ $dbPass = Get-EnvValue -EnvMap $localEnv -Key 'DB_PASS' -Default ''
 $redisHost = Get-EnvValue -EnvMap $localEnv -Key 'REDIS_HOST' -Default '127.0.0.1'
 $redisPort = Get-EnvValue -EnvMap $localEnv -Key 'REDIS_PORT' -Default '6379'
 $redisPass = Get-EnvValue -EnvMap $localEnv -Key 'REDIS_PASSWD' -Default (Get-EnvValue -EnvMap $localEnv -Key 'REDIS_PASSWORD' -Default '')
+$localSmokeAccount = Get-EnvValue -EnvMap $localEnv -Key 'LOCAL_SUPER_ADMIN_ACCOUNT' -Default 'bizAdmin'
 
 if ($dbName -eq '') {
     throw 'DB_NAME is required in .env'
@@ -1601,6 +1602,99 @@ try {
     $output = $probe | & php 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "php Biz dictionary write probe failed: $output"
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
+Invoke-TestStep 'TeamProjectService base write compatibility' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '__LOCAL_SMOKE_ACCOUNT__')->find();
+if (!is_array($user) || $user === []) {
+    throw new RuntimeException('local smoke account not found');
+}
+
+$payload = [
+    'user_id' => (string)$user['ID'],
+    'tenant_id' => (string)$user['TENANT_ID'],
+    'org_id' => $user['ORG_ID'] ?? null,
+];
+$service = new app\service\biz\TeamProjectService();
+$projectId = null;
+
+try {
+    $created = $service->projectAdd([
+        'name' => 'CODEX_TP_SMOKE',
+        'description' => 'codex add smoke',
+    ], $payload);
+    $projectId = (string)$created['id'];
+
+    $detail = $service->projectDetail($projectId, $payload);
+    if (($detail['project']['name'] ?? '') !== 'CODEX_TP_SMOKE') {
+        throw new RuntimeException('project add detail name mismatch');
+    }
+    if (($detail['user']['roleType'] ?? '') !== 'LEADER') {
+        throw new RuntimeException('project add did not create leader member');
+    }
+
+    $relation = think\facade\Db::name('biz_relation')
+        ->where('OBJECT_ID', $projectId)
+        ->where('TARGET_ID', (string)$user['ID'])
+        ->where('CATEGORY', 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION')
+        ->find();
+    if (!is_array($relation) || $relation === []) {
+        throw new RuntimeException('leader permission relation was not created');
+    }
+    $permissionCodes = json_decode((string)$relation['EXT_JSON'], true);
+    if (!is_array($permissionCodes) || !in_array('delProject', $permissionCodes, true)) {
+        throw new RuntimeException('leader relation missing delProject permission');
+    }
+
+    $service->projectEdit([
+        'id' => $projectId,
+        'description' => 'codex edited smoke',
+        'projectStatus' => 'COMPLETE',
+        'completionTime' => '2026-06-08 10:00:00',
+    ], $payload);
+    $edited = think\facade\Db::name('biz_team_project')->where('ID', $projectId)->find();
+    if (($edited['DESCRIPTION'] ?? '') !== 'codex edited smoke' || ($edited['PROJECT_STATUS'] ?? '') !== 'COMPLETE') {
+        throw new RuntimeException('project edit did not persist expected fields');
+    }
+    if ((int)($edited['VERSION'] ?? 0) < 1) {
+        throw new RuntimeException('project edit did not increment version');
+    }
+
+    $service->projectDelete([['id' => $projectId]], $payload);
+    $projectFlag = (string)think\facade\Db::name('biz_team_project')->where('ID', $projectId)->value('DELETE_FLAG');
+    $memberFlag = (string)think\facade\Db::name('biz_team_project_user')->where('TEAM_PROJECT_ID', $projectId)->value('DELETE_FLAG');
+    if ($projectFlag !== 'DELETED' || $memberFlag !== 'DELETED') {
+        throw new RuntimeException('project delete did not soft-delete project and leader member');
+    }
+
+    echo "Team project base write checks passed\n";
+} finally {
+    if ($projectId !== null) {
+        think\facade\Db::name('biz_team_project_user')->where('TEAM_PROJECT_ID', $projectId)->delete();
+        think\facade\Db::name('biz_relation')
+            ->where('OBJECT_ID', $projectId)
+            ->where('CATEGORY', 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION')
+            ->delete();
+        think\facade\Db::name('biz_team_project')->where('ID', $projectId)->delete();
+    }
+}
+'@
+
+    $probe = $probe.Replace('__LOCAL_SMOKE_ACCOUNT__', $localSmokeAccount.Replace("'", "\'"))
+
+    $output = $probe | & php 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "php TeamProjectService base write probe failed: $output"
     }
 
     Write-Host ([string]($output | Out-String)).Trim()
