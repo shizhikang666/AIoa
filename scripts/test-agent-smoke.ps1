@@ -4,6 +4,7 @@ param(
     [switch]$NoTokenSmoke,
     [switch]$DevFileHttpSmoke,
     [switch]$DevEmailSmsHttpSmoke,
+    [switch]$DevConfigHttpSmoke,
     [switch]$FileRelationHttpSmoke
 )
 
@@ -137,6 +138,9 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'dev/file/delete',
         'dev/email/delete',
         'dev/sms/delete',
+        'dev/config/add',
+        'dev/config/edit',
+        'dev/config/delete',
         'biz/dict/page',
         'biz/org/page',
         'biz/user/page',
@@ -456,6 +460,131 @@ think\facade\Db::name('dev_sms')->where('ID', '$smsId')->delete();
                 if (Test-Path -LiteralPath $path) {
                     Remove-Item -LiteralPath $path -Force
                 }
+            }
+        }
+    }
+}
+
+if ($DevConfigHttpSmoke) {
+    Invoke-TestStep 'authenticated dev config HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -DevConfigHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -DevConfigHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_DEV_CONFIG_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_CONFIG_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $configId = ''
+        $sysId = '60050000000000' + [string](Get-Random -Minimum 100000 -Maximum 999999)
+
+        try {
+            $body = @{ configKey = ($prefix + '_KEY'); configValue = 'value-a'; remark = 'codex http config smoke'; sortCode = 99 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $addRaw = & curl.exe -sS -X POST "$base/dev/config/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'config add request failed'
+            }
+            $add = $addRaw | ConvertFrom-Json
+            if ([int]$add.code -ne 200 -or $null -ne $add.data) {
+                throw "unexpected config add response: $addRaw"
+            }
+            $configId = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_config')->where('CONFIG_KEY', '$($prefix)_KEY')->where('CATEGORY', 'BIZ_DEFINE')->where('DELETE_FLAG', 'NOT_DELETE')->value('ID');"
+            if ([string]::IsNullOrWhiteSpace($configId)) {
+                throw 'config row not found after HTTP add'
+            }
+
+            $body = @{ id = $configId; configKey = ($prefix + '_KEY_EDITED'); configValue = 'value-b'; remark = 'codex http config smoke edited'; sortCode = 88 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editRaw = & curl.exe -sS -X POST "$base/dev/config/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'config edit request failed'
+            }
+            $edit = $editRaw | ConvertFrom-Json
+            if ([int]$edit.code -ne 200 -or $null -ne $edit.data) {
+                throw "unexpected config edit response: $editRaw"
+            }
+            $editedValue = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_config')->where('ID', '$configId')->value('CONFIG_VALUE');"
+            if ([string]$editedValue -ne 'value-b') {
+                throw 'config edit did not update value'
+            }
+
+            $badBody = @(@{ id = $configId }, @{ id = '' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $badBody -Encoding ASCII
+            $badDeleteRaw = & curl.exe -sS -X POST "$base/dev/config/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'bad config delete request failed'
+            }
+            $badDelete = $badDeleteRaw | ConvertFrom-Json
+            if ([int]$badDelete.code -eq 200) {
+                throw "bad config delete payload should fail: $badDeleteRaw"
+            }
+            $deleteFlag = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_config')->where('ID', '$configId')->value('DELETE_FLAG');"
+            if ([string]$deleteFlag -ne 'NOT_DELETE') {
+                throw 'bad config delete payload should not partially delete valid ids'
+            }
+
+            & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); think\facade\Db::name('dev_config')->insert(['ID' => '$sysId', 'CONFIG_KEY' => '$($prefix)_SYS', 'CONFIG_VALUE' => 'sys', 'CATEGORY' => 'SYS_BASE', 'SORT_CODE' => 1, 'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke']);" | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to insert temporary system config row'
+            }
+            $body = @(@{ id = $sysId }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $sysDeleteRaw = & curl.exe -sS -X POST "$base/dev/config/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'system config delete request failed'
+            }
+            $sysDelete = $sysDeleteRaw | ConvertFrom-Json
+            if ([int]$sysDelete.code -eq 200) {
+                throw "system config delete should fail: $sysDeleteRaw"
+            }
+
+            $body = @(@{ id = $configId }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/dev/config/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'config delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200 -or $null -ne $delete.data) {
+                throw "unexpected config delete response: $deleteRaw"
+            }
+            $deleteFlag = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_config')->where('ID', '$configId')->value('DELETE_FLAG');"
+            if ([string]$deleteFlag -ne 'DELETED') {
+                throw 'config delete did not mark row deleted'
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$configId = '$configId';
+`$sysId = '$sysId';
+if (`$configId !== '') { think\facade\Db::name('dev_config')->where('ID', `$configId)->delete(); }
+if (`$sysId !== '') { think\facade\Db::name('dev_config')->where('ID', `$sysId)->delete(); }
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
             }
         }
     }

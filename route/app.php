@@ -202,6 +202,9 @@ Route::group('dev/config', function () {
     Route::get('page', 'dev.ConfigController/page');
     Route::get('list', 'dev.ConfigController/list');
     Route::get('detail', 'dev.ConfigController/detail');
+    Route::post('add', 'dev.ConfigController/add');
+    Route::post('edit', 'dev.ConfigController/edit');
+    Route::post('delete', 'dev.ConfigController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::get('dev/file/download', 'dev.FileController/download');

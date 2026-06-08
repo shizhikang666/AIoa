@@ -3908,3 +3908,42 @@ The copied Vue business dictionary wrapper posts dictionary form edits to `/biz/
 
 - `php think route:list` must list `POST /biz/dict/edit`.
 - Direct service smoke should create temporary BIZ dictionary rows, edit one row, verify updated label/sort/operator metadata, verify duplicate label blocking, and physically remove only temporary smoke rows.
+
+---
+
+# Public File Change Request: Dev Config BIZ_DEFINE Maintenance Routes
+
+## Request
+
+Register protected dev config maintenance routes in `route/app.php`.
+
+## Reason
+
+The copied Vue "other config" page calls Java-style `/dev/config/add`, `/dev/config/edit`, and `/dev/config/delete` routes. Existing ThinkPHP config routes already cover read-only list/page/detail behavior, so this slice opens only narrow `BIZ_DEFINE` maintenance writes while keeping `SYS_BASE`, provider/system batch edits, and cache mutation deferred.
+
+## Applied Change
+
+`api-agent/test-agent` registers the following protected POST routes:
+
+- `POST /dev/config/add`
+- `POST /dev/config/edit`
+- `POST /dev/config/delete`
+
+## Guardrails
+
+- All three routes remain behind `AuthMiddleware`.
+- Add/edit/delete allow only active `BIZ_DEFINE` records.
+- `SYS_BASE` edit/delete is rejected.
+- Add/edit validate required `configKey`, `configValue`, and `sortCode`; active duplicate `configKey` values are rejected.
+- Sensitive values remain masked in returned rows, and edit preserves the existing stored secret when the frontend submits `******`.
+- Delete accepts Java-style array payloads, rejects malformed mixed payloads before any write, and marks rows with `DELETE_FLAG = DELETED`.
+- Add/edit/delete return Java-compatible success envelopes with `data = null`.
+- No Java source, database schema, Composer, `.env`, frontend source, Redis cache mutation, `editBatch`, provider credentials, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list all three routes.
+- Requests without token should return business `code=401`.
+- DB smoke should cover add/edit/delete, duplicate rejection, sensitive value preservation, `SYS_BASE` delete rejection, logical delete, and cleanup.
+- Authenticated HTTP smoke should cover good and malformed delete payloads.
+- Browser smoke should verify the copied `/dev/config` other-config tab can add, edit, delete, refresh the table, and clean temporary rows.

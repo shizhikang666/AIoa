@@ -588,6 +588,61 @@ try {
     }
 }
 
+Invoke-TestStep 'DevConfigService BIZ_DEFINE writes' {
+$probe = @'
+<?php
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+$service = new app\service\dev\ConfigService();
+$prefix = 'CODEX_CONFIG_' . date('YmdHis') . random_int(1000, 9999);
+$key = $prefix . '_KEY';
+$secretKey = $prefix . '_SECRET';
+$payload = ['user_id' => 'codex-config-smoke'];
+$created = [];
+$sysId = '600500000000000000' . random_int(10, 99);
+try {
+    $row = $service->add(['configKey' => $key, 'configValue' => 'value-a', 'remark' => 'codex config smoke', 'sortCode' => 99], $payload);
+    $id = (string)$row['id'];
+    $created[] = $id;
+    if ($row['category'] !== 'BIZ_DEFINE') { throw new RuntimeException('add should force BIZ_DEFINE'); }
+    $failed = false;
+    try { $service->add(['configKey' => $key, 'configValue' => 'value-b', 'sortCode' => 99], $payload); } catch (RuntimeException $exception) { $failed = $exception->getCode() === 400; }
+    if (!$failed) { throw new RuntimeException('duplicate config key should fail'); }
+    $edited = $service->edit(['id' => $id, 'configKey' => $key . '_EDITED', 'configValue' => 'value-c', 'remark' => 'edited', 'sortCode' => 88], $payload);
+    if ($edited['configKey'] !== $key . '_EDITED' || $edited['configValue'] !== 'value-c' || (int)$edited['sortCode'] !== 88) { throw new RuntimeException('edit failed'); }
+    $secret = $service->add(['configKey' => $secretKey, 'configValue' => 'secret-value', 'sortCode' => 77], $payload);
+    $secretId = (string)$secret['id'];
+    $created[] = $secretId;
+    if ($secret['configValue'] !== '******' || $secret['sensitive'] !== true) { throw new RuntimeException('sensitive add should mask value'); }
+    $service->edit(['id' => $secretId, 'configKey' => $secretKey, 'configValue' => '******', 'sortCode' => 76], $payload);
+    $storedSecret = (string)think\facade\Db::name('dev_config')->where('ID', $secretId)->value('CONFIG_VALUE');
+    if ($storedSecret !== 'secret-value') { throw new RuntimeException('masked edit should preserve stored secret'); }
+    think\facade\Db::name('dev_config')->insert(['ID' => $sysId, 'CONFIG_KEY' => $prefix . '_SYS', 'CONFIG_VALUE' => 'sys', 'CATEGORY' => 'SYS_BASE', 'SORT_CODE' => 1, 'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke']);
+    $failed = false;
+    try { $service->delete([$sysId], $payload); } catch (RuntimeException $exception) { $failed = $exception->getCode() === 400; }
+    if (!$failed) { throw new RuntimeException('sys config delete should fail'); }
+    $service->delete([$id, $secretId], $payload);
+    if ((int)$service->page(['searchKey' => $prefix])['total'] !== 0) { throw new RuntimeException('deleted configs should be hidden'); }
+    echo "DevConfigService BIZ_DEFINE write checks passed\n";
+} finally {
+    think\facade\Db::name('dev_config')->whereIn('ID', array_merge($created, [$sysId]))->delete();
+}
+'@
+    $tmpProbe = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-dev-config-write-{0}.php" -f ([Guid]::NewGuid().ToString('N')))
+    try {
+        [System.IO.File]::WriteAllText($tmpProbe, $probe, [System.Text.UTF8Encoding]::new($false))
+        $output = & php $tmpProbe 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php DevConfigService write probe failed: $output"
+        }
+        Write-Host ([string]($output | Out-String)).Trim()
+    } finally {
+        if (Test-Path -LiteralPath $tmpProbe) {
+            Remove-Item -LiteralPath $tmpProbe -Force
+        }
+    }
+}
+
 Invoke-TestStep 'BizFileRelationService writes' {
 $probe = @'
 <?php

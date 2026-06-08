@@ -202,6 +202,21 @@ Cleanup:
 
 - Temporary `CODEX_UI_NOTIFY_*` `dev_email` and `dev_sms` rows were removed.
 
+## Browser Dev Config Other Config Smoke, 2026-06-08
+
+Verified after `/dev/config/add`, `/dev/config/edit`, and `/dev/config/delete` compatibility was added:
+
+- Page path: `/dev/config`
+- Test setup used a short-lived local token and a minimal browser menu cache so the copied Vue route could load directly.
+- The "其他配置" tab loaded the copied `otherConfig` table through `GET /api/dev/config/page`.
+- The visible add drawer posted to `POST /api/dev/config/add`, returned `code=200` with `data = null`, refreshed the table, and showed the temporary `CODEX_UI_CONFIG_*` row.
+- The row edit drawer posted to `POST /api/dev/config/edit`, returned `code=200` with `data = null`, and the database value changed from `value-a` to `value-b`.
+- The row delete action posted to `POST /api/dev/config/delete`, returned `code=200` with `data = null`, and the temporary row reached `DELETE_FLAG = DELETED`.
+
+Cleanup:
+
+- Temporary `CODEX_UI_CONFIG_*` `dev_config` rows were removed after verification.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:
