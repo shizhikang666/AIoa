@@ -146,6 +146,33 @@ Run this checklist after frontend import and after every backend route slice tha
 | Write buttons and mutation flows | Either hidden by permission/deferred state or fail safely until implemented |
 | Browser console | No blocking runtime error on tested pages |
 
+## Browser Upload Smoke, 2026-06-08
+
+Coordinator plus sub-agent mode was used. Popper performed read-only frontend path discovery while the main session ran browser automation against the live local services.
+
+Runtime:
+
+- Backend: `http://127.0.0.1:82`
+- Frontend: `http://127.0.0.1:83`
+- Login credentials came from the ignored project `.env`.
+
+Verified:
+
+- Login reaches the main layout and menu.
+- Dev file page path is `/dev/file/index`; local upload from the visible "文件上传" button calls `POST /api/dev/file/uploadLocalReturnUrl`, returns `code=200`, refreshes `/api/dev/file/page`, and shows the temporary uploaded file.
+- Product page path is `/biz/bizproduct`; the "新增单品产品" form's `XnUpload` cover-image control calls `POST /api/dev/file/uploadDynamicReturnUrl`, returns `code=200`, and the image preview download calls `/api/dev/file/download?id=<id>`.
+- Business attachment smoke path is `/biz/saleproject/dealProjectList`; opening the first deal project, selecting the "项目附件" tab, and uploading a file calls `POST /api/dev/file/uploadLocalReturnFile`, then `POST /api/biz/bizfilerelation/add`, then refreshes `GET /api/biz/bizfilerelation/list?objectId=<projectId>&category=SALE_PROJECT`. The uploaded attachment appears in the tab list.
+
+Cleanup:
+
+- Temporary `CODEX_UI_*` `dev_file` rows were deleted.
+- The temporary business file relation row was deleted.
+- Temporary uploaded physical files under `runtime/upload/dev_file` were deleted.
+
+Not verified:
+
+- Rich-text image upload was not browser-smoked because the current authenticated menu does not expose `dev/email` or `exm/editor`, and direct routes `/dev/email` and `/exm/editor` return 404. When a rich-text page is exposed, smoke the TinyMCE image button against `/dev/file/uploadDynamicReturnUrl`.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:
