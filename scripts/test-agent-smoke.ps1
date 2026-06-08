@@ -153,6 +153,7 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'biz/bizteamproject/add',
         'biz/bizteamproject/edit',
         'biz/bizteamproject/delete',
+        'biz/bizteamprojectuser/edit',
         'biz/dict/page',
         'biz/org/page',
         'biz/user/page',
@@ -1202,6 +1203,7 @@ echo (new app\service\auth\TokenService())->create(`$user, `$auth);
         $prefix = 'CODEX_HTTP_TP_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
         $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
         $projectId = ''
+        $memberId = ''
 
         try {
             $body = @{ name = 'CODEX_HTTP_TP'; description = ($prefix + '_ADD') } | ConvertTo-Json -Compress
@@ -1216,9 +1218,26 @@ echo (new app\service\auth\TokenService())->create(`$user, `$auth);
             }
             $projectId = [string]$add.data.id
 
-            $createdState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$p = think\facade\Db::name('biz_team_project')->where('ID', '$projectId')->find(); `$m = think\facade\Db::name('biz_team_project_user')->where('TEAM_PROJECT_ID', '$projectId')->where('ROLE_TYPE', 'LEADER')->find(); `$r = think\facade\Db::name('biz_relation')->where('OBJECT_ID', '$projectId')->where('CATEGORY', 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION')->find(); echo (string)`$p['DESCRIPTION'] . ':' . (string)`$m['ROLE_TYPE'] . ':' . (string)(str_contains((string)`$r['EXT_JSON'], 'delProject') ? 'PERM' : 'NOPERM');"
-            if ([string]$createdState -ne "$($prefix)_ADD:LEADER:PERM") {
+            $createdState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$p = think\facade\Db::name('biz_team_project')->where('ID', '$projectId')->find(); `$m = think\facade\Db::name('biz_team_project_user')->where('TEAM_PROJECT_ID', '$projectId')->where('ROLE_TYPE', 'LEADER')->find(); `$r = think\facade\Db::name('biz_relation')->where('OBJECT_ID', '$projectId')->where('CATEGORY', 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION')->find(); echo (string)`$p['DESCRIPTION'] . ':' . (string)`$m['ROLE_TYPE'] . ':' . (string)(str_contains((string)`$r['EXT_JSON'], 'delProject') ? 'PERM' : 'NOPERM') . ':' . (string)`$m['ID'];"
+            $createdParts = ([string]$createdState).Split(':')
+            if ($createdParts.Length -ne 4 -or $createdParts[0] -ne "$($prefix)_ADD" -or $createdParts[1] -ne 'LEADER' -or $createdParts[2] -ne 'PERM' -or [string]::IsNullOrWhiteSpace($createdParts[3])) {
                 throw "team project add did not create expected rows: $createdState"
+            }
+            $memberId = $createdParts[3]
+
+            $body = @{ id = $memberId; roleType = 'MEMBER' } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $memberEditRaw = & curl.exe -sS -X POST "$base/biz/bizteamprojectuser/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'team project user edit request failed'
+            }
+            $memberEdit = $memberEditRaw | ConvertFrom-Json
+            if ([int]$memberEdit.code -ne 200) {
+                throw "unexpected team project user edit response: $memberEditRaw"
+            }
+            $memberState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$m = think\facade\Db::name('biz_team_project_user')->where('ID', '$memberId')->find(); `$r = think\facade\Db::name('biz_relation')->where('OBJECT_ID', '$projectId')->where('CATEGORY', 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION')->find(); echo (string)`$m['ROLE_TYPE'] . ':' . (string)(str_contains((string)`$r['EXT_JSON'], 'delProject') ? 'PERM' : 'NOPERM') . ':' . (string)(empty(`$m['UPDATE_TIME']) ? 'NOAUDIT' : 'AUDIT');"
+            if ([string]$memberState -ne 'LEADER:PERM:AUDIT') {
+                throw "team project user edit should not mutate role or permissions: $memberState"
             }
 
             $body = @{ id = $projectId; description = ($prefix + '_EDIT'); projectStatus = 'COMPLETE'; completionTime = '2026-06-08 10:00:00' } | ConvertTo-Json -Compress

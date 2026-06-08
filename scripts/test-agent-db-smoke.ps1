@@ -1642,6 +1642,10 @@ try {
     if (($detail['user']['roleType'] ?? '') !== 'LEADER') {
         throw new RuntimeException('project add did not create leader member');
     }
+    $memberId = (string)($detail['user']['id'] ?? '');
+    if ($memberId === '') {
+        throw new RuntimeException('project add did not expose leader member id');
+    }
 
     $relation = think\facade\Db::name('biz_relation')
         ->where('OBJECT_ID', $projectId)
@@ -1654,6 +1658,24 @@ try {
     $permissionCodes = json_decode((string)$relation['EXT_JSON'], true);
     if (!is_array($permissionCodes) || !in_array('delProject', $permissionCodes, true)) {
         throw new RuntimeException('leader relation missing delProject permission');
+    }
+
+    $service->memberEdit([
+        'id' => $memberId,
+        'roleType' => 'MEMBER',
+    ], $payload);
+    $roleTypeAfterEdit = (string)think\facade\Db::name('biz_team_project_user')->where('ID', $memberId)->value('ROLE_TYPE');
+    $memberAfterEdit = think\facade\Db::name('biz_team_project_user')->where('ID', $memberId)->find();
+    $relationAfterEdit = (string)think\facade\Db::name('biz_relation')
+        ->where('OBJECT_ID', $projectId)
+        ->where('TARGET_ID', (string)$user['ID'])
+        ->where('CATEGORY', 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION')
+        ->value('EXT_JSON');
+    if ($roleTypeAfterEdit !== 'LEADER' || !str_contains($relationAfterEdit, 'delProject')) {
+        throw new RuntimeException('member edit should not mutate role or permissions');
+    }
+    if (($memberAfterEdit['UPDATE_USER'] ?? '') !== (string)$user['ID'] || empty($memberAfterEdit['UPDATE_TIME'])) {
+        throw new RuntimeException('member edit did not refresh audit fields');
     }
 
     $service->projectEdit([
@@ -1688,13 +1710,22 @@ try {
         think\facade\Db::name('biz_team_project')->where('ID', $projectId)->delete();
     }
 }
+?>
 '@
 
     $probe = $probe.Replace('__LOCAL_SMOKE_ACCOUNT__', $localSmokeAccount.Replace("'", "\'"))
 
-    $output = $probe | & php 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        throw "php TeamProjectService base write probe failed: $output"
+    $probeFile = Join-Path ([System.IO.Path]::GetTempPath()) ('team_project_probe_' + [System.Guid]::NewGuid().ToString('N') + '.php')
+    try {
+        Set-Content -LiteralPath $probeFile -Value $probe -Encoding ASCII
+        $output = & php $probeFile 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php TeamProjectService base write probe failed: $output"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $probeFile) {
+            Remove-Item -LiteralPath $probeFile -Force
+        }
     }
 
     Write-Host ([string]($output | Out-String)).Trim()

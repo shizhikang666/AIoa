@@ -1028,7 +1028,7 @@ This slice supports the copied team-project member wrappers:
 
 ### Deferred
 
-- `/biz/bizteamprojectuser/edit` remains deferred.
+- `/biz/bizteamprojectuser/edit` was later opened as a Java-compatible audit-refresh route; role-changing member edit remains deferred.
 - Notification push, data-change events, team-project base writes, and frontend source changes remain out of scope.
 
 ## 2026-06-05 Customer Base Maintenance Compatibility
@@ -1692,3 +1692,28 @@ This slice supports copied team-project project-card and project-detail maintena
 ### Deferred
 
 - Member role edit, notification push, Java data-change events, Java physical delete behavior, relation cleanup policy, and unrelated task/comment/workflow side effects remain out of scope.
+
+## 2026-06-08 Team Project User Edit Compatibility
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports the Java-generated team-project member edit endpoint:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectUserApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/addUserForm.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/composables/index.js`
+
+### Result
+
+- `/biz/bizteamprojectuser/edit` is now routed as a protected POST endpoint.
+- The route accepts Java `BizTeamProjectUserEditParam` payload shape: `id` only.
+- The service validates the active member row under the token tenant and refreshes `UPDATE_TIME` and `UPDATE_USER`.
+- Submitted `roleType`, `userId`, `teamProjectId`, or permission fields are ignored.
+- Role values and `TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` relation JSON are not changed.
+- No frontend source change is required; the copied frontend edit submit wrapper remains commented out.
+
+### Deferred
+
+- Role-changing member edit, notification push, Java data-change events, Java physical delete behavior, and relation cleanup policy remain out of scope.

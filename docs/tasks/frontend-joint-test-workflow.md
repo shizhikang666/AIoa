@@ -182,6 +182,7 @@ Verified after `/biz/bizteamproject/add`, `/edit`, and `/delete` compatibility w
 - Add posted JSON to `/biz/bizteamproject/add`, returned `code=200`, and created a temporary project.
 - Database back-check confirmed the current token user became `LEADER` in `biz_team_project_user`.
 - Database back-check confirmed `biz_relation.CATEGORY = TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` includes `delProject`.
+- Member edit posted JSON to `/biz/bizteamprojectuser/edit`, returned `code=200`, refreshed member audit fields, and did not change role or permission relation JSON.
 - Edit posted JSON to `/biz/bizteamproject/edit`, returned `code=200`, updated description/status, and incremented `VERSION`.
 - Delete posted Java-style `[{ id }]` JSON to `/biz/bizteamproject/delete`, returned `code=200`, and marked project/member rows `DELETED`.
 

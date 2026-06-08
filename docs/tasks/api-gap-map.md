@@ -19,7 +19,7 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 423 | Existing route-entry scan count plus `/biz/bizteamproject/add`, `/edit`, and `/delete`; `php think route:list` also confirms the concrete routes |
+| Current ThinkPHP routes | 424 | Existing route-entry scan count plus `/biz/bizteamprojectuser/edit`; `php think route:list` also confirms the concrete route |
 | Endpoints already covered by route path | 395 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, team-project base maintenance, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 138 | Add/edit/audit/import/export/workflow/finance/stock actions; dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, sale-project invoicing complete, and team-project base maintenance moved out of deferred scope |
@@ -54,7 +54,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/bizhistoryexcel` | Historical EXCEL page and detail reads |
 | `biz/saleprojectinvoiceItem` | Sale-project delivery invoice item page reads |
 | `biz/salesprojectfieldchangelog` | Sale-project field change log page and detail reads |
-| `biz/teamproject`, `biz/task` | Team project add/edit/delete, member add/manage/delete, task, task category, task user, project comment, project comment reply, task comment read/add/edit/delete slices, task base maintenance, task category maintenance, task assignee sync, and project comment/reply base write compatibility |
+| `biz/teamproject`, `biz/task` | Team project add/edit/delete, member add/manage/edit/delete, task, task category, task user, project comment, project comment reply, task comment read/add/edit/delete slices, task base maintenance, task category maintenance, task assignee sync, and project comment/reply base write compatibility |
 | `biz/process` | Basic workflow query/read slices |
 | `biz/ccrecords` | Workflow copy/CC record page and detail reads |
 | `biz/bizdraft` | Sale-project draft detail read |

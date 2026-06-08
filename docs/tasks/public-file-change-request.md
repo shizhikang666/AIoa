@@ -4125,3 +4125,37 @@ The copied Vue team-project list and detail pages call Java-style `/biz/bizteamp
 - Requests without token should return business `code=401`.
 - DB smoke should create a temporary project, verify current-user leader membership and permission relation, edit fields with version increment, delete project/member rows logically, and clean temporary rows.
 - Authenticated HTTP smoke should cover add, edit, delete, database back-checks, and cleanup through `-TeamProjectHttpSmoke`.
+
+---
+
+# Public File Change Request: Team Project User Edit Route
+
+## Request
+
+Register the protected team-project member edit route in `route/app.php`.
+
+## Reason
+
+Java exposes `/biz/bizteamprojectuser/edit` from `BizTeamProjectUserController`. The copied Vue API wrapper currently has the submit-form method commented out, but this route is part of the Java controller surface and should be available for compatibility without inventing unsupported role-edit behavior.
+
+## Applied Change
+
+`api-agent/test-agent` registers the following protected POST route:
+
+- `POST /biz/bizteamprojectuser/edit`
+
+## Guardrails
+
+- The route remains behind `AuthMiddleware`.
+- The request body must contain a non-empty `id`.
+- The service validates the active `biz_team_project_user` row under the token tenant.
+- The service refreshes only `UPDATE_TIME` and `UPDATE_USER`, matching Java's generated `updateById` audit-fill behavior for an edit param that only contains `id`.
+- Submitted `roleType`, `userId`, `teamProjectId`, permission fields, delete flags, tenant ids, and relation JSON are ignored.
+- No Java source, database schema, Composer, `.env`, frontend source, role-changing edit behavior, notification push, data-change events, Java physical delete behavior, or unrelated task/comment/workflow side effects are changed.
+
+## Verification
+
+- `php think route:list` must list `POST /biz/bizteamprojectuser/edit`.
+- Requests without token should return business `code=401`.
+- DB smoke should call member edit on a temporary leader member, verify role and permission relation are unchanged, verify audit fields refresh, and clean temporary rows.
+- Authenticated HTTP smoke should cover member edit through `-TeamProjectHttpSmoke`.

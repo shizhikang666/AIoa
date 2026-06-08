@@ -360,6 +360,24 @@ SQL;
         });
     }
 
+    public function memberEdit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $rows = $this->activeMemberRowsByIds([$id], $payload);
+        if (count($rows) !== 1) {
+            throw new RuntimeException('team project user not found', 404);
+        }
+
+        $query = Db::name('biz_team_project_user')->where('ID', $id);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $affected = $query->update([
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $this->currentUserId($payload),
+        ]);
+
+        return ['id' => $id, 'count' => $affected];
+    }
+
     public function memberDelete(array $input, array $payload = []): array
     {
         $ids = $this->idList($input);

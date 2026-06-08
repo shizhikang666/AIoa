@@ -63,7 +63,7 @@ Use the focused smoke scripts when relevant:
 
 `scripts/test-agent-smoke.ps1` covers the repeatable ThinkPHP baseline checks. `scripts/test-agent-db-smoke.ps1` expects the local runtime and ignored `.env` credentials, then checks MySQL, Redis, and current DB-backed export smoke coverage without printing secrets.
 
-Current focused DB-backed coverage also includes dev-file local upload/delete behavior, dev email/SMS metadata logical delete behavior, dev-log category delete behavior, dev-job logical delete behavior, gen-config `editBatch` metadata saves, sale-project invoicing complete, business file-relation maintenance, team-project base add/edit/delete maintenance, and `DevConfigService` `BIZ_DEFINE` add/edit/delete with sensitive-value preservation and logical delete checks.
+Current focused DB-backed coverage also includes dev-file local upload/delete behavior, dev email/SMS metadata logical delete behavior, dev-log category delete behavior, dev-job logical delete behavior, gen-config `editBatch` metadata saves, sale-project invoicing complete, business file-relation maintenance, team-project base add/edit/delete maintenance, Java-compatible team-project member edit audit refresh, and `DevConfigService` `BIZ_DEFINE` add/edit/delete with sensitive-value preservation and logical delete checks.
 
 When the backend server is already running, use focused authenticated HTTP smokes as needed:
 

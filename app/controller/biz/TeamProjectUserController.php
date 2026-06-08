@@ -35,6 +35,11 @@ class TeamProjectUserController extends BaseSysController
         return $this->guard(fn () => $this->teamProjectService->memberAdd($this->body($request), $this->authPayload($request), 'MANAGE'));
     }
 
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->teamProjectService->memberEdit($this->body($request), $this->authPayload($request)));
+    }
+
     public function delete(Request $request): Response
     {
         return $this->guard(fn () => $this->teamProjectService->memberDelete($this->body($request), $this->authPayload($request)));
