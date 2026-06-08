@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice adds compatibility for Java `DevFileController` metadata query endpoints, LOCAL/dynamic upload routes, and the public local-file download route used by the copied Vue frontend.
+This slice adds compatibility for Java `DevFileController` metadata query endpoints, LOCAL/dynamic upload routes, the public local-file download route, and metadata logical delete used by the copied Vue frontend.
 
 ## Java Reference
 
@@ -44,6 +44,10 @@ Protected cloud upload stubs:
 - `POST /dev/file/uploadMinioReturnId`
 - `POST /dev/file/uploadMinioReturnUrl`
 - `POST /dev/file/uploadMinioReturnFile`
+
+Protected delete route:
+
+- `POST /dev/file/delete`
 
 ## Response Shape
 
@@ -112,16 +116,16 @@ Supported sort fields are:
 - Uploads reject empty files, files larger than 50 MB, and executable/script-style extensions such as `.php`, `.exe`, `.bat`, `.cmd`, `.ps1`, `.sh`, `.js`, and `.vbs`.
 - Aliyun, Tencent, and Minio routes are registered but return `code = 501` until real provider credentials and storage clients are implemented.
 - `download` follows Java behavior: it is intentionally public, supports `LOCAL` engine rows only, reads `STORAGE_PATH`, sends the stored `NAME` as an attachment filename, and returns Java-compatible JSON errors for missing rows, non-local engines, or missing local files.
+- `delete` accepts Java/copied-Vue payloads like `[{ "id": "..." }]`, plus `idList`, `ids`, or single `id`. It rejects an empty list, missing `id`, or blank `id` before applying any update. It sets `dev_file.DELETE_FLAG = DELETED`, updates audit fields, keeps tenant scoping from the token payload, returns `data = null`, and intentionally does not remove local files or cloud objects.
 
 ## Deliberate Exclusions
 
-- `POST /dev/file/delete` is not implemented.
 - Cloud provider uploads are not implemented; their routes return unsupported responses instead of pretending to store files locally.
 - Image thumbnail generation is not implemented for new uploads.
 - Download path root whitelisting for historical imported `STORAGE_PATH` values is deferred until a migration/whitelist plan is approved.
-- `/biz/bizfilerelation/add` is not part of this slice, so business attachment upload screens may still need a relation-write slice after file storage succeeds.
+- Physical file cleanup is not implemented because Java `DevFileServiceImpl.delete()` only performs MyBatis-Plus logical deletion.
 - No database schema or Java source files are changed.
 
 ## Later Work
 
-Delete, cloud provider uploads, thumbnail generation, and business attachment relation writes need dedicated plans covering provider credentials, access control, file-size limits, audit logging, cleanup, and safe path handling. Current LOCAL download compatibility follows Java by reading existing local paths into memory before returning them.
+Cloud provider uploads, thumbnail generation, and optional physical-file cleanup need dedicated plans covering provider credentials, access control, file-size limits, audit logging, cleanup, and safe path handling. Current LOCAL download compatibility follows Java by reading existing local paths into memory before returning them.

@@ -118,4 +118,4 @@ Rows return frontend-friendly camelCase fields:
 - Java `list` requires `objectId` and `category`; this ThinkPHP compatibility query accepts the same filters but does not reject empty reads.
 - Linked local-file rows normalize `downloadPath` to `/api/dev/file/download?id=<targetId>` so copied frontend file links use the current ThinkPHP download route. Non-local file rows keep their stored path.
 - This slice does not modify Java source, database schema, Composer files, or `.env`.
-- Real cloud upload engines, thumbnail generation, file metadata delete, and physical file cleanup remain deferred to separate slices.
+- Real cloud upload engines, thumbnail generation, and physical file cleanup remain deferred to separate slices. File metadata logical delete is covered by `/dev/file/delete`.

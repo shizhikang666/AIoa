@@ -377,6 +377,134 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'DevFileService logical delete' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+$app = (new think\App(getcwd()))->initialize();
+
+$service = new app\service\dev\FileService();
+$prefix = 'CODEX_DELETE_' . date('YmdHis') . random_int(1000, 9999);
+$baseId = 600100000000000000 + random_int(1000000, 9999999);
+$localId = (string)$baseId;
+$cloudId = (string)($baseId + 1);
+$otherTenantId = (string)($baseId + 2);
+$tmp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $prefix . '.txt';
+$now = date('Y-m-d H:i:s');
+
+file_put_contents($tmp, "codex delete smoke\n");
+
+try {
+    think\facade\Db::name('dev_file')->insertAll([
+        [
+            'ID' => $localId,
+            'ENGINE' => 'LOCAL',
+            'BUCKET' => 'defaultBucketName',
+            'NAME' => $prefix . '.txt',
+            'SUFFIX' => 'txt',
+            'SIZE_KB' => 1,
+            'SIZE_INFO' => '1KB',
+            'OBJ_NAME' => $prefix . '.txt',
+            'STORAGE_PATH' => $tmp,
+            'DOWNLOAD_PATH' => '/api/dev/file/download?id=' . $localId,
+            'DELETE_FLAG' => 'NOT_DELETE',
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => 'codex-smoke',
+            'TENANT_ID' => '1',
+        ],
+        [
+            'ID' => $cloudId,
+            'ENGINE' => 'ALIYUN',
+            'BUCKET' => 'remote',
+            'NAME' => $prefix . '-cloud.txt',
+            'SUFFIX' => 'txt',
+            'SIZE_KB' => 1,
+            'SIZE_INFO' => '1KB',
+            'OBJ_NAME' => $prefix . '-cloud.txt',
+            'STORAGE_PATH' => 'https://remote.example/file.txt',
+            'DOWNLOAD_PATH' => 'https://remote.example/file.txt',
+            'DELETE_FLAG' => 'NOT_DELETE',
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => 'codex-smoke',
+            'TENANT_ID' => '1',
+        ],
+        [
+            'ID' => $otherTenantId,
+            'ENGINE' => 'LOCAL',
+            'BUCKET' => 'defaultBucketName',
+            'NAME' => $prefix . '-tenant2.txt',
+            'SUFFIX' => 'txt',
+            'SIZE_KB' => 1,
+            'SIZE_INFO' => '1KB',
+            'OBJ_NAME' => $prefix . '-tenant2.txt',
+            'STORAGE_PATH' => $tmp,
+            'DOWNLOAD_PATH' => '/api/dev/file/download?id=' . $otherTenantId,
+            'DELETE_FLAG' => 'NOT_DELETE',
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => 'codex-smoke',
+            'TENANT_ID' => '2',
+        ],
+    ]);
+
+    $service->delete([$localId, $cloudId, $otherTenantId], [
+        'user_id' => 'codex-delete-smoke',
+        'tenant_id' => '1',
+    ]);
+
+    foreach ([$localId, $cloudId] as $id) {
+        $row = think\facade\Db::name('dev_file')->where('ID', $id)->find();
+        if (($row['DELETE_FLAG'] ?? '') !== 'DELETED') {
+            throw new RuntimeException('expected logical delete for ' . $id);
+        }
+        if (($row['UPDATE_USER'] ?? '') !== 'codex-delete-smoke') {
+            throw new RuntimeException('delete update user mismatch for ' . $id);
+        }
+    }
+    $otherFlag = think\facade\Db::name('dev_file')->where('ID', $otherTenantId)->value('DELETE_FLAG');
+    if ($otherFlag !== 'NOT_DELETE') {
+        throw new RuntimeException('cross-tenant delete should not update the row');
+    }
+    if (!is_file($tmp)) {
+        throw new RuntimeException('logical delete should not remove physical file');
+    }
+    if ($service->detail($localId) !== null) {
+        throw new RuntimeException('deleted file should be hidden from detail');
+    }
+
+    foreach ([
+        [[], ['tenant_id' => '1'], 'empty delete payload should fail'],
+        [[$otherTenantId], [], 'missing tenant should fail'],
+    ] as $case) {
+        $failed = false;
+        try {
+            $service->delete($case[0], $case[1]);
+        } catch (RuntimeException $exception) {
+            $failed = $exception->getCode() === 400;
+        }
+        if (!$failed) {
+            throw new RuntimeException($case[2]);
+        }
+    }
+
+    echo "DevFileService logical delete checks passed\n";
+} finally {
+    think\facade\Db::name('dev_file')->whereIn('ID', [$localId, $cloudId, $otherTenantId])->delete();
+    if (is_file($tmp)) {
+        @unlink($tmp);
+    }
+}
+'@
+
+    $output = $probe | & php 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "php DevFileService delete probe failed: $output"
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'BizFileRelationService writes' {
 $probe = @'
 <?php

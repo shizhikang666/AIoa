@@ -15,6 +15,7 @@ use think\file\UploadedFile;
 class FileService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const ENGINE_LOCAL = 'LOCAL';
     private const BUCKET_LOCAL = 'defaultBucketName';
     private const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
@@ -180,6 +181,34 @@ class FileService
         }
 
         return $this->fileRow($row);
+    }
+
+    /**
+     * @param array<int, string> $ids
+     */
+    public function delete(array $ids, array $payload = []): ?array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $ids))));
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $tenantId = $this->requiredTenantId($payload);
+        Db::transaction(function () use ($ids, $tenantId, $payload): void {
+            Db::name('dev_file')
+                ->whereIn('ID', $ids)
+                ->where('TENANT_ID', $tenantId)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $this->currentUserId($payload),
+                ]);
+        });
+
+        return null;
     }
 
     /**
@@ -390,6 +419,24 @@ class FileService
         $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
 
         return $tenantId === '' ? '1' : $tenantId;
+    }
+
+    private function requiredTenantId(array $payload): string
+    {
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            return $tenantId;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId !== null) {
+            $tenantId = trim((string)Db::name('sys_user')->where('ID', $userId)->value('TENANT_ID'));
+            if ($tenantId !== '') {
+                return $tenantId;
+            }
+        }
+
+        throw new RuntimeException('missing tenantId', 400);
     }
 
     private function newId(): string

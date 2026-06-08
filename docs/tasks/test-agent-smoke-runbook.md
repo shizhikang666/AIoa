@@ -51,6 +51,7 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - `UserDirectoryService::exportUsers(true, ...)` returns a valid CSV download descriptor
 - `UserDirectoryService::exportUserInfoFile(...)` returns a valid text download descriptor
 - sampled export content does not include `PASSWORD`
+- `DevFileService` local download, upload, tenant-scoped logical delete, and no physical delete behavior
 - local file upload plus `BizFileRelationService` add/list/edit/delete behavior
 - file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
 
@@ -63,6 +64,16 @@ Start the ThinkPHP server separately, then run:
 ```
 
 The optional smoke checks current protected download routes and expects an unauthenticated business response with `code = 401`.
+
+## Optional Dev File HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevFileHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, uploads a temporary local file, calls `/dev/file/delete` with Java-style JSON array body, verifies `dev_file.DELETE_FLAG = DELETED`, verifies the physical uploaded file remains until cleanup, and then removes the temporary database and disk rows. It does not print tokens or local credentials.
 
 ## Optional File Relation HTTP Smoke
 
@@ -121,5 +132,6 @@ Verified:
 Add these only when a backend and frontend browser session are already available:
 
 - optional no-token HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -NoTokenSmoke`
+- optional dev-file HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevFileHttpSmoke`
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
 - browser smoke through the copied Vue frontend for user export/download buttons

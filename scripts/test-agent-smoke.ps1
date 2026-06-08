@@ -2,6 +2,7 @@ param(
     [switch]$SkipComposer,
     [string]$BackendBaseUrl = '',
     [switch]$NoTokenSmoke,
+    [switch]$DevFileHttpSmoke,
     [switch]$FileRelationHttpSmoke
 )
 
@@ -132,6 +133,7 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'biz/user/export',
         'biz/user/exportUserInfo',
         'dev/message/createSseConnect',
+        'dev/file/delete',
         'biz/dict/page',
         'biz/org/page',
         'biz/user/page',
@@ -196,6 +198,111 @@ if ($NoTokenSmoke) {
 
             if ($statusCode -ne 401 -and -not $content.Contains('"code":401') -and -not $content.Contains('"code": 401')) {
                 throw "Expected unauthenticated response for $route, got HTTP $($statusCode): $content"
+            }
+        }
+    }
+}
+
+if ($DevFileHttpSmoke) {
+    Invoke-TestStep 'authenticated dev file delete HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -DevFileHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -DevFileHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_DEV_FILE_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_FILE_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.txt')
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $fileId = ''
+        $storedPath = ''
+
+        try {
+            Set-Content -LiteralPath $tmp -Value 'codex http file delete smoke' -Encoding ASCII
+
+            $uploadRaw = & curl.exe -sS -X POST "$base/dev/file/uploadLocalReturnFile" -H "Authorization: Bearer $token" -F "file=@$tmp;type=text/plain"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'file upload request failed'
+            }
+            $upload = $uploadRaw | ConvertFrom-Json
+            if ([int]$upload.code -ne 200 -or -not $upload.data.id) {
+                throw "unexpected file upload response: $uploadRaw"
+            }
+            $fileId = [string]$upload.data.id
+            $storedPath = [string]$upload.data.storagePath
+
+            $badBody = @(@{ id = $fileId }, @{ id = '' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $badBody -Encoding ASCII
+            $badDeleteRaw = & curl.exe -sS -X POST "$base/dev/file/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'bad file delete request failed'
+            }
+            $badDelete = $badDeleteRaw | ConvertFrom-Json
+            if ([int]$badDelete.code -eq 200) {
+                throw "bad file delete payload should fail: $badDeleteRaw"
+            }
+            $preDeleteFlag = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_file')->where('ID', '$fileId')->value('DELETE_FLAG');"
+            if ([string]$preDeleteFlag -ne 'NOT_DELETE') {
+                throw 'bad delete payload should not partially delete valid ids'
+            }
+
+            $body = @(@{ id = $fileId }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/dev/file/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'file delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200) {
+                throw "unexpected file delete response: $deleteRaw"
+            }
+            if ($null -ne $delete.data) {
+                throw "file delete response data should be null: $deleteRaw"
+            }
+
+            $deleteFlag = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_file')->where('ID', '$fileId')->value('DELETE_FLAG');"
+            if ([string]$deleteFlag -ne 'DELETED') {
+                throw 'dev file delete did not mark row deleted'
+            }
+            if ($storedPath -ne '' -and -not (Test-Path -LiteralPath $storedPath)) {
+                throw 'logical delete should keep physical file on disk'
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$fileId = '$fileId';
+if (`$fileId !== '') {
+    `$path = (string)think\facade\Db::name('dev_file')->where('ID', `$fileId)->value('STORAGE_PATH');
+    think\facade\Db::name('dev_file')->where('ID', `$fileId)->delete();
+    if (`$path !== '' && is_file(`$path)) { @unlink(`$path); }
+}
+"@
+            & php -r $cleanupCode | Out-Null
+            foreach ($path in @($tmp, $jsonTmp)) {
+                if (Test-Path -LiteralPath $path) {
+                    Remove-Item -LiteralPath $path -Force
+                }
             }
         }
     }

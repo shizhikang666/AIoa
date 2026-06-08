@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 409 | From `php think route:list` after business file-relation write route addition |
-| Endpoints already covered by route path | 382 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
+| Current ThinkPHP routes | 411 | From `php think route:list` after dev-file metadata delete addition |
+| Endpoints already covered by route path | 383 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 149 | Add/edit/audit/import/export/workflow/finance/stock actions |
+| Deferred write/side-effect candidates | 148 | Add/edit/audit/import/export/workflow/finance/stock actions |
 
 ## Already Covered Route Groups
 
@@ -38,7 +38,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `sys/role` | Role page/list/detail/resource/menu relation reads |
 | `sys/menu`, `sys/field`, and `sys/resource` | Menu/resource tree, field page/tree/detail, and selector reads |
 | `dev/config`, `dev/dict`, `dev/log` | Common management reads |
-| `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | File metadata/list/detail, LOCAL/dynamic upload, public local-file download compatibility, cloud upload unsupported stubs, and monitor reads; delete and real cloud storage remain deferred |
+| `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | File metadata/list/detail, LOCAL/dynamic upload, metadata logical delete, public local-file download compatibility, cloud upload unsupported stubs, and monitor reads; real cloud storage remains deferred |
 | `mobile/menu` and `mobile/resource` | Mobile menu/resource read compatibility |
 | `gen/basic`, `gen/config`, `tenant` | Read-only compatibility routes |
 | `biz/product`, `biz/supplier`, `biz/settlementaccount` | Core master-data read adapters; product base add/edit/delete, kit relation maintenance, product status/reconciliation, and supplier base add/edit/delete are covered |
@@ -67,7 +67,7 @@ These are the highest-priority follow-ups because they affect pages the user can
 | --- | --- | --- | --- |
 | Org/User visible tables | Some rows show blank fields or missing dictionary labels | frontend-agent with api-agent support | First confirm response field names before changing backend or frontend |
 | Message SSE | Frontend components call `/dev/message/createSseConnect` | api-agent or workflow/test support | Review Java behavior before adding a safe compatibility route |
-| Upload compatibility | LOCAL/dynamic `dev/file/upload*` routes and business attachment relation binding are covered | api-agent/test-agent | Real Aliyun/Tencent/Minio storage, file metadata delete, and physical file cleanup remain deferred |
+| Upload compatibility | LOCAL/dynamic `dev/file/upload*`, `dev/file/delete`, and business attachment relation binding are covered | api-agent/test-agent | Real Aliyun/Tencent/Minio storage and physical file cleanup remain deferred |
 | User profile center / homepage self-service | Current-user password, avatar, signature, profile, workbench, process-config edit, message detail mark-read, homepage all-mark-read, homepage schedule add/delete, and `/biz/user/center/edit` self-profile alias are covered | user-agent | Admin-side user CRUD/import/export and encrypted-field migration remain deferred |
 | Sys/biz org, position, and user maintenance dialogs | `/sys/org/add`, `/sys/org/edit`, `/sys/org/delete`, `/biz/org/add`, `/biz/org/edit`, `/biz/org/delete`, `/sys/position/add`, `/sys/position/edit`, `/sys/position/delete`, `/biz/position/add`, `/biz/position/edit`, `/biz/position/delete`, `/sys/user/add`, `/sys/user/edit`, `/biz/user/add`, `/biz/user/edit`, `ownRole`, `ownResource`, `ownPermission`, `/sys/user/grantRole`, `/biz/user/grantRole`, `/sys/user/grantResource`, `/sys/user/grantPermission`, `/sys/user/delete`, `/biz/user/delete`, `/sys/user/disableUser`, `/sys/user/enableUser`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/sys/user/resetPassword`, `/biz/user/resetPassword`, `/sys/user/downloadImportUserTemplate`, `/sys/user/import`, `/sys/user/export`, `/sys/user/exportUserInfo`, `/biz/user/export`, and `/biz/user/exportUserInfo` are covered | user-agent/frontend-agent | Business user import is absent in Java; real `.docx` rendering remains deferred |
 
@@ -121,7 +121,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/org`, `biz/user`, `biz/position`, `biz/dict` | business user import, real Office export rendering, resource/permission grants, business dictionary add/delete | `/biz/org/add`, `/biz/org/edit`, `/biz/org/delete`, `/biz/position/add`, `/biz/position/edit`, `/biz/position/delete`, `/biz/user/add`, `/biz/user/edit`, `/biz/user/center/edit`, `/biz/user/delete`, `/biz/user/grantRole`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/biz/user/resetPassword`, `/biz/user/export`, `/biz/user/exportUserInfo`, and `/biz/dict/edit` are covered; `/dev/dict/add|edit|delete` cover BIZ maintenance; `/sys/user/import` covers Java system user import; business user import remains intentionally absent like Java; real `.docx` rendering and business dictionary add/delete remain deferred |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
-| `dev/file` | cloud `upload*`, `delete`, physical file cleanup | LOCAL/dynamic upload, public local download, and business relation binding are covered; cloud storage and delete cleanup still need dedicated plans |
+| `dev/file` | cloud `upload*`, physical file cleanup | LOCAL/dynamic upload, public local download, metadata logical delete, and business relation binding are covered; cloud storage and optional physical cleanup still need dedicated plans |
 | `dev/message` | Full realtime push | User-center/index detail mark-read, homepage all-mark-read, minimal SSE compatibility, message send, and message delete are covered; full SSE/WebPush parity remains deferred |
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
@@ -155,7 +155,7 @@ The frontend still references several auth monitoring and third-party routes:
 3. user-agent: add `biz/org`, `biz/user`, `biz/position`, and `biz/dict` selector/read aliases where they overlap with existing system data.
 4. workflow-agent: review task SSE stream and workflow write actions only after the read-only workflow pages are stable.
 5. test-agent/frontend-agent: browser-smoke copied upload controls now that `/dev/file/upload*` and `/biz/bizfilerelation/add` are both covered.
-6. api-agent: plan cloud storage and file-delete cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
+6. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
 
 ## Guardrails
 

@@ -1017,7 +1017,7 @@ Register protected read-only file metadata routes in `route/app.php`.
 
 ## Reason
 
-The existing Vue file management page calls `/dev/file/page`, `/dev/file/list`, and `/dev/file/detail` to load file metadata and detail drawer content after login. These routes are needed for compatibility while upload, delete, and actual file download behavior remains deferred.
+The existing Vue file management page calls `/dev/file/page`, `/dev/file/list`, and `/dev/file/detail` to load file metadata and detail drawer content after login. These routes were the first file-management compatibility slice; later slices added LOCAL upload, download, and metadata logical delete.
 
 ## Applied Change
 
@@ -1034,6 +1034,8 @@ The existing Vue file management page calls `/dev/file/page`, `/dev/file/list`, 
 - No `/dev/file/delete` route was added.
 - No local filesystem file content is read.
 - No database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
+
+This exclusion list documents the original read-only change request only. The current project now includes separate compatibility slices for LOCAL upload, public local download, and `/dev/file/delete` logical delete.
 
 ## Verification
 

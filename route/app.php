@@ -225,6 +225,7 @@ Route::group('dev/file', function () {
     Route::post('uploadMinioReturnId', 'dev.FileController/uploadMinioReturnId');
     Route::post('uploadMinioReturnUrl', 'dev.FileController/uploadMinioReturnUrl');
     Route::post('uploadMinioReturnFile', 'dev.FileController/uploadMinioReturnFile');
+    Route::post('delete', 'dev.FileController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('dev/email', function () {
