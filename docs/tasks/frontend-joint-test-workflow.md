@@ -230,6 +230,21 @@ Cleanup:
 
 - Temporary `CODEX_HTTP_LOG_*` `dev_log` rows were removed.
 
+## Browser Dev Job Delete Smoke, 2026-06-08
+
+Verified after `/dev/job/delete` compatibility was added:
+
+- Page path: `/dev/job/index`
+- Test setup inserted a temporary `CODEX_UI_JOB_*` `dev_job` row, then used a short-lived local token and minimal browser menu cache to load the copied Vue page directly.
+- The table loaded through `GET /api/dev/job/page` and showed the temporary job row.
+- Row delete posted to `POST /api/dev/job/delete`.
+- The table refreshed through `GET /api/dev/job/page`.
+- Database verification confirmed the temporary row reached `DELETE_FLAG = DELETED`.
+
+Cleanup:
+
+- Temporary `CODEX_UI_JOB_*` `dev_job` rows were removed.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:

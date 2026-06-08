@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\dev;
 
+use RuntimeException;
 use think\facade\Db;
 
 /**
@@ -12,6 +13,7 @@ use think\facade\Db;
 class JobService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
         'name' => 'NAME',
@@ -66,6 +68,42 @@ class JobService
         }
 
         return $this->jobRow(is_array($row) ? $row : $row->toArray());
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @param array<string, mixed> $payload
+     */
+    public function delete(array $ids, array $payload = []): ?array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $ids))));
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $rows = Db::name('dev_job')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->select()
+            ->toArray();
+        if (count($rows) !== count($ids)) {
+            throw new RuntimeException('job not found', 404);
+        }
+
+        Db::name('dev_job')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update([
+                'DELETE_FLAG' => self::DELETED,
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $this->payloadUserId($payload),
+            ]);
+
+        return null;
     }
 
     /**
@@ -141,6 +179,13 @@ class JobService
             'updateTime' => $row['UPDATE_TIME'] ?? null,
             'updateUser' => $row['UPDATE_USER'] ?? null,
         ];
+    }
+
+    private function payloadUserId(array $payload): ?string
+    {
+        $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+
+        return $userId === '' ? null : $userId;
     }
 
     private function pagination(array $filters): array

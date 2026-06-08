@@ -1,8 +1,8 @@
-# Dev Job Read-Only Compatibility
+# Dev Job Compatibility
 
 ## Scope
 
-This slice adds authenticated, read-only compatibility for Java scheduled-job query endpoints.
+This slice adds authenticated query compatibility plus safe metadata delete compatibility for Java scheduled-job endpoints.
 
 ## Java Reference
 
@@ -20,6 +20,7 @@ Protected routes:
 - `GET /dev/job/list`
 - `GET /dev/job/detail`
 - `GET /dev/job/getActionClass`
+- `POST /dev/job/delete`
 
 ## Response Shape
 
@@ -78,12 +79,13 @@ Supported sort fields are:
 - `page` and `list` follow Java filtering behavior for `category`, `jobStatus`, and `searchKey`.
 - Default sort is `SORT_CODE asc, ID asc`, matching Java's default `sortCode` ordering.
 - Java `getActionClass` scans Spring `CommonTimerTaskRunner` beans. ThinkPHP cannot execute Java beans, so this slice returns distinct stored `ACTION_CLASS` values from active `dev_job` rows as read-only compatibility data.
+- `delete` accepts Java-style array payloads such as `[{ "id": "..." }]`, rejects malformed mixed payloads before any write, marks rows with `DELETE_FLAG = DELETED`, and returns `data = null`.
+- Java removes running cron entries through `CronUtil.remove` before deleting metadata. ThinkPHP does not yet run a scheduler, so this compatibility route only changes metadata and does not start, stop, or execute jobs.
 
 ## Deliberate Exclusions
 
 - No `/dev/job/add` route is implemented.
 - No `/dev/job/edit` route is implemented.
-- No `/dev/job/delete` route is implemented.
 - No `/dev/job/stopJob` route is implemented.
 - No `/dev/job/runJob` route is implemented.
 - No `/dev/job/runJobNow` route is implemented.

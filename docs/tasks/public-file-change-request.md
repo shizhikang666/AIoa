@@ -3981,3 +3981,40 @@ Java exposes `/dev/log/delete` for clearing logs by category, and the copied Vue
 - Requests without token should return business `code=401`.
 - DB smoke should insert temporary target-category, other-category, and other-tenant rows, then verify only the current-tenant target-category row is physically deleted.
 - Authenticated HTTP smoke should call `/dev/log/delete` with `{ "category": "..." }`, verify `data = null`, and confirm only the temporary target category row is deleted.
+
+---
+
+# Public File Change Request: Dev Job Metadata Delete Route
+
+## Request
+
+Register the protected dev job metadata delete route in `route/app.php`.
+
+## Reason
+
+The copied Vue scheduled-job page calls `/dev/job/delete` for row and batch deletion. Existing ThinkPHP job routes already cover page/list/detail/action-class reads, so this slice opens only safe metadata delete compatibility while leaving scheduler lifecycle routes deferred.
+
+## Applied Change
+
+`api-agent/test-agent` registers the following protected POST route:
+
+- `POST /dev/job/delete`
+
+## Guardrails
+
+- The route remains behind `AuthMiddleware`.
+- Delete accepts Java-style array payloads such as `[{ "id": "..." }]`.
+- Empty ids and malformed mixed payloads are rejected before any write.
+- Missing ids cause the batch to fail without partially deleting valid rows.
+- Rows are logically deleted with `DELETE_FLAG = DELETED` and audit update fields are written.
+- Deleted rows are hidden from `/dev/job/page`, `/list`, and `/detail`.
+- Java removes running cron entries before deleting. ThinkPHP does not yet run a scheduler, so this slice does not start, stop, remove, or execute scheduled jobs.
+- No Java source, database schema, Composer, `.env`, frontend source, scheduler runtime, cron validation, action-class execution, or unrelated module behavior is changed.
+
+## Verification
+
+- `php think route:list` must list `POST /dev/job/delete`.
+- Requests without token should return business `code=401`.
+- DB smoke should insert temporary jobs, verify malformed batches do not partially delete, logically delete one job, verify page hiding, and clean temporary rows.
+- Authenticated HTTP smoke should cover good and malformed delete payloads.
+- Browser smoke should verify the copied `/dev/job/index` row delete posts to `/api/dev/job/delete`, refreshes the table, and marks the row as `DELETED`.

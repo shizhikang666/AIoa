@@ -248,6 +248,7 @@ Route::group('dev/job', function () {
     Route::get('list', 'dev.JobController/list');
     Route::get('detail', 'dev.JobController/detail');
     Route::get('getActionClass', 'dev.JobController/getActionClass');
+    Route::post('delete', 'dev.JobController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('dev/monitor', function () {

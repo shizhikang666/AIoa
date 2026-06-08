@@ -692,6 +692,52 @@ try {
     }
 }
 
+Invoke-TestStep 'DevJobService logical delete' {
+$probe = @'
+<?php
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+$service = new app\service\dev\JobService();
+$prefix = 'CODEX_JOB_' . date('YmdHis') . random_int(1000, 9999);
+$jobId = '60090000000000' . random_int(100000, 999999);
+$otherId = '60090000000001' . random_int(100000, 999999);
+$payload = ['user_id' => 'codex-job-smoke'];
+$rows = [
+    ['ID' => $jobId, 'NAME' => $prefix . '_TARGET', 'CODE' => $prefix . '_TARGET', 'CATEGORY' => 'LOCAL', 'ACTION_CLASS' => 'codex.TargetJob', 'CRON_EXPRESSION' => '0 0 * * * ?', 'JOB_STATUS' => 'STOPPED', 'SORT_CODE' => 99, 'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke'],
+    ['ID' => $otherId, 'NAME' => $prefix . '_OTHER', 'CODE' => $prefix . '_OTHER', 'CATEGORY' => 'LOCAL', 'ACTION_CLASS' => 'codex.OtherJob', 'CRON_EXPRESSION' => '0 0 * * * ?', 'JOB_STATUS' => 'STOPPED', 'SORT_CODE' => 99, 'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke'],
+];
+try {
+    think\facade\Db::name('dev_job')->insertAll($rows);
+    $failed = false;
+    try { $service->delete([$jobId, '60990000000000999999'], $payload); } catch (RuntimeException $exception) { $failed = $exception->getCode() === 404; }
+    if (!$failed) { throw new RuntimeException('bad id set should fail before deleting'); }
+    $flag = (string)think\facade\Db::name('dev_job')->where('ID', $jobId)->value('DELETE_FLAG');
+    if ($flag !== 'NOT_DELETE') { throw new RuntimeException('bad id set should not partially delete'); }
+    $service->delete([$jobId], $payload);
+    $deletedFlag = (string)think\facade\Db::name('dev_job')->where('ID', $jobId)->value('DELETE_FLAG');
+    $otherFlag = (string)think\facade\Db::name('dev_job')->where('ID', $otherId)->value('DELETE_FLAG');
+    if ($deletedFlag !== 'DELETED' || $otherFlag !== 'NOT_DELETE') { throw new RuntimeException('job delete flag mismatch'); }
+    if ((int)$service->page(['searchKey' => $prefix])['total'] !== 1) { throw new RuntimeException('deleted job should be hidden from page'); }
+    echo "DevJobService logical delete checks passed\n";
+} finally {
+    think\facade\Db::name('dev_job')->whereIn('ID', [$jobId, $otherId])->delete();
+}
+'@
+    $tmpProbe = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-dev-job-delete-{0}.php" -f ([Guid]::NewGuid().ToString('N')))
+    try {
+        [System.IO.File]::WriteAllText($tmpProbe, $probe, [System.Text.UTF8Encoding]::new($false))
+        $output = & php $tmpProbe 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php DevJobService delete probe failed: $output"
+        }
+        Write-Host ([string]($output | Out-String)).Trim()
+    } finally {
+        if (Test-Path -LiteralPath $tmpProbe) {
+            Remove-Item -LiteralPath $tmpProbe -Force
+        }
+    }
+}
+
 Invoke-TestStep 'BizFileRelationService writes' {
 $probe = @'
 <?php

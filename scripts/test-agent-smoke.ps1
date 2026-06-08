@@ -6,6 +6,7 @@ param(
     [switch]$DevEmailSmsHttpSmoke,
     [switch]$DevConfigHttpSmoke,
     [switch]$DevLogHttpSmoke,
+    [switch]$DevJobHttpSmoke,
     [switch]$FileRelationHttpSmoke
 )
 
@@ -143,6 +144,7 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'dev/config/edit',
         'dev/config/delete',
         'dev/log/delete',
+        'dev/job/delete',
         'biz/dict/page',
         'biz/org/page',
         'biz/user/page',
@@ -659,6 +661,95 @@ think\facade\Db::name('dev_log')->insert(['ID' => '$otherId', 'CATEGORY' => '$ot
 require getcwd() . '/vendor/autoload.php';
 (new think\App(getcwd()))->initialize();
 think\facade\Db::name('dev_log')->whereIn('ID', ['$targetId', '$otherId'])->delete();
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
+            }
+        }
+    }
+}
+
+if ($DevJobHttpSmoke) {
+    Invoke-TestStep 'authenticated dev job HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -DevJobHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -DevJobHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_DEV_JOB_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_JOB_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $jobId = '60080000000000' + [string](Get-Random -Minimum 100000 -Maximum 999999)
+        $otherId = '60080000000001' + [string](Get-Random -Minimum 100000 -Maximum 999999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+
+        try {
+            $insertCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('dev_job')->insert(['ID' => '$jobId', 'NAME' => '$($prefix)_TARGET', 'CODE' => '$($prefix)_TARGET', 'CATEGORY' => 'LOCAL', 'ACTION_CLASS' => 'codex.TargetJob', 'CRON_EXPRESSION' => '0 0 * * * ?', 'JOB_STATUS' => 'STOPPED', 'SORT_CODE' => 99, 'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke']);
+think\facade\Db::name('dev_job')->insert(['ID' => '$otherId', 'NAME' => '$($prefix)_OTHER', 'CODE' => '$($prefix)_OTHER', 'CATEGORY' => 'LOCAL', 'ACTION_CLASS' => 'codex.OtherJob', 'CRON_EXPRESSION' => '0 0 * * * ?', 'JOB_STATUS' => 'STOPPED', 'SORT_CODE' => 99, 'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke']);
+"@
+            & php -r $insertCode | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to insert temporary job rows'
+            }
+
+            $badBody = @(@{ id = $jobId }, @{ id = '' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $badBody -Encoding ASCII
+            $badDeleteRaw = & curl.exe -sS -X POST "$base/dev/job/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'bad dev job delete request failed'
+            }
+            $badDelete = $badDeleteRaw | ConvertFrom-Json
+            if ([int]$badDelete.code -eq 200) {
+                throw "bad dev job delete payload should fail: $badDeleteRaw"
+            }
+            $badFlag = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_job')->where('ID', '$jobId')->value('DELETE_FLAG');"
+            if ([string]$badFlag -ne 'NOT_DELETE') {
+                throw 'bad dev job delete payload should not partially delete valid ids'
+            }
+
+            $body = @(@{ id = $jobId }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/dev/job/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'dev job delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200 -or $null -ne $delete.data) {
+                throw "unexpected dev job delete response: $deleteRaw"
+            }
+
+            $flags = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_job')->where('ID', '$jobId')->value('DELETE_FLAG') . ':' . (string)think\facade\Db::name('dev_job')->where('ID', '$otherId')->value('DELETE_FLAG');"
+            if ([string]$flags -ne 'DELETED:NOT_DELETE') {
+                throw "dev job delete affected unexpected rows: $flags"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('dev_job')->whereIn('ID', ['$jobId', '$otherId'])->delete();
 "@
             & php -r $cleanupCode | Out-Null
             if (Test-Path -LiteralPath $jsonTmp) {
