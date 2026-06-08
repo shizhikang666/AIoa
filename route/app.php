@@ -112,6 +112,7 @@ Route::group('sys/user', function () {
     Route::get('downloadImportUserTemplate', 'sys.UserController/downloadImportUserTemplate');
     Route::get('export', 'sys.UserController/export');
     Route::get('exportUserInfo', 'sys.UserController/exportUserInfo');
+    Route::post('import', 'sys.UserController/import');
     Route::post('add', 'sys.UserController/add');
     Route::post('edit', 'sys.UserController/edit');
     Route::post('delete', 'sys.UserController/delete');

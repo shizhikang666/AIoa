@@ -12,6 +12,7 @@ use app\model\SysRole;
 use app\model\SysUser;
 use app\model\SysUserProcessConfig;
 use RuntimeException;
+use Throwable;
 use think\facade\Db;
 
 /**
@@ -30,6 +31,9 @@ class UserDirectoryService
     private const USER_HAS_PERMISSION = 'SYS_USER_HAS_PERMISSION';
     private const USER_STATUS_ENABLE = 'ENABLE';
     private const USER_STATUS_DISABLED = 'DISABLED';
+    private const IMPORT_MAX_BYTES = 5242880;
+    private const IMPORT_MAX_ROWS = 1000;
+    private const IMPORT_MAX_SHEET_BYTES = 2097152;
     private const SCOPE_CATEGORIES = [
         'SCOPE_ALL',
         'SCOPE_SELF',
@@ -121,13 +125,759 @@ class UserDirectoryService
         }
 
         return [
-            'filename' => 'user-import-template.csv',
-            'contentType' => 'text/csv',
-            'content' => $this->csvContent([
-                ['account', 'name', 'orgName', 'positionName', 'phone', 'email', 'gender', 'sortCode'],
-                ['zhangsan', 'Zhang San', 'Head Office-Technology', 'Engineer', '13800000000', 'zhangsan@example.com', 'M', '99'],
+            'filename' => 'userImportTemplate.xlsx',
+            'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'content' => $this->xlsxContent([
+                ['系统用户导入模板。前四列为必填；组织名称使用 - 分隔完整路径，例如：总部-技术部。'],
+                $this->userImportHeaders(),
+                ['zhangsan', '张三', '总部-技术部', '工程师', '13800000000', 'zhangsan@example.com', '', 'EMP001', date('Y-m-d'), 'P6'],
             ]),
         ];
+    }
+
+    /**
+     * @param array<string, mixed>|mixed $payload
+     * @return array{totalCount:int, successCount:int, errorCount:int, errorDetail:array<int, array<string, mixed>>}
+     */
+    public function importUsers(mixed $file, mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $this->ensureImportAllowed($payload);
+        $path = $this->uploadedFilePath($file);
+        $rows = $this->readUserImportRows($path);
+
+        $successCount = 0;
+        $errorDetail = [];
+
+        Db::transaction(function () use ($rows, $payload, &$successCount, &$errorDetail): void {
+            foreach ($rows as $index => $row) {
+                try {
+                    $this->importUserRow($row, $payload);
+                    $successCount++;
+                } catch (Throwable $exception) {
+                    $errorDetail[] = [
+                        'index' => $index + 1,
+                        'success' => false,
+                        'msg' => $exception->getMessage() !== '' ? $exception->getMessage() : 'data import failed',
+                    ];
+                }
+            }
+        });
+
+        return [
+            'totalCount' => count($rows),
+            'successCount' => $successCount,
+            'errorCount' => count($errorDetail),
+            'errorDetail' => $errorDetail,
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function userImportHeaders(): array
+    {
+        return [
+            '账号',
+            '姓名',
+            '组织名称',
+            '职位名称',
+            '手机',
+            '邮箱',
+            '主管名称',
+            '员工编号',
+            '入职日期',
+            '职级',
+            '昵称',
+            '性别',
+            '年龄',
+            '出生日期',
+            '民族',
+            '籍贯',
+            '家庭住址',
+            '通信地址',
+            '证件类型',
+            '证件号码',
+            '文化程度',
+            '政治面貌',
+            '毕业院校',
+            '学历',
+            '学制',
+            '学位',
+            '家庭电话',
+            '办公电话',
+            '紧急联系人',
+            '紧急联系人电话',
+            '紧急联系人地址',
+        ];
+    }
+
+    /**
+     * @param array<int, array<int, mixed>> $rows
+     */
+    private function xlsxContent(array $rows): string
+    {
+        $temp = tempnam(sys_get_temp_dir(), 'xlsx-');
+        if ($temp === false) {
+            throw new RuntimeException('template build failed', 500);
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($temp, \ZipArchive::OVERWRITE) !== true) {
+            @unlink($temp);
+            throw new RuntimeException('template build failed', 500);
+        }
+
+        $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            . '<Default Extension="xml" ContentType="application/xml"/>'
+            . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            . '</Types>');
+        $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            . '</Relationships>');
+        $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+            . 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            . '<sheets><sheet name="用户导入" sheetId="1" r:id="rId1"/></sheets></workbook>');
+        $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            . '</Relationships>');
+        $zip->addFromString('xl/worksheets/sheet1.xml', $this->worksheetXml($rows));
+        $zip->close();
+
+        $content = file_get_contents($temp);
+        @unlink($temp);
+        if ($content === false || $content === '') {
+            throw new RuntimeException('template build failed', 500);
+        }
+
+        return $content;
+    }
+
+    /**
+     * @param array<int, array<int, mixed>> $rows
+     */
+    private function worksheetXml(array $rows): string
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            . '<sheetData>';
+
+        foreach ($rows as $rowIndex => $row) {
+            $xml .= '<row r="' . ($rowIndex + 1) . '">';
+            foreach ($row as $columnIndex => $value) {
+                $xml .= $this->xlsxCellXml($rowIndex + 1, $columnIndex, $value);
+            }
+            $xml .= '</row>';
+        }
+
+        return $xml . '</sheetData></worksheet>';
+    }
+
+    private function xlsxCellXml(int $row, int $columnIndex, mixed $value): string
+    {
+        $ref = $this->xlsxColumnName($columnIndex) . $row;
+        $value = $this->xmlText((string)$value);
+
+        return '<c r="' . $ref . '" t="inlineStr"><is><t>' . $value . '</t></is></c>';
+    }
+
+    private function xlsxColumnName(int $index): string
+    {
+        $name = '';
+        $index++;
+        while ($index > 0) {
+            $index--;
+            $name = chr(65 + ($index % 26)) . $name;
+            $index = intdiv($index, 26);
+        }
+
+        return $name;
+    }
+
+    private function xmlText(string $value): string
+    {
+        return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+    }
+
+    private function uploadedFilePath(mixed $file): string
+    {
+        if ($file === null || $file === '') {
+            throw new RuntimeException('missing file', 400);
+        }
+
+        if (is_string($file)) {
+            $path = $file;
+            $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+        } elseif (is_object($file)) {
+            $path = '';
+            foreach (['getRealPath', 'getPathname'] as $method) {
+                if (method_exists($file, $method)) {
+                    $path = (string)$file->{$method}();
+                    if ($path !== '') {
+                        break;
+                    }
+                }
+            }
+
+            $extension = '';
+            foreach (['getOriginalExtension', 'extension'] as $method) {
+                if (method_exists($file, $method)) {
+                    $extension = strtolower(trim((string)$file->{$method}()));
+                    if ($extension !== '') {
+                        break;
+                    }
+                }
+            }
+            if ($extension === '' && method_exists($file, 'getOriginalName')) {
+                $extension = strtolower(pathinfo((string)$file->getOriginalName(), PATHINFO_EXTENSION));
+            }
+            if ($extension === '') {
+                $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            }
+        } else {
+            throw new RuntimeException('invalid file', 400);
+        }
+
+        if (!is_file($path) || !is_readable($path)) {
+            throw new RuntimeException('invalid file', 400);
+        }
+        $size = filesize($path);
+        if ($size === false || $size <= 0) {
+            throw new RuntimeException('invalid file', 400);
+        }
+        if ($size > self::IMPORT_MAX_BYTES) {
+            throw new RuntimeException('import file too large', 400);
+        }
+        if ($extension !== 'xlsx') {
+            throw new RuntimeException('only .xlsx import is supported', 400);
+        }
+
+        return $path;
+    }
+
+    /**
+     * @return array<int, array<string, string>>
+     */
+    private function readUserImportRows(string $path): array
+    {
+        $rawRows = $this->readXlsxRows($path);
+        $fields = [
+            'account',
+            'name',
+            'orgName',
+            'positionName',
+            'phone',
+            'email',
+            'directorName',
+            'empNo',
+            'entryDate',
+            'positionLevel',
+            'nickname',
+            'gender',
+            'age',
+            'birthday',
+            'nation',
+            'nativePlace',
+            'homeAddress',
+            'mailingAddress',
+            'idCardType',
+            'idCardNumber',
+            'cultureLevel',
+            'politicalOutlook',
+            'college',
+            'education',
+            'eduLength',
+            'degree',
+            'homeTel',
+            'officeTel',
+            'emergencyContact',
+            'emergencyPhone',
+            'emergencyAddress',
+        ];
+
+        $rows = [];
+        foreach (array_slice($rawRows, 2) as $rawRow) {
+            $mapped = [];
+            foreach ($fields as $index => $field) {
+                $mapped[$field] = trim((string)($rawRow[$index] ?? ''));
+            }
+            if (implode('', $mapped) === '') {
+                continue;
+            }
+
+            $rows[] = $mapped;
+            if (count($rows) > self::IMPORT_MAX_ROWS) {
+                throw new RuntimeException('too many import rows', 400);
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, array<int, string>>
+     */
+    private function readXlsxRows(string $path): array
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new RuntimeException('invalid xlsx file', 400);
+        }
+
+        $sharedStrings = $this->xlsxSharedStrings($zip);
+        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+        if ($sheetXml === false) {
+            $sheetXml = $this->xlsxFirstSheetXml($zip);
+        }
+        $zip->close();
+
+        if (!is_string($sheetXml) || trim($sheetXml) === '') {
+            throw new RuntimeException('invalid xlsx file', 400);
+        }
+        if (strlen($sheetXml) > self::IMPORT_MAX_SHEET_BYTES) {
+            throw new RuntimeException('import sheet too large', 400);
+        }
+
+        $xml = simplexml_load_string($sheetXml);
+        if ($xml === false) {
+            throw new RuntimeException('invalid xlsx file', 400);
+        }
+
+        $rows = [];
+        foreach ($xml->sheetData->row as $row) {
+            $values = [];
+            foreach ($row->c as $cell) {
+                $ref = (string)($cell['r'] ?? '');
+                $columnIndex = $this->xlsxColumnIndex($ref);
+                if ($columnIndex < 0) {
+                    $columnIndex = count($values);
+                }
+                $values[$columnIndex] = $this->xlsxCellValue($cell, $sharedStrings);
+            }
+            if ($values !== []) {
+                ksort($values);
+                $rows[] = $values;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function xlsxSharedStrings(\ZipArchive $zip): array
+    {
+        $xml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($xml === false || trim($xml) === '') {
+            return [];
+        }
+
+        $sharedXml = simplexml_load_string($xml);
+        if ($sharedXml === false) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($sharedXml->si as $item) {
+            if (isset($item->t)) {
+                $strings[] = (string)$item->t;
+                continue;
+            }
+
+            $text = '';
+            foreach ($item->r as $run) {
+                $text .= (string)$run->t;
+            }
+            $strings[] = $text;
+        }
+
+        return $strings;
+    }
+
+    private function xlsxFirstSheetXml(\ZipArchive $zip): string|false
+    {
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $name = $zip->getNameIndex($i);
+            if (is_string($name) && str_starts_with($name, 'xl/worksheets/') && str_ends_with($name, '.xml')) {
+                return $zip->getFromName($name);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<int, string> $sharedStrings
+     */
+    private function xlsxCellValue(\SimpleXMLElement $cell, array $sharedStrings): string
+    {
+        $type = (string)($cell['t'] ?? '');
+        if ($type === 's') {
+            $index = (int)((string)($cell->v ?? '0'));
+
+            return trim($sharedStrings[$index] ?? '');
+        }
+        if ($type === 'inlineStr') {
+            return trim((string)($cell->is->t ?? ''));
+        }
+
+        return trim((string)($cell->v ?? ''));
+    }
+
+    private function xlsxColumnIndex(string $ref): int
+    {
+        if (!preg_match('/^([A-Z]+)/i', $ref, $matches)) {
+            return -1;
+        }
+
+        $letters = strtoupper($matches[1]);
+        $index = 0;
+        for ($i = 0; $i < strlen($letters); $i++) {
+            $index = ($index * 26) + (ord($letters[$i]) - 64);
+        }
+
+        return $index - 1;
+    }
+
+    /**
+     * @param array<string, string> $row
+     * @param array<string, mixed> $payload
+     */
+    private function importUserRow(array $row, array $payload): void
+    {
+        foreach (['account', 'name', 'orgName', 'positionName'] as $field) {
+            if (trim((string)($row[$field] ?? '')) === '') {
+                throw new RuntimeException('required field is empty', 400);
+            }
+        }
+
+        $org = $this->findOrCreateImportOrg((string)$row['orgName'], $payload);
+        $position = $this->findOrCreateImportPosition((string)$org['ID'], (string)$row['positionName'], $payload, $org);
+        $account = trim((string)$row['account']);
+        $existing = $this->activeUserByAccount($account);
+        $existingId = is_array($existing) ? (string)($existing['ID'] ?? '') : null;
+
+        $data = $this->importUserData($row);
+        $data['ACCOUNT'] = $account;
+        $data['NAME'] = trim((string)$row['name']);
+        $data['ORG_ID'] = (string)$org['ID'];
+        $data['POSITION_ID'] = (string)$position['ID'];
+        $this->removeImportDuplicateContact($data, $existingId);
+        $this->ensureUserWriteAllowed($payload, $data, false, $existingId === null || $existingId === '' ? 'add' : 'edit', $existing);
+        $this->ensureImportTargetScopeAllowed($payload, (string)$org['ID']);
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+
+        if ($existingId === null || $existingId === '') {
+            $id = $this->newId();
+            $insert = array_merge($data, [
+                'ID' => $id,
+                'PASSWORD' => $this->defaultPasswordHash(),
+                'AVATAR' => $this->defaultAvatar((string)$data['NAME']),
+                'USER_STATUS' => self::USER_STATUS_ENABLE,
+                'SORT_CODE' => 99,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+                'TENANT_ID' => $this->tenantIdForWrite($payload, $org),
+                'BANK_NAME' => '',
+                'BANK_ACCOUNT' => '',
+                'BASIC_SALARY' => '0.00',
+                'COMPANY_EMPLOYEE_ID' => trim((string)($data['COMPANY_EMPLOYEE_ID'] ?? '')) !== ''
+                    ? $data['COMPANY_EMPLOYEE_ID']
+                    : $this->nextCompanyEmployeeId($org),
+            ]);
+            Db::name('sys_user')->insert($insert);
+
+            return;
+        }
+
+        $this->ensureTenantCompatible($payload, $existing);
+        $existingAccount = strtolower(trim((string)($existing['ACCOUNT'] ?? '')));
+        if (in_array($existingAccount, ['superadmin', 'bizadmin', 'tenantadmin'], true) && !$this->isAdminCompatible($payload)) {
+            throw new RuntimeException('built-in user cannot be imported by non-admin', 403);
+        }
+        $update = array_merge($data, [
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+        unset($update['PASSWORD'], $update['USER_STATUS'], $update['SORT_CODE'], $update['DELETE_FLAG'], $update['CREATE_TIME'], $update['CREATE_USER'], $update['TENANT_ID']);
+
+        Db::name('sys_user')
+            ->where('ID', $existingId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update($update);
+    }
+
+    /**
+     * @param array<string, string> $row
+     * @return array<string, mixed>
+     */
+    private function importUserData(array $row): array
+    {
+        $fieldMap = [
+            'phone' => 'PHONE',
+            'email' => 'EMAIL',
+            'empNo' => 'EMP_NO',
+            'entryDate' => 'ENTRY_DATE',
+            'positionLevel' => 'POSITION_LEVEL',
+            'nickname' => 'NICKNAME',
+            'gender' => 'GENDER',
+            'age' => 'AGE',
+            'birthday' => 'BIRTHDAY',
+            'nation' => 'NATION',
+            'nativePlace' => 'NATIVE_PLACE',
+            'homeAddress' => 'HOME_ADDRESS',
+            'mailingAddress' => 'MAILING_ADDRESS',
+            'idCardType' => 'ID_CARD_TYPE',
+            'idCardNumber' => 'ID_CARD_NUMBER',
+            'cultureLevel' => 'CULTURE_LEVEL',
+            'politicalOutlook' => 'POLITICAL_OUTLOOK',
+            'college' => 'COLLEGE',
+            'education' => 'EDUCATION',
+            'eduLength' => 'EDU_LENGTH',
+            'degree' => 'DEGREE',
+            'homeTel' => 'HOME_TEL',
+            'officeTel' => 'OFFICE_TEL',
+            'emergencyContact' => 'EMERGENCY_CONTACT',
+            'emergencyPhone' => 'EMERGENCY_PHONE',
+            'emergencyAddress' => 'EMERGENCY_ADDRESS',
+        ];
+
+        $data = [];
+        foreach ($fieldMap as $field => $column) {
+            $value = trim((string)($row[$field] ?? ''));
+            $data[$column] = $value === '' ? null : $value;
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     */
+    private function removeImportDuplicateContact(array &$data, ?string $existingId): void
+    {
+        foreach (['PHONE', 'EMAIL'] as $column) {
+            $value = trim((string)($data[$column] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+
+            $query = Db::name('sys_user')
+                ->where($column, $value)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                });
+            if ($existingId !== null && $existingId !== '') {
+                $query->where('ID', '<>', $existingId);
+            }
+
+            if ($query->count() > 0) {
+                unset($data[$column]);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function findOrCreateImportOrg(string $orgFullName, array $payload): array
+    {
+        $parts = array_values(array_filter(array_map(static fn (string $part): string => trim($part), explode('-', $orgFullName))));
+        if ($parts === []) {
+            throw new RuntimeException('missing orgName', 400);
+        }
+
+        $parentId = '0';
+        $parent = null;
+        foreach ($parts as $part) {
+            $query = Db::name('sys_org')
+                ->where('PARENT_ID', $parentId)
+                ->where('NAME', $part)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                });
+
+            $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+            if ($tenantId !== '') {
+                $query->where('TENANT_ID', $tenantId);
+            }
+
+            $row = $query->order('ID', 'asc')->find();
+            if (!is_array($row) || $row === []) {
+                if (!$this->isAdminCompatible($payload)) {
+                    throw new RuntimeException('org not found', 404);
+                }
+                $row = $this->createImportOrg($parentId, $part, $payload, $parent);
+            }
+            $parentId = (string)$row['ID'];
+            $parent = $row;
+        }
+
+        return $parent ?? [];
+    }
+
+    /**
+     * @param array<string, mixed>|null $parent
+     * @return array<string, mixed>
+     */
+    private function createImportOrg(string $parentId, string $name, array $payload, ?array $parent): array
+    {
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $tenantId = $parent !== null && trim((string)($parent['TENANT_ID'] ?? '')) !== ''
+            ? (string)$parent['TENANT_ID']
+            : (trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? '')) !== '' ? trim((string)($payload['tenant_id'] ?? $payload['tenantId'])) : '0');
+        $row = [
+            'ID' => $this->newId(),
+            'PARENT_ID' => $parentId,
+            'DIRECTOR_ID' => null,
+            'NAME' => $name,
+            'CODE' => $this->newRandomCode('sys_org'),
+            'CATEGORY' => $parentId === '0' ? 'COMPANY' : 'DEPT',
+            'SORT_CODE' => 99,
+            'EXT_JSON' => null,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'TENANT_ID' => $tenantId,
+        ];
+        Db::name('sys_org')->insert($row);
+
+        return $row;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $org
+     * @return array<string, mixed>
+     */
+    private function findOrCreateImportPosition(string $orgId, string $positionName, array $payload, array $org): array
+    {
+        $positionName = trim($positionName);
+        if ($positionName === '') {
+            throw new RuntimeException('missing positionName', 400);
+        }
+
+        $row = Db::name('sys_position')
+            ->where('ORG_ID', $orgId)
+            ->where('NAME', $positionName)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->order('ID', 'asc')
+            ->find();
+        if (is_array($row) && $row !== []) {
+            return $row;
+        }
+        if (!$this->isAdminCompatible($payload)) {
+            throw new RuntimeException('position not found', 404);
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $row = [
+            'ID' => $this->newId(),
+            'ORG_ID' => $orgId,
+            'NAME' => $positionName,
+            'CODE' => $this->newRandomCode('sys_position'),
+            'CATEGORY' => 'LOW',
+            'SORT_CODE' => 99,
+            'EXT_JSON' => null,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'TENANT_ID' => trim((string)($org['TENANT_ID'] ?? '')) !== '' ? (string)$org['TENANT_ID'] : '0',
+        ];
+        Db::name('sys_position')->insert($row);
+
+        return $row;
+    }
+
+    private function newRandomCode(string $table): string
+    {
+        $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $code = '';
+            for ($i = 0; $i < 10; $i++) {
+                $code .= $chars[random_int(0, strlen($chars) - 1)];
+            }
+            $exists = Db::name($table)
+                ->where('CODE', $code)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->count();
+            if ($exists === 0) {
+                return $code;
+            }
+        }
+
+        return substr($this->newId(), -10);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function activeUserByAccount(string $account): ?array
+    {
+        $row = Db::name('sys_user')
+            ->where('ACCOUNT', $account)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->order('ID', 'asc')
+            ->find();
+
+        return is_array($row) && $row !== [] ? $row : null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function ensureImportTargetScopeAllowed(array $payload, string $orgId): void
+    {
+        if ($this->isAdminCompatible($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && in_array($orgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $payloadUserId = $this->payloadUserId($payload);
+        if ($payloadUserId !== '') {
+            $userOrgId = Db::name('sys_user')
+                ->where('ID', $payloadUserId)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->value('ORG_ID');
+            if (is_string($userOrgId) && $userOrgId === $orgId) {
+                return;
+            }
+        }
+
+        throw new RuntimeException('permission denied', 403);
     }
 
     /**
@@ -1636,6 +2386,35 @@ class UserDirectoryService
 
         if ($this->hasExportUserPermission($payload, $bizScope)) {
             return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function ensureImportAllowed(array $payload): void
+    {
+        if ($this->isAdminCompatible($payload)) {
+            return;
+        }
+
+        $codes = array_merge(
+            $this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []),
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            $this->stringList($payload['button_codes'] ?? $payload['buttonCodeList'] ?? [])
+        );
+        $needles = ['/sys/user/import', 'sysuserimport'];
+
+        foreach ($codes as $code) {
+            $normalized = strtolower(str_replace(['/', ':', '_', '-'], '', $code));
+            $lower = strtolower($code);
+            foreach ($needles as $needle) {
+                if ($lower === $needle || $normalized === str_replace(['/', ':', '_', '-'], '', $needle)) {
+                    return;
+                }
+            }
         }
 
         throw new RuntimeException('permission denied', 403);

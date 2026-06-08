@@ -71,7 +71,7 @@ All routes are protected by `AuthMiddleware`.
 
 ## Deferred
 
-- User import and real `.xlsx`/`.docx` rendering
+- Business user import, `.xls` parsing, and real `.docx` rendering
 - General organization-wide profile edit beyond `/biz/user/center/edit`
 - Dictionary add/delete
 - Java source changes
@@ -124,7 +124,7 @@ The ThinkPHP implementation uses logical delete on `sys_position.DELETE_FLAG` du
 
 Still deferred:
 
-- user import and real `.xlsx`/`.docx` rendering
+- business user import, `.xls` parsing, and real `.docx` rendering
 - Java data-change event publishing
 - route-permission middleware
 

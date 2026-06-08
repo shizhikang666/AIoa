@@ -62,6 +62,14 @@ class UserController extends BaseSysController
         ));
     }
 
+    public function import(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userDirectoryService->importUsers(
+            $request->file('file'),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
     public function export(Request $request): Response
     {
         return $this->downloadGuard(fn () => $this->userDirectoryService->exportUsers(
@@ -337,8 +345,13 @@ class UserController extends BaseSysController
         $contentType = (string)($file['contentType'] ?? 'application/octet-stream');
         $encodedFilename = rawurlencode($filename);
 
+        $textual = str_starts_with($contentType, 'text/')
+            || str_contains($contentType, 'json')
+            || str_contains($contentType, 'xml')
+            || str_contains($contentType, 'csv');
+
         return Response::create($content, 'html', 200)->header([
-            'Content-Type' => $contentType . '; charset=utf-8',
+            'Content-Type' => $textual ? $contentType . '; charset=utf-8' : $contentType,
             'Content-Disposition' => 'attachment; filename="' . $filename . '"; filename*=UTF-8\'\'' . $encodedFilename,
             'Content-Length' => (string)strlen($content),
             'Cache-Control' => 'no-store, no-cache, must-revalidate',

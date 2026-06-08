@@ -212,6 +212,204 @@ echo "UserDirectoryService export checks passed\n";
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'UserDirectoryService import' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+$app = (new think\App(getcwd()))->initialize();
+
+function xlsx_col(int $idx): string {
+    $name = '';
+    $idx++;
+    while ($idx > 0) {
+        $idx--;
+        $name = chr(65 + ($idx % 26)) . $name;
+        $idx = intdiv($idx, 26);
+    }
+    return $name;
+}
+
+function xlsx_text(string $value): string {
+    return htmlspecialchars($value, ENT_XML1 | ENT_COMPAT, 'UTF-8');
+}
+
+function xlsx_sheet(array $rows): string {
+    $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+    foreach ($rows as $rowIndex => $row) {
+        $xml .= '<row r="' . ($rowIndex + 1) . '">';
+        foreach ($row as $columnIndex => $value) {
+            $ref = xlsx_col($columnIndex) . ($rowIndex + 1);
+            $xml .= '<c r="' . $ref . '" t="inlineStr"><is><t>' . xlsx_text((string)$value) . '</t></is></c>';
+        }
+        $xml .= '</row>';
+    }
+    return $xml . '</sheetData></worksheet>';
+}
+
+function write_xlsx(string $path, array $rows): void {
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException('open xlsx failed');
+    }
+    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>');
+    $zip->addFromString('_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+    $zip->addFromString('xl/workbook.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="UserImport" sheetId="1" r:id="rId1"/></sheets></workbook>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>');
+    $zip->addFromString('xl/worksheets/sheet1.xml', xlsx_sheet($rows));
+    $zip->close();
+}
+
+$service = new app\service\user\UserDirectoryService();
+$payload = [
+    'account' => 'superadmin',
+    'role_codes' => ['superadmin'],
+    'tenant_id' => '1',
+    'user_id' => 'codex-smoke',
+];
+$prefix = 'CODEX_IMPORT_' . date('YmdHis') . random_int(1000, 9999);
+$account = strtolower($prefix);
+$orgRoot = $prefix . '_ORG';
+$orgChild = $prefix . '_DEPT';
+$position = $prefix . '_POS';
+$tmp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $prefix . '.xlsx';
+$duplicatePhone = (string)think\facade\Db::name('sys_user')
+    ->where('DELETE_FLAG', 'NOT_DELETE')
+    ->whereNotNull('PHONE')
+    ->where('PHONE', '<>', '')
+    ->value('PHONE');
+
+try {
+    $template = $service->downloadImportUserTemplate($payload);
+    if (($template['filename'] ?? '') !== 'userImportTemplate.xlsx') {
+        throw new RuntimeException('bad template filename');
+    }
+    if (!str_contains((string)$template['contentType'], 'spreadsheetml')) {
+        throw new RuntimeException('bad template content type');
+    }
+    if (substr((string)$template['content'], 0, 2) !== 'PK') {
+        throw new RuntimeException('template is not xlsx zip');
+    }
+
+    write_xlsx($tmp, [
+        ['note'],
+        ['account', 'name', 'orgName', 'positionName', 'phone', 'email', 'directorName', 'empNo', 'entryDate', 'positionLevel', 'nickname', 'gender'],
+        [$account, $prefix . '_NAME', $orgRoot . '-' . $orgChild, $position, $duplicatePhone, $account . '@example.com', '', $prefix . '_EMP', '2026-06-08', 'P7', $prefix . '_NICK', 'M'],
+    ]);
+    $result = $service->importUsers($tmp, $payload);
+    if ($result['totalCount'] !== 1 || $result['successCount'] !== 1 || $result['errorCount'] !== 0) {
+        throw new RuntimeException('unexpected import result: ' . json_encode($result, JSON_UNESCAPED_UNICODE));
+    }
+
+    $user = think\facade\Db::name('sys_user')
+        ->where('ACCOUNT', $account)
+        ->where('DELETE_FLAG', 'NOT_DELETE')
+        ->find();
+    if (!$user) {
+        throw new RuntimeException('imported user missing');
+    }
+    if ((string)$user['PHONE'] !== '') {
+        throw new RuntimeException('duplicate phone was not skipped');
+    }
+    if ((string)$user['EMAIL'] !== $account . '@example.com') {
+        throw new RuntimeException('email not imported');
+    }
+
+    write_xlsx($tmp, [
+        ['note'],
+        ['account', 'name', 'orgName', 'positionName', 'phone', 'email'],
+        [$account, $prefix . '_NAME_EDIT', $orgRoot . '-' . $orgChild, $position, '', $account . '2@example.com'],
+    ]);
+    $result = $service->importUsers($tmp, $payload);
+    if ($result['successCount'] !== 1 || $result['errorCount'] !== 0) {
+        throw new RuntimeException('unexpected update result: ' . json_encode($result, JSON_UNESCAPED_UNICODE));
+    }
+
+    $count = think\facade\Db::name('sys_user')
+        ->where('ACCOUNT', $account)
+        ->where('DELETE_FLAG', 'NOT_DELETE')
+        ->count();
+    if ((int)$count !== 1) {
+        throw new RuntimeException('update created duplicate account');
+    }
+
+    write_xlsx($tmp, [
+        ['note'],
+        ['account', 'name', 'orgName', 'positionName'],
+        ['', 'Missing Account', $orgRoot, $position],
+    ]);
+    $bad = $service->importUsers($tmp, $payload);
+    if ($bad['totalCount'] !== 1 || $bad['successCount'] !== 0 || $bad['errorCount'] !== 1) {
+        throw new RuntimeException('bad row did not return error detail');
+    }
+
+    $denied = false;
+    try {
+        $service->importUsers($tmp, ['account' => 'limited']);
+    } catch (RuntimeException $exception) {
+        $denied = $exception->getCode() === 403;
+    }
+    if (!$denied) {
+        throw new RuntimeException('limited payload was not denied');
+    }
+
+    $scopedPayload = [
+        'account' => 'importer',
+        'permission_codes' => ['sysUserImport', 'sysUserAdd'],
+        'tenant_id' => '1',
+        'user_id' => 'codex-limited',
+    ];
+    write_xlsx($tmp, [
+        ['note'],
+        ['account', 'name', 'orgName', 'positionName'],
+        [$account . '_limited', $prefix . '_LIMITED', $prefix . '_NO_ORG', $prefix . '_NO_POS'],
+    ]);
+    $limited = $service->importUsers($tmp, $scopedPayload);
+    if ($limited['totalCount'] !== 1 || $limited['successCount'] !== 0 || $limited['errorCount'] !== 1) {
+        throw new RuntimeException('limited import unexpectedly created org or user');
+    }
+
+    echo "UserDirectoryService import checks passed\n";
+} finally {
+    if (is_file($tmp)) {
+        @unlink($tmp);
+    }
+
+    $userIds = think\facade\Db::name('sys_user')
+        ->whereLike('ACCOUNT', strtolower($prefix) . '%')
+        ->column('ID');
+    if ($userIds !== []) {
+        think\facade\Db::name('sys_user')->whereIn('ID', $userIds)->delete();
+    }
+
+    $orgIds = think\facade\Db::name('sys_org')
+        ->whereLike('NAME', $prefix . '%')
+        ->column('ID');
+    if ($orgIds !== []) {
+        think\facade\Db::name('sys_position')->whereIn('ORG_ID', $orgIds)->delete();
+        think\facade\Db::name('sys_org')->whereIn('ID', $orgIds)->delete();
+    }
+}
+'@
+
+    $probePath = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-user-import-smoke-$([guid]::NewGuid()).php")
+    try {
+        Set-Content -LiteralPath $probePath -Value $probe -Encoding UTF8
+        $output = & php $probePath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php UserDirectoryService import probe failed: $output"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $probePath) {
+            Remove-Item -LiteralPath $probePath -Force
+        }
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'Biz dictionary writes' {
 $probe = @'
 <?php
