@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace app\service\dev;
 
+use app\support\FileDownloadUrl;
+use RuntimeException;
 use think\facade\Db;
 
 /**
@@ -86,6 +88,38 @@ class FileService
         return $this->fileRow(is_array($row) ? $row : $row->toArray());
     }
 
+    /**
+     * @return array{filename:string, contentType:string, content:string}
+     */
+    public function download(string $id): array
+    {
+        $row = $this->fileQuery(['id' => $id], null, false)->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('文件不存在，id值为：' . $id, 500);
+        }
+
+        $engine = strtoupper(trim((string)($row['ENGINE'] ?? '')));
+        if ($engine !== 'LOCAL') {
+            throw new RuntimeException('非本地文件不支持此方式下载，id值为：' . $id, 500);
+        }
+
+        $path = trim((string)($row['STORAGE_PATH'] ?? ''));
+        if ($path === '' || !is_file($path) || !is_readable($path)) {
+            throw new RuntimeException('找不到存储的文件，id值为：' . $id, 500);
+        }
+
+        $content = file_get_contents($path);
+        if ($content === false) {
+            throw new RuntimeException('找不到存储的文件，id值为：' . $id, 500);
+        }
+
+        return [
+            'filename' => trim((string)($row['NAME'] ?? '')) !== '' ? (string)$row['NAME'] : basename($path),
+            'contentType' => 'application/octet-stream;charset=UTF-8',
+            'content' => $content,
+        ];
+    }
+
     private function fileQuery(array $filters, ?string $tenantId, bool $tenantScoped)
     {
         $query = Db::name('dev_file')
@@ -141,7 +175,7 @@ class FileService
             'sizeInfo' => $row['SIZE_INFO'] ?? null,
             'objName' => $row['OBJ_NAME'] ?? null,
             'storagePath' => $row['STORAGE_PATH'] ?? null,
-            'downloadPath' => $row['DOWNLOAD_PATH'] ?? null,
+            'downloadPath' => FileDownloadUrl::normalize($row['ID'] ?? null, $row['ENGINE'] ?? null, $row['DOWNLOAD_PATH'] ?? null),
             'thumbnail' => $row['THUMBNAIL'] ?? null,
             'extJson' => $row['EXT_JSON'] ?? null,
             'tenantId' => $row['TENANT_ID'] ?? null,

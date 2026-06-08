@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\FileDownloadUrl;
 use RuntimeException;
 use think\facade\Db;
 
@@ -43,6 +44,7 @@ c.FIRST_CONTACT_TIME AS FIRST_CONTACT_TIME,
 head.NAME AS HEAD_NAME,
 org.NAME AS ORG_NAME,
 creator.NAME AS CREATE_USER_NAME,
+df.ENGINE AS FILE_ENGINE,
 df.DOWNLOAD_PATH AS DOWNLOAD_PATH
 SQL;
 
@@ -532,7 +534,11 @@ SQL;
                 'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
                 'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
                 'fileId' => $this->value($row, 'FILE_ID', 'fileId'),
-                'downloadPath' => $this->value($row, 'DOWNLOAD_PATH', 'downloadPath'),
+                'downloadPath' => FileDownloadUrl::normalize(
+                    $this->value($row, 'FILE_ID', 'fileId'),
+                    $this->value($row, 'FILE_ENGINE', 'fileEngine'),
+                    $this->value($row, 'DOWNLOAD_PATH', 'downloadPath')
+                ),
                 'version' => $this->integer($this->value($row, 'VERSION', 'version')),
                 'dealAmount' => $this->decimal($this->value($row, 'DEAL_AMOUNT', 'dealAmount')),
                 'remark' => $this->value($row, 'REMARK', 'remark'),

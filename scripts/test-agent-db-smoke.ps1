@@ -156,6 +156,120 @@ Invoke-TestStep 'Redis ping' {
     }
 }
 
+Invoke-TestStep 'DevFileService local download' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+$app = (new think\App(getcwd()))->initialize();
+
+$prefix = 'CODEX_DEV_FILE_' . date('YmdHis') . random_int(1000, 9999);
+$baseId = 600000000000000000 + random_int(1000000, 9999999);
+$localId = (string)$baseId;
+$remoteId = (string)($baseId + 1);
+$missingId = (string)($baseId + 2);
+$tmp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $prefix . '.txt';
+$content = "codex dev file smoke\n";
+$now = date('Y-m-d H:i:s');
+
+file_put_contents($tmp, $content);
+
+try {
+    think\facade\Db::name('dev_file')->insert([
+        'ID' => $localId,
+        'ENGINE' => 'LOCAL',
+        'BUCKET' => 'defaultBucketName',
+        'NAME' => $prefix . '.txt',
+        'SUFFIX' => 'txt',
+        'SIZE_KB' => 1,
+        'SIZE_INFO' => '1KB',
+        'OBJ_NAME' => $prefix . '.txt',
+        'STORAGE_PATH' => $tmp,
+        'DOWNLOAD_PATH' => 'https://old.example/backend/dev/file/download?id=' . $localId,
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => $now,
+        'CREATE_USER' => 'codex-smoke',
+        'TENANT_ID' => '1',
+    ]);
+    think\facade\Db::name('dev_file')->insert([
+        'ID' => $remoteId,
+        'ENGINE' => 'ALIYUN',
+        'BUCKET' => 'remote',
+        'NAME' => $prefix . '-remote.txt',
+        'SUFFIX' => 'txt',
+        'STORAGE_PATH' => 'https://remote.example/file.txt',
+        'DOWNLOAD_PATH' => 'https://remote.example/file.txt',
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => $now,
+        'CREATE_USER' => 'codex-smoke',
+        'TENANT_ID' => '1',
+    ]);
+    think\facade\Db::name('dev_file')->insert([
+        'ID' => $missingId,
+        'ENGINE' => 'LOCAL',
+        'BUCKET' => 'defaultBucketName',
+        'NAME' => $prefix . '-missing.txt',
+        'SUFFIX' => 'txt',
+        'STORAGE_PATH' => $tmp . '.missing',
+        'DOWNLOAD_PATH' => 'https://old.example/backend/dev/file/download?id=' . $missingId,
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => $now,
+        'CREATE_USER' => 'codex-smoke',
+        'TENANT_ID' => '1',
+    ]);
+
+    $service = new app\service\dev\FileService();
+    $download = $service->download($localId);
+    if (($download['filename'] ?? '') !== $prefix . '.txt') {
+        throw new RuntimeException('download filename mismatch');
+    }
+    if (($download['content'] ?? '') !== $content) {
+        throw new RuntimeException('download content mismatch');
+    }
+    if (($download['contentType'] ?? '') !== 'application/octet-stream;charset=UTF-8') {
+        throw new RuntimeException('download content type mismatch');
+    }
+
+    $detail = $service->detail($localId);
+    if (($detail['downloadPath'] ?? '') !== '/api/dev/file/download?id=' . rawurlencode($localId)) {
+        throw new RuntimeException('local detail downloadPath was not normalized');
+    }
+
+    $remoteDetail = $service->detail($remoteId);
+    if (($remoteDetail['downloadPath'] ?? '') !== 'https://remote.example/file.txt') {
+        throw new RuntimeException('remote detail downloadPath should be preserved');
+    }
+
+    foreach ([$remoteId, $missingId, (string)($baseId + 3)] as $id) {
+        $failed = false;
+        try {
+            $service->download($id);
+        } catch (RuntimeException $exception) {
+            $failed = $exception->getCode() === 500 && $exception->getMessage() !== '';
+        }
+        if (!$failed) {
+            throw new RuntimeException('expected download failure for ' . $id);
+        }
+    }
+
+    echo "DevFileService local download checks passed\n";
+} finally {
+    think\facade\Db::name('dev_file')->whereIn('ID', [$localId, $remoteId, $missingId])->delete();
+    if (is_file($tmp)) {
+        @unlink($tmp);
+    }
+}
+'@
+
+    $output = $probe | & php 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "php DevFileService download probe failed: $output"
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'UserDirectoryService exports' {
 $probe = @'
 <?php

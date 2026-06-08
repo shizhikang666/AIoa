@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\FileDownloadUrl;
 use RuntimeException;
 use think\facade\Db;
 
@@ -213,7 +214,11 @@ SQL;
             'sizeInfo' => $this->value($row, 'SIZE_INFO', 'sizeInfo'),
             'objName' => $this->value($row, 'OBJ_NAME', 'objName'),
             'storagePath' => $this->value($row, 'STORAGE_PATH', 'storagePath'),
-            'downloadPath' => $this->value($row, 'DOWNLOAD_PATH', 'downloadPath'),
+            'downloadPath' => FileDownloadUrl::normalize(
+                $this->value($row, 'TARGET_ID', 'targetId'),
+                $this->value($row, 'ENGINE', 'engine'),
+                $this->value($row, 'DOWNLOAD_PATH', 'downloadPath')
+            ),
             'thumbnail' => $this->value($row, 'THUMBNAIL', 'thumbnail'),
             'fileExtJson' => $this->value($row, 'FILE_EXT_JSON', 'fileExtJson'),
             'createUserName' => $this->value($row, 'CREATE_USER_NAME', 'createUserName'),

@@ -204,6 +204,8 @@ Route::group('dev/config', function () {
     Route::get('detail', 'dev.ConfigController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::get('dev/file/download', 'dev.FileController/download');
+
 Route::group('dev/file', function () {
     Route::get('page', 'dev.FileController/page');
     Route::get('list', 'dev.FileController/list');

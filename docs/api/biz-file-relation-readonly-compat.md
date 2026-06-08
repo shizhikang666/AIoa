@@ -92,4 +92,5 @@ Rows return frontend-friendly camelCase fields:
 
 - Java derives relation `fileName` from `dev_file.NAME` during add. The imported SQL often has empty `FILE_NAME`, so this read service falls back to linked `dev_file.NAME` in the returned `fileName`.
 - Java `list` requires `objectId` and `category`; this ThinkPHP compatibility query accepts the same filters but does not reject empty reads.
+- Linked local-file rows normalize `downloadPath` to `/api/dev/file/download?id=<targetId>` so copied frontend file links use the current ThinkPHP download route. Non-local file rows keep their stored path.
 - This slice does not modify Java source, database schema, Composer files, `.env`, or any write endpoint.

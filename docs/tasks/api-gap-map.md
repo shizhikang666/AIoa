@@ -19,7 +19,7 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 386 | From `php think route:list` after system user import route addition |
+| Current ThinkPHP routes | 387 | From `php think route:list` after `dev/file/download` route addition |
 | Endpoints already covered by route path | 363 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 149 | Add/edit/audit/import/export/workflow/finance/stock actions |
@@ -38,7 +38,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `sys/role` | Role page/list/detail/resource/menu relation reads |
 | `sys/menu`, `sys/field`, and `sys/resource` | Menu/resource tree, field page/tree/detail, and selector reads |
 | `dev/config`, `dev/dict`, `dev/log` | Common management reads |
-| `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | Metadata/list/detail and monitor reads; mutation routes remain deferred |
+| `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | File metadata/list/detail, public local-file download compatibility, and monitor reads; upload/delete mutation routes remain deferred |
 | `mobile/menu` and `mobile/resource` | Mobile menu/resource read compatibility |
 | `gen/basic`, `gen/config`, `tenant` | Read-only compatibility routes |
 | `biz/product`, `biz/supplier`, `biz/settlementaccount` | Core master-data read adapters; product base add/edit/delete, kit relation maintenance, product status/reconciliation, and supplier base add/edit/delete are covered |
@@ -121,7 +121,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/org`, `biz/user`, `biz/position`, `biz/dict` | business user import, real Office export rendering, resource/permission grants, business dictionary add/delete | `/biz/org/add`, `/biz/org/edit`, `/biz/org/delete`, `/biz/position/add`, `/biz/position/edit`, `/biz/position/delete`, `/biz/user/add`, `/biz/user/edit`, `/biz/user/center/edit`, `/biz/user/delete`, `/biz/user/grantRole`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/biz/user/resetPassword`, `/biz/user/export`, `/biz/user/exportUserInfo`, and `/biz/dict/edit` are covered; `/dev/dict/add|edit|delete` cover BIZ maintenance; `/sys/user/import` covers Java system user import; business user import remains intentionally absent like Java; real `.docx` rendering and business dictionary add/delete remain deferred |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
 | `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
-| `dev/file` | `upload*`, `delete` | Storage provider, file persistence, and cleanup strategy |
+| `dev/file` | `upload*`, `delete` | Public local download is covered; upload/delete still need storage provider, file persistence, and cleanup strategy |
 | `dev/message` | Full realtime push | User-center/index detail mark-read, homepage all-mark-read, minimal SSE compatibility, message send, and message delete are covered; full SSE/WebPush parity remains deferred |
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | `add`, `edit`, `delete`, import/generate/complete actions | Business validation and transactional side effects |
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
