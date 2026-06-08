@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\dev;
 
+use RuntimeException;
 use think\facade\Db;
 
 /**
@@ -12,6 +13,7 @@ use think\facade\Db;
 class SmsService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
         'engine' => 'ENGINE',
@@ -50,6 +52,32 @@ class SmsService
         }
 
         return $this->smsRow(is_array($row) ? $row : $row->toArray());
+    }
+
+    /**
+     * @param array<int, string> $ids
+     */
+    public function delete(array $ids, array $payload = []): ?array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $ids))));
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $tenantId = $this->requiredTenantId($payload);
+        Db::name('dev_sms')
+            ->whereIn('ID', $ids)
+            ->where('TENANT_ID', $tenantId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update([
+                'DELETE_FLAG' => self::DELETED,
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $this->currentUserId($payload),
+            ]);
+
+        return null;
     }
 
     private function smsQuery(array $filters, ?string $tenantId)
@@ -124,5 +152,30 @@ class SmsService
         $limit = max(1, min(200, (int)($filters['size'] ?? $filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function requiredTenantId(array $payload): string
+    {
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            return $tenantId;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId !== null) {
+            $tenantId = trim((string)Db::name('sys_user')->where('ID', $userId)->value('TENANT_ID'));
+            if ($tenantId !== '') {
+                return $tenantId;
+            }
+        }
+
+        throw new RuntimeException('missing tenantId', 400);
+    }
+
+    private function currentUserId(array $payload): ?string
+    {
+        $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+
+        return $userId === '' ? null : $userId;
     }
 }

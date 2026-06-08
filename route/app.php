@@ -231,11 +231,13 @@ Route::group('dev/file', function () {
 Route::group('dev/email', function () {
     Route::get('page', 'dev.EmailController/page');
     Route::get('detail', 'dev.EmailController/detail');
+    Route::post('delete', 'dev.EmailController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('dev/sms', function () {
     Route::get('page', 'dev.SmsController/page');
     Route::get('detail', 'dev.SmsController/detail');
+    Route::post('delete', 'dev.SmsController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('dev/job', function () {

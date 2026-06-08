@@ -1,8 +1,8 @@
-# Dev Email And Sms Read-Only Compatibility
+# Dev Email And Sms Compatibility
 
 ## Scope
 
-This slice adds authenticated, read-only compatibility for Java email and SMS send record query endpoints.
+This slice adds authenticated compatibility for Java email and SMS send record query endpoints plus low-risk metadata logical delete.
 
 ## Java Reference
 
@@ -22,8 +22,10 @@ Protected routes:
 
 - `GET /dev/email/page`
 - `GET /dev/email/detail`
+- `POST /dev/email/delete`
 - `GET /dev/sms/page`
 - `GET /dev/sms/detail`
+- `POST /dev/sms/delete`
 
 ## Email Response Shape
 
@@ -105,12 +107,15 @@ SMS-specific filters:
 - SMS `searchKey` follows Java behavior and searches `PHONE_NUMBERS`.
 - Queries are scoped to the current token tenant when the bearer token contains tenant information.
 - Details return `null` for missing or out-of-tenant rows.
+- Delete accepts the Java/frontend array body shape `[{ "id": "..." }]`.
+- Delete also accepts `idList`, `ids`, or single `id` payloads for compatibility with existing ThinkPHP helpers.
+- Delete is tenant-scoped and updates only active rows in the current token tenant.
+- Delete sets `DELETE_FLAG = DELETED`, updates audit fields, and returns `data = null`.
 
 ## Deliberate Exclusions
 
 - No email send routes are implemented.
 - No SMS send routes are implemented.
-- No email/SMS delete routes are implemented.
 - No local mail client, cloud email provider, or SMS provider integration is called.
 - No third-party credentials, API keys, database schema, or Java source files are changed.
 

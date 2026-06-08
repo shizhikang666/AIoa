@@ -171,7 +171,7 @@ Cleanup:
 
 Not verified:
 
-- Rich-text image upload was not browser-smoked because the current authenticated menu does not expose `dev/email` or `exm/editor`, and direct routes `/dev/email` and `/exm/editor` return 404. When a rich-text page is exposed, smoke the TinyMCE image button against `/dev/file/uploadDynamicReturnUrl`.
+- Rich-text image upload was not browser-smoked because the currently tested visible pages do not expose a TinyMCE image-upload control. When a rich-text page is exposed, smoke the TinyMCE image button against `/dev/file/uploadDynamicReturnUrl`.
 
 ## Browser Dev File Delete Smoke, 2026-06-08
 
@@ -187,6 +187,20 @@ Cleanup:
 
 - Temporary `CODEX_UI_DELETE_*` `dev_file` rows were removed.
 - Temporary uploaded physical files under `runtime/upload/dev_file` were removed.
+
+## Browser Dev Email/SMS Delete Smoke, 2026-06-08
+
+Verified after `/dev/email/delete` and `/dev/sms/delete` compatibility was added:
+
+- Page paths: `/dev/email/index` and `/dev/sms/index`
+- Test setup used a short-lived local token and a minimal browser menu cache so the copied Vue routes could load directly.
+- Row delete on the email page posts to `POST /api/dev/email/delete`.
+- Row delete on the SMS page posts to `POST /api/dev/sms/delete`.
+- The temporary `dev_email` and `dev_sms` rows are marked `DELETE_FLAG = DELETED`.
+
+Cleanup:
+
+- Temporary `CODEX_UI_NOTIFY_*` `dev_email` and `dev_sms` rows were removed.
 
 ## Gap Recording Rule
 

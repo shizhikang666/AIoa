@@ -505,6 +505,89 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'Dev email and SMS logical delete' {
+$probe = @'
+<?php
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+$emailService = new app\service\dev\EmailService();
+$smsService = new app\service\dev\SmsService();
+$prefix = 'CODEX_DEV_NOTIFY_' . date('YmdHis') . random_int(1000, 9999);
+$base = 600200000000000000 + random_int(1000000, 9999999);
+$emailId = (string)$base;
+$emailTenant2 = (string)($base + 1);
+$smsId = (string)($base + 2);
+$smsTenant2 = (string)($base + 3);
+$now = date('Y-m-d H:i:s');
+$payload = ['user_id' => 'codex-notify-smoke', 'tenant_id' => '1'];
+try {
+    think\facade\Db::name('dev_email')->insert([
+        'ID' => $emailId, 'ENGINE' => 'LOCAL', 'SEND_ACCOUNT' => 'codex@example.invalid',
+        'SEND_USER' => 'codex', 'RECEIVE_ACCOUNTS' => 'receiver@example.invalid',
+        'SUBJECT' => $prefix . ' email', 'CONTENT' => 'codex email smoke',
+        'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => $now, 'CREATE_USER' => 'codex-smoke', 'TENANT_ID' => '1',
+    ]);
+    think\facade\Db::name('dev_email')->insert([
+        'ID' => $emailTenant2, 'ENGINE' => 'LOCAL', 'SEND_ACCOUNT' => 'codex@example.invalid',
+        'SEND_USER' => 'codex', 'RECEIVE_ACCOUNTS' => 'receiver@example.invalid',
+        'SUBJECT' => $prefix . ' tenant2', 'CONTENT' => 'codex email smoke',
+        'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => $now, 'CREATE_USER' => 'codex-smoke', 'TENANT_ID' => '2',
+    ]);
+    think\facade\Db::name('dev_sms')->insert([
+        'ID' => $smsId, 'ENGINE' => 'ALIYUN', 'PHONE_NUMBERS' => '13800138000',
+        'SIGN_NAME' => $prefix, 'TEMPLATE_CODE' => 'CODEX_TEMPLATE', 'TEMPLATE_PARAM' => '{}',
+        'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => $now, 'CREATE_USER' => 'codex-smoke', 'TENANT_ID' => '1',
+    ]);
+    think\facade\Db::name('dev_sms')->insert([
+        'ID' => $smsTenant2, 'ENGINE' => 'ALIYUN', 'PHONE_NUMBERS' => '13800138001',
+        'SIGN_NAME' => $prefix, 'TEMPLATE_CODE' => 'CODEX_TEMPLATE_2', 'TEMPLATE_PARAM' => '{}',
+        'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => $now, 'CREATE_USER' => 'codex-smoke', 'TENANT_ID' => '2',
+    ]);
+    $emailService->delete([$emailId, $emailTenant2], $payload);
+    $smsService->delete([$smsId, $smsTenant2], $payload);
+    $ok = (string)think\facade\Db::name('dev_email')->where('ID', $emailId)->value('DELETE_FLAG') == 'DELETED';
+    if ($ok == false) { throw new RuntimeException('email delete failed'); }
+    $ok = (string)think\facade\Db::name('dev_sms')->where('ID', $smsId)->value('DELETE_FLAG') == 'DELETED';
+    if ($ok == false) { throw new RuntimeException('sms delete failed'); }
+    $ok = (string)think\facade\Db::name('dev_email')->where('ID', $emailTenant2)->value('DELETE_FLAG') == 'NOT_DELETE';
+    if ($ok == false) { throw new RuntimeException('cross-tenant email delete failed'); }
+    $ok = (string)think\facade\Db::name('dev_sms')->where('ID', $smsTenant2)->value('DELETE_FLAG') == 'NOT_DELETE';
+    if ($ok == false) { throw new RuntimeException('cross-tenant sms delete failed'); }
+    $ok = $emailService->detail($emailId, '1') == null;
+    if ($ok == false) { throw new RuntimeException('deleted email detail visible'); }
+    $ok = $smsService->detail($smsId, '1') == null;
+    if ($ok == false) { throw new RuntimeException('deleted sms detail visible'); }
+    $ok = (int)$emailService->page(['searchKey' => $prefix], '1')['total'] == 0;
+    if ($ok == false) { throw new RuntimeException('deleted email page visible'); }
+    $ok = (int)$smsService->page(['searchKey' => '13800138000'], '1')['total'] == 0;
+    if ($ok == false) { throw new RuntimeException('deleted sms page visible'); }
+    $failed = false;
+    try { $emailService->delete([], ['tenant_id' => '1']); } catch (RuntimeException $exception) { $failed = true; }
+    if ($failed == false) { throw new RuntimeException('empty email delete payload should fail'); }
+    $failed = false;
+    try { $smsService->delete([], ['tenant_id' => '1']); } catch (RuntimeException $exception) { $failed = true; }
+    if ($failed == false) { throw new RuntimeException('empty sms delete payload should fail'); }
+    echo "Dev email/SMS logical delete checks passed\n";
+} finally {
+    think\facade\Db::name('dev_email')->whereIn('ID', array($emailId, $emailTenant2))->delete();
+    think\facade\Db::name('dev_sms')->whereIn('ID', array($smsId, $smsTenant2))->delete();
+}
+'@
+    $tmpProbe = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-dev-email-sms-delete-{0}.php" -f ([Guid]::NewGuid().ToString('N')))
+    try {
+        [System.IO.File]::WriteAllText($tmpProbe, $probe, [System.Text.UTF8Encoding]::new($false))
+        $output = & php $tmpProbe 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php Dev email/SMS delete probe failed: $output"
+        }
+        Write-Host ([string]($output | Out-String)).Trim()
+    } finally {
+        if (Test-Path -LiteralPath $tmpProbe) {
+            Remove-Item -LiteralPath $tmpProbe -Force
+        }
+    }
+}
+
 Invoke-TestStep 'BizFileRelationService writes' {
 $probe = @'
 <?php

@@ -19,8 +19,8 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 411 | From `php think route:list` after dev-file metadata delete addition |
-| Endpoints already covered by route path | 383 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
+| Current ThinkPHP routes | 413 | From `php think route:list` after dev email/SMS metadata delete addition |
+| Endpoints already covered by route path | 385 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 148 | Add/edit/audit/import/export/workflow/finance/stock actions |
 
@@ -38,7 +38,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `sys/role` | Role page/list/detail/resource/menu relation reads |
 | `sys/menu`, `sys/field`, and `sys/resource` | Menu/resource tree, field page/tree/detail, and selector reads |
 | `dev/config`, `dev/dict`, `dev/log` | Common management reads |
-| `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | File metadata/list/detail, LOCAL/dynamic upload, metadata logical delete, public local-file download compatibility, cloud upload unsupported stubs, and monitor reads; real cloud storage remains deferred |
+| `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | File metadata/list/detail, LOCAL/dynamic upload, file/email/SMS metadata logical delete, public local-file download compatibility, cloud upload unsupported stubs, and monitor reads; real cloud storage and provider send actions remain deferred |
 | `mobile/menu` and `mobile/resource` | Mobile menu/resource read compatibility |
 | `gen/basic`, `gen/config`, `tenant` | Read-only compatibility routes |
 | `biz/product`, `biz/supplier`, `biz/settlementaccount` | Core master-data read adapters; product base add/edit/delete, kit relation maintenance, product status/reconciliation, and supplier base add/edit/delete are covered |

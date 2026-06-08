@@ -3,6 +3,7 @@ param(
     [string]$BackendBaseUrl = '',
     [switch]$NoTokenSmoke,
     [switch]$DevFileHttpSmoke,
+    [switch]$DevEmailSmsHttpSmoke,
     [switch]$FileRelationHttpSmoke
 )
 
@@ -134,6 +135,8 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'biz/user/exportUserInfo',
         'dev/message/createSseConnect',
         'dev/file/delete',
+        'dev/email/delete',
+        'dev/sms/delete',
         'biz/dict/page',
         'biz/org/page',
         'biz/user/page',
@@ -300,6 +303,156 @@ if (`$fileId !== '') {
 "@
             & php -r $cleanupCode | Out-Null
             foreach ($path in @($tmp, $jsonTmp)) {
+                if (Test-Path -LiteralPath $path) {
+                    Remove-Item -LiteralPath $path -Force
+                }
+            }
+        }
+    }
+}
+
+if ($DevEmailSmsHttpSmoke) {
+    Invoke-TestStep 'authenticated dev email and SMS delete HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -DevEmailSmsHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -DevEmailSmsHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_DEV_NOTIFY_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_NOTIFY_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $baseId = [Int64]600300000000000000 + [Int64](Get-Random -Minimum 1000000 -Maximum 9999999)
+        $emailId = [string]$baseId
+        $smsId = [string]($baseId + 1)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $phpTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.php')
+
+        try {
+            $insertCode = @"
+<?php
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$now = date('Y-m-d H:i:s');
+think\facade\Db::name('dev_email')->insert([
+    'ID' => '$emailId',
+    'ENGINE' => 'LOCAL',
+    'SEND_ACCOUNT' => 'codex@example.invalid',
+    'SEND_USER' => 'codex',
+    'RECEIVE_ACCOUNTS' => 'receiver@example.invalid',
+    'SUBJECT' => '$prefix email',
+    'CONTENT' => 'codex email http smoke',
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => 'codex-smoke',
+    'TENANT_ID' => '1',
+]);
+think\facade\Db::name('dev_sms')->insert([
+    'ID' => '$smsId',
+    'ENGINE' => 'ALIYUN',
+    'PHONE_NUMBERS' => '13800138000',
+    'SIGN_NAME' => '$prefix',
+    'TEMPLATE_CODE' => 'CODEX_TEMPLATE',
+    'TEMPLATE_PARAM' => '{}',
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => 'codex-smoke',
+    'TENANT_ID' => '1',
+]);
+"@
+            [System.IO.File]::WriteAllText($phpTmp, $insertCode, [System.Text.UTF8Encoding]::new($false))
+            & php $phpTmp
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to insert dev email/SMS smoke rows'
+            }
+
+            $badBody = @(@{ id = $emailId }, @{ id = '' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $badBody -Encoding ASCII
+            $badEmailRaw = & curl.exe -sS -X POST "$base/dev/email/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'bad email delete request failed'
+            }
+            $badEmail = $badEmailRaw | ConvertFrom-Json
+            if ([int]$badEmail.code -eq 200) {
+                throw "bad email delete payload should fail: $badEmailRaw"
+            }
+            $emailFlag = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_email')->where('ID', '$emailId')->value('DELETE_FLAG');"
+            if ([string]$emailFlag -ne 'NOT_DELETE') {
+                throw 'bad email delete payload should not partially delete valid ids'
+            }
+
+            $badBody = @(@{ id = $smsId }, @{ id = '' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $badBody -Encoding ASCII
+            $badSmsRaw = & curl.exe -sS -X POST "$base/dev/sms/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'bad SMS delete request failed'
+            }
+            $badSms = $badSmsRaw | ConvertFrom-Json
+            if ([int]$badSms.code -eq 200) {
+                throw "bad SMS delete payload should fail: $badSmsRaw"
+            }
+            $smsFlag = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_sms')->where('ID', '$smsId')->value('DELETE_FLAG');"
+            if ([string]$smsFlag -ne 'NOT_DELETE') {
+                throw 'bad SMS delete payload should not partially delete valid ids'
+            }
+
+            $body = @(@{ id = $emailId }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $emailRaw = & curl.exe -sS -X POST "$base/dev/email/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'email delete request failed'
+            }
+            $emailDelete = $emailRaw | ConvertFrom-Json
+            if ([int]$emailDelete.code -ne 200 -or $null -ne $emailDelete.data) {
+                throw "unexpected email delete response: $emailRaw"
+            }
+
+            $body = @(@{ id = $smsId }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $smsRaw = & curl.exe -sS -X POST "$base/dev/sms/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'SMS delete request failed'
+            }
+            $smsDelete = $smsRaw | ConvertFrom-Json
+            if ([int]$smsDelete.code -ne 200 -or $null -ne $smsDelete.data) {
+                throw "unexpected SMS delete response: $smsRaw"
+            }
+
+            $emailFlag = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_email')->where('ID', '$emailId')->value('DELETE_FLAG');"
+            if ([string]$emailFlag -ne 'DELETED') {
+                throw 'dev email delete did not mark row deleted'
+            }
+            $smsFlag = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('dev_sms')->where('ID', '$smsId')->value('DELETE_FLAG');"
+            if ([string]$smsFlag -ne 'DELETED') {
+                throw 'dev SMS delete did not mark row deleted'
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('dev_email')->where('ID', '$emailId')->delete();
+think\facade\Db::name('dev_sms')->where('ID', '$smsId')->delete();
+"@
+            & php -r $cleanupCode | Out-Null
+            foreach ($path in @($jsonTmp, $phpTmp)) {
                 if (Test-Path -LiteralPath $path) {
                     Remove-Item -LiteralPath $path -Force
                 }
