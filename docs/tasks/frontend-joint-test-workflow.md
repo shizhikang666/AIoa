@@ -173,6 +173,21 @@ Not verified:
 
 - Rich-text image upload was not browser-smoked because the current authenticated menu does not expose `dev/email` or `exm/editor`, and direct routes `/dev/email` and `/exm/editor` return 404. When a rich-text page is exposed, smoke the TinyMCE image button against `/dev/file/uploadDynamicReturnUrl`.
 
+## Browser Dev File Delete Smoke, 2026-06-08
+
+Verified after `/dev/file/delete` compatibility was added:
+
+- Page path: `/dev/file/index`
+- The visible file upload control posts to `POST /api/dev/file/uploadLocalReturnUrl`.
+- Row delete posts to `POST /api/dev/file/delete`.
+- The temporary `dev_file` row is marked `DELETE_FLAG = DELETED`.
+- The filtered table refreshes through `GET /api/dev/file/page` and the temporary row disappears.
+
+Cleanup:
+
+- Temporary `CODEX_UI_DELETE_*` `dev_file` rows were removed.
+- Temporary uploaded physical files under `runtime/upload/dev_file` were removed.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:

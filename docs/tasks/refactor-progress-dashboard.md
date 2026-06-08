@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-08 13:05 +08:00
+Last updated: 2026-06-08 13:39 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -107,6 +107,8 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Sale project rating reads and writes | `/biz/projectrate/page`, `/list`, `/detail`, `/add`, and `/delete` routed for copied sale-project rating consumers, returning `projectName`, `customerName`, raw `extJson`, preserving `imgList`, and using logical delete | Rating edit, image upload/storage, sale-project writes, workflow, finance, and notifications deferred |
 | Biz user vacation page read | `/biz/bizuservacation/page` routed for copied vacation-balance management wrappers, returning user display names and balance fields | Vacation writes, generation/reduction, and leave approval deductions deferred |
 | Test-agent smoke automation | `scripts/test-agent-smoke.ps1` and `docs/tasks/test-agent-smoke-runbook.md` added for Composer autoload, ThinkPHP bootstrap, route coverage, strict PHP lint, whitespace checks, optional no-token backend smoke, optional dev-file delete HTTP smoke, optional file-relation HTTP smoke, and DB-backed user export/file upload/file-delete/file-relation service smoke against the user-provided local runtime | Browser smoke for copied Vue export/download buttons and rich-text image upload still need exposed pages |
+
+Browser dev-file delete smoke on 2026-06-08 verified `/dev/file/index` upload followed by row delete: upload posted to `/api/dev/file/uploadLocalReturnUrl`, delete posted to `/api/dev/file/delete`, the temporary row reached `DELETE_FLAG = DELETED`, the table refreshed, and temporary DB/disk artifacts were cleaned.
 
 ## Remaining High-Level Plan
 
