@@ -38,9 +38,84 @@ class FileController extends BaseSysController
         return $this->downloadGuard(fn () => $this->fileService->download($this->requiredString($request, 'id')));
     }
 
+    public function uploadDynamicReturnId(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnId(null, $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadDynamicReturnUrl(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnUrl(null, $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadDynamicReturnFile(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnFile(null, $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadLocalReturnId(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnId('LOCAL', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadLocalReturnUrl(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnUrl('LOCAL', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadLocalReturnFile(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnFile('LOCAL', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadAliyunReturnId(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnId('ALIYUN', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadAliyunReturnUrl(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnUrl('ALIYUN', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadAliyunReturnFile(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnFile('ALIYUN', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadTencentReturnId(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnId('TENCENT', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadTencentReturnUrl(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnUrl('TENCENT', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadTencentReturnFile(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnFile('TENCENT', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadMinioReturnId(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnId('MINIO', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadMinioReturnUrl(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnUrl('MINIO', $request->file('file'), $this->payload($request)));
+    }
+
+    public function uploadMinioReturnFile(Request $request): Response
+    {
+        return $this->guard(fn () => $this->fileService->uploadReturnFile('MINIO', $request->file('file'), $this->payload($request)));
+    }
+
     private function tenantId(Request $request): ?string
     {
-        $payload = $request->middleware('auth_payload', []);
+        $payload = $this->payload($request);
         if (!is_array($payload)) {
             return null;
         }
@@ -48,6 +123,16 @@ class FileController extends BaseSysController
         $tenantId = (string)($payload['tenant_id'] ?? $payload['tenantId'] ?? '');
 
         return $tenantId === '' ? null : $tenantId;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function payload(Request $request): array
+    {
+        $payload = $request->middleware('auth_payload', []);
+
+        return is_array($payload) ? $payload : [];
     }
 
     private function downloadGuard(callable $callback): Response

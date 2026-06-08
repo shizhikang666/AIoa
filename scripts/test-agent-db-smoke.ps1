@@ -270,6 +270,113 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'DevFileService local upload' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+$app = (new think\App(getcwd()))->initialize();
+
+$service = new app\service\dev\FileService();
+$payload = [
+    'user_id' => 'codex-smoke',
+    'tenant_id' => '1',
+];
+$prefix = 'CODEX_UPLOAD_' . date('YmdHis') . random_int(1000, 9999);
+$tmp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . $prefix . '.txt';
+$content = "codex upload smoke\n";
+$createdIds = [];
+$storedPaths = [];
+
+file_put_contents($tmp, $content);
+
+function smoke_uploaded_file(string $path, string $name): think\file\UploadedFile {
+    return new think\file\UploadedFile($path, $name, 'text/plain', UPLOAD_ERR_OK, true);
+}
+
+try {
+    $file = $service->uploadReturnFile('LOCAL', smoke_uploaded_file($tmp, $prefix . '.txt'), $payload);
+    $createdIds[] = (string)$file['id'];
+    $storedPaths[] = (string)$file['storagePath'];
+    if (($file['engine'] ?? '') !== 'LOCAL') {
+        throw new RuntimeException('upload file engine mismatch');
+    }
+    if (($file['bucket'] ?? '') !== 'defaultBucketName') {
+        throw new RuntimeException('upload file bucket mismatch');
+    }
+    if (($file['name'] ?? '') !== $prefix . '.txt') {
+        throw new RuntimeException('upload file name mismatch');
+    }
+    if (($file['suffix'] ?? '') !== 'txt') {
+        throw new RuntimeException('upload suffix mismatch');
+    }
+    if (($file['downloadPath'] ?? '') !== '/api/dev/file/download?id=' . rawurlencode((string)$file['id'])) {
+        throw new RuntimeException('upload downloadPath mismatch');
+    }
+    if (!is_file((string)$file['storagePath'])) {
+        throw new RuntimeException('uploaded file missing on disk');
+    }
+
+    $download = $service->download((string)$file['id']);
+    if (($download['content'] ?? '') !== $content) {
+        throw new RuntimeException('uploaded file download content mismatch');
+    }
+
+    $id = $service->uploadReturnId('LOCAL', smoke_uploaded_file($tmp, $prefix . '-id.txt'), $payload);
+    $createdIds[] = $id;
+    $idRow = think\facade\Db::name('dev_file')->where('ID', $id)->find();
+    if (!is_array($idRow) || $idRow === []) {
+        throw new RuntimeException('uploadReturnId row missing');
+    }
+    $storedPaths[] = (string)$idRow['STORAGE_PATH'];
+
+    $url = $service->uploadReturnUrl(null, smoke_uploaded_file($tmp, $prefix . '-dynamic.txt'), $payload);
+    $dynamicId = substr($url, strrpos($url, '=') + 1);
+    $createdIds[] = $dynamicId;
+    $dynamicRow = think\facade\Db::name('dev_file')->where('ID', $dynamicId)->find();
+    if (!is_array($dynamicRow) || $dynamicRow === []) {
+        throw new RuntimeException('dynamic upload row missing');
+    }
+    $storedPaths[] = (string)$dynamicRow['STORAGE_PATH'];
+    if ($url !== '/api/dev/file/download?id=' . rawurlencode($dynamicId)) {
+        throw new RuntimeException('uploadReturnUrl mismatch');
+    }
+
+    $unsupported = false;
+    try {
+        $service->uploadReturnUrl('ALIYUN', smoke_uploaded_file($tmp, $prefix . '-cloud.txt'), $payload);
+    } catch (RuntimeException $exception) {
+        $unsupported = $exception->getCode() === 501;
+    }
+    if (!$unsupported) {
+        throw new RuntimeException('cloud upload should be unsupported in this slice');
+    }
+
+    echo "DevFileService local upload checks passed\n";
+} finally {
+    if ($createdIds !== []) {
+        think\facade\Db::name('dev_file')->whereIn('ID', $createdIds)->delete();
+    }
+    foreach ($storedPaths as $path) {
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+    if (is_file($tmp)) {
+        @unlink($tmp);
+    }
+}
+'@
+
+    $output = $probe | & php 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "php DevFileService upload probe failed: $output"
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'UserDirectoryService exports' {
 $probe = @'
 <?php

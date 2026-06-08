@@ -210,6 +210,21 @@ Route::group('dev/file', function () {
     Route::get('page', 'dev.FileController/page');
     Route::get('list', 'dev.FileController/list');
     Route::get('detail', 'dev.FileController/detail');
+    Route::post('uploadDynamicReturnId', 'dev.FileController/uploadDynamicReturnId');
+    Route::post('uploadDynamicReturnUrl', 'dev.FileController/uploadDynamicReturnUrl');
+    Route::post('uploadDynamicReturnFile', 'dev.FileController/uploadDynamicReturnFile');
+    Route::post('uploadLocalReturnId', 'dev.FileController/uploadLocalReturnId');
+    Route::post('uploadLocalReturnUrl', 'dev.FileController/uploadLocalReturnUrl');
+    Route::post('uploadLocalReturnFile', 'dev.FileController/uploadLocalReturnFile');
+    Route::post('uploadAliyunReturnId', 'dev.FileController/uploadAliyunReturnId');
+    Route::post('uploadAliyunReturnUrl', 'dev.FileController/uploadAliyunReturnUrl');
+    Route::post('uploadAliyunReturnFile', 'dev.FileController/uploadAliyunReturnFile');
+    Route::post('uploadTencentReturnId', 'dev.FileController/uploadTencentReturnId');
+    Route::post('uploadTencentReturnUrl', 'dev.FileController/uploadTencentReturnUrl');
+    Route::post('uploadTencentReturnFile', 'dev.FileController/uploadTencentReturnFile');
+    Route::post('uploadMinioReturnId', 'dev.FileController/uploadMinioReturnId');
+    Route::post('uploadMinioReturnUrl', 'dev.FileController/uploadMinioReturnUrl');
+    Route::post('uploadMinioReturnFile', 'dev.FileController/uploadMinioReturnFile');
 })->middleware(AuthMiddleware::class);
 
 Route::group('dev/email', function () {

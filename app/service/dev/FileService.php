@@ -7,13 +7,29 @@ namespace app\service\dev;
 use app\support\FileDownloadUrl;
 use RuntimeException;
 use think\facade\Db;
+use think\file\UploadedFile;
 
 /**
- * Read-only file metadata queries compatible with Java DevFileController.
+ * File metadata, local upload, and local download compatibility for Java DevFileController.
  */
 class FileService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const ENGINE_LOCAL = 'LOCAL';
+    private const BUCKET_LOCAL = 'defaultBucketName';
+    private const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+    private const BLOCKED_SUFFIXES = [
+        'bat',
+        'cmd',
+        'com',
+        'exe',
+        'js',
+        'msi',
+        'php',
+        'ps1',
+        'sh',
+        'vbs',
+    ];
     private const LIST_LIMIT = 200;
     private const METADATA_COLUMNS = [
         'ID',
@@ -86,6 +102,84 @@ class FileService
         }
 
         return $this->fileRow(is_array($row) ? $row : $row->toArray());
+    }
+
+    public function uploadReturnId(?string $engine, mixed $file, array $payload = []): string
+    {
+        return (string)$this->uploadReturnFile($engine, $file, $payload)['id'];
+    }
+
+    public function uploadReturnUrl(?string $engine, mixed $file, array $payload = []): string
+    {
+        return (string)$this->uploadReturnFile($engine, $file, $payload)['downloadPath'];
+    }
+
+    public function uploadReturnFile(?string $engine, mixed $file, array $payload = []): array
+    {
+        if (!$file instanceof UploadedFile) {
+            throw new RuntimeException('missing file', 400);
+        }
+
+        $engine = $this->resolvedEngine($engine);
+        if ($engine !== self::ENGINE_LOCAL) {
+            throw new RuntimeException('unsupported file engine: ' . $engine, 501);
+        }
+
+        $sourcePath = $file->getRealPath() ?: $file->getPathname();
+        if (!is_string($sourcePath) || $sourcePath === '' || !is_file($sourcePath)) {
+            throw new RuntimeException('invalid uploaded file', 400);
+        }
+
+        $originalName = $this->originalName($file);
+        $suffix = $this->suffix($originalName);
+        $size = filesize($sourcePath);
+        $size = $size === false ? 0 : $size;
+        $this->assertUploadAllowed($suffix, $size);
+
+        $id = $this->newId();
+        $objName = $suffix !== null ? $id . '.' . $suffix : null;
+        $relativeKey = date('Y') . DIRECTORY_SEPARATOR . (int)date('n') . DIRECTORY_SEPARATOR . (int)date('j');
+        $targetDir = $this->localRoot() . DIRECTORY_SEPARATOR . self::BUCKET_LOCAL . DIRECTORY_SEPARATOR . $relativeKey;
+        if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
+            throw new RuntimeException('cannot create upload directory', 500);
+        }
+
+        $storagePath = $targetDir . DIRECTORY_SEPARATOR . ($objName ?? $id);
+        if (!copy($sourcePath, $storagePath)) {
+            throw new RuntimeException('cannot store uploaded file', 500);
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $downloadPath = '/api/dev/file/download?id=' . rawurlencode($id);
+        $row = [
+            'ID' => $id,
+            'ENGINE' => self::ENGINE_LOCAL,
+            'BUCKET' => self::BUCKET_LOCAL,
+            'NAME' => $originalName,
+            'SUFFIX' => $suffix,
+            'SIZE_KB' => (string)(int)round($size / 1024),
+            'SIZE_INFO' => $this->readableSize($size),
+            'OBJ_NAME' => $objName,
+            'STORAGE_PATH' => $storagePath,
+            'DOWNLOAD_PATH' => $downloadPath,
+            'THUMBNAIL' => null,
+            'EXT_JSON' => null,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $this->currentUserId($payload),
+            'UPDATE_TIME' => null,
+            'UPDATE_USER' => null,
+            'TENANT_ID' => $this->tenantId($payload),
+        ];
+
+        try {
+            Db::name('dev_file')->insert($row);
+        } catch (\Throwable $exception) {
+            @unlink($storagePath);
+            throw $exception;
+        }
+
+        return $this->fileRow($row);
     }
 
     /**
@@ -192,5 +286,114 @@ class FileService
         $limit = max(1, min(100, (int)($filters['size'] ?? $filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function resolvedEngine(?string $engine): string
+    {
+        $engine = strtoupper(trim((string)$engine));
+        if ($engine !== '') {
+            return $engine;
+        }
+
+        $configured = Db::name('dev_config')
+            ->where('CONFIG_KEY', 'SNOWY_SYS_DEFAULT_FILE_ENGINE')
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->value('CONFIG_VALUE');
+
+        $configured = strtoupper(trim((string)$configured));
+
+        return $configured === '' ? self::ENGINE_LOCAL : $configured;
+    }
+
+    private function localRoot(): string
+    {
+        $configured = trim((string)(getenv('DEV_FILE_LOCAL_ROOT') ?: ''));
+        $root = $configured !== ''
+            ? $configured
+            : app()->getRuntimePath() . 'upload' . DIRECTORY_SEPARATOR . 'dev_file';
+        $root = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $root);
+        if (!$this->isAbsolutePath($root)) {
+            $root = app()->getRootPath() . ltrim($root, DIRECTORY_SEPARATOR);
+        }
+
+        return rtrim($root, DIRECTORY_SEPARATOR);
+    }
+
+    private function originalName(UploadedFile $file): string
+    {
+        $name = trim($file->getOriginalName());
+        $name = str_replace('\\', '/', $name);
+        $name = basename($name);
+
+        return $name === '' ? 'upload' : $name;
+    }
+
+    private function suffix(string $filename): ?string
+    {
+        $suffix = trim((string)pathinfo($filename, PATHINFO_EXTENSION));
+
+        return $suffix === '' ? null : $suffix;
+    }
+
+    private function assertUploadAllowed(?string $suffix, int $size): void
+    {
+        if ($size <= 0) {
+            throw new RuntimeException('invalid uploaded file', 400);
+        }
+
+        if ($size > self::MAX_UPLOAD_BYTES) {
+            throw new RuntimeException('uploaded file is too large', 400);
+        }
+
+        $suffix = strtolower((string)$suffix);
+        if ($suffix !== '' && in_array($suffix, self::BLOCKED_SUFFIXES, true)) {
+            throw new RuntimeException('unsupported uploaded file type', 400);
+        }
+    }
+
+    private function isAbsolutePath(string $path): bool
+    {
+        return preg_match('/^[A-Za-z]:\\\\/', $path) === 1 || str_starts_with($path, DIRECTORY_SEPARATOR);
+    }
+
+    private function readableSize(int $bytes): string
+    {
+        if ($bytes < 1024) {
+            return $bytes . ' B';
+        }
+
+        $units = ['KB', 'MB', 'GB', 'TB'];
+        $value = $bytes / 1024;
+        foreach ($units as $index => $unit) {
+            if ($value < 1024 || $index === count($units) - 1) {
+                $text = number_format($value, $value >= 100 ? 0 : 2);
+
+                return rtrim(rtrim($text, '0'), '.') . ' ' . $unit;
+            }
+            $value /= 1024;
+        }
+
+        return $bytes . ' B';
+    }
+
+    private function currentUserId(array $payload): ?string
+    {
+        $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+
+        return $userId === '' ? null : $userId;
+    }
+
+    private function tenantId(array $payload): string
+    {
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId === '' ? '1' : $tenantId;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 }
