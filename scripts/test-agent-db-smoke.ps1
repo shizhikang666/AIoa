@@ -131,27 +131,28 @@ Invoke-TestStep 'phpoa20026 table count' {
 }
 
 Invoke-TestStep 'Redis ping' {
-    $oldRedisAuth = $env:REDISCLI_AUTH
-    try {
-        if ($redisPass -ne '') {
-            $env:REDISCLI_AUTH = $redisPass
-        } else {
-            Remove-Item Env:\REDISCLI_AUTH -ErrorAction SilentlyContinue
-        }
+    $redisArgs = @('-h', $redisHost, '-p', $redisPort)
+    if ($redisPass -ne '') {
+        $redisArgs += @('-a', $redisPass)
+    }
+    $redisArgs += 'PING'
 
-        $pong = (& $redisCli -h $redisHost -p $redisPort PING 2>&1 | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0) {
-            throw "redis ping failed: $pong"
-        }
-        if ($pong -ne 'PONG') {
-            throw "Expected Redis PING to return PONG, got $pong"
-        }
-    } finally {
-        if ($null -eq $oldRedisAuth) {
-            Remove-Item Env:\REDISCLI_AUTH -ErrorAction SilentlyContinue
-        } else {
-            $env:REDISCLI_AUTH = $oldRedisAuth
-        }
+    $output = & $redisCli @redisArgs 2>&1
+    $safeOutput = [string]($output | Out-String)
+    if ($redisPass -ne '') {
+        $safeOutput = $safeOutput.Replace($redisPass, '[redacted]')
+    }
+    $safeOutput = $safeOutput.Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw "redis ping failed: $safeOutput"
+    }
+
+    $pong = $output |
+        ForEach-Object { [string]$_ } |
+        Where-Object { $_.Trim() -ne '' -and -not $_.Trim().StartsWith('Warning:') } |
+        Select-Object -Last 1
+    if ([string]$pong -ne 'PONG') {
+        throw "Expected Redis PING to return PONG, got $safeOutput"
     }
 }
 
