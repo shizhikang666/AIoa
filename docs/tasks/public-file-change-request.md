@@ -4223,3 +4223,40 @@ Java exposes `/biz/bizteamprojectuser/edit` from `BizTeamProjectUserController`.
 - Requests without token should return business `code=401`.
 - DB smoke should call member edit on a temporary leader member, verify role and permission relation are unchanged, verify audit fields refresh, and clean temporary rows.
 - Authenticated HTTP smoke should cover member edit through `-TeamProjectHttpSmoke`.
+
+---
+
+# Public File Change Request: Mobile Button Write Routes
+
+## Request
+
+Register the protected mobile button maintenance routes in `route/app.php`.
+
+## Reason
+
+The copied Vue mobile resource button page calls Java-style `/mobile/button/add`, `/edit`, and `/delete` when users maintain mobile menu buttons. Existing ThinkPHP mobile resource routes already cover button page/detail reads, so this slice opens only the narrow button-row maintenance entry points.
+
+## Applied Change
+
+`api-agent/test-agent` registers the following protected POST routes:
+
+- `POST /mobile/button/add`
+- `POST /mobile/button/edit`
+- `POST /mobile/button/delete`
+
+## Guardrails
+
+- The routes remain behind `AuthMiddleware`.
+- Add and edit require `parentId`, `title`, `code`, and numeric `sortCode`.
+- Rows are written to `mobile_resource` with `CATEGORY = BUTTON`; `sys_resource` is not touched.
+- Duplicate active mobile button `CODE` is rejected globally for `CATEGORY = BUTTON`.
+- Add inherits `TENANT_ID` from the parent mobile menu when available.
+- Delete accepts Java-style array payloads, logically deletes active button rows, tolerates mixed missing ids, and cleans deleted ids from `SYS_ROLE_HAS_MOBILE_MENU` `EXT_JSON.buttonInfo`.
+- No Java source, database schema, Composer, `.env`, frontend source, mobile module/menu writes, data-change events, notification push, or cache invalidation hooks are changed.
+
+## Verification
+
+- `php think route:list` must list `POST /mobile/button/add`, `/edit`, and `/delete`.
+- Requests without token should return business `code=401`.
+- DB smoke should create a temporary mobile button, verify duplicate-code rejection, edit fields, logically delete with a mixed existing/missing id payload, clean mobile-menu relation `buttonInfo`, and clean temporary rows.
+- Authenticated HTTP smoke should cover add, page lookup, duplicate rejection, edit, delete, database back-checks, and cleanup through `-MobileButtonHttpSmoke`.

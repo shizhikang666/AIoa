@@ -62,6 +62,7 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
 - `ResourceService` module add/edit/delete behavior, duplicate-title rejection, built-in module delete rejection path coverage through service logic, child-resource logical delete, and role-resource relation cleanup
 - `ResourceService` button add/edit/delete behavior, duplicate-code rejection, logical delete, and role-resource `buttonInfo` cleanup
+- `MobileResourceService` button add/edit/delete behavior, duplicate-code rejection, logical delete, mixed missing-id delete tolerance, and role mobile-menu `buttonInfo` cleanup
 - `TeamProjectService` base add/edit/delete behavior, automatic current-user `LEADER` member creation, member edit audit refresh without role/permission mutation, project permission relation sync, version increment, and project/member logical delete
 
 ## Optional Backend No-Token Smoke
@@ -174,6 +175,16 @@ Start the ThinkPHP server separately, then run:
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/sys/module/add`, verifies the created module appears in `/sys/module/page`, verifies duplicate `title` rejection, calls `/sys/module/edit`, prepares a temporary child menu and `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/module/delete`, verifies module and child menu reach `DELETE_FLAG = DELETED`, verifies the relation is removed, and removes temporary rows. It does not print tokens or local credentials.
 
+## Optional Mobile Button HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -MobileButtonHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/mobile/button/add`, verifies the created button appears in `/mobile/button/page`, verifies duplicate `code` rejection, calls `/mobile/button/edit`, prepares a temporary `SYS_ROLE_HAS_MOBILE_MENU` relation, calls `/mobile/button/delete` with a mixed existing and missing id payload, verifies `DELETE_FLAG = DELETED` and `EXT_JSON.buttonInfo` cleanup, and removes temporary rows. It does not print tokens or local credentials.
+
 ## Optional Team Project HTTP Smoke
 
 Start the ThinkPHP server separately, then run:
@@ -241,5 +252,6 @@ Add these only when a backend and frontend browser session are already available
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
 - optional sys-module HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke`
 - optional sys-button HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysButtonHttpSmoke`
+- optional mobile-button HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -MobileButtonHttpSmoke`
 - optional team-project base HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -TeamProjectHttpSmoke`
 - browser smoke through the copied Vue frontend for affected visible pages, including dev config "other config" maintenance when `/dev/config/add|edit|delete` changes

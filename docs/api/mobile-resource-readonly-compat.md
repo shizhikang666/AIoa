@@ -48,7 +48,8 @@ The following Java endpoints remain intentionally deferred:
 
 - mobile module add/edit/delete
 - mobile menu add/edit/delete/changeModule
-- mobile button add/edit/delete
 - mobile role/mobile menu grant mutations
+
+Mobile button add/edit/delete are now covered separately in `docs/api/mobile-button-write-compat.md`.
 
 No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.

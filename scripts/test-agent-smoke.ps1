@@ -12,6 +12,7 @@ param(
     [switch]$FileRelationHttpSmoke,
     [switch]$SysModuleHttpSmoke,
     [switch]$SysButtonHttpSmoke,
+    [switch]$MobileButtonHttpSmoke,
     [switch]$TeamProjectHttpSmoke
 )
 
@@ -157,6 +158,9 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'sys/button/add',
         'sys/button/edit',
         'sys/button/delete',
+        'mobile/button/add',
+        'mobile/button/edit',
+        'mobile/button/delete',
         'biz/saleprojectinvoicing/complete',
         'biz/bizteamproject/add',
         'biz/bizteamproject/edit',
@@ -1430,6 +1434,148 @@ require getcwd() . '/vendor/autoload.php';
 if (`$relationId !== '') { think\facade\Db::name('sys_relation')->where('ID', `$relationId)->delete(); }
 if (`$buttonId !== '') { think\facade\Db::name('sys_resource')->where('ID', `$buttonId)->delete(); }
 if (`$createdMenuId !== '') { think\facade\Db::name('sys_resource')->where('ID', `$createdMenuId)->delete(); }
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
+            }
+        }
+    }
+}
+
+if ($MobileButtonHttpSmoke) {
+    Invoke-TestStep 'authenticated mobile button write HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -MobileButtonHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -MobileButtonHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_MOBILE_BUTTON_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_MOBILE_BUTTON_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $buttonId = ''
+        $relationId = ''
+        $createdMenuId = ''
+
+        try {
+            $parentCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$parent = think\facade\Db::name('mobile_resource')->where('CATEGORY', 'MENU')->where(function (`$query) { `$query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', 'NOT_DELETE'); })->field(['ID', 'TENANT_ID'])->find();
+`$parentId = (string)(`$parent['ID'] ?? '');
+`$tenantId = (string)(`$parent['TENANT_ID'] ?? '0');
+if (`$parentId === '') {
+    `$parentId = 'cmenu-' . random_int(100000, 999999);
+    think\facade\Db::name('mobile_resource')->insert(['ID' => `$parentId, 'TITLE' => '$prefix' . '_MENU', 'CODE' => '$prefix' . '_MENU', 'CATEGORY' => 'MENU', 'SORT_CODE' => 9999, 'DELETE_FLAG' => 'NOT_DELETE', 'TENANT_ID' => `$tenantId, 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke']);
+    echo `$parentId . ':created';
+} else {
+    echo `$parentId . ':existing';
+}
+"@
+            $parentState = & php -r $parentCode
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($parentState)) {
+                throw 'failed to prepare mobile button parent menu'
+            }
+            $parentParts = ([string]$parentState).Split(':')
+            $parentId = $parentParts[0]
+            if ($parentParts.Length -gt 1 -and $parentParts[1] -eq 'created') {
+                $createdMenuId = $parentId
+            }
+
+            $body = @{ parentId = $parentId; title = ($prefix + '_BUTTON'); code = ($prefix + '_CODE'); sortCode = 9999; extJson = @{ smoke = $true } } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $addRaw = & curl.exe -sS -X POST "$base/mobile/button/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'mobile button add request failed'
+            }
+            $add = $addRaw | ConvertFrom-Json
+            if ([int]$add.code -ne 200 -or -not $add.data.id) {
+                throw "unexpected mobile button add response: $addRaw"
+            }
+            $buttonId = [string]$add.data.id
+
+            $pageRaw = & curl.exe -sS -X GET "$base/mobile/button/page?parentId=$parentId&searchKey=$prefix" -H "Authorization: Bearer $token"
+            $page = $pageRaw | ConvertFrom-Json
+            $records = @($page.data.records)
+            if ([int]$page.code -ne 200 -or -not ($records | Where-Object { [string]$_.id -eq $buttonId })) {
+                throw "mobile button page did not include created button: $pageRaw"
+            }
+
+            $body = @{ parentId = $parentId; title = ($prefix + '_DUP'); code = ($prefix + '_CODE'); sortCode = 9998 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $duplicateRaw = & curl.exe -sS -X POST "$base/mobile/button/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $duplicate = $duplicateRaw | ConvertFrom-Json
+            if ([int]$duplicate.code -eq 200) {
+                throw "mobile button duplicate code should fail: $duplicateRaw"
+            }
+
+            $body = @{ id = $buttonId; parentId = $parentId; title = ($prefix + '_EDITED'); code = ($prefix + '_CODE_EDITED'); sortCode = 9997; extJson = '{}' } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editRaw = & curl.exe -sS -X POST "$base/mobile/button/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'mobile button edit request failed'
+            }
+            $edit = $editRaw | ConvertFrom-Json
+            if ([int]$edit.code -ne 200 -or [string]$edit.data.title -ne "$($prefix)_EDITED") {
+                throw "unexpected mobile button edit response: $editRaw"
+            }
+
+            $relationId = 'cmobrel-' + (Get-Random -Minimum 100000 -Maximum 999999)
+            $relationCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('sys_relation')->insert(['ID' => '$relationId', 'OBJECT_ID' => 'codex-role', 'TARGET_ID' => '$parentId', 'CATEGORY' => 'SYS_ROLE_HAS_MOBILE_MENU', 'EXT_JSON' => json_encode(['buttonInfo' => ['$buttonId', 'keep-mobile-button']], JSON_UNESCAPED_SLASHES)]);
+"@
+            & php -r $relationCode | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to prepare mobile relation smoke row'
+            }
+
+            $body = @(@{ id = $buttonId }, @{ id = 'missing-mobile-btn' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/mobile/button/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'mobile button delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200) {
+                throw "unexpected mobile button delete response: $deleteRaw"
+            }
+
+            $deleteState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$flag = (string)think\facade\Db::name('mobile_resource')->where('ID', '$buttonId')->value('DELETE_FLAG'); `$ext = json_decode((string)think\facade\Db::name('sys_relation')->where('ID', '$relationId')->value('EXT_JSON'), true); echo `$flag . ':' . implode(',', `$ext['buttonInfo'] ?? []);"
+            if ([string]$deleteState -ne 'DELETED:keep-mobile-button') {
+                throw "mobile button delete did not update expected state: $deleteState"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$buttonId = '$buttonId';
+`$relationId = '$relationId';
+`$createdMenuId = '$createdMenuId';
+if (`$relationId !== '') { think\facade\Db::name('sys_relation')->where('ID', `$relationId)->delete(); }
+if (`$buttonId !== '') { think\facade\Db::name('mobile_resource')->where('ID', `$buttonId)->delete(); }
+if (`$createdMenuId !== '') { think\facade\Db::name('mobile_resource')->where('ID', `$createdMenuId)->delete(); }
 "@
             & php -r $cleanupCode | Out-Null
             if (Test-Path -LiteralPath $jsonTmp) {

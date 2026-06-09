@@ -322,6 +322,24 @@ Cleanup:
 
 - Temporary `CODEX_HTTP_MODULE_*` module/menu rows and temporary smoke relation rows are removed.
 
+## Mobile Button Write HTTP Smoke, 2026-06-09
+
+Verified after `/mobile/button/add`, `/mobile/button/edit`, and `/mobile/button/delete` compatibility was added:
+
+- Copied frontend API wrapper: `snowy-admin-web/src/api/mobile/resource/buttonApi.js`
+- Copied frontend pages: `snowy-admin-web/src/views/mobile/resource/button/index.vue` and `snowy-admin-web/src/views/mobile/resource/button/form.vue`
+- Authenticated HTTP smoke creates a temporary button under an existing mobile menu resource, calls `POST /mobile/button/add`, and verifies the button appears in `GET /mobile/button/page`.
+- The same smoke verifies duplicate `code` rejection, calls `POST /mobile/button/edit`, prepares a temporary `SYS_ROLE_HAS_MOBILE_MENU` relation, calls `POST /mobile/button/delete` with a mixed existing and missing id payload, and confirms the row reaches `DELETE_FLAG = DELETED`.
+- Database verification confirms the deleted button id is removed from `sys_relation.EXT_JSON.buttonInfo` while unrelated button ids remain.
+
+Cleanup:
+
+- Temporary `CODEX_HTTP_MOBILE_BUTTON_*` button rows, temporary mobile menu rows created only if needed, and temporary smoke relation rows are removed.
+
+Not verified:
+
+- The visible Vue mobile button page button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied page.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:

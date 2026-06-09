@@ -192,6 +192,9 @@ Route::group('mobile/menu', function () {
 Route::group('mobile/button', function () {
     Route::get('page', 'mobile.ButtonController/page');
     Route::get('detail', 'mobile.ButtonController/detail');
+    Route::post('add', 'mobile.ButtonController/add');
+    Route::post('edit', 'mobile.ButtonController/edit');
+    Route::post('delete', 'mobile.ButtonController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('dev/dict', function () {
