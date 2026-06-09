@@ -38,6 +38,108 @@ class MobileResourceService
         return $this->page(self::CATEGORY_MODULE, $filters);
     }
 
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function moduleAdd(array $input, mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $data = $this->moduleWriteData($input);
+        $this->assertDuplicateModuleTitle($data['TITLE'], null);
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $row = array_merge($data, [
+            'ID' => $this->newId(),
+            'CODE' => $this->newResourceCode(self::CATEGORY_MODULE),
+            'CATEGORY' => self::CATEGORY_MODULE,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'TENANT_ID' => $this->payloadTenantId($payload) ?: '0',
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('mobile_resource')->insert($row);
+
+        return $this->resourceRow($row);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function moduleEdit(array $input, mixed $payload = []): array
+    {
+        $id = $this->requiredInput($input, ['id', 'ID'], 'id');
+        $payload = is_array($payload) ? $payload : [];
+        $existing = $this->activeResourceRow($id, self::CATEGORY_MODULE);
+        $data = $this->moduleWriteData($input, $existing);
+        $this->assertDuplicateModuleTitle($data['TITLE'], $id);
+
+        $operatorId = $this->payloadUserId($payload);
+        $update = array_merge($data, [
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('mobile_resource')
+            ->where('ID', $id)
+            ->where('CATEGORY', self::CATEGORY_MODULE)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update($update);
+
+        return $this->resourceRow($this->activeResourceRow($id, self::CATEGORY_MODULE));
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function moduleDelete(array $ids, mixed $payload = []): array
+    {
+        $idList = $this->idInputList($ids, 'moduleId');
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $toDeleteIds = $this->moduleResourceIdsForDelete($idList);
+        if ($toDeleteIds === []) {
+            return [
+                'ids' => $idList,
+                'count' => 0,
+            ];
+        }
+
+        $operatorId = $this->payloadUserId($payload);
+        $updated = Db::transaction(function () use ($toDeleteIds, $operatorId): int {
+            $this->removeRoleHasMobileMenuRelations($toDeleteIds);
+
+            return Db::name('mobile_resource')
+                ->whereIn('ID', $toDeleteIds)
+                ->whereIn('CATEGORY', [self::CATEGORY_MODULE, self::CATEGORY_MENU])
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+                ]);
+        });
+
+        return [
+            'ids' => $idList,
+            'deletedIds' => $toDeleteIds,
+            'count' => $updated,
+        ];
+    }
+
     public function buttonPage(array $filters = []): array
     {
         return $this->page(self::CATEGORY_BUTTON, $filters);
@@ -344,6 +446,31 @@ class MobileResourceService
      * @param array<string, mixed>|null $existing
      * @return array<string, mixed>
      */
+    private function moduleWriteData(array $input, ?array $existing = null): array
+    {
+        $sortCode = $this->requiredInput($input, ['sortCode', 'SORT_CODE'], 'sortCode');
+        if (!is_numeric($sortCode)) {
+            throw new RuntimeException('invalid sortCode', 400);
+        }
+
+        $extJson = array_key_exists('extJson', $input) || array_key_exists('EXT_JSON', $input)
+            ? $this->normalizeJsonInput($input['extJson'] ?? $input['EXT_JSON'] ?? null)
+            : ($existing['EXT_JSON'] ?? null);
+
+        return [
+            'TITLE' => $this->requiredInput($input, ['title', 'TITLE'], 'title'),
+            'ICON' => $this->requiredInput($input, ['icon', 'ICON'], 'icon'),
+            'COLOR' => $this->requiredInput($input, ['color', 'COLOR'], 'color'),
+            'SORT_CODE' => (int)$sortCode,
+            'EXT_JSON' => $extJson,
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|null $existing
+     * @return array<string, mixed>
+     */
     private function buttonWriteData(array $input, ?array $existing = null): array
     {
         $sortCode = $this->requiredInput($input, ['sortCode', 'SORT_CODE'], 'sortCode');
@@ -412,6 +539,121 @@ class MobileResourceService
         if ($query->count() > 0) {
             throw new RuntimeException("duplicate mobile button code: {$code}", 400);
         }
+    }
+
+    private function assertDuplicateModuleTitle(string $title, ?string $ignoreId): void
+    {
+        $query = Db::name('mobile_resource')
+            ->where('CATEGORY', self::CATEGORY_MODULE)
+            ->where('TITLE', $title)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException("duplicate mobile module title: {$title}", 400);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function activeResourceRow(string $id, string $category): array
+    {
+        $row = Db::name('mobile_resource')
+            ->where('ID', $id)
+            ->where('CATEGORY', $category)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+
+        if (!$row) {
+            throw new RuntimeException('mobile ' . strtolower($category) . ' not found', 404);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<int, string> $moduleIds
+     * @return array<int, string>
+     */
+    private function moduleResourceIdsForDelete(array $moduleIds): array
+    {
+        $moduleMap = [];
+        $existingModules = Db::name('mobile_resource')
+            ->whereIn('ID', $moduleIds)
+            ->where('CATEGORY', self::CATEGORY_MODULE)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->field(['ID'])
+            ->select()
+            ->toArray();
+        foreach ($existingModules as $row) {
+            $id = trim((string)($row['ID'] ?? ''));
+            if ($id !== '') {
+                $moduleMap[$id] = true;
+            }
+        }
+
+        $deleteMap = $moduleMap;
+        $menuRows = Db::name('mobile_resource')
+            ->where('CATEGORY', self::CATEGORY_MENU)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->field(['ID', 'PARENT_ID', 'MODULE'])
+            ->select()
+            ->toArray();
+
+        $childrenByParent = [];
+        foreach ($menuRows as $row) {
+            $id = trim((string)($row['ID'] ?? ''));
+            $parentId = trim((string)($row['PARENT_ID'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            if (isset($moduleMap[(string)($row['MODULE'] ?? '')])) {
+                $deleteMap[$id] = true;
+            }
+            if ($parentId !== '') {
+                $childrenByParent[$parentId][] = $id;
+            }
+        }
+
+        $queue = array_keys($deleteMap);
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            foreach ($childrenByParent[$current] ?? [] as $childId) {
+                if (!isset($deleteMap[$childId])) {
+                    $deleteMap[$childId] = true;
+                    $queue[] = $childId;
+                }
+            }
+        }
+
+        return array_values(array_keys($deleteMap));
+    }
+
+    /**
+     * @param array<int, string> $targetIds
+     */
+    private function removeRoleHasMobileMenuRelations(array $targetIds): void
+    {
+        if ($targetIds === []) {
+            return;
+        }
+
+        Db::name('sys_relation')
+            ->where('CATEGORY', self::RELATION_ROLE_HAS_MOBILE_MENU)
+            ->whereIn('TARGET_ID', $targetIds)
+            ->delete();
     }
 
     /**
@@ -555,6 +797,26 @@ class MobileResourceService
     private function newId(): string
     {
         return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
+    }
+
+    private function newResourceCode(string $category): string
+    {
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $code = '';
+            for ($i = 0; $i < 10; $i++) {
+                $code .= $chars[random_int(0, strlen($chars) - 1)];
+            }
+            $exists = Db::name('mobile_resource')
+                ->where('CATEGORY', $category)
+                ->where('CODE', $code)
+                ->count();
+            if ($exists === 0) {
+                return $code;
+            }
+        }
+
+        return substr($this->newId(), -10);
     }
 
     /**

@@ -12,6 +12,7 @@ param(
     [switch]$FileRelationHttpSmoke,
     [switch]$SysModuleHttpSmoke,
     [switch]$SysButtonHttpSmoke,
+    [switch]$MobileModuleHttpSmoke,
     [switch]$MobileButtonHttpSmoke,
     [switch]$TeamProjectHttpSmoke
 )
@@ -158,6 +159,9 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'sys/button/add',
         'sys/button/edit',
         'sys/button/delete',
+        'mobile/module/add',
+        'mobile/module/edit',
+        'mobile/module/delete',
         'mobile/button/add',
         'mobile/button/edit',
         'mobile/button/delete',
@@ -1434,6 +1438,126 @@ require getcwd() . '/vendor/autoload.php';
 if (`$relationId !== '') { think\facade\Db::name('sys_relation')->where('ID', `$relationId)->delete(); }
 if (`$buttonId !== '') { think\facade\Db::name('sys_resource')->where('ID', `$buttonId)->delete(); }
 if (`$createdMenuId !== '') { think\facade\Db::name('sys_resource')->where('ID', `$createdMenuId)->delete(); }
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
+            }
+        }
+    }
+}
+
+if ($MobileModuleHttpSmoke) {
+    Invoke-TestStep 'authenticated mobile module write HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -MobileModuleHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -MobileModuleHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_MOBILE_MODULE_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_MOBILE_MODULE_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $moduleId = ''
+        $menuId = ''
+        $childMenuId = ''
+        $relationId = ''
+
+        try {
+            $body = @{ title = ($prefix + '_MODULE'); icon = 'HomeOutlined'; color = '#1677FF'; sortCode = 9999; extJson = @{ smoke = $true } } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $addRaw = & curl.exe -sS -X POST "$base/mobile/module/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'mobile module add request failed'
+            }
+            $add = $addRaw | ConvertFrom-Json
+            if ([int]$add.code -ne 200 -or -not $add.data.id -or [string]$add.data.category -ne 'MODULE') {
+                throw "unexpected mobile module add response: $addRaw"
+            }
+            $moduleId = [string]$add.data.id
+
+            $pageRaw = & curl.exe -sS -X GET "$base/mobile/module/page?searchKey=$prefix" -H "Authorization: Bearer $token"
+            $page = $pageRaw | ConvertFrom-Json
+            $records = @($page.data.records)
+            if ([int]$page.code -ne 200 -or -not ($records | Where-Object { [string]$_.id -eq $moduleId })) {
+                throw "mobile module page did not include created module: $pageRaw"
+            }
+
+            $body = @{ title = ($prefix + '_MODULE'); icon = 'HomeOutlined'; color = '#1677FF'; sortCode = 9998 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $duplicateRaw = & curl.exe -sS -X POST "$base/mobile/module/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $duplicate = $duplicateRaw | ConvertFrom-Json
+            if ([int]$duplicate.code -eq 200) {
+                throw "mobile module duplicate title should fail: $duplicateRaw"
+            }
+
+            $body = @{ id = $moduleId; title = ($prefix + '_EDITED'); icon = 'SettingOutlined'; color = '#13C2C2'; sortCode = 9997; extJson = '{}' } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editRaw = & curl.exe -sS -X POST "$base/mobile/module/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'mobile module edit request failed'
+            }
+            $edit = $editRaw | ConvertFrom-Json
+            if ([int]$edit.code -ne 200 -or [string]$edit.data.title -ne "$($prefix)_EDITED" -or [string]$edit.data.icon -ne 'SettingOutlined') {
+                throw "unexpected mobile module edit response: $editRaw"
+            }
+
+            $menuId = 'cmmenu-' + (Get-Random -Minimum 100000 -Maximum 999999)
+            $childMenuId = 'cmchild-' + (Get-Random -Minimum 100000 -Maximum 999999)
+            $relationId = 'cmodrel-' + (Get-Random -Minimum 100000 -Maximum 999999)
+            $fixtureCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('mobile_resource')->insert(['ID' => '$menuId', 'PARENT_ID' => '0', 'TITLE' => '$prefix' . '_MENU', 'CODE' => '$prefix' . '_MENU', 'CATEGORY' => 'MENU', 'MODULE' => '$moduleId', 'SORT_CODE' => 9999, 'DELETE_FLAG' => 'NOT_DELETE', 'TENANT_ID' => '0', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke']);
+think\facade\Db::name('mobile_resource')->insert(['ID' => '$childMenuId', 'PARENT_ID' => '$menuId', 'TITLE' => '$prefix' . '_CHILD_MENU', 'CODE' => '$prefix' . '_CHILD_MENU', 'CATEGORY' => 'MENU', 'MODULE' => '$moduleId', 'SORT_CODE' => 9998, 'DELETE_FLAG' => 'NOT_DELETE', 'TENANT_ID' => '0', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke']);
+think\facade\Db::name('sys_relation')->insert(['ID' => '$relationId', 'OBJECT_ID' => 'codex-role', 'TARGET_ID' => '$childMenuId', 'CATEGORY' => 'SYS_ROLE_HAS_MOBILE_MENU', 'EXT_JSON' => json_encode(['buttonInfo' => ['keep-mobile-button']], JSON_UNESCAPED_SLASHES)]);
+"@
+            & php -r $fixtureCode | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to prepare mobile module fixtures'
+            }
+
+            $body = @(@{ id = $moduleId }, @{ id = 'missing-mobile-module' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/mobile/module/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'mobile module delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200) {
+                throw "unexpected mobile module delete response: $deleteRaw"
+            }
+
+            $deleteState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$flags = think\facade\Db::name('mobile_resource')->whereIn('ID', ['$moduleId', '$menuId', '$childMenuId'])->column('DELETE_FLAG', 'ID'); `$relationCount = think\facade\Db::name('sys_relation')->where('ID', '$relationId')->count(); echo implode(',', [`$flags['$moduleId'] ?? '', `$flags['$menuId'] ?? '', `$flags['$childMenuId'] ?? '']) . ':' . `$relationCount;"
+            if ([string]$deleteState -ne 'DELETED,DELETED,DELETED:0') {
+                throw "mobile module delete did not update expected state: $deleteState"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$ids = array_values(array_filter(['$moduleId', '$menuId', '$childMenuId']));
+if ('$relationId' !== '') { think\facade\Db::name('sys_relation')->where('ID', '$relationId')->delete(); }
+if (`$ids !== []) { think\facade\Db::name('mobile_resource')->whereIn('ID', `$ids)->delete(); }
 "@
             & php -r $cleanupCode | Out-Null
             if (Test-Path -LiteralPath $jsonTmp) {

@@ -180,6 +180,9 @@ Route::group('sys/field', function () {
 Route::group('mobile/module', function () {
     Route::get('page', 'mobile.ModuleController/page');
     Route::get('detail', 'mobile.ModuleController/detail');
+    Route::post('add', 'mobile.ModuleController/add');
+    Route::post('edit', 'mobile.ModuleController/edit');
+    Route::post('delete', 'mobile.ModuleController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('mobile/menu', function () {

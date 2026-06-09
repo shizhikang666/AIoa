@@ -2002,6 +2002,150 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'MobileResourceService module write compatibility' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$service = new app\service\mobile\MobileResourceService();
+$payload = ['userId' => 'codex-smoke', 'tenantId' => '0'];
+$prefix = 'CODEX_MOBILE_MODULE_' . date('YmdHis') . random_int(1000, 9999);
+$createdIds = [];
+$relationId = '';
+
+try {
+    $created = $service->moduleAdd([
+        'title' => $prefix . '_MODULE',
+        'icon' => 'HomeOutlined',
+        'color' => '#1677FF',
+        'sortCode' => 9999,
+        'extJson' => ['smoke' => true],
+    ], $payload);
+    $moduleId = (string)($created['id'] ?? '');
+    if ($moduleId === '') {
+        throw new RuntimeException('mobile module add did not return id');
+    }
+    $createdIds[] = $moduleId;
+    if (strlen((string)($created['code'] ?? '')) !== 10) {
+        throw new RuntimeException('mobile module add did not generate a 10-char code');
+    }
+
+    $duplicateFailed = false;
+    try {
+        $service->moduleAdd([
+            'title' => $prefix . '_MODULE',
+            'icon' => 'HomeOutlined',
+            'color' => '#1677FF',
+            'sortCode' => 9998,
+        ], $payload);
+    } catch (RuntimeException) {
+        $duplicateFailed = true;
+    }
+    if (!$duplicateFailed) {
+        throw new RuntimeException('duplicate mobile module title should fail');
+    }
+
+    $edited = $service->moduleEdit([
+        'id' => $moduleId,
+        'title' => $prefix . '_EDITED',
+        'icon' => 'SettingOutlined',
+        'color' => '#13C2C2',
+        'sortCode' => 9997,
+        'extJson' => '{}',
+    ], $payload);
+    if (($edited['title'] ?? '') !== $prefix . '_EDITED' || ($edited['icon'] ?? '') !== 'SettingOutlined' || ($edited['sortCode'] ?? 0) !== 9997) {
+        throw new RuntimeException('mobile module edit did not update title/icon/sortCode');
+    }
+
+    $menuId = 'cmmenu-' . random_int(100000, 999999);
+    $childMenuId = 'cmchild-' . random_int(100000, 999999);
+    $createdIds[] = $menuId;
+    $createdIds[] = $childMenuId;
+    think\facade\Db::name('mobile_resource')->insert([
+        'ID' => $menuId,
+        'PARENT_ID' => '0',
+        'TITLE' => $prefix . '_MENU',
+        'CODE' => $prefix . '_MENU',
+        'CATEGORY' => 'MENU',
+        'MODULE' => $moduleId,
+        'SORT_CODE' => 9999,
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'TENANT_ID' => '0',
+        'CREATE_TIME' => date('Y-m-d H:i:s'),
+        'CREATE_USER' => 'codex-smoke',
+    ]);
+    think\facade\Db::name('mobile_resource')->insert([
+        'ID' => $childMenuId,
+        'PARENT_ID' => $menuId,
+        'TITLE' => $prefix . '_CHILD_MENU',
+        'CODE' => $prefix . '_CHILD_MENU',
+        'CATEGORY' => 'MENU',
+        'MODULE' => $moduleId,
+        'SORT_CODE' => 9998,
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'TENANT_ID' => '0',
+        'CREATE_TIME' => date('Y-m-d H:i:s'),
+        'CREATE_USER' => 'codex-smoke',
+    ]);
+
+    $relationId = 'cmodrel-' . random_int(100000, 999999);
+    think\facade\Db::name('sys_relation')->insert([
+        'ID' => $relationId,
+        'OBJECT_ID' => 'codex-role',
+        'TARGET_ID' => $childMenuId,
+        'CATEGORY' => 'SYS_ROLE_HAS_MOBILE_MENU',
+        'EXT_JSON' => json_encode(['buttonInfo' => ['keep-mobile-button']], JSON_UNESCAPED_SLASHES),
+    ]);
+
+    $deleted = $service->moduleDelete([['id' => $moduleId], ['id' => 'missing-mobile-module']], $payload);
+    if (($deleted['count'] ?? 0) !== 3) {
+        throw new RuntimeException('mobile module delete count mismatch');
+    }
+
+    $flags = think\facade\Db::name('mobile_resource')
+        ->whereIn('ID', [$moduleId, $menuId, $childMenuId])
+        ->column('DELETE_FLAG', 'ID');
+    foreach ([$moduleId, $menuId, $childMenuId] as $id) {
+        if (($flags[$id] ?? '') !== 'DELETED') {
+            throw new RuntimeException('mobile module/menu was not logically deleted: ' . $id);
+        }
+    }
+
+    $relationCount = think\facade\Db::name('sys_relation')->where('ID', $relationId)->count();
+    if ($relationCount !== 0) {
+        throw new RuntimeException('role mobile menu relation cleanup failed');
+    }
+
+    echo "MobileResourceService module write checks passed\n";
+} finally {
+    if ($relationId !== '') {
+        think\facade\Db::name('sys_relation')->where('ID', $relationId)->delete();
+    }
+    if ($createdIds !== []) {
+        think\facade\Db::name('mobile_resource')->whereIn('ID', $createdIds)->delete();
+    }
+}
+'@
+
+    $probePath = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-mobile-resource-module-smoke-$([guid]::NewGuid()).php")
+    try {
+        Set-Content -LiteralPath $probePath -Value $probe -Encoding UTF8
+        $output = & php $probePath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php MobileResourceService module write probe failed: $output"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $probePath) {
+            Remove-Item -LiteralPath $probePath -Force
+        }
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'TeamProjectService base write compatibility' {
 $probe = @'
 <?php

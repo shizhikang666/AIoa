@@ -4260,3 +4260,40 @@ The copied Vue mobile resource button page calls Java-style `/mobile/button/add`
 - Requests without token should return business `code=401`.
 - DB smoke should create a temporary mobile button, verify duplicate-code rejection, edit fields, logically delete with a mixed existing/missing id payload, clean mobile-menu relation `buttonInfo`, and clean temporary rows.
 - Authenticated HTTP smoke should cover add, page lookup, duplicate rejection, edit, delete, database back-checks, and cleanup through `-MobileButtonHttpSmoke`.
+
+---
+
+# Public File Change Request: Mobile Module Write Routes
+
+## Request
+
+Register the protected mobile module maintenance routes in `route/app.php`.
+
+## Reason
+
+The copied Vue mobile resource module page calls Java-style `/mobile/module/add`, `/edit`, and `/delete` when users maintain mobile modules. Existing ThinkPHP mobile module routes already cover page/detail reads, so this slice opens only the narrow module-row maintenance entry points.
+
+## Applied Change
+
+`api-agent/test-agent` registers the following protected POST routes:
+
+- `POST /mobile/module/add`
+- `POST /mobile/module/edit`
+- `POST /mobile/module/delete`
+
+## Guardrails
+
+- The routes remain behind `AuthMiddleware`.
+- Add and edit require `title`, `icon`, `color`, and numeric `sortCode`.
+- Rows are written to `mobile_resource` with `CATEGORY = MODULE`; `sys_resource` is not touched.
+- New module `CODE` is generated server-side as a random 10-character string.
+- Duplicate active mobile module `TITLE` is rejected globally for `CATEGORY = MODULE`.
+- Delete accepts Java-style array payloads, logically deletes active module rows plus module-owned mobile menu trees, tolerates mixed missing ids, and removes whole `SYS_ROLE_HAS_MOBILE_MENU` relation rows for deleted menu/module targets.
+- No Java source, database schema, Composer, `.env`, frontend source, mobile menu writes, mobile button cleanup beyond Java module-delete behavior, data-change events, notification push, or cache invalidation hooks are changed.
+
+## Verification
+
+- `php think route:list` must list `POST /mobile/module/add`, `/edit`, and `/delete`.
+- Requests without token should return business `code=401`.
+- DB smoke should create a temporary mobile module, verify generated code length, duplicate-title rejection, edit fields, logically delete with a mixed existing/missing id payload, clean mobile-menu relation rows, and clean temporary rows.
+- Authenticated HTTP smoke should cover add, page lookup, duplicate rejection, edit, delete, database back-checks, and cleanup through `-MobileModuleHttpSmoke`.
