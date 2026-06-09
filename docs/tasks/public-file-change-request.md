@@ -4297,3 +4297,44 @@ The copied Vue mobile resource module page calls Java-style `/mobile/module/add`
 - Requests without token should return business `code=401`.
 - DB smoke should create a temporary mobile module, verify generated code length, duplicate-title rejection, edit fields, logically delete with a mixed existing/missing id payload, clean mobile-menu relation rows, and clean temporary rows.
 - Authenticated HTTP smoke should cover add, page lookup, duplicate rejection, edit, delete, database back-checks, and cleanup through `-MobileModuleHttpSmoke`.
+
+---
+
+# Public File Change Request: Mobile Menu Write Routes
+
+## Request
+
+Register the protected mobile menu maintenance routes in `route/app.php`.
+
+## Reason
+
+The copied Vue mobile resource menu page calls Java-style `/mobile/menu/add`, `/edit`, `/changeModule`, and `/delete` when users maintain mobile menus. Existing ThinkPHP mobile menu routes already cover tree/detail/selectors, so this slice opens the narrow menu-row maintenance entry points and preserves Java delete/change-module behavior.
+
+## Applied Change
+
+`main control agent/test-agent` registers the following protected POST routes:
+
+- `POST /mobile/menu/add`
+- `POST /mobile/menu/edit`
+- `POST /mobile/menu/changeModule`
+- `POST /mobile/menu/delete`
+
+## Guardrails
+
+- The routes remain behind `AuthMiddleware`.
+- Add and edit require Java menu form fields: `parentId`, `title`, `category`, `module`, `menuType`, `path`, `icon`, `color`, `regType`, and `status`; `sortCode` is optional and numeric when present.
+- Rows are written to `mobile_resource` with `CATEGORY = MENU`; client `category` is required for compatibility but storage is forced to `MENU`.
+- Menu writes do not generate `CODE` and do not process `EXT_JSON`.
+- Duplicate active sibling mobile menu `TITLE` is rejected under the same parent.
+- Non-root menus require an existing parent menu with the same `MODULE`.
+- Edit rejects parent changes to self or descendant menus.
+- `changeModule` is allowed only for root menus, updates only active descendant `MENU` rows, does not validate the target module, does not update buttons, does not update relations, and does not change tenant ownership.
+- Delete accepts Java-style array payloads, logically deletes active menu rows plus descendant menu rows, removes whole `SYS_ROLE_HAS_MOBILE_MENU` relation rows for deleted menu targets, and preserves mobile button rows.
+- No Java source, database schema, Composer, `.env`, frontend source, mobile role grant writes, data-change events, notification push, or cache invalidation hooks are changed.
+
+## Verification
+
+- `php think route:list` must list `POST /mobile/menu/add`, `/edit`, `/changeModule`, and `/delete`.
+- Requests without token should return business `code=401`.
+- DB smoke should create temporary mobile modules/menus/buttons, verify duplicate-title rejection, parent/module mismatch rejection, edit fields, self/descendant parent rejection, root-only `changeModule`, menu-tree delete, relation cleanup, button preservation, and cleanup.
+- Authenticated HTTP smoke should cover add, tree lookup, duplicate rejection, edit, changeModule, delete, database back-checks, and cleanup through `-MobileMenuHttpSmoke`.

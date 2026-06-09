@@ -358,6 +358,24 @@ Not verified:
 
 - The visible Vue mobile module page button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied page.
 
+## Mobile Menu Write HTTP Smoke, 2026-06-09
+
+Verified after `/mobile/menu/add`, `/mobile/menu/edit`, `/mobile/menu/changeModule`, and `/mobile/menu/delete` compatibility was added:
+
+- Copied frontend API wrapper: `snowy-admin-web/src/api/mobile/resource/menuApi.js`
+- Copied frontend pages: `snowy-admin-web/src/views/mobile/resource/menu/index.vue` and `snowy-admin-web/src/views/mobile/resource/menu/form.vue`
+- Authenticated HTTP smoke creates temporary mobile modules, calls `POST /mobile/menu/add`, and verifies the created menu appears in `GET /mobile/menu/tree`.
+- The same smoke verifies duplicate sibling-title rejection, child parent/module mismatch rejection, `POST /mobile/menu/edit`, child `changeModule` rejection, and root `POST /mobile/menu/changeModule` propagation to child menu rows.
+- The same smoke prepares a temporary mobile button and `SYS_ROLE_HAS_MOBILE_MENU` relation, calls `POST /mobile/menu/delete` with a mixed existing and missing id payload, confirms the menu tree reaches `DELETE_FLAG = DELETED`, confirms the relation row is removed, and confirms the button row is preserved.
+
+Cleanup:
+
+- Temporary `CODEX_HTTP_MOBILE_MENU_*` module/menu/button rows and temporary smoke relation rows are removed.
+
+Not verified:
+
+- The visible Vue mobile menu page button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied page.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:

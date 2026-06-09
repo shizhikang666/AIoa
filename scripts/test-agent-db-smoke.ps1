@@ -2146,6 +2146,250 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'MobileResourceService menu write compatibility' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$service = new app\service\mobile\MobileResourceService();
+$payload = ['userId' => 'codex-smoke', 'tenantId' => '0'];
+$prefix = 'CODEX_MOBILE_MENU_' . date('YmdHis') . random_int(1000, 9999);
+$createdIds = [];
+$relationId = '';
+
+try {
+    $moduleA = $service->moduleAdd([
+        'title' => $prefix . '_MODULE_A',
+        'icon' => 'HomeOutlined',
+        'color' => '#1677FF',
+        'sortCode' => 9999,
+    ], $payload);
+    $moduleB = $service->moduleAdd([
+        'title' => $prefix . '_MODULE_B',
+        'icon' => 'SettingOutlined',
+        'color' => '#13C2C2',
+        'sortCode' => 9998,
+    ], $payload);
+    $moduleAId = (string)$moduleA['id'];
+    $moduleBId = (string)$moduleB['id'];
+    $createdIds[] = $moduleAId;
+    $createdIds[] = $moduleBId;
+
+    $root = $service->menuAdd([
+        'parentId' => '0',
+        'title' => $prefix . '_ROOT',
+        'category' => 'MENU',
+        'module' => $moduleAId,
+        'menuType' => 'MENU',
+        'path' => '/codex-mobile-root',
+        'icon' => 'HomeOutlined',
+        'color' => '#1677FF',
+        'regType' => 'YES',
+        'status' => 'ENABLE',
+        'sortCode' => 9999,
+    ], $payload);
+    $rootId = (string)$root['id'];
+    $createdIds[] = $rootId;
+    if (($root['category'] ?? '') !== 'MENU') {
+        throw new RuntimeException('mobile menu add did not force category MENU');
+    }
+
+    $duplicateFailed = false;
+    try {
+        $service->menuAdd([
+            'parentId' => '0',
+            'title' => $prefix . '_ROOT',
+            'category' => 'MENU',
+            'module' => $moduleAId,
+            'menuType' => 'MENU',
+            'path' => '/codex-mobile-root-dup',
+            'icon' => 'HomeOutlined',
+            'color' => '#1677FF',
+            'regType' => 'YES',
+            'status' => 'ENABLE',
+            'sortCode' => 9998,
+        ], $payload);
+    } catch (RuntimeException) {
+        $duplicateFailed = true;
+    }
+    if (!$duplicateFailed) {
+        throw new RuntimeException('duplicate mobile menu title under the same parent should fail');
+    }
+
+    $child = $service->menuAdd([
+        'parentId' => $rootId,
+        'title' => $prefix . '_CHILD',
+        'category' => 'MENU',
+        'module' => $moduleAId,
+        'menuType' => 'MENU',
+        'path' => '/codex-mobile-child',
+        'icon' => 'BarsOutlined',
+        'color' => '#722ED1',
+        'regType' => 'YES',
+        'status' => 'ENABLE',
+        'sortCode' => 9997,
+    ], $payload);
+    $childId = (string)$child['id'];
+    $createdIds[] = $childId;
+
+    $moduleMismatchFailed = false;
+    try {
+        $service->menuAdd([
+            'parentId' => $rootId,
+            'title' => $prefix . '_BAD_CHILD',
+            'category' => 'MENU',
+            'module' => $moduleBId,
+            'menuType' => 'MENU',
+            'path' => '/codex-mobile-bad-child',
+            'icon' => 'BarsOutlined',
+            'color' => '#722ED1',
+            'regType' => 'YES',
+            'status' => 'ENABLE',
+            'sortCode' => 9996,
+        ], $payload);
+    } catch (RuntimeException) {
+        $moduleMismatchFailed = true;
+    }
+    if (!$moduleMismatchFailed) {
+        throw new RuntimeException('mobile menu parent/module mismatch should fail');
+    }
+
+    $edited = $service->menuEdit([
+        'id' => $childId,
+        'parentId' => $rootId,
+        'title' => $prefix . '_CHILD_EDITED',
+        'category' => 'MENU',
+        'module' => $moduleAId,
+        'menuType' => 'IFRAME',
+        'path' => 'https://example.test/mobile',
+        'icon' => 'LinkOutlined',
+        'color' => '#13C2C2',
+        'regType' => 'NO',
+        'status' => 'DISABLE',
+        'sortCode' => 9995,
+    ], $payload);
+    if (($edited['title'] ?? '') !== $prefix . '_CHILD_EDITED' || ($edited['menuType'] ?? '') !== 'IFRAME' || ($edited['status'] ?? '') !== 'DISABLE') {
+        throw new RuntimeException('mobile menu edit did not update expected fields');
+    }
+
+    $selfParentFailed = false;
+    try {
+        $service->menuEdit([
+            'id' => $rootId,
+            'parentId' => $childId,
+            'title' => $prefix . '_ROOT',
+            'category' => 'MENU',
+            'module' => $moduleAId,
+            'menuType' => 'MENU',
+            'path' => '/codex-mobile-root',
+            'icon' => 'HomeOutlined',
+            'color' => '#1677FF',
+            'regType' => 'YES',
+            'status' => 'ENABLE',
+            'sortCode' => 9999,
+        ], $payload);
+    } catch (RuntimeException) {
+        $selfParentFailed = true;
+    }
+    if (!$selfParentFailed) {
+        throw new RuntimeException('mobile menu parent cannot be self/child should fail');
+    }
+
+    $changeChildFailed = false;
+    try {
+        $service->menuChangeModule(['id' => $childId, 'module' => $moduleBId], $payload);
+    } catch (RuntimeException) {
+        $changeChildFailed = true;
+    }
+    if (!$changeChildFailed) {
+        throw new RuntimeException('child mobile menu changeModule should fail');
+    }
+
+    $changed = $service->menuChangeModule(['id' => $rootId, 'module' => $moduleBId], $payload);
+    if (($changed['count'] ?? 0) !== 2) {
+        throw new RuntimeException('mobile menu changeModule count mismatch');
+    }
+    $modules = think\facade\Db::name('mobile_resource')->whereIn('ID', [$rootId, $childId])->column('MODULE', 'ID');
+    if (($modules[$rootId] ?? '') !== $moduleBId || ($modules[$childId] ?? '') !== $moduleBId) {
+        throw new RuntimeException('mobile menu changeModule did not update child tree');
+    }
+
+    $button = $service->buttonAdd([
+        'parentId' => $childId,
+        'title' => $prefix . '_BUTTON',
+        'code' => $prefix . '_BUTTON_CODE',
+        'sortCode' => 9994,
+    ], $payload);
+    $buttonId = (string)$button['id'];
+    $createdIds[] = $buttonId;
+
+    $relationId = 'cmnrel-' . random_int(100000, 999999);
+    think\facade\Db::name('sys_relation')->insert([
+        'ID' => $relationId,
+        'OBJECT_ID' => 'codex-role',
+        'TARGET_ID' => $childId,
+        'CATEGORY' => 'SYS_ROLE_HAS_MOBILE_MENU',
+        'EXT_JSON' => json_encode(['buttonInfo' => [$buttonId]], JSON_UNESCAPED_SLASHES),
+    ]);
+
+    $deleted = $service->menuDelete([['id' => $rootId], ['id' => 'missing-mobile-menu']], $payload);
+    if (($deleted['count'] ?? 0) !== 2) {
+        throw new RuntimeException('mobile menu delete count mismatch');
+    }
+    $flags = think\facade\Db::name('mobile_resource')->whereIn('ID', [$rootId, $childId, $buttonId])->column('DELETE_FLAG', 'ID');
+    if (($flags[$rootId] ?? '') !== 'DELETED' || ($flags[$childId] ?? '') !== 'DELETED') {
+        throw new RuntimeException('mobile menu tree was not logically deleted');
+    }
+    if (($flags[$buttonId] ?? '') === 'DELETED') {
+        throw new RuntimeException('mobile menu delete should not delete button rows');
+    }
+    $relationCount = think\facade\Db::name('sys_relation')->where('ID', $relationId)->count();
+    if ($relationCount !== 0) {
+        throw new RuntimeException('role mobile menu relation cleanup failed');
+    }
+
+    echo "MobileResourceService menu write checks passed\n";
+} catch (Throwable $e) {
+    echo get_class($e) . ':' . $e->getMessage() . ':' . $e->getFile() . ':' . $e->getLine() . "\n";
+    throw $e;
+} finally {
+    if ($relationId !== '') {
+        think\facade\Db::name('sys_relation')->where('ID', $relationId)->delete();
+    }
+    if ($createdIds !== []) {
+        think\facade\Db::name('mobile_resource')->whereIn('ID', $createdIds)->delete();
+    }
+}
+'@
+
+    $probePath = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-mobile-resource-menu-smoke-$([guid]::NewGuid()).php")
+    $oldErrorActionPreference = $ErrorActionPreference
+    try {
+        Set-Content -LiteralPath $probePath -Value $probe -Encoding UTF8
+        $ErrorActionPreference = 'Continue'
+        $output = & php $probePath 2>&1
+        $ErrorActionPreference = $oldErrorActionPreference
+        if ($LASTEXITCODE -ne 0) {
+            throw "php MobileResourceService menu write probe failed: $output"
+        }
+
+        $outputText = [string]($output | Out-String)
+        if ($outputText -notmatch 'MobileResourceService menu write checks passed' -or $outputText -match '(RuntimeException|Exception trace)') {
+            throw "php MobileResourceService menu write probe did not pass cleanly: $outputText"
+        }
+    } finally {
+        $ErrorActionPreference = $oldErrorActionPreference
+        if (Test-Path -LiteralPath $probePath) {
+            Remove-Item -LiteralPath $probePath -Force
+        }
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'TeamProjectService base write compatibility' {
 $probe = @'
 <?php

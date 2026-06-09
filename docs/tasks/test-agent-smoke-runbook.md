@@ -196,6 +196,16 @@ Start the ThinkPHP server separately, then run:
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/mobile/module/add`, verifies the created module appears in `/mobile/module/page`, verifies duplicate `title` rejection, calls `/mobile/module/edit`, prepares temporary child mobile menu rows and a `SYS_ROLE_HAS_MOBILE_MENU` relation, calls `/mobile/module/delete` with a mixed existing and missing id payload, verifies module/menu rows reach `DELETE_FLAG = DELETED`, verifies the mobile-menu relation row is removed, and removes temporary rows. It does not print tokens or local credentials.
 
+## Optional Mobile Menu HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -MobileMenuHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, creates temporary mobile modules through the service layer, calls `/mobile/menu/add`, verifies the created menu appears in `/mobile/menu/tree`, verifies duplicate sibling-title rejection, validates child parent/module mismatch rejection, calls `/mobile/menu/edit`, verifies child `changeModule` rejection, calls root `/mobile/menu/changeModule`, prepares a temporary mobile button and `SYS_ROLE_HAS_MOBILE_MENU` relation, calls `/mobile/menu/delete` with a mixed existing and missing id payload, verifies the menu tree is logically deleted, verifies the mobile-menu relation row is removed, verifies the button row is preserved, and removes temporary rows. It does not print tokens or local credentials.
+
 ## Optional Team Project HTTP Smoke
 
 Start the ThinkPHP server separately, then run:
@@ -264,6 +274,7 @@ Add these only when a backend and frontend browser session are already available
 - optional sys-module HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke`
 - optional sys-button HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysButtonHttpSmoke`
 - optional mobile-module HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -MobileModuleHttpSmoke`
+- optional mobile-menu HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -MobileMenuHttpSmoke`
 - optional mobile-button HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -MobileButtonHttpSmoke`
 - optional team-project base HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -TeamProjectHttpSmoke`
 - browser smoke through the copied Vue frontend for affected visible pages, including dev config "other config" maintenance when `/dev/config/add|edit|delete` changes

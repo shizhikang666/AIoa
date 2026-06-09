@@ -46,10 +46,10 @@ The Java mobile module/menu/button APIs all read from `mobile_resource` and sepa
 
 The following Java endpoints remain intentionally deferred:
 
-- mobile menu add/edit/delete/changeModule
 - mobile role/mobile menu grant mutations
 
 Mobile module add/edit/delete are now covered separately in `docs/api/mobile-module-write-compat.md`.
+Mobile menu add/edit/changeModule/delete are now covered separately in `docs/api/mobile-menu-write-compat.md`.
 Mobile button add/edit/delete are now covered separately in `docs/api/mobile-button-write-compat.md`.
 
 No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.

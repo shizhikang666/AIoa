@@ -190,6 +190,10 @@ Route::group('mobile/menu', function () {
     Route::get('detail', 'mobile.MenuController/detail');
     Route::get('moduleSelector', 'mobile.MenuController/moduleSelector');
     Route::get('menuTreeSelector', 'mobile.MenuController/menuTreeSelector');
+    Route::post('add', 'mobile.MenuController/add');
+    Route::post('edit', 'mobile.MenuController/edit');
+    Route::post('changeModule', 'mobile.MenuController/changeModule');
+    Route::post('delete', 'mobile.MenuController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('mobile/button', function () {

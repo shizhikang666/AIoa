@@ -13,6 +13,7 @@ param(
     [switch]$SysModuleHttpSmoke,
     [switch]$SysButtonHttpSmoke,
     [switch]$MobileModuleHttpSmoke,
+    [switch]$MobileMenuHttpSmoke,
     [switch]$MobileButtonHttpSmoke,
     [switch]$TeamProjectHttpSmoke
 )
@@ -162,6 +163,10 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'mobile/module/add',
         'mobile/module/edit',
         'mobile/module/delete',
+        'mobile/menu/add',
+        'mobile/menu/edit',
+        'mobile/menu/changeModule',
+        'mobile/menu/delete',
         'mobile/button/add',
         'mobile/button/edit',
         'mobile/button/delete',
@@ -1556,6 +1561,179 @@ think\facade\Db::name('sys_relation')->insert(['ID' => '$relationId', 'OBJECT_ID
 require getcwd() . '/vendor/autoload.php';
 (new think\App(getcwd()))->initialize();
 `$ids = array_values(array_filter(['$moduleId', '$menuId', '$childMenuId']));
+if ('$relationId' !== '') { think\facade\Db::name('sys_relation')->where('ID', '$relationId')->delete(); }
+if (`$ids !== []) { think\facade\Db::name('mobile_resource')->whereIn('ID', `$ids)->delete(); }
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
+            }
+        }
+    }
+}
+
+if ($MobileMenuHttpSmoke) {
+    Invoke-TestStep 'authenticated mobile menu write HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -MobileMenuHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -MobileMenuHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_MOBILE_MENU_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_MOBILE_MENU_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $moduleAId = ''
+        $moduleBId = ''
+        $rootId = ''
+        $childId = ''
+        $buttonId = ''
+        $relationId = ''
+
+        try {
+            $moduleCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$service = new app\service\mobile\MobileResourceService();
+`$payload = ['userId' => 'codex-smoke', 'tenantId' => '0'];
+`$moduleA = `$service->moduleAdd(['title' => '$prefix' . '_MODULE_A', 'icon' => 'HomeOutlined', 'color' => '#1677FF', 'sortCode' => 9999], `$payload);
+`$moduleB = `$service->moduleAdd(['title' => '$prefix' . '_MODULE_B', 'icon' => 'SettingOutlined', 'color' => '#13C2C2', 'sortCode' => 9998], `$payload);
+echo `$moduleA['id'] . ':' . `$moduleB['id'];
+"@
+            $moduleState = & php -r $moduleCode
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($moduleState)) {
+                throw 'failed to prepare mobile menu module fixtures'
+            }
+            $moduleParts = ([string]$moduleState).Split(':')
+            $moduleAId = $moduleParts[0]
+            $moduleBId = $moduleParts[1]
+
+            $body = @{ parentId = '0'; title = ($prefix + '_ROOT'); category = 'MENU'; module = $moduleAId; menuType = 'MENU'; path = '/codex-mobile-root'; icon = 'HomeOutlined'; color = '#1677FF'; regType = 'YES'; status = 'ENABLE'; sortCode = 9999 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $addRaw = & curl.exe -sS -X POST "$base/mobile/menu/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'mobile menu add request failed'
+            }
+            $add = $addRaw | ConvertFrom-Json
+            if ([int]$add.code -ne 200 -or -not $add.data.id -or [string]$add.data.category -ne 'MENU') {
+                throw "unexpected mobile menu add response: $addRaw"
+            }
+            $rootId = [string]$add.data.id
+
+            $treeRaw = & curl.exe -sS -X GET "$base/mobile/menu/tree?module=$moduleAId&searchKey=$prefix" -H "Authorization: Bearer $token"
+            $tree = $treeRaw | ConvertFrom-Json
+            $treeRows = @($tree.data)
+            if ([int]$tree.code -ne 200 -or -not ($treeRows | Where-Object { [string]$_.id -eq $rootId })) {
+                throw "mobile menu tree did not include created root menu: $treeRaw"
+            }
+
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $duplicateRaw = & curl.exe -sS -X POST "$base/mobile/menu/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $duplicate = $duplicateRaw | ConvertFrom-Json
+            if ([int]$duplicate.code -eq 200) {
+                throw "mobile menu duplicate title should fail: $duplicateRaw"
+            }
+
+            $body = @{ parentId = $rootId; title = ($prefix + '_CHILD'); category = 'MENU'; module = $moduleAId; menuType = 'MENU'; path = '/codex-mobile-child'; icon = 'BarsOutlined'; color = '#722ED1'; regType = 'YES'; status = 'ENABLE'; sortCode = 9997 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $childRaw = & curl.exe -sS -X POST "$base/mobile/menu/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $child = $childRaw | ConvertFrom-Json
+            if ([int]$child.code -ne 200 -or -not $child.data.id) {
+                throw "unexpected mobile child menu add response: $childRaw"
+            }
+            $childId = [string]$child.data.id
+
+            $body = @{ parentId = $rootId; title = ($prefix + '_BAD_CHILD'); category = 'MENU'; module = $moduleBId; menuType = 'MENU'; path = '/codex-mobile-bad-child'; icon = 'BarsOutlined'; color = '#722ED1'; regType = 'YES'; status = 'ENABLE'; sortCode = 9996 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $badChildRaw = & curl.exe -sS -X POST "$base/mobile/menu/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $badChild = $badChildRaw | ConvertFrom-Json
+            if ([int]$badChild.code -eq 200) {
+                throw "mobile menu parent/module mismatch should fail: $badChildRaw"
+            }
+
+            $body = @{ id = $childId; parentId = $rootId; title = ($prefix + '_CHILD_EDITED'); category = 'MENU'; module = $moduleAId; menuType = 'IFRAME'; path = 'https://example.test/mobile'; icon = 'LinkOutlined'; color = '#13C2C2'; regType = 'NO'; status = 'DISABLE'; sortCode = 9995 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editRaw = & curl.exe -sS -X POST "$base/mobile/menu/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'mobile menu edit request failed'
+            }
+            $edit = $editRaw | ConvertFrom-Json
+            if ([int]$edit.code -ne 200 -or [string]$edit.data.menuType -ne 'IFRAME' -or [string]$edit.data.status -ne 'DISABLE') {
+                throw "unexpected mobile menu edit response: $editRaw"
+            }
+
+            $body = @{ id = $childId; module = $moduleBId } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $badChangeRaw = & curl.exe -sS -X POST "$base/mobile/menu/changeModule" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $badChange = $badChangeRaw | ConvertFrom-Json
+            if ([int]$badChange.code -eq 200) {
+                throw "child mobile menu changeModule should fail: $badChangeRaw"
+            }
+
+            $body = @{ id = $rootId; module = $moduleBId } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $changeRaw = & curl.exe -sS -X POST "$base/mobile/menu/changeModule" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $change = $changeRaw | ConvertFrom-Json
+            if ([int]$change.code -ne 200 -or [int]$change.data.count -ne 2) {
+                throw "unexpected mobile menu changeModule response: $changeRaw"
+            }
+
+            $fixtureCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$service = new app\service\mobile\MobileResourceService();
+`$button = `$service->buttonAdd(['parentId' => '$childId', 'title' => '$prefix' . '_BUTTON', 'code' => '$prefix' . '_BUTTON_CODE', 'sortCode' => 9994], ['userId' => 'codex-smoke', 'tenantId' => '0']);
+think\facade\Db::name('sys_relation')->insert(['ID' => 'cmnrel-' . random_int(100000, 999999), 'OBJECT_ID' => 'codex-role', 'TARGET_ID' => '$childId', 'CATEGORY' => 'SYS_ROLE_HAS_MOBILE_MENU', 'EXT_JSON' => json_encode(['buttonInfo' => [`$button['id']]], JSON_UNESCAPED_SLASHES)]);
+`$relationId = (string)think\facade\Db::name('sys_relation')->where('TARGET_ID', '$childId')->where('CATEGORY', 'SYS_ROLE_HAS_MOBILE_MENU')->order('ID', 'desc')->value('ID');
+echo `$button['id'] . ':' . `$relationId;
+"@
+            $fixtureState = & php -r $fixtureCode
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($fixtureState)) {
+                throw 'failed to prepare mobile menu delete fixtures'
+            }
+            $fixtureParts = ([string]$fixtureState).Split(':')
+            $buttonId = $fixtureParts[0]
+            $relationId = $fixtureParts[1]
+
+            $body = @(@{ id = $rootId }, @{ id = 'missing-mobile-menu' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/mobile/menu/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'mobile menu delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200) {
+                throw "unexpected mobile menu delete response: $deleteRaw"
+            }
+
+            $deleteState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$flags = think\facade\Db::name('mobile_resource')->whereIn('ID', ['$rootId', '$childId', '$buttonId'])->column('DELETE_FLAG', 'ID'); `$relationCount = think\facade\Db::name('sys_relation')->where('ID', '$relationId')->count(); echo implode(',', [`$flags['$rootId'] ?? '', `$flags['$childId'] ?? '', `$flags['$buttonId'] ?? '']) . ':' . `$relationCount;"
+            if ([string]$deleteState -ne 'DELETED,DELETED,NOT_DELETE:0') {
+                throw "mobile menu delete did not update expected state: $deleteState"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$ids = array_values(array_filter(['$moduleAId', '$moduleBId', '$rootId', '$childId', '$buttonId']));
 if ('$relationId' !== '') { think\facade\Db::name('sys_relation')->where('ID', '$relationId')->delete(); }
 if (`$ids !== []) { think\facade\Db::name('mobile_resource')->whereIn('ID', `$ids)->delete(); }
 "@

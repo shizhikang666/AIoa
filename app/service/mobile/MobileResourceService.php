@@ -282,6 +282,150 @@ class MobileResourceService
     }
 
     /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function menuAdd(array $input, mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $data = $this->menuWriteData($input);
+        $this->assertDuplicateMenuTitle($data['PARENT_ID'], $data['TITLE'], null);
+        $this->assertMenuModuleAndParent($data['MODULE'], $data['PARENT_ID']);
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $row = array_merge($data, [
+            'ID' => $this->newId(),
+            'CATEGORY' => self::CATEGORY_MENU,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'TENANT_ID' => $this->tenantIdForMenu($data['MODULE'], $data['PARENT_ID'], $payload),
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('mobile_resource')->insert($row);
+
+        return $this->resourceRow($row);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function menuEdit(array $input, mixed $payload = []): array
+    {
+        $id = $this->requiredInput($input, ['id', 'ID'], 'id');
+        $payload = is_array($payload) ? $payload : [];
+        $existing = $this->activeResourceRow($id, self::CATEGORY_MENU);
+        $data = $this->menuWriteData($input, $existing);
+        $this->assertDuplicateMenuTitle($data['PARENT_ID'], $data['TITLE'], $id);
+        $this->assertMenuParentIsNotChild($id, $data['PARENT_ID']);
+        $this->assertMenuModuleAndParent($data['MODULE'], $data['PARENT_ID']);
+
+        $operatorId = $this->payloadUserId($payload);
+        $update = array_merge($data, [
+            'TENANT_ID' => $this->tenantIdForMenu($data['MODULE'], $data['PARENT_ID'], $payload, (string)($existing['TENANT_ID'] ?? '')),
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('mobile_resource')
+            ->where('ID', $id)
+            ->where('CATEGORY', self::CATEGORY_MENU)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update($update);
+
+        return $this->resourceRow($this->activeResourceRow($id, self::CATEGORY_MENU));
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function menuChangeModule(array $input, mixed $payload = []): array
+    {
+        $id = $this->requiredInput($input, ['id', 'ID'], 'id');
+        $module = $this->requiredInput($input, ['module', 'MODULE'], 'module');
+        $payload = is_array($payload) ? $payload : [];
+        $row = $this->activeResourceRow($id, self::CATEGORY_MENU);
+        if ((string)($row['PARENT_ID'] ?? self::ROOT_PARENT_ID) !== self::ROOT_PARENT_ID) {
+            throw new RuntimeException('non-root mobile menu cannot change module', 400);
+        }
+
+        $toUpdateIds = $this->menuTreeIdsForDelete([$id]);
+        if ($toUpdateIds === []) {
+            throw new RuntimeException('mobile menu not found', 404);
+        }
+
+        $operatorId = $this->payloadUserId($payload);
+        $updated = Db::name('mobile_resource')
+            ->whereIn('ID', $toUpdateIds)
+            ->where('CATEGORY', self::CATEGORY_MENU)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update([
+                'MODULE' => $module,
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+            ]);
+
+        return [
+            'ids' => $toUpdateIds,
+            'module' => $module,
+            'count' => $updated,
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function menuDelete(array $ids, mixed $payload = []): array
+    {
+        $idList = $this->idInputList($ids, 'menuId');
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $toDeleteIds = $this->menuTreeIdsForDelete($idList);
+        if ($toDeleteIds === []) {
+            return [
+                'ids' => $idList,
+                'count' => 0,
+            ];
+        }
+
+        $operatorId = $this->payloadUserId($payload);
+        $updated = Db::transaction(function () use ($toDeleteIds, $operatorId): int {
+            $this->removeRoleHasMobileMenuRelations($toDeleteIds);
+
+            return Db::name('mobile_resource')
+                ->whereIn('ID', $toDeleteIds)
+                ->where('CATEGORY', self::CATEGORY_MENU)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+                ]);
+        });
+
+        return [
+            'ids' => $idList,
+            'deletedIds' => $toDeleteIds,
+            'count' => $updated,
+        ];
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function menuTreeSelector(array $filters = []): array
@@ -471,6 +615,34 @@ class MobileResourceService
      * @param array<string, mixed>|null $existing
      * @return array<string, mixed>
      */
+    private function menuWriteData(array $input, ?array $existing = null): array
+    {
+        $sortCode = $input['sortCode'] ?? $input['SORT_CODE'] ?? ($existing['SORT_CODE'] ?? null);
+        if ($sortCode !== null && $sortCode !== '' && !is_numeric($sortCode)) {
+            throw new RuntimeException('invalid sortCode', 400);
+        }
+
+        $this->requiredInput($input, ['category', 'CATEGORY'], 'category');
+
+        return [
+            'PARENT_ID' => $this->requiredInput($input, ['parentId', 'PARENT_ID'], 'parentId'),
+            'TITLE' => $this->requiredInput($input, ['title', 'TITLE'], 'title'),
+            'MODULE' => $this->requiredInput($input, ['module', 'MODULE'], 'module'),
+            'MENU_TYPE' => $this->requiredInput($input, ['menuType', 'MENU_TYPE'], 'menuType'),
+            'PATH' => $this->requiredInput($input, ['path', 'PATH'], 'path'),
+            'ICON' => $this->requiredInput($input, ['icon', 'ICON'], 'icon'),
+            'COLOR' => $this->requiredInput($input, ['color', 'COLOR'], 'color'),
+            'REG_TYPE' => $this->requiredInput($input, ['regType', 'REG_TYPE'], 'regType'),
+            'STATUS' => $this->requiredInput($input, ['status', 'STATUS'], 'status'),
+            'SORT_CODE' => $sortCode === null || $sortCode === '' ? null : (int)$sortCode,
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|null $existing
+     * @return array<string, mixed>
+     */
     private function buttonWriteData(array $input, ?array $existing = null): array
     {
         $sortCode = $this->requiredInput($input, ['sortCode', 'SORT_CODE'], 'sortCode');
@@ -559,6 +731,52 @@ class MobileResourceService
         }
     }
 
+    private function assertDuplicateMenuTitle(string $parentId, string $title, ?string $ignoreId): void
+    {
+        $query = Db::name('mobile_resource')
+            ->where('CATEGORY', self::CATEGORY_MENU)
+            ->where('PARENT_ID', $parentId)
+            ->where('TITLE', $title)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException("duplicate mobile menu title: {$title}", 400);
+        }
+    }
+
+    private function assertMenuModuleAndParent(string $module, string $parentId): void
+    {
+        if ($parentId === self::ROOT_PARENT_ID) {
+            return;
+        }
+
+        $parent = $this->activeResourceRow($parentId, self::CATEGORY_MENU);
+        if ((string)($parent['MODULE'] ?? '') !== $module) {
+            throw new RuntimeException('module does not match parent menu', 400);
+        }
+    }
+
+    private function assertMenuParentIsNotChild(string $id, string $parentId): void
+    {
+        if ($parentId === self::ROOT_PARENT_ID || $parentId === $id) {
+            if ($parentId === $id) {
+                throw new RuntimeException('mobile menu parent cannot be self', 400);
+            }
+
+            return;
+        }
+
+        if (in_array($parentId, $this->menuTreeIdsForDelete([$id]), true)) {
+            throw new RuntimeException('mobile menu parent cannot be child', 400);
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -638,7 +856,57 @@ class MobileResourceService
             }
         }
 
-        return array_values(array_keys($deleteMap));
+        return array_map(static fn($id): string => (string)$id, array_keys($deleteMap));
+    }
+
+    /**
+     * @param array<int, string> $menuIds
+     * @return array<int, string>
+     */
+    private function menuTreeIdsForDelete(array $menuIds): array
+    {
+        $menuRows = Db::name('mobile_resource')
+            ->where('CATEGORY', self::CATEGORY_MENU)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->field(['ID', 'PARENT_ID'])
+            ->select()
+            ->toArray();
+
+        $idMap = [];
+        $childrenByParent = [];
+        foreach ($menuRows as $row) {
+            $id = trim((string)($row['ID'] ?? ''));
+            $parentId = trim((string)($row['PARENT_ID'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            $idMap[$id] = true;
+            if ($parentId !== '') {
+                $childrenByParent[$parentId][] = $id;
+            }
+        }
+
+        $deleteMap = [];
+        foreach ($menuIds as $menuId) {
+            if (isset($idMap[$menuId])) {
+                $deleteMap[$menuId] = true;
+            }
+        }
+
+        $queue = array_keys($deleteMap);
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            foreach ($childrenByParent[$current] ?? [] as $childId) {
+                if (!isset($deleteMap[$childId])) {
+                    $deleteMap[$childId] = true;
+                    $queue[] = $childId;
+                }
+            }
+        }
+
+        return array_map(static fn($id): string => (string)$id, array_keys($deleteMap));
     }
 
     /**
@@ -778,6 +1046,43 @@ class MobileResourceService
     {
         $tenantId = trim((string)Db::name('mobile_resource')
             ->where('ID', $parentId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->value('TENANT_ID'));
+        if ($tenantId !== '') {
+            return $tenantId;
+        }
+
+        $payloadTenantId = $this->payloadTenantId($payload);
+        if ($payloadTenantId !== '') {
+            return $payloadTenantId;
+        }
+
+        return $fallback !== '' ? $fallback : '0';
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function tenantIdForMenu(string $module, string $parentId, array $payload, string $fallback = ''): string
+    {
+        if ($parentId !== self::ROOT_PARENT_ID) {
+            $tenantId = trim((string)Db::name('mobile_resource')
+                ->where('ID', $parentId)
+                ->where('CATEGORY', self::CATEGORY_MENU)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->value('TENANT_ID'));
+            if ($tenantId !== '') {
+                return $tenantId;
+            }
+        }
+
+        $tenantId = trim((string)Db::name('mobile_resource')
+            ->where('ID', $module)
+            ->where('CATEGORY', self::CATEGORY_MODULE)
             ->where(function ($query): void {
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             })
