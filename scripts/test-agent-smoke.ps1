@@ -10,6 +10,7 @@ param(
     [switch]$GenConfigHttpSmoke,
     [switch]$SaleProjectInvoicingHttpSmoke,
     [switch]$FileRelationHttpSmoke,
+    [switch]$SysModuleHttpSmoke,
     [switch]$SysButtonHttpSmoke,
     [switch]$TeamProjectHttpSmoke
 )
@@ -150,6 +151,9 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'dev/log/delete',
         'dev/job/delete',
         'gen/config/editBatch',
+        'sys/module/add',
+        'sys/module/edit',
+        'sys/module/delete',
         'sys/button/add',
         'sys/button/edit',
         'sys/button/delete',
@@ -1171,6 +1175,125 @@ if (`$fileId !== '') {
                 if (Test-Path -LiteralPath $path) {
                     Remove-Item -LiteralPath $path -Force
                 }
+            }
+        }
+    }
+}
+
+if ($SysModuleHttpSmoke) {
+    Invoke-TestStep 'authenticated sys module write HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -SysModuleHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -SysModuleHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_SYS_MODULE_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_MODULE_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $moduleId = ''
+        $menuId = ''
+        $relationId = ''
+
+        try {
+            $body = @{ title = ($prefix + '_MODULE'); icon = 'AppstoreOutlined'; color = '#1677FF'; sortCode = 99; extJson = @{ smoke = $true } } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $addRaw = & curl.exe -sS -X POST "$base/sys/module/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'sys module add request failed'
+            }
+            $add = $addRaw | ConvertFrom-Json
+            if ([int]$add.code -ne 200 -or -not $add.data.id) {
+                throw "unexpected sys module add response: $addRaw"
+            }
+            $moduleId = [string]$add.data.id
+
+            $pageRaw = & curl.exe -sS -X GET "$base/sys/module/page?searchKey=$prefix" -H "Authorization: Bearer $token"
+            $page = $pageRaw | ConvertFrom-Json
+            $records = @($page.data.records)
+            if ([int]$page.code -ne 200 -or -not ($records | Where-Object { [string]$_.id -eq $moduleId })) {
+                throw "sys module page did not include created module: $pageRaw"
+            }
+
+            $body = @{ title = ($prefix + '_MODULE'); icon = 'AppstoreOutlined'; color = '#1677FF'; sortCode = 98 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $duplicateRaw = & curl.exe -sS -X POST "$base/sys/module/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $duplicate = $duplicateRaw | ConvertFrom-Json
+            if ([int]$duplicate.code -eq 200) {
+                throw "sys module duplicate title should fail: $duplicateRaw"
+            }
+
+            $body = @{ id = $moduleId; title = ($prefix + '_EDITED'); icon = 'SettingOutlined'; color = '#13C2C2'; sortCode = 97; extJson = '{}' } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editRaw = & curl.exe -sS -X POST "$base/sys/module/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'sys module edit request failed'
+            }
+            $edit = $editRaw | ConvertFrom-Json
+            if ([int]$edit.code -ne 200 -or [string]$edit.data.title -ne "$($prefix)_EDITED") {
+                throw "unexpected sys module edit response: $editRaw"
+            }
+
+            $menuId = 'codex-menu-' + (Get-Random -Minimum 100000 -Maximum 999999)
+            $relationId = 'codex-rel-' + (Get-Random -Minimum 100000 -Maximum 999999)
+            $prepCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('sys_resource')->insert(['ID' => '$menuId', 'PARENT_ID' => '0', 'TITLE' => '$prefix' . '_MENU', 'CODE' => '$prefix' . '_MENU', 'CATEGORY' => 'MENU', 'MODULE' => '$moduleId', 'SORT_CODE' => 9999, 'DELETE_FLAG' => 'NOT_DELETE', 'CREATE_TIME' => date('Y-m-d H:i:s'), 'CREATE_USER' => 'codex-smoke']);
+think\facade\Db::name('sys_relation')->insert(['ID' => '$relationId', 'OBJECT_ID' => 'codex-role', 'TARGET_ID' => '$menuId', 'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE', 'EXT_JSON' => '{}']);
+"@
+            & php -r $prepCode | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to prepare sys module delete smoke rows'
+            }
+
+            $body = @(@{ id = $moduleId }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/sys/module/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'sys module delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200) {
+                throw "unexpected sys module delete response: $deleteRaw"
+            }
+
+            $deleteState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); echo (string)think\facade\Db::name('sys_resource')->where('ID', '$moduleId')->value('DELETE_FLAG') . ':' . (string)think\facade\Db::name('sys_resource')->where('ID', '$menuId')->value('DELETE_FLAG') . ':' . (string)think\facade\Db::name('sys_relation')->where('ID', '$relationId')->count();"
+            if ([string]$deleteState -ne 'DELETED:DELETED:0') {
+                throw "sys module delete did not update expected state: $deleteState"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$moduleId = '$moduleId';
+`$menuId = '$menuId';
+`$relationId = '$relationId';
+if (`$relationId !== '') { think\facade\Db::name('sys_relation')->where('ID', `$relationId)->delete(); }
+foreach ([`$menuId, `$moduleId] as `$id) { if (`$id !== '') { think\facade\Db::name('sys_resource')->where('ID', `$id)->delete(); } }
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
             }
         }
     }

@@ -20,6 +20,7 @@ class ResourceService
     private const CATEGORY_BUTTON = 'BUTTON';
     private const CATEGORY_FIELD = 'FIELD';
     private const RELATION_ROLE_HAS_RESOURCE = 'SYS_ROLE_HAS_RESOURCE';
+    private const BUILT_IN_MODULE_CODES = ['system', 'tenant'];
     private const ROOT_PARENT_ID = '0';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
@@ -37,6 +38,110 @@ class ResourceService
     public function modulePage(array $filters = []): array
     {
         return $this->page(self::CATEGORY_MODULE, $filters);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function moduleAdd(array $input, mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $data = $this->moduleWriteData($input);
+        $this->assertDuplicateModuleTitle($data['TITLE'], null);
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $row = array_merge($data, [
+            'ID' => $this->newId(),
+            'CODE' => $this->newResourceCode(self::CATEGORY_MODULE),
+            'CATEGORY' => self::CATEGORY_MODULE,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('sys_resource')->insert($row);
+
+        return $this->resourceRow($row);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function moduleEdit(array $input, mixed $payload = []): array
+    {
+        $id = $this->requiredInput($input, ['id', 'ID'], 'id');
+        $payload = is_array($payload) ? $payload : [];
+        $existing = $this->activeResourceRow($id, self::CATEGORY_MODULE);
+        $data = $this->moduleWriteData($input, $existing);
+        $this->assertDuplicateModuleTitle($data['TITLE'], $id);
+
+        $operatorId = $this->payloadUserId($payload);
+        $update = array_merge($data, [
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('sys_resource')
+            ->where('ID', $id)
+            ->where('CATEGORY', self::CATEGORY_MODULE)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update($update);
+
+        return $this->resourceRow($this->activeResourceRow($id, self::CATEGORY_MODULE));
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function moduleDelete(array $ids, mixed $payload = []): array
+    {
+        $idList = $this->idInputList($ids, 'moduleId');
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $rows = $this->activeResourceRows($idList, self::CATEGORY_MODULE);
+        foreach ($rows as $row) {
+            $code = strtolower(trim((string)($row['CODE'] ?? '')));
+            if (in_array($code, self::BUILT_IN_MODULE_CODES, true)) {
+                throw new RuntimeException('built-in module cannot be deleted', 400);
+            }
+        }
+
+        $toDeleteIds = $this->moduleResourceIdsForDelete($idList);
+        $operatorId = $this->payloadUserId($payload);
+
+        $updated = Db::transaction(function () use ($toDeleteIds, $operatorId): int {
+            Db::name('sys_relation')
+                ->where('CATEGORY', self::RELATION_ROLE_HAS_RESOURCE)
+                ->whereIn('TARGET_ID', $toDeleteIds)
+                ->delete();
+
+            return Db::name('sys_resource')
+                ->whereIn('ID', $toDeleteIds)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+                ]);
+        });
+
+        return [
+            'ids' => $toDeleteIds,
+            'count' => $updated,
+        ];
     }
 
     public function menuPage(array $filters = []): array
@@ -415,6 +520,31 @@ class ResourceService
      * @param array<string, mixed>|null $existing
      * @return array<string, mixed>
      */
+    private function moduleWriteData(array $input, ?array $existing = null): array
+    {
+        $sortCode = $this->requiredInput($input, ['sortCode', 'SORT_CODE'], 'sortCode');
+        if (!is_numeric($sortCode)) {
+            throw new RuntimeException('invalid sortCode', 400);
+        }
+
+        $extJson = array_key_exists('extJson', $input) || array_key_exists('EXT_JSON', $input)
+            ? $this->normalizeJsonInput($input['extJson'] ?? $input['EXT_JSON'] ?? null)
+            : ($existing['EXT_JSON'] ?? null);
+
+        return [
+            'TITLE' => $this->requiredInput($input, ['title', 'TITLE'], 'title'),
+            'ICON' => $this->requiredInput($input, ['icon', 'ICON'], 'icon'),
+            'COLOR' => $this->requiredInput($input, ['color', 'COLOR'], 'color'),
+            'SORT_CODE' => (int)$sortCode,
+            'EXT_JSON' => $extJson,
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|null $existing
+     * @return array<string, mixed>
+     */
     private function buttonWriteData(array $input, ?array $existing = null): array
     {
         $sortCode = $this->requiredInput($input, ['sortCode', 'SORT_CODE'], 'sortCode');
@@ -485,21 +615,39 @@ class ResourceService
         }
     }
 
+    private function assertDuplicateModuleTitle(string $title, ?string $ignoreId): void
+    {
+        $query = Db::name('sys_resource')
+            ->where('CATEGORY', self::CATEGORY_MODULE)
+            ->where('TITLE', $title)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException("duplicate module title: {$title}", 400);
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */
-    private function activeButtonRow(string $id): array
+    private function activeResourceRow(string $id, string $category): array
     {
         $row = Db::name('sys_resource')
             ->where('ID', $id)
-            ->where('CATEGORY', self::CATEGORY_BUTTON)
+            ->where('CATEGORY', $category)
             ->where(function ($query): void {
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             })
             ->find();
 
         if (!$row) {
-            throw new RuntimeException('button not found', 404);
+            throw new RuntimeException(strtolower($category) . ' not found', 404);
         }
 
         return $row;
@@ -509,11 +657,11 @@ class ResourceService
      * @param array<int, string> $ids
      * @return array<int, array<string, mixed>>
      */
-    private function activeButtonRows(array $ids): array
+    private function activeResourceRows(array $ids, string $category): array
     {
         $rows = Db::name('sys_resource')
             ->whereIn('ID', $ids)
-            ->where('CATEGORY', self::CATEGORY_BUTTON)
+            ->where('CATEGORY', $category)
             ->where(function ($query): void {
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             })
@@ -523,10 +671,72 @@ class ResourceService
         $found = array_values(array_filter(array_map(static fn (array $row): string => (string)($row['ID'] ?? ''), $rows)));
         $missing = array_values(array_diff($ids, $found));
         if ($missing !== []) {
-            throw new RuntimeException('button not found', 404);
+            throw new RuntimeException(strtolower($category) . ' not found', 404);
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array<int, string> $moduleIds
+     * @return array<int, string>
+     */
+    private function moduleResourceIdsForDelete(array $moduleIds): array
+    {
+        $deleteMap = array_fill_keys($moduleIds, true);
+        $rows = Db::name('sys_resource')
+            ->whereIn('CATEGORY', [self::CATEGORY_MENU, self::CATEGORY_BUTTON])
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->field(['ID', 'PARENT_ID', 'MODULE'])
+            ->select()
+            ->toArray();
+
+        $childrenByParent = [];
+        foreach ($rows as $row) {
+            $id = trim((string)($row['ID'] ?? ''));
+            $parentId = trim((string)($row['PARENT_ID'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            if (in_array((string)($row['MODULE'] ?? ''), $moduleIds, true)) {
+                $deleteMap[$id] = true;
+            }
+            if ($parentId !== '') {
+                $childrenByParent[$parentId][] = $id;
+            }
+        }
+
+        $queue = array_keys($deleteMap);
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            foreach ($childrenByParent[$current] ?? [] as $childId) {
+                if (!isset($deleteMap[$childId])) {
+                    $deleteMap[$childId] = true;
+                    $queue[] = $childId;
+                }
+            }
+        }
+
+        return array_values(array_keys($deleteMap));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function activeButtonRow(string $id): array
+    {
+        return $this->activeResourceRow($id, self::CATEGORY_BUTTON);
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<int, array<string, mixed>>
+     */
+    private function activeButtonRows(array $ids): array
+    {
+        return $this->activeResourceRows($ids, self::CATEGORY_BUTTON);
     }
 
     /**
@@ -572,12 +782,12 @@ class ResourceService
      * @param array<int, mixed> $value
      * @return array<int, string>
      */
-    private function idInputList(array $value): array
+    private function idInputList(array $value, string $arrayKey = 'buttonId'): array
     {
         $ids = [];
         foreach ($value as $item) {
             if (is_array($item)) {
-                $id = trim((string)($item['id'] ?? $item['buttonId'] ?? $item['value'] ?? $item['key'] ?? ''));
+                $id = trim((string)($item['id'] ?? $item[$arrayKey] ?? $item['buttonId'] ?? $item['value'] ?? $item['key'] ?? ''));
             } else {
                 $id = trim((string)$item);
             }
@@ -601,6 +811,26 @@ class ResourceService
     private function newId(): string
     {
         return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
+    }
+
+    private function newResourceCode(string $category): string
+    {
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $code = '';
+            for ($i = 0; $i < 10; $i++) {
+                $code .= $chars[random_int(0, strlen($chars) - 1)];
+            }
+            $exists = Db::name('sys_resource')
+                ->where('CATEGORY', $category)
+                ->where('CODE', $code)
+                ->count();
+            if ($exists === 0) {
+                return $code;
+            }
+        }
+
+        return substr($this->newId(), -10);
     }
 
     /**

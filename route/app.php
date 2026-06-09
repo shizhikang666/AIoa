@@ -148,6 +148,9 @@ Route::group('sys/role', function () {
 
 Route::group('sys/module', function () {
     Route::get('page', 'sys.ModuleController/page');
+    Route::post('add', 'sys.ModuleController/add');
+    Route::post('edit', 'sys.ModuleController/edit');
+    Route::post('delete', 'sys.ModuleController/delete');
     Route::get('detail', 'sys.ModuleController/detail');
 })->middleware(AuthMiddleware::class);
 

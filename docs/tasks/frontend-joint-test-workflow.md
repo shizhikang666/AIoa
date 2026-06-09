@@ -308,6 +308,20 @@ Cleanup:
 
 - Temporary `CODEX_HTTP_BUTTON_*` button rows and temporary smoke relation rows are removed.
 
+## Sys Module Write HTTP Smoke, 2026-06-09
+
+Verified after `/sys/module/add`, `/sys/module/edit`, and `/sys/module/delete` compatibility was added:
+
+- Copied frontend API wrapper: `snowy-admin-web/src/api/sys/resource/moduleApi.js`
+- Copied frontend pages: `snowy-admin-web/src/views/sys/resource/module/index.vue` and `snowy-admin-web/src/views/sys/resource/module/form.vue`
+- Authenticated HTTP smoke creates a temporary module, calls `POST /sys/module/add`, and verifies the module appears in `GET /sys/module/page`.
+- The same smoke verifies duplicate `title` rejection, calls `POST /sys/module/edit`, prepares a temporary child menu and `SYS_ROLE_HAS_RESOURCE` relation, calls `POST /sys/module/delete`, and confirms the module and child menu reach `DELETE_FLAG = DELETED`.
+- Database verification confirms the temporary role-resource relation is removed.
+
+Cleanup:
+
+- Temporary `CODEX_HTTP_MODULE_*` module/menu rows and temporary smoke relation rows are removed.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:

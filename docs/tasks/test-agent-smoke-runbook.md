@@ -60,6 +60,7 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - `SaleProjectBillingService` invoicing complete behavior, tenant-scoped row lookup, idempotent state update, and cross-tenant rejection
 - local file upload plus `BizFileRelationService` add/list/edit/delete behavior
 - file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
+- `ResourceService` module add/edit/delete behavior, duplicate-title rejection, built-in module delete rejection path coverage through service logic, child-resource logical delete, and role-resource relation cleanup
 - `ResourceService` button add/edit/delete behavior, duplicate-code rejection, logical delete, and role-resource `buttonInfo` cleanup
 - `TeamProjectService` base add/edit/delete behavior, automatic current-user `LEADER` member creation, member edit audit refresh without role/permission mutation, project permission relation sync, version increment, and project/member logical delete
 
@@ -163,6 +164,16 @@ Start the ThinkPHP server separately, then run:
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/sys/button/add`, verifies the created button appears in `/sys/button/page`, verifies duplicate `code` rejection, calls `/sys/button/edit`, prepares a temporary `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/button/delete`, verifies `DELETE_FLAG = DELETED` and `EXT_JSON.buttonInfo` cleanup, and removes temporary rows. It does not print tokens or local credentials.
 
+## Optional Sys Module HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/sys/module/add`, verifies the created module appears in `/sys/module/page`, verifies duplicate `title` rejection, calls `/sys/module/edit`, prepares a temporary child menu and `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/module/delete`, verifies module and child menu reach `DELETE_FLAG = DELETED`, verifies the relation is removed, and removes temporary rows. It does not print tokens or local credentials.
+
 ## Optional Team Project HTTP Smoke
 
 Start the ThinkPHP server separately, then run:
@@ -228,6 +239,7 @@ Add these only when a backend and frontend browser session are already available
 - optional gen-config HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -GenConfigHttpSmoke`
 - optional sale-project invoicing HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SaleProjectInvoicingHttpSmoke`
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
+- optional sys-module HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke`
 - optional sys-button HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysButtonHttpSmoke`
 - optional team-project base HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -TeamProjectHttpSmoke`
 - browser smoke through the copied Vue frontend for affected visible pages, including dev config "other config" maintenance when `/dev/config/add|edit|delete` changes

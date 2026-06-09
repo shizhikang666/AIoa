@@ -505,6 +505,38 @@ The copied Vue system resource button page already calls `/sys/button/add`, `/sy
 
 ---
 
+# Change Request: System Module Write Compatibility
+
+Register protected system module write routes and Java-compatible service behavior.
+
+## Reason
+
+The copied Vue system resource module page calls `/sys/module/add`, `/sys/module/edit`, and `/sys/module/delete` from its form and row-delete flows. These routes were previously absent while page/detail reads were covered.
+
+## Applied Change
+
+`main control agent` registered these protected routes:
+
+- `POST /sys/module/add`
+- `POST /sys/module/edit`
+- `POST /sys/module/delete`
+
+`ResourceService` now writes `sys_resource` rows with `CATEGORY = MODULE`, validates duplicate active module `TITLE`, generates random module `CODE`, refreshes audit fields, rejects built-in module deletion for `system` and `tenant`, logically deletes modules and child menu/button resources, and removes affected `SYS_ROLE_HAS_RESOURCE` rows from `sys_relation`.
+
+## Explicit Exclusions
+
+- No menu or field write routes were added.
+- No Java source, frontend source, database schema, `.env`, Composer files, public config files, or credential files were changed.
+- Java data-change event publishing and cache invalidation hooks remain deferred.
+
+## Verification
+
+- `php think route:list` must list `/sys/module/add`, `/sys/module/edit`, and `/sys/module/delete`.
+- `scripts/test-agent-db-smoke.ps1` covers service-level add, duplicate-title rejection, edit, delete, child-resource logical delete, and relation cleanup.
+- `scripts/test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke` covers the authenticated HTTP flow.
+
+---
+
 # Public File Change Request: Biz Customer Read-Only Routes
 
 ## Request

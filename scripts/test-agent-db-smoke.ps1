@@ -1607,6 +1607,131 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'ResourceService module write compatibility' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$service = new app\service\sys\ResourceService();
+$payload = ['userId' => 'codex-smoke'];
+$prefix = 'CODEX_SYS_MODULE_' . date('YmdHis') . random_int(1000, 9999);
+$moduleId = '';
+$menuId = '';
+$relationId = '';
+
+try {
+    $created = $service->moduleAdd([
+        'title' => $prefix . '_MODULE',
+        'icon' => 'AppstoreOutlined',
+        'color' => '#1677FF',
+        'sortCode' => 99,
+        'extJson' => ['smoke' => true],
+    ], $payload);
+    $moduleId = (string)($created['id'] ?? '');
+    if ($moduleId === '') {
+        throw new RuntimeException('module add did not return id');
+    }
+    if (($created['category'] ?? '') !== 'MODULE' || (string)($created['code'] ?? '') === '') {
+        throw new RuntimeException('module add did not set category/code');
+    }
+
+    $duplicateFailed = false;
+    try {
+        $service->moduleAdd([
+            'title' => $prefix . '_MODULE',
+            'icon' => 'AppstoreOutlined',
+            'color' => '#1677FF',
+            'sortCode' => 98,
+        ], $payload);
+    } catch (RuntimeException) {
+        $duplicateFailed = true;
+    }
+    if (!$duplicateFailed) {
+        throw new RuntimeException('duplicate module title should fail');
+    }
+
+    $edited = $service->moduleEdit([
+        'id' => $moduleId,
+        'title' => $prefix . '_EDITED',
+        'icon' => 'SettingOutlined',
+        'color' => '#13C2C2',
+        'sortCode' => 97,
+        'extJson' => '{}',
+    ], $payload);
+    if (($edited['title'] ?? '') !== $prefix . '_EDITED' || ($edited['sortCode'] ?? 0) !== 97) {
+        throw new RuntimeException('module edit did not update title/sortCode');
+    }
+
+    $menuId = 'codex-menu-' . random_int(100000, 999999);
+    think\facade\Db::name('sys_resource')->insert([
+        'ID' => $menuId,
+        'PARENT_ID' => '0',
+        'TITLE' => $prefix . '_MENU',
+        'CODE' => $prefix . '_MENU',
+        'CATEGORY' => 'MENU',
+        'MODULE' => $moduleId,
+        'SORT_CODE' => 9999,
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => date('Y-m-d H:i:s'),
+        'CREATE_USER' => 'codex-smoke',
+    ]);
+    $relationId = 'codex-rel-' . random_int(100000, 999999);
+    think\facade\Db::name('sys_relation')->insert([
+        'ID' => $relationId,
+        'OBJECT_ID' => 'codex-role',
+        'TARGET_ID' => $menuId,
+        'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE',
+        'EXT_JSON' => '{}',
+    ]);
+
+    $deleted = $service->moduleDelete([['id' => $moduleId]], $payload);
+    if (($deleted['count'] ?? 0) < 2) {
+        throw new RuntimeException('module delete did not include module/menu rows');
+    }
+
+    $flags = think\facade\Db::name('sys_resource')
+        ->whereIn('ID', [$moduleId, $menuId])
+        ->column('DELETE_FLAG', 'ID');
+    if (($flags[$moduleId] ?? '') !== 'DELETED' || ($flags[$menuId] ?? '') !== 'DELETED') {
+        throw new RuntimeException('module delete did not logically delete module and menu');
+    }
+    $relationCount = think\facade\Db::name('sys_relation')->where('ID', $relationId)->count();
+    if ($relationCount !== 0) {
+        throw new RuntimeException('module delete did not remove role resource relation');
+    }
+
+    echo "ResourceService module write checks passed\n";
+} finally {
+    if ($relationId !== '') {
+        think\facade\Db::name('sys_relation')->where('ID', $relationId)->delete();
+    }
+    foreach ([$menuId, $moduleId] as $id) {
+        if ($id !== '') {
+            think\facade\Db::name('sys_resource')->where('ID', $id)->delete();
+        }
+    }
+}
+'@
+
+    $probePath = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-resource-module-smoke-$([guid]::NewGuid()).php")
+    try {
+        Set-Content -LiteralPath $probePath -Value $probe -Encoding UTF8
+        $output = & php $probePath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php ResourceService module write probe failed: $output"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $probePath) {
+            Remove-Item -LiteralPath $probePath -Force
+        }
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'ResourceService button write compatibility' {
 $probe = @'
 <?php
