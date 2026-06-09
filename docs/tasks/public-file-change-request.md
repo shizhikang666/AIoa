@@ -473,6 +473,38 @@ The existing Vue team-project pages call `/biz/bizteamproject/page`, `/biz/bizte
 
 ---
 
+# Change Request: System Button Write Compatibility
+
+Register protected system button write routes and Java-compatible service behavior.
+
+## Reason
+
+The copied Vue system resource button page already calls `/sys/button/add`, `/sys/button/edit`, and `/sys/button/delete` from its form and row-delete flows. These routes were previously absent while page/detail reads were covered.
+
+## Applied Change
+
+`main control agent` registered these protected routes:
+
+- `POST /sys/button/add`
+- `POST /sys/button/edit`
+- `POST /sys/button/delete`
+
+`ResourceService` now writes `sys_resource` rows with `CATEGORY = BUTTON`, validates duplicate active button `CODE`, refreshes audit fields, logically deletes buttons, and removes deleted button ids from `sys_relation.EXT_JSON.buttonInfo` for `SYS_ROLE_HAS_RESOURCE` relations on the parent menu.
+
+## Explicit Exclusions
+
+- No module, menu, or field write routes were added.
+- No Java source, frontend source, database schema, `.env`, Composer files, public config files, or credential files were changed.
+- Java data-change event publishing and cache invalidation hooks remain deferred.
+
+## Verification
+
+- `php think route:list` must list `/sys/button/add`, `/sys/button/edit`, and `/sys/button/delete`.
+- `scripts/test-agent-db-smoke.ps1` covers service-level add, duplicate-code rejection, edit, delete, and relation cleanup.
+- `scripts/test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysButtonHttpSmoke` covers the authenticated HTTP flow.
+
+---
+
 # Public File Change Request: Biz Customer Read-Only Routes
 
 ## Request

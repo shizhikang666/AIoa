@@ -1607,6 +1607,138 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'ResourceService button write compatibility' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$service = new app\service\sys\ResourceService();
+$payload = ['userId' => 'codex-smoke'];
+$prefix = 'CODEX_SYS_BUTTON_' . date('YmdHis') . random_int(1000, 9999);
+$createdIds = [];
+$relationId = '';
+$createdMenu = false;
+
+try {
+    $parentId = (string)think\facade\Db::name('sys_resource')
+        ->where('CATEGORY', 'MENU')
+        ->where(function ($query): void {
+            $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', 'NOT_DELETE');
+        })
+        ->value('ID');
+
+    if ($parentId === '') {
+        $parentId = 'codex-menu-' . random_int(100000, 999999);
+        $createdMenu = true;
+        think\facade\Db::name('sys_resource')->insert([
+            'ID' => $parentId,
+            'TITLE' => $prefix . '_MENU',
+            'CODE' => $prefix . '_MENU',
+            'CATEGORY' => 'MENU',
+            'SORT_CODE' => 9999,
+            'DELETE_FLAG' => 'NOT_DELETE',
+            'CREATE_TIME' => date('Y-m-d H:i:s'),
+            'CREATE_USER' => 'codex-smoke',
+        ]);
+    }
+
+    $created = $service->buttonAdd([
+        'parentId' => $parentId,
+        'title' => $prefix . '_BUTTON',
+        'code' => $prefix . '_CODE',
+        'sortCode' => 9999,
+        'extJson' => ['smoke' => true],
+    ], $payload);
+    $buttonId = (string)($created['id'] ?? '');
+    if ($buttonId === '') {
+        throw new RuntimeException('button add did not return id');
+    }
+    $createdIds[] = $buttonId;
+
+    $duplicateFailed = false;
+    try {
+        $service->buttonAdd([
+            'parentId' => $parentId,
+            'title' => $prefix . '_DUP',
+            'code' => $prefix . '_CODE',
+            'sortCode' => 9998,
+        ], $payload);
+    } catch (RuntimeException) {
+        $duplicateFailed = true;
+    }
+    if (!$duplicateFailed) {
+        throw new RuntimeException('duplicate button code should fail');
+    }
+
+    $edited = $service->buttonEdit([
+        'id' => $buttonId,
+        'parentId' => $parentId,
+        'title' => $prefix . '_EDITED',
+        'code' => $prefix . '_CODE_EDITED',
+        'sortCode' => 9997,
+        'extJson' => '{}',
+    ], $payload);
+    if (($edited['title'] ?? '') !== $prefix . '_EDITED' || ($edited['sortCode'] ?? 0) !== 9997) {
+        throw new RuntimeException('button edit did not update title/sortCode');
+    }
+
+    $relationId = 'codex-rel-' . random_int(100000, 999999);
+    think\facade\Db::name('sys_relation')->insert([
+        'ID' => $relationId,
+        'OBJECT_ID' => 'codex-role',
+        'TARGET_ID' => $parentId,
+        'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE',
+        'EXT_JSON' => json_encode(['buttonInfo' => [$buttonId, 'keep-button']], JSON_UNESCAPED_SLASHES),
+    ]);
+
+    $deleted = $service->buttonDelete([['id' => $buttonId]], $payload);
+    if (($deleted['count'] ?? 0) !== 1) {
+        throw new RuntimeException('button delete count mismatch');
+    }
+
+    $deleteFlag = (string)think\facade\Db::name('sys_resource')->where('ID', $buttonId)->value('DELETE_FLAG');
+    if ($deleteFlag !== 'DELETED') {
+        throw new RuntimeException('button was not logically deleted');
+    }
+
+    $extJson = json_decode((string)think\facade\Db::name('sys_relation')->where('ID', $relationId)->value('EXT_JSON'), true);
+    if (($extJson['buttonInfo'] ?? []) !== ['keep-button']) {
+        throw new RuntimeException('role resource buttonInfo cleanup failed');
+    }
+
+    echo "ResourceService button write checks passed\n";
+} finally {
+    if ($relationId !== '') {
+        think\facade\Db::name('sys_relation')->where('ID', $relationId)->delete();
+    }
+    if ($createdIds !== []) {
+        think\facade\Db::name('sys_resource')->whereIn('ID', $createdIds)->delete();
+    }
+    if ($createdMenu) {
+        think\facade\Db::name('sys_resource')->where('ID', $parentId)->delete();
+    }
+}
+'@
+
+    $probePath = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-resource-button-smoke-$([guid]::NewGuid()).php")
+    try {
+        Set-Content -LiteralPath $probePath -Value $probe -Encoding UTF8
+        $output = & php $probePath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php ResourceService button write probe failed: $output"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $probePath) {
+            Remove-Item -LiteralPath $probePath -Force
+        }
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'TeamProjectService base write compatibility' {
 $probe = @'
 <?php

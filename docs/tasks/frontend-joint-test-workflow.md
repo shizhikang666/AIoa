@@ -294,6 +294,20 @@ Cleanup:
 
 - Temporary `CODEX_HTTP_INVOICING_*` project and invoicing rows were removed.
 
+## Sys Button Write HTTP Smoke, 2026-06-09
+
+Verified after `/sys/button/add`, `/sys/button/edit`, and `/sys/button/delete` compatibility was added:
+
+- Copied frontend API wrapper: `snowy-admin-web/src/api/sys/resource/buttonApi.js`
+- Copied frontend pages: `snowy-admin-web/src/views/sys/resource/button/index.vue` and `snowy-admin-web/src/views/sys/resource/button/form.vue`
+- Authenticated HTTP smoke creates a temporary button under an existing menu resource, calls `POST /sys/button/add`, and verifies the button appears in `GET /sys/button/page`.
+- The same smoke verifies duplicate `code` rejection, calls `POST /sys/button/edit`, prepares a temporary `SYS_ROLE_HAS_RESOURCE` relation, calls `POST /sys/button/delete`, and confirms the row reaches `DELETE_FLAG = DELETED`.
+- Database verification confirms the deleted button id is removed from `sys_relation.EXT_JSON.buttonInfo` while unrelated button ids remain.
+
+Cleanup:
+
+- Temporary `CODEX_HTTP_BUTTON_*` button rows and temporary smoke relation rows are removed.
+
 ## Gap Recording Rule
 
 Any frontend call that fails because the backend route is missing must be recorded in:

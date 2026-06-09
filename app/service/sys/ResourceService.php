@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace app\service\sys;
 
 use app\model\SysResource;
+use RuntimeException;
+use think\facade\Db;
 
 /**
  * Read-only resource queries compatible with Java SysModule/SysMenu/SysButton controllers.
@@ -12,10 +14,12 @@ use app\model\SysResource;
 class ResourceService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const CATEGORY_MODULE = 'MODULE';
     private const CATEGORY_MENU = 'MENU';
     private const CATEGORY_BUTTON = 'BUTTON';
     private const CATEGORY_FIELD = 'FIELD';
+    private const RELATION_ROLE_HAS_RESOURCE = 'SYS_ROLE_HAS_RESOURCE';
     private const ROOT_PARENT_ID = '0';
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
@@ -43,6 +47,103 @@ class ResourceService
     public function buttonPage(array $filters = []): array
     {
         return $this->page(self::CATEGORY_BUTTON, $filters);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function buttonAdd(array $input, mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $data = $this->buttonWriteData($input);
+        $this->assertDuplicateButtonCode($data['CODE'], null);
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $row = array_merge($data, [
+            'ID' => $this->newId(),
+            'CATEGORY' => self::CATEGORY_BUTTON,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('sys_resource')->insert($row);
+
+        return $this->resourceRow($row);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function buttonEdit(array $input, mixed $payload = []): array
+    {
+        $id = $this->requiredInput($input, ['id', 'ID'], 'id');
+        $payload = is_array($payload) ? $payload : [];
+        $existing = $this->activeButtonRow($id);
+        $data = $this->buttonWriteData($input, $existing);
+        $this->assertDuplicateButtonCode($data['CODE'], $id);
+
+        $operatorId = $this->payloadUserId($payload);
+        $update = array_merge($data, [
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('sys_resource')
+            ->where('ID', $id)
+            ->where('CATEGORY', self::CATEGORY_BUTTON)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update($update);
+
+        return $this->resourceRow($this->activeButtonRow($id));
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function buttonDelete(array $ids, mixed $payload = []): array
+    {
+        $idList = $this->idInputList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $rows = $this->activeButtonRows($idList);
+        $parentMenuIds = array_values(array_unique(array_filter(array_map(
+            static fn (array $row): string => trim((string)($row['PARENT_ID'] ?? '')),
+            $rows
+        ))));
+        $operatorId = $this->payloadUserId($payload);
+
+        $updated = Db::transaction(function () use ($idList, $parentMenuIds, $operatorId): int {
+            $this->removeDeletedButtonsFromRoleRelations($idList, $parentMenuIds);
+
+            return Db::name('sys_resource')
+                ->whereIn('ID', $idList)
+                ->where('CATEGORY', self::CATEGORY_BUTTON)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+                ]);
+        });
+
+        return [
+            'ids' => $idList,
+            'count' => $updated,
+        ];
     }
 
     public function fieldPage(array $filters = []): array
@@ -307,6 +408,199 @@ class ResourceService
             'updateTime' => $row['UPDATE_TIME'] ?? null,
             'updateUser' => $row['UPDATE_USER'] ?? null,
         ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|null $existing
+     * @return array<string, mixed>
+     */
+    private function buttonWriteData(array $input, ?array $existing = null): array
+    {
+        $sortCode = $this->requiredInput($input, ['sortCode', 'SORT_CODE'], 'sortCode');
+        if (!is_numeric($sortCode)) {
+            throw new RuntimeException('invalid sortCode', 400);
+        }
+
+        $extJson = array_key_exists('extJson', $input) || array_key_exists('EXT_JSON', $input)
+            ? $this->normalizeJsonInput($input['extJson'] ?? $input['EXT_JSON'] ?? null)
+            : ($existing['EXT_JSON'] ?? null);
+
+        return [
+            'PARENT_ID' => $this->requiredInput($input, ['parentId', 'PARENT_ID'], 'parentId'),
+            'TITLE' => $this->requiredInput($input, ['title', 'TITLE'], 'title'),
+            'CODE' => $this->requiredInput($input, ['code', 'CODE'], 'code'),
+            'SORT_CODE' => (int)$sortCode,
+            'EXT_JSON' => $extJson,
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<int, string> $keys
+     */
+    private function requiredInput(array $input, array $keys, string $label): string
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $input)) {
+                $value = trim((string)$input[$key]);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        throw new RuntimeException("missing {$label}", 400);
+    }
+
+    private function normalizeJsonInput(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_string($value)) {
+            $value = trim($value);
+
+            return $value === '' ? null : $value;
+        }
+
+        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: null;
+    }
+
+    private function assertDuplicateButtonCode(string $code, ?string $ignoreId): void
+    {
+        $query = Db::name('sys_resource')
+            ->where('CATEGORY', self::CATEGORY_BUTTON)
+            ->where('CODE', $code)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException("duplicate button code: {$code}", 400);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function activeButtonRow(string $id): array
+    {
+        $row = Db::name('sys_resource')
+            ->where('ID', $id)
+            ->where('CATEGORY', self::CATEGORY_BUTTON)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+
+        if (!$row) {
+            throw new RuntimeException('button not found', 404);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<int, array<string, mixed>>
+     */
+    private function activeButtonRows(array $ids): array
+    {
+        $rows = Db::name('sys_resource')
+            ->whereIn('ID', $ids)
+            ->where('CATEGORY', self::CATEGORY_BUTTON)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->select()
+            ->toArray();
+
+        $found = array_values(array_filter(array_map(static fn (array $row): string => (string)($row['ID'] ?? ''), $rows)));
+        $missing = array_values(array_diff($ids, $found));
+        if ($missing !== []) {
+            throw new RuntimeException('button not found', 404);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param array<int, string> $buttonIds
+     * @param array<int, string> $parentMenuIds
+     */
+    private function removeDeletedButtonsFromRoleRelations(array $buttonIds, array $parentMenuIds): void
+    {
+        if ($parentMenuIds === []) {
+            return;
+        }
+
+        $buttonMap = array_fill_keys($buttonIds, true);
+        $relations = Db::name('sys_relation')
+            ->where('CATEGORY', self::RELATION_ROLE_HAS_RESOURCE)
+            ->whereIn('TARGET_ID', $parentMenuIds)
+            ->whereNotNull('EXT_JSON')
+            ->select()
+            ->toArray();
+
+        foreach ($relations as $relation) {
+            $decoded = json_decode((string)($relation['EXT_JSON'] ?? ''), true);
+            if (!is_array($decoded) || empty($decoded['buttonInfo']) || !is_array($decoded['buttonInfo'])) {
+                continue;
+            }
+
+            $buttonInfo = array_values(array_filter(
+                array_map(static fn (mixed $id): string => trim((string)$id), $decoded['buttonInfo']),
+                static fn (string $id): bool => $id !== '' && !isset($buttonMap[$id])
+            ));
+            if ($buttonInfo === $decoded['buttonInfo']) {
+                continue;
+            }
+
+            $decoded['buttonInfo'] = $buttonInfo;
+            Db::name('sys_relation')
+                ->where('ID', (string)$relation['ID'])
+                ->update(['EXT_JSON' => json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)]);
+        }
+    }
+
+    /**
+     * @param array<int, mixed> $value
+     * @return array<int, string>
+     */
+    private function idInputList(array $value): array
+    {
+        $ids = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $id = trim((string)($item['id'] ?? $item['buttonId'] ?? $item['value'] ?? $item['key'] ?? ''));
+            } else {
+                $id = trim((string)$item);
+            }
+
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     */
+    private function payloadUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     /**

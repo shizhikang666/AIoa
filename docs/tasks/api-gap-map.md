@@ -1,6 +1,6 @@
 # Frontend API Gap Map
 
-Date: 2026-06-08
+Date: 2026-06-09
 
 Agent: frontend-agent / main control agent
 
@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 424 | Existing route-entry scan count plus `/biz/bizteamprojectuser/edit`; `php think route:list` also confirms the concrete route |
-| Endpoints already covered by route path | 395 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, team-project base maintenance, and selected low-risk writes |
+| Current ThinkPHP routes | 427 | Existing route-entry scan count plus `/sys/button/add`, `/sys/button/edit`, and `/sys/button/delete`; `php think route:list` also confirms the concrete routes |
+| Endpoints already covered by route path | 398 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user grants, status switches, reset-password/delete compatibility, organization and position write compatibility, system button add/edit/delete compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, team-project base maintenance, and selected low-risk writes |
 | Missing read/selector/report candidates | 69 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 138 | Add/edit/audit/import/export/workflow/finance/stock actions; dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, sale-project invoicing complete, and team-project base maintenance moved out of deferred scope |
+| Deferred write/side-effect candidates | 135 | Add/edit/audit/import/export/workflow/finance/stock actions; sys button add/edit/delete, dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, sale-project invoicing complete, and team-project base maintenance moved out of deferred scope |
 
 ## Already Covered Route Groups
 
@@ -36,7 +36,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `sys/user` | User page/detail/list style reads, selectors, own-role, own-resource, own-permission, delete, grant saves, reset password, enable/disable status switches, and export/download blobs |
 | `sys/position` | Position page/list/detail/selector reads plus base add/edit/delete |
 | `sys/role` | Role page/list/detail/resource/menu relation reads |
-| `sys/menu`, `sys/field`, and `sys/resource` | Menu/resource tree, field page/tree/detail, and selector reads |
+| `sys/menu`, `sys/button`, `sys/field`, and `sys/resource` | Menu/resource tree, button page/detail plus button add/edit/delete, field page/tree/detail, and selector reads |
 | `dev/config`, `dev/dict`, `dev/log` | Common management reads plus dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, and BIZ dictionary maintenance writes |
 | `dev/file`, `dev/email`, `dev/sms`, `dev/job`, `dev/monitor` | File metadata/list/detail, LOCAL/dynamic upload, file/email/SMS/job metadata logical delete, public local-file download compatibility, cloud upload unsupported stubs, and monitor reads; real cloud storage, scheduler runtime, and provider send actions remain deferred |
 | `mobile/menu` and `mobile/resource` | Mobile menu/resource read compatibility |

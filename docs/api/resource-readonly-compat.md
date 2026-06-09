@@ -50,8 +50,9 @@ The following Java endpoints remain intentionally deferred:
 
 - module add/edit/delete
 - menu add/edit/delete/changeModule
-- button add/edit/delete
 - relation/grant mutation behavior
-- system field API routes until the Java source mapping is confirmed
+- system field write behavior
+
+Button add/edit/delete is now covered by `docs/api/sys-button-write-compat.md`.
 
 No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.

@@ -161,6 +161,9 @@ Route::group('sys/menu', function () {
 
 Route::group('sys/button', function () {
     Route::get('page', 'sys.ButtonController/page');
+    Route::post('add', 'sys.ButtonController/add');
+    Route::post('edit', 'sys.ButtonController/edit');
+    Route::post('delete', 'sys.ButtonController/delete');
     Route::get('detail', 'sys.ButtonController/detail');
 })->middleware(AuthMiddleware::class);
 
