@@ -20,6 +20,9 @@ The Java source remains read-only under `F:\AI\projects\testJava\OA`.
 | GET | `/sys/field/tree` | `sys.FieldController/tree` |
 | GET | `/sys/field/detail` | `sys.FieldController/detail` |
 | GET | `/sys/field/MenuTreeSelector` | `sys.FieldController/menuTreeSelector` |
+| POST | `/sys/field/add` | `sys.FieldController/add` |
+| POST | `/sys/field/edit` | `sys.FieldController/edit` |
+| POST | `/sys/field/delete` | `sys.FieldController/delete` |
 
 ## Behavior
 
@@ -27,7 +30,7 @@ The Java source remains read-only under `F:\AI\projects\testJava\OA`.
 - `tree` reads the same field rows and builds the standard resource tree shape.
 - `detail` reads one field resource by `id`.
 - `MenuTreeSelector` delegates to the existing menu tree selector so the copied field form can choose an owning menu.
-- The current imported database has no `FIELD` rows, so page/tree return stable empty read structures.
+- Field write compatibility is documented in `docs/api/sys-field-write-compat.md`.
 
 ## Response Fields
 
@@ -55,7 +58,5 @@ Field rows use the existing resource shape:
 
 ## Deferred
 
-- `/sys/field/add`
-- `/sys/field/edit`
-- `/sys/field/delete`
-- Menu, button, module, or field write behavior
+- Java data-change events and cache invalidation hooks.
+- Any permission model beyond direct `SYS_ROLE_HAS_RESOURCE.TARGET_ID = fieldId` relation cleanup.

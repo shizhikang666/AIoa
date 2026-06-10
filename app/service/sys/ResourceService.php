@@ -401,6 +401,120 @@ class ResourceService
         return $this->page(self::CATEGORY_FIELD, $filters);
     }
 
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function fieldAdd(array $input, mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $data = $this->fieldWriteData($input);
+        $this->assertFieldParentMenu($data['PARENT_ID']);
+        $this->assertDuplicateFieldCode($data['PARENT_ID'], $data['CODE'], null);
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $row = array_merge($data, [
+            'ID' => $this->newId(),
+            'CATEGORY' => self::CATEGORY_FIELD,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('sys_resource')->insert($row);
+
+        return $this->resourceRow($row);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function fieldEdit(array $input, mixed $payload = []): array
+    {
+        $id = $this->requiredInput($input, ['id', 'ID'], 'id');
+        $payload = is_array($payload) ? $payload : [];
+        $existing = $this->activeResourceRow($id, self::CATEGORY_FIELD);
+        $data = $this->fieldWriteData($input, $existing);
+        $this->assertFieldParentMenu($data['PARENT_ID']);
+        $this->assertDuplicateFieldCode($data['PARENT_ID'], $data['CODE'], $id);
+
+        $operatorId = $this->payloadUserId($payload);
+        $update = array_merge($data, [
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('sys_resource')
+            ->where('ID', $id)
+            ->where('CATEGORY', self::CATEGORY_FIELD)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update($update);
+
+        return $this->resourceRow($this->activeResourceRow($id, self::CATEGORY_FIELD));
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function fieldDelete(array $ids, mixed $payload = []): array
+    {
+        $idList = $this->idInputList($ids, 'fieldId');
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $activeIds = array_values(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            Db::name('sys_resource')
+                ->whereIn('ID', $idList)
+                ->where('CATEGORY', self::CATEGORY_FIELD)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->column('ID')
+        )));
+        if ($activeIds === []) {
+            return [
+                'ids' => $idList,
+                'count' => 0,
+            ];
+        }
+
+        $operatorId = $this->payloadUserId($payload);
+        $updated = Db::transaction(function () use ($activeIds, $operatorId): int {
+            Db::name('sys_relation')
+                ->where('CATEGORY', self::RELATION_ROLE_HAS_RESOURCE)
+                ->whereIn('TARGET_ID', $activeIds)
+                ->delete();
+
+            return Db::name('sys_resource')
+                ->whereIn('ID', $activeIds)
+                ->where('CATEGORY', self::CATEGORY_FIELD)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+                ]);
+        });
+
+        return [
+            'ids' => $idList,
+            'deletedIds' => $activeIds,
+            'count' => $updated,
+        ];
+    }
+
     public function detail(string $id, string $category): ?array
     {
         $row = $this->resourceQuery($category, ['id' => $id])->find();
@@ -715,6 +829,31 @@ class ResourceService
      * @param array<string, mixed>|null $existing
      * @return array<string, mixed>
      */
+    private function fieldWriteData(array $input, ?array $existing = null): array
+    {
+        $sortCode = $this->requiredInput($input, ['sortCode', 'SORT_CODE'], 'sortCode');
+        if (!is_numeric($sortCode)) {
+            throw new RuntimeException('invalid sortCode', 400);
+        }
+
+        $extJson = array_key_exists('extJson', $input) || array_key_exists('EXT_JSON', $input)
+            ? $this->normalizeJsonInput($input['extJson'] ?? $input['EXT_JSON'] ?? null)
+            : ($existing['EXT_JSON'] ?? null);
+
+        return [
+            'PARENT_ID' => $this->requiredInput($input, ['parentId', 'PARENT_ID'], 'parentId'),
+            'TITLE' => $this->requiredInput($input, ['title', 'TITLE'], 'title'),
+            'CODE' => $this->requiredInput($input, ['code', 'CODE'], 'code'),
+            'SORT_CODE' => (int)$sortCode,
+            'EXT_JSON' => $extJson,
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|null $existing
+     * @return array<string, mixed>
+     */
     private function menuWriteData(array $input, ?array $existing = null): array
     {
         $sortCode = $this->requiredInput($input, ['sortCode', 'SORT_CODE'], 'sortCode');
@@ -830,6 +969,25 @@ class ResourceService
         }
     }
 
+    private function assertDuplicateFieldCode(string $parentId, string $code, ?string $ignoreId): void
+    {
+        $query = Db::name('sys_resource')
+            ->where('CATEGORY', self::CATEGORY_FIELD)
+            ->where('PARENT_ID', $parentId)
+            ->where('CODE', $code)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException("duplicate field code: {$code}", 400);
+        }
+    }
+
     private function assertDuplicateModuleTitle(string $title, ?string $ignoreId): void
     {
         $query = Db::name('sys_resource')
@@ -877,6 +1035,11 @@ class ResourceService
         if ((string)($parent['MODULE'] ?? '') !== $module) {
             throw new RuntimeException('module does not match parent menu', 400);
         }
+    }
+
+    private function assertFieldParentMenu(string $parentId): void
+    {
+        $this->activeResourceRow($parentId, self::CATEGORY_MENU);
     }
 
     private function assertMenuParentIsNotChild(string $id, string $parentId): void

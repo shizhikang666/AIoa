@@ -493,7 +493,7 @@ The copied Vue system resource button page already calls `/sys/button/add`, `/sy
 
 ## Explicit Exclusions
 
-- No module, menu, or field write routes were added.
+- At the time of this button request, no module, menu, or field write routes were added; module/menu/field write routes are covered by later requests.
 - No Java source, frontend source, database schema, `.env`, Composer files, public config files, or credential files were changed.
 - Java data-change event publishing and cache invalidation hooks remain deferred.
 
@@ -525,7 +525,7 @@ The copied Vue system resource module page calls `/sys/module/add`, `/sys/module
 
 ## Explicit Exclusions
 
-- No field write routes were added; system menu writes are covered by the later System Menu Write Compatibility request.
+- At the time of this module request, no field write routes were added; system menu and field writes are covered by later requests.
 - No Java source, frontend source, database schema, `.env`, Composer files, public config files, or credential files were changed.
 - Java data-change event publishing and cache invalidation hooks remain deferred.
 
@@ -558,7 +558,7 @@ The copied Vue system resource menu page calls `/sys/menu/add`, `/sys/menu/edit`
 
 ## Explicit Exclusions
 
-- No system field write routes were added.
+- At the time of this menu request, no system field write routes were added; system field writes are covered by a later request below.
 - No Java source, frontend source, database schema, `.env`, Composer files, public config files, or credential files were changed.
 - Java data-change event publishing and cache invalidation hooks remain deferred.
 
@@ -734,7 +734,7 @@ Register protected read-only system field routes in `route/app.php`.
 
 ## Reason
 
-The copied Vue system resource field drawer calls `/sys/field/page`, `/tree`, `/detail`, and `/MenuTreeSelector` to display field-level resource permissions under menus. The current ThinkPHP resource service already reads `sys_resource`; this change only exposes read paths for `CATEGORY = FIELD` while field mutations remain deferred.
+The copied Vue system resource field drawer calls `/sys/field/page`, `/tree`, `/detail`, and `/MenuTreeSelector` to display field-level resource permissions under menus. The current ThinkPHP resource service already reads `sys_resource`; this historical change only exposed read paths for `CATEGORY = FIELD`. Field mutations were later covered by the System Field Write Routes request below.
 
 ## Applied Change
 
@@ -747,9 +747,7 @@ The copied Vue system resource field drawer calls `/sys/field/page`, `/tree`, `/
 
 ## Explicit Exclusions
 
-- No `/sys/field/add` route was added.
-- No `/sys/field/edit` route was added.
-- No `/sys/field/delete` route was added.
+- At the time of this read-only request, no `/sys/field/add`, `/sys/field/edit`, or `/sys/field/delete` route was added. Those routes are covered by a later request below.
 - No menu, button, module, field, permission, database schema, Java source, frontend source, `.env`, Composer file, or public config mutation was added.
 
 ## Verification
@@ -4371,3 +4369,40 @@ The copied Vue mobile resource menu page calls Java-style `/mobile/menu/add`, `/
 - Requests without token should return business `code=401`.
 - DB smoke should create temporary mobile modules/menus/buttons, verify duplicate-title rejection, parent/module mismatch rejection, edit fields, self/descendant parent rejection, root-only `changeModule`, menu-tree delete, relation cleanup, button preservation, and cleanup.
 - Authenticated HTTP smoke should cover add, tree lookup, duplicate rejection, edit, changeModule, delete, database back-checks, and cleanup through `-MobileMenuHttpSmoke`.
+
+---
+
+# Public File Change Request: System Field Write Routes
+
+## Request
+
+Register the protected system field maintenance routes in `route/app.php`.
+
+## Reason
+
+The copied Vue system resource field drawer calls `/sys/field/add`, `/edit`, and `/delete` when users maintain field resources under a system menu. The Java reference project has no field controller/service implementation, so this slice follows the copied frontend request shape and the existing ThinkPHP `sys_resource.CATEGORY = FIELD` read model.
+
+## Applied Change
+
+`main coordinator/api-agent/test-agent` registers the following protected POST routes:
+
+- `POST /sys/field/add`
+- `POST /sys/field/edit`
+- `POST /sys/field/delete`
+
+## Guardrails
+
+- The routes remain behind `AuthMiddleware`.
+- Add and edit require `parentId`, `title`, `code`, and numeric `sortCode`.
+- Rows are written to `sys_resource` with `CATEGORY = FIELD`; client `category` is ignored for storage.
+- `parentId` must point to an active system `MENU` row.
+- Duplicate active field `CODE` is rejected under the same `parentId`.
+- Delete accepts Java-style array payloads, logically deletes active field rows, tolerates mixed missing ids, and removes direct `SYS_ROLE_HAS_RESOURCE` relation rows whose `TARGET_ID` is the deleted field id.
+- No Java source, database schema, Composer, `.env`, frontend source, Java data-change event publishing, cache invalidation hook, or unsupported field permission JSON model is changed.
+
+## Verification
+
+- `php think route:list` must list `POST /sys/field/add`, `/edit`, and `/delete`.
+- Requests without token should return business `code=401`.
+- DB smoke should create a temporary module/menu/field, verify duplicate sibling-code rejection, edit fields, logically delete with a mixed existing/missing id payload, clean direct role-resource relation rows, and clean temporary rows.
+- Authenticated HTTP smoke should cover add, page lookup, detail lookup, duplicate rejection, edit, delete, database back-checks, and cleanup through `-SysFieldHttpSmoke`.

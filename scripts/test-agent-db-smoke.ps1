@@ -1864,6 +1864,148 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'ResourceService field write compatibility' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$service = new app\service\sys\ResourceService();
+$prefix = 'CODEX_FIELD_' . date('YmdHis') . random_int(1000, 9999);
+$payload = ['userId' => 'codex-smoke'];
+$createdIds = [];
+$relationId = '';
+
+try {
+    $module = $service->moduleAdd([
+        'title' => $prefix . '_MODULE',
+        'icon' => 'AppstoreOutlined',
+        'color' => '#1677FF',
+        'sortCode' => 9999,
+    ], $payload);
+    $createdIds[] = (string)$module['id'];
+
+    $menu = $service->menuAdd([
+        'parentId' => '0',
+        'title' => $prefix . '_MENU',
+        'menuType' => 'MENU',
+        'module' => (string)$module['id'],
+        'path' => '/codex-field',
+        'name' => $prefix . '_MENU_NAME',
+        'component' => 'codex/field',
+        'visible' => 'TRUE',
+        'sortCode' => 9998,
+    ], $payload);
+    $createdIds[] = (string)$menu['id'];
+
+    $field = $service->fieldAdd([
+        'category' => 'FIELD',
+        'parentId' => (string)$menu['id'],
+        'title' => $prefix . '_FIELD',
+        'code' => $prefix . '_CODE',
+        'sortCode' => 99,
+        'extJson' => ['smoke' => true],
+    ], $payload);
+    $fieldId = (string)$field['id'];
+    $createdIds[] = $fieldId;
+    if (($field['category'] ?? '') !== 'FIELD' || ($field['parentId'] ?? '') !== (string)$menu['id']) {
+        throw new RuntimeException('field add response mismatch');
+    }
+
+    $row = think\facade\Db::name('sys_resource')->where('ID', $fieldId)->find();
+    if (($row['CATEGORY'] ?? '') !== 'FIELD' || ($row['PARENT_ID'] ?? '') !== (string)$menu['id'] || ($row['CODE'] ?? '') !== $prefix . '_CODE') {
+        throw new RuntimeException('field database row mismatch after add');
+    }
+
+    $failed = false;
+    try {
+        $service->fieldAdd([
+            'parentId' => (string)$menu['id'],
+            'title' => $prefix . '_DUP',
+            'code' => $prefix . '_CODE',
+            'sortCode' => 98,
+        ], $payload);
+    } catch (RuntimeException $exception) {
+        $failed = $exception->getCode() === 400;
+    }
+    if (!$failed) {
+        throw new RuntimeException('duplicate field code should fail');
+    }
+
+    $edited = $service->fieldEdit([
+        'id' => $fieldId,
+        'parentId' => (string)$menu['id'],
+        'title' => $prefix . '_FIELD_EDITED',
+        'code' => $prefix . '_CODE_EDITED',
+        'sortCode' => 97,
+        'extJson' => '{}',
+    ], $payload);
+    if (($edited['title'] ?? '') !== $prefix . '_FIELD_EDITED' || (int)($edited['sortCode'] ?? 0) !== 97) {
+        throw new RuntimeException('field edit response mismatch');
+    }
+
+    $other = $service->fieldAdd([
+        'parentId' => (string)$menu['id'],
+        'title' => $prefix . '_FIELD_OTHER',
+        'code' => $prefix . '_CODE_OTHER',
+        'sortCode' => 96,
+    ], $payload);
+    $createdIds[] = (string)$other['id'];
+
+    $relationId = 'cfr' . random_int(100000, 999999);
+    think\facade\Db::name('sys_relation')->insert([
+        'ID' => $relationId,
+        'OBJECT_ID' => 'codex-role',
+        'TARGET_ID' => $fieldId,
+        'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE',
+        'EXT_JSON' => '{}',
+    ]);
+
+    $delete = $service->fieldDelete([['id' => $fieldId], ['id' => 'missing-field']], $payload);
+    if ((int)($delete['count'] ?? 0) !== 1) {
+        throw new RuntimeException('field delete count mismatch');
+    }
+    $deletedFlag = (string)think\facade\Db::name('sys_resource')->where('ID', $fieldId)->value('DELETE_FLAG');
+    $otherFlag = (string)think\facade\Db::name('sys_resource')->where('ID', (string)$other['id'])->value('DELETE_FLAG');
+    $relationCount = (int)think\facade\Db::name('sys_relation')->where('ID', $relationId)->count();
+    if ($deletedFlag !== 'DELETED' || $otherFlag !== 'NOT_DELETE' || $relationCount !== 0) {
+        throw new RuntimeException('field delete state mismatch');
+    }
+
+    $missingDelete = $service->fieldDelete([['id' => 'missing-field']], $payload);
+    if ((int)($missingDelete['count'] ?? -1) !== 0) {
+        throw new RuntimeException('missing field delete should be tolerated');
+    }
+
+    echo "ResourceService field write checks passed\n";
+} finally {
+    if ($relationId !== '') {
+        think\facade\Db::name('sys_relation')->where('ID', $relationId)->delete();
+    }
+    if ($createdIds !== []) {
+        think\facade\Db::name('sys_resource')->whereIn('ID', $createdIds)->delete();
+    }
+}
+'@
+
+    $probePath = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-resource-field-write-{0}.php" -f ([Guid]::NewGuid().ToString('N')))
+    try {
+        [System.IO.File]::WriteAllText($probePath, $probe, [System.Text.UTF8Encoding]::new($false))
+        $output = & php $probePath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php ResourceService field write probe failed: $output"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $probePath) {
+            Remove-Item -LiteralPath $probePath -Force
+        }
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'ResourceService menu write compatibility' {
 $probe = @'
 <?php

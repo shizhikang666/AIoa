@@ -179,6 +179,9 @@ Route::group('sys/field', function () {
     Route::get('tree', 'sys.FieldController/tree');
     Route::get('detail', 'sys.FieldController/detail');
     Route::get('MenuTreeSelector', 'sys.FieldController/menuTreeSelector');
+    Route::post('add', 'sys.FieldController/add');
+    Route::post('edit', 'sys.FieldController/edit');
+    Route::post('delete', 'sys.FieldController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('mobile/module', function () {

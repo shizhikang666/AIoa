@@ -13,6 +13,7 @@ param(
     [switch]$SysModuleHttpSmoke,
     [switch]$SysMenuHttpSmoke,
     [switch]$SysButtonHttpSmoke,
+    [switch]$SysFieldHttpSmoke,
     [switch]$MobileModuleHttpSmoke,
     [switch]$MobileMenuHttpSmoke,
     [switch]$MobileButtonHttpSmoke,
@@ -165,6 +166,9 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'sys/button/add',
         'sys/button/edit',
         'sys/button/delete',
+        'sys/field/add',
+        'sys/field/edit',
+        'sys/field/delete',
         'mobile/module/add',
         'mobile/module/edit',
         'mobile/module/delete',
@@ -1637,6 +1641,158 @@ require getcwd() . '/vendor/autoload.php';
 if (`$relationId !== '') { think\facade\Db::name('sys_relation')->where('ID', `$relationId)->delete(); }
 if (`$buttonId !== '') { think\facade\Db::name('sys_resource')->where('ID', `$buttonId)->delete(); }
 if (`$createdMenuId !== '') { think\facade\Db::name('sys_resource')->where('ID', `$createdMenuId)->delete(); }
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
+            }
+        }
+    }
+}
+
+if ($SysFieldHttpSmoke) {
+    Invoke-TestStep 'authenticated sys field write HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -SysFieldHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -SysFieldHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_SYS_FIELD_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_FIELD_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $moduleId = ''
+        $menuId = ''
+        $fieldId = ''
+        $otherFieldId = ''
+        $relationId = ''
+
+        try {
+            $fixtureCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$service = new app\service\sys\ResourceService();
+`$payload = ['userId' => 'codex-smoke'];
+`$module = `$service->moduleAdd(['title' => '$prefix' . '_MODULE', 'icon' => 'AppstoreOutlined', 'color' => '#1677FF', 'sortCode' => 9999], `$payload);
+`$menu = `$service->menuAdd(['parentId' => '0', 'title' => '$prefix' . '_MENU', 'menuType' => 'MENU', 'module' => `$module['id'], 'path' => '/codex-http-field', 'name' => '$prefix' . '_MENU_NAME', 'component' => 'codex/http/field', 'visible' => 'TRUE', 'sortCode' => 9998], `$payload);
+echo `$module['id'] . ':' . `$menu['id'];
+"@
+            $fixtureState = & php -r $fixtureCode
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($fixtureState)) {
+                throw 'failed to prepare sys field fixtures'
+            }
+            $fixtureParts = ([string]$fixtureState).Split(':')
+            $moduleId = $fixtureParts[0]
+            $menuId = $fixtureParts[1]
+
+            $body = @{ category = 'FIELD'; parentId = $menuId; title = ($prefix + '_FIELD'); code = ($prefix + '_CODE'); sortCode = 99; extJson = @{ smoke = $true } } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $addRaw = & curl.exe -sS -X POST "$base/sys/field/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'sys field add request failed'
+            }
+            $add = $addRaw | ConvertFrom-Json
+            if ([int]$add.code -ne 200 -or -not $add.data.id -or [string]$add.data.category -ne 'FIELD' -or [string]$add.data.parentId -ne $menuId) {
+                throw "unexpected sys field add response: $addRaw"
+            }
+            $fieldId = [string]$add.data.id
+
+            $pageRaw = & curl.exe -sS -X GET "$base/sys/field/page?parentId=$menuId&searchKey=$prefix" -H "Authorization: Bearer $token"
+            $page = $pageRaw | ConvertFrom-Json
+            $records = @($page.data.records)
+            if ([int]$page.code -ne 200 -or -not ($records | Where-Object { [string]$_.id -eq $fieldId })) {
+                throw "sys field page did not include created field: $pageRaw"
+            }
+
+            $detailRaw = & curl.exe -sS -X GET "$base/sys/field/detail?id=$fieldId" -H "Authorization: Bearer $token"
+            $detail = $detailRaw | ConvertFrom-Json
+            if ([int]$detail.code -ne 200 -or [string]$detail.data.id -ne $fieldId) {
+                throw "unexpected sys field detail response: $detailRaw"
+            }
+
+            $body = @{ category = 'FIELD'; parentId = $menuId; title = ($prefix + '_DUP'); code = ($prefix + '_CODE'); sortCode = 98 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $duplicateRaw = & curl.exe -sS -X POST "$base/sys/field/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $duplicate = $duplicateRaw | ConvertFrom-Json
+            if ([int]$duplicate.code -eq 200) {
+                throw "sys field duplicate code should fail: $duplicateRaw"
+            }
+
+            $body = @{ id = $fieldId; category = 'FIELD'; parentId = $menuId; title = ($prefix + '_FIELD_EDITED'); code = ($prefix + '_CODE_EDITED'); sortCode = 97; extJson = '{}' } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editRaw = & curl.exe -sS -X POST "$base/sys/field/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'sys field edit request failed'
+            }
+            $edit = $editRaw | ConvertFrom-Json
+            if ([int]$edit.code -ne 200 -or [string]$edit.data.title -ne "$($prefix)_FIELD_EDITED" -or [int]$edit.data.sortCode -ne 97) {
+                throw "unexpected sys field edit response: $editRaw"
+            }
+
+            $otherCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$field = (new app\service\sys\ResourceService())->fieldAdd(['parentId' => '$menuId', 'title' => '$prefix' . '_FIELD_OTHER', 'code' => '$prefix' . '_CODE_OTHER', 'sortCode' => 96], ['userId' => 'codex-smoke']);
+echo `$field['id'];
+"@
+            $otherFieldId = & php -r $otherCode
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($otherFieldId)) {
+                throw 'failed to prepare sys field sibling'
+            }
+            $otherFieldId = [string]$otherFieldId
+
+            $relationId = 'cfr' + (Get-Random -Minimum 100000 -Maximum 999999)
+            $relationCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+think\facade\Db::name('sys_relation')->insert(['ID' => '$relationId', 'OBJECT_ID' => 'codex-role', 'TARGET_ID' => '$fieldId', 'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE', 'EXT_JSON' => '{}']);
+"@
+            & php -r $relationCode | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw 'failed to prepare sys field relation smoke row'
+            }
+
+            $body = @(@{ id = $fieldId }, @{ id = 'missing-sys-field' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/sys/field/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'sys field delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200 -or [int]$delete.data.count -ne 1) {
+                throw "unexpected sys field delete response: $deleteRaw"
+            }
+
+            $deleteState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$fieldFlag = (string)think\facade\Db::name('sys_resource')->where('ID', '$fieldId')->value('DELETE_FLAG'); `$otherFlag = (string)think\facade\Db::name('sys_resource')->where('ID', '$otherFieldId')->value('DELETE_FLAG'); `$relationCount = think\facade\Db::name('sys_relation')->where('ID', '$relationId')->count(); echo `$fieldFlag . ':' . `$otherFlag . ':' . `$relationCount;"
+            if ([string]$deleteState -ne 'DELETED:NOT_DELETE:0') {
+                throw "sys field delete did not update expected state: $deleteState"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$ids = array_values(array_filter(['$moduleId', '$menuId', '$fieldId', '$otherFieldId']));
+if ('$relationId' !== '') { think\facade\Db::name('sys_relation')->where('ID', '$relationId')->delete(); }
+if (`$ids !== []) { think\facade\Db::name('sys_resource')->whereIn('ID', `$ids)->delete(); }
 "@
             & php -r $cleanupCode | Out-Null
             if (Test-Path -LiteralPath $jsonTmp) {

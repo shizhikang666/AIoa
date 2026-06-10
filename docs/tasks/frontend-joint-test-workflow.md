@@ -194,6 +194,27 @@ Not verified:
 
 - The visible Vue team-project page button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied page.
 
+## Sys Field Write HTTP Smoke, 2026-06-10
+
+Verified after `/sys/field/add`, `/edit`, and `/delete` compatibility was added:
+
+- Backend: `http://127.0.0.1:82`
+- Command: `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysFieldHttpSmoke`
+- Add posted JSON to `/sys/field/add`, returned `code=200`, and created a temporary `sys_resource.CATEGORY = FIELD` row under a temporary menu.
+- Page lookup through `/sys/field/page?parentId=<menuId>&searchKey=<prefix>` returned the created field.
+- Detail lookup through `/sys/field/detail?id=<fieldId>` returned the created field.
+- Duplicate sibling `code` was rejected.
+- Edit posted JSON to `/sys/field/edit`, returned `code=200`, and updated title/code/sort order.
+- Delete posted Java-style `[{ id }, { id: "missing" }]` JSON to `/sys/field/delete`, returned `code=200`, marked the target field `DELETED`, preserved the sibling field, and removed a direct `SYS_ROLE_HAS_RESOURCE` relation targeting the field.
+
+Cleanup:
+
+- Temporary `sys_relation` and `sys_resource` rows were deleted.
+
+Not verified:
+
+- The visible Vue system field drawer button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied drawer.
+
 ## Browser Dev File Delete Smoke, 2026-06-08
 
 Verified after `/dev/file/delete` compatibility was added:

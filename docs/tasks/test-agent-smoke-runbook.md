@@ -62,6 +62,7 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
 - `ResourceService` module add/edit/delete behavior, duplicate-title rejection, built-in module delete rejection path coverage through service logic, child-resource logical delete, and role-resource relation cleanup
 - `ResourceService` button add/edit/delete behavior, duplicate-code rejection, logical delete, and role-resource `buttonInfo` cleanup
+- `ResourceService` field add/edit/delete behavior, sibling duplicate-code rejection, menu-parent validation, logical delete tolerance for mixed missing ids, and direct role-resource relation cleanup
 - `MobileResourceService` module add/edit/delete behavior, generated 10-character code, duplicate-title rejection, module/menu logical delete, mixed missing-id delete tolerance, and role mobile-menu relation cleanup
 - `MobileResourceService` button add/edit/delete behavior, duplicate-code rejection, logical delete, mixed missing-id delete tolerance, and role mobile-menu `buttonInfo` cleanup
 - `TeamProjectService` base add/edit/delete behavior, automatic current-user `LEADER` member creation, member edit audit refresh without role/permission mutation, project permission relation sync, version increment, and project/member logical delete
@@ -165,6 +166,16 @@ Start the ThinkPHP server separately, then run:
 ```
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/sys/button/add`, verifies the created button appears in `/sys/button/page`, verifies duplicate `code` rejection, calls `/sys/button/edit`, prepares a temporary `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/button/delete`, verifies `DELETE_FLAG = DELETED` and `EXT_JSON.buttonInfo` cleanup, and removes temporary rows. It does not print tokens or local credentials.
+
+## Optional Sys Field HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysFieldHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, creates temporary system module/menu fixtures through the service layer, calls `/sys/field/add`, verifies the created field appears in `/sys/field/page` and `/sys/field/detail`, verifies duplicate sibling `code` rejection, calls `/sys/field/edit`, prepares a temporary direct `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/field/delete` with a mixed existing and missing id payload, verifies `DELETE_FLAG = DELETED`, verifies the sibling field remains active, verifies the direct relation row is removed, and removes temporary rows. It does not print tokens or local credentials.
 
 ## Optional Sys Module HTTP Smoke
 
