@@ -525,7 +525,7 @@ The copied Vue system resource module page calls `/sys/module/add`, `/sys/module
 
 ## Explicit Exclusions
 
-- No menu or field write routes were added.
+- No field write routes were added; system menu writes are covered by the later System Menu Write Compatibility request.
 - No Java source, frontend source, database schema, `.env`, Composer files, public config files, or credential files were changed.
 - Java data-change event publishing and cache invalidation hooks remain deferred.
 
@@ -534,6 +534,39 @@ The copied Vue system resource module page calls `/sys/module/add`, `/sys/module
 - `php think route:list` must list `/sys/module/add`, `/sys/module/edit`, and `/sys/module/delete`.
 - `scripts/test-agent-db-smoke.ps1` covers service-level add, duplicate-title rejection, edit, delete, child-resource logical delete, and relation cleanup.
 - `scripts/test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke` covers the authenticated HTTP flow.
+
+---
+
+# Change Request: System Menu Write Compatibility
+
+Register protected system menu write routes and Java-compatible service behavior.
+
+## Reason
+
+The copied Vue system resource menu page calls `/sys/menu/add`, `/sys/menu/edit`, `/sys/menu/changeModule`, and `/sys/menu/delete` for menu maintenance. The ThinkPHP system menu group previously exposed only read routes, so copied menu add/edit/delete/change-module actions could not complete.
+
+## Applied Change
+
+`main control agent` registered these protected routes:
+
+- `POST /sys/menu/add`
+- `POST /sys/menu/edit`
+- `POST /sys/menu/changeModule`
+- `POST /sys/menu/delete`
+
+`ResourceService` now writes `sys_resource` rows with `CATEGORY = MENU`, validates duplicate sibling menu `TITLE`, validates parent/module consistency, normalizes `MENU`/`IFRAME`/`LINK`/`CATALOG` fields, rejects self/descendant parent changes, changes root menu trees' `MODULE`, logically deletes menu/button trees, and removes affected `SYS_ROLE_HAS_RESOURCE` rows from `sys_relation`.
+
+## Explicit Exclusions
+
+- No system field write routes were added.
+- No Java source, frontend source, database schema, `.env`, Composer files, public config files, or credential files were changed.
+- Java data-change event publishing and cache invalidation hooks remain deferred.
+
+## Verification
+
+- `php think route:list` must list `/sys/menu/add`, `/sys/menu/edit`, `/sys/menu/changeModule`, and `/sys/menu/delete`.
+- `scripts/test-agent-db-smoke.ps1` covers service-level add, duplicate-title rejection, parent/module mismatch rejection, edit, `IFRAME` normalization, self/descendant parent rejection, `changeModule`, menu/button delete, and relation cleanup.
+- `scripts/test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysMenuHttpSmoke` covers the authenticated HTTP flow.
 
 ---
 

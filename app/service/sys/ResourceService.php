@@ -149,6 +149,151 @@ class ResourceService
         return $this->page(self::CATEGORY_MENU, $filters);
     }
 
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function menuAdd(array $input, mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $data = $this->menuWriteData($input);
+        $this->assertDuplicateMenuTitle($data['PARENT_ID'], $data['TITLE'], null);
+        $this->assertMenuModuleAndParent($data['MODULE'], $data['PARENT_ID']);
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $row = array_merge($data, [
+            'ID' => $this->newId(),
+            'CATEGORY' => self::CATEGORY_MENU,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('sys_resource')->insert($row);
+
+        return $this->resourceRow($row);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function menuEdit(array $input, mixed $payload = []): array
+    {
+        $id = $this->requiredInput($input, ['id', 'ID'], 'id');
+        $payload = is_array($payload) ? $payload : [];
+        $existing = $this->activeResourceRow($id, self::CATEGORY_MENU);
+        $data = $this->menuWriteData($input, $existing);
+        $this->assertDuplicateMenuTitle($data['PARENT_ID'], $data['TITLE'], $id);
+        $this->assertMenuParentIsNotChild($id, $data['PARENT_ID']);
+        $this->assertMenuModuleAndParent($data['MODULE'], $data['PARENT_ID']);
+
+        $operatorId = $this->payloadUserId($payload);
+        $update = array_merge($data, [
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('sys_resource')
+            ->where('ID', $id)
+            ->where('CATEGORY', self::CATEGORY_MENU)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update($update);
+
+        return $this->resourceRow($this->activeResourceRow($id, self::CATEGORY_MENU));
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function menuChangeModule(array $input, mixed $payload = []): array
+    {
+        $id = $this->requiredInput($input, ['id', 'ID'], 'id');
+        $module = $this->requiredInput($input, ['module', 'MODULE'], 'module');
+        $payload = is_array($payload) ? $payload : [];
+        $row = $this->activeResourceRow($id, self::CATEGORY_MENU);
+        if ((string)($row['PARENT_ID'] ?? self::ROOT_PARENT_ID) !== self::ROOT_PARENT_ID) {
+            throw new RuntimeException('non-root menu cannot change module', 400);
+        }
+
+        $toUpdateIds = $this->resourceTreeIdsForDelete([$id], [self::CATEGORY_MENU]);
+        if ($toUpdateIds === []) {
+            throw new RuntimeException('menu not found', 404);
+        }
+
+        $operatorId = $this->payloadUserId($payload);
+        $updated = Db::name('sys_resource')
+            ->whereIn('ID', $toUpdateIds)
+            ->where('CATEGORY', self::CATEGORY_MENU)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update([
+                'MODULE' => $module,
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+            ]);
+
+        return [
+            'ids' => $toUpdateIds,
+            'module' => $module,
+            'count' => $updated,
+        ];
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function menuDelete(array $ids, mixed $payload = []): array
+    {
+        $idList = $this->idInputList($ids, 'menuId');
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $toDeleteIds = $this->resourceTreeIdsForDelete($idList, [self::CATEGORY_MENU, self::CATEGORY_BUTTON]);
+        if ($toDeleteIds === []) {
+            return [
+                'ids' => $idList,
+                'count' => 0,
+            ];
+        }
+
+        $operatorId = $this->payloadUserId($payload);
+        $updated = Db::transaction(function () use ($toDeleteIds, $operatorId): int {
+            Db::name('sys_relation')
+                ->where('CATEGORY', self::RELATION_ROLE_HAS_RESOURCE)
+                ->whereIn('TARGET_ID', $toDeleteIds)
+                ->delete();
+
+            return Db::name('sys_resource')
+                ->whereIn('ID', $toDeleteIds)
+                ->whereIn('CATEGORY', [self::CATEGORY_MENU, self::CATEGORY_BUTTON])
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+                ]);
+        });
+
+        return [
+            'ids' => $idList,
+            'deletedIds' => $toDeleteIds,
+            'count' => $updated,
+        ];
+    }
+
     public function buttonPage(array $filters = []): array
     {
         return $this->page(self::CATEGORY_BUTTON, $filters);
@@ -567,6 +712,61 @@ class ResourceService
 
     /**
      * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|null $existing
+     * @return array<string, mixed>
+     */
+    private function menuWriteData(array $input, ?array $existing = null): array
+    {
+        $sortCode = $this->requiredInput($input, ['sortCode', 'SORT_CODE'], 'sortCode');
+        if (!is_numeric($sortCode)) {
+            throw new RuntimeException('invalid sortCode', 400);
+        }
+
+        $menuType = $this->requiredInput($input, ['menuType', 'MENU_TYPE'], 'menuType');
+        if (!in_array($menuType, ['CATALOG', 'MENU', 'IFRAME', 'LINK'], true)) {
+            throw new RuntimeException('invalid menuType', 400);
+        }
+
+        $name = $this->optionalInput($input, ['name', 'NAME'], (string)($existing['NAME'] ?? ''));
+        $component = $this->optionalInput($input, ['component', 'COMPONENT'], (string)($existing['COMPONENT'] ?? ''));
+        if ($menuType === 'MENU') {
+            if ($name === '') {
+                throw new RuntimeException('missing name', 400);
+            }
+            if ($component === '') {
+                throw new RuntimeException('missing component', 400);
+            }
+        } elseif (in_array($menuType, ['IFRAME', 'LINK'], true)) {
+            if ($name === '') {
+                $name = (string)random_int(1000000000, 9999999999);
+            }
+            $component = '';
+        } else {
+            $name = '';
+            $component = '';
+        }
+
+        $extJson = array_key_exists('extJson', $input) || array_key_exists('EXT_JSON', $input)
+            ? $this->normalizeJsonInput($input['extJson'] ?? $input['EXT_JSON'] ?? null)
+            : ($existing['EXT_JSON'] ?? null);
+
+        return [
+            'PARENT_ID' => $this->requiredInput($input, ['parentId', 'PARENT_ID'], 'parentId'),
+            'TITLE' => $this->requiredInput($input, ['title', 'TITLE'], 'title'),
+            'NAME' => $name !== '' ? $name : null,
+            'MODULE' => $this->requiredInput($input, ['module', 'MODULE'], 'module'),
+            'MENU_TYPE' => $menuType,
+            'PATH' => $this->requiredInput($input, ['path', 'PATH'], 'path'),
+            'COMPONENT' => $component !== '' ? $component : null,
+            'ICON' => $this->optionalInput($input, ['icon', 'ICON'], (string)($existing['ICON'] ?? '')),
+            'VISIBLE' => $this->optionalInput($input, ['visible', 'VISIBLE'], (string)($existing['VISIBLE'] ?? '')),
+            'SORT_CODE' => (int)$sortCode,
+            'EXT_JSON' => $extJson,
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
      * @param array<int, string> $keys
      */
     private function requiredInput(array $input, array $keys, string $label): string
@@ -581,6 +781,21 @@ class ResourceService
         }
 
         throw new RuntimeException("missing {$label}", 400);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<int, string> $keys
+     */
+    private function optionalInput(array $input, array $keys, string $default = ''): string
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $input)) {
+                return trim((string)$input[$key]);
+            }
+        }
+
+        return $default;
     }
 
     private function normalizeJsonInput(mixed $value): ?string
@@ -630,6 +845,51 @@ class ResourceService
 
         if ($query->count() > 0) {
             throw new RuntimeException("duplicate module title: {$title}", 400);
+        }
+    }
+
+    private function assertDuplicateMenuTitle(string $parentId, string $title, ?string $ignoreId): void
+    {
+        $query = Db::name('sys_resource')
+            ->where('CATEGORY', self::CATEGORY_MENU)
+            ->where('PARENT_ID', $parentId)
+            ->where('TITLE', $title)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException("duplicate menu title: {$title}", 400);
+        }
+    }
+
+    private function assertMenuModuleAndParent(string $module, string $parentId): void
+    {
+        if ($parentId === self::ROOT_PARENT_ID) {
+            return;
+        }
+
+        $parent = $this->activeResourceRow($parentId, self::CATEGORY_MENU);
+        if ((string)($parent['MODULE'] ?? '') !== $module) {
+            throw new RuntimeException('module does not match parent menu', 400);
+        }
+    }
+
+    private function assertMenuParentIsNotChild(string $id, string $parentId): void
+    {
+        if ($parentId === self::ROOT_PARENT_ID) {
+            return;
+        }
+        if ($parentId === $id) {
+            throw new RuntimeException('menu parent cannot be self', 400);
+        }
+
+        if (in_array($parentId, $this->resourceTreeIdsForDelete([$id], [self::CATEGORY_MENU]), true)) {
+            throw new RuntimeException('menu parent cannot be child', 400);
         }
     }
 
@@ -719,7 +979,58 @@ class ResourceService
             }
         }
 
-        return array_values(array_keys($deleteMap));
+        return array_map(static fn($id): string => (string)$id, array_keys($deleteMap));
+    }
+
+    /**
+     * @param array<int, string> $rootIds
+     * @param array<int, string> $categories
+     * @return array<int, string>
+     */
+    private function resourceTreeIdsForDelete(array $rootIds, array $categories): array
+    {
+        $rows = Db::name('sys_resource')
+            ->whereIn('CATEGORY', $categories)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->field(['ID', 'PARENT_ID'])
+            ->select()
+            ->toArray();
+
+        $idMap = [];
+        $childrenByParent = [];
+        foreach ($rows as $row) {
+            $id = trim((string)($row['ID'] ?? ''));
+            $parentId = trim((string)($row['PARENT_ID'] ?? ''));
+            if ($id === '') {
+                continue;
+            }
+            $idMap[$id] = true;
+            if ($parentId !== '') {
+                $childrenByParent[$parentId][] = $id;
+            }
+        }
+
+        $deleteMap = [];
+        foreach ($rootIds as $rootId) {
+            if (isset($idMap[$rootId])) {
+                $deleteMap[$rootId] = true;
+            }
+        }
+
+        $queue = array_keys($deleteMap);
+        while ($queue !== []) {
+            $current = array_shift($queue);
+            foreach ($childrenByParent[$current] ?? [] as $childId) {
+                if (!isset($deleteMap[$childId])) {
+                    $deleteMap[$childId] = true;
+                    $queue[] = $childId;
+                }
+            }
+        }
+
+        return array_map(static fn($id): string => (string)$id, array_keys($deleteMap));
     }
 
     /**

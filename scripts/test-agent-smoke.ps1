@@ -11,6 +11,7 @@ param(
     [switch]$SaleProjectInvoicingHttpSmoke,
     [switch]$FileRelationHttpSmoke,
     [switch]$SysModuleHttpSmoke,
+    [switch]$SysMenuHttpSmoke,
     [switch]$SysButtonHttpSmoke,
     [switch]$MobileModuleHttpSmoke,
     [switch]$MobileMenuHttpSmoke,
@@ -157,6 +158,10 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'sys/module/add',
         'sys/module/edit',
         'sys/module/delete',
+        'sys/menu/add',
+        'sys/menu/edit',
+        'sys/menu/changeModule',
+        'sys/menu/delete',
         'sys/button/add',
         'sys/button/edit',
         'sys/button/delete',
@@ -1303,6 +1308,195 @@ require getcwd() . '/vendor/autoload.php';
 `$relationId = '$relationId';
 if (`$relationId !== '') { think\facade\Db::name('sys_relation')->where('ID', `$relationId)->delete(); }
 foreach ([`$menuId, `$moduleId] as `$id) { if (`$id !== '') { think\facade\Db::name('sys_resource')->where('ID', `$id)->delete(); } }
+"@
+            & php -r $cleanupCode | Out-Null
+            if (Test-Path -LiteralPath $jsonTmp) {
+                Remove-Item -LiteralPath $jsonTmp -Force
+            }
+        }
+    }
+}
+
+if ($SysMenuHttpSmoke) {
+    Invoke-TestStep 'authenticated sys menu write HTTP smoke' {
+        if ($BackendBaseUrl.Trim() -eq '') {
+            throw 'BackendBaseUrl is required when -SysMenuHttpSmoke is used'
+        }
+
+        $envMap = Get-EnvMap -Path (Join-Path $ProjectRoot '.env')
+        $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
+        if ($account -eq '') {
+            throw 'LOCAL_SUPER_ADMIN_ACCOUNT is required in .env when -SysMenuHttpSmoke is used'
+        }
+
+        $safeAccount = $account.Replace("'", "\'")
+        $tokenCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$user = think\facade\Db::name('sys_user')->where('ACCOUNT', '$safeAccount')->find();
+if (!`$user) { throw new RuntimeException('local smoke account not found'); }
+`$auth = (new app\service\auth\RbacService())->buildForUser(`$user);
+`$auth['device'] = 'CODEX_SYS_MENU_HTTP_SMOKE';
+echo (new app\service\auth\TokenService())->create(`$user, `$auth);
+"@
+        $token = & php -r $tokenCode
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+            throw 'failed to create local smoke auth token'
+        }
+
+        $base = $BackendBaseUrl.TrimEnd('/')
+        $prefix = 'CODEX_HTTP_SYS_MENU_' + (Get-Date -Format 'yyyyMMddHHmmss') + '_' + (Get-Random -Minimum 1000 -Maximum 9999)
+        $jsonTmp = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + '.json')
+        $moduleAId = ''
+        $moduleBId = ''
+        $rootId = ''
+        $childId = ''
+        $buttonId = ''
+        $relationId = ''
+
+        try {
+            $moduleCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$service = new app\service\sys\ResourceService();
+`$payload = ['userId' => 'codex-smoke'];
+`$moduleA = `$service->moduleAdd(['title' => '$prefix' . '_MODULE_A', 'icon' => 'AppstoreOutlined', 'color' => '#1677FF', 'sortCode' => 9999], `$payload);
+`$moduleB = `$service->moduleAdd(['title' => '$prefix' . '_MODULE_B', 'icon' => 'SettingOutlined', 'color' => '#13C2C2', 'sortCode' => 9998], `$payload);
+echo `$moduleA['id'] . ':' . `$moduleB['id'];
+"@
+            $moduleState = & php -r $moduleCode
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($moduleState)) {
+                throw 'failed to prepare sys menu module fixtures'
+            }
+            $moduleParts = ([string]$moduleState).Split(':')
+            $moduleAId = $moduleParts[0]
+            $moduleBId = $moduleParts[1]
+
+            $body = @{ parentId = '0'; title = ($prefix + '_ROOT'); menuType = 'MENU'; module = $moduleAId; path = '/codex-sys-root'; name = ($prefix + '_ROOT_NAME'); component = 'codex/sys/root'; icon = 'AppstoreOutlined'; visible = 'TRUE'; sortCode = 9999; extJson = @{ smoke = $true } } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $addRaw = & curl.exe -sS -X POST "$base/sys/menu/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'sys menu add request failed'
+            }
+            $add = $addRaw | ConvertFrom-Json
+            if ([int]$add.code -ne 200 -or -not $add.data.id -or [string]$add.data.category -ne 'MENU') {
+                throw "unexpected sys menu add response: $addRaw"
+            }
+            $rootId = [string]$add.data.id
+
+            $treeRaw = & curl.exe -sS -X GET "$base/sys/menu/tree?module=$moduleAId&searchKey=$prefix" -H "Authorization: Bearer $token"
+            $tree = $treeRaw | ConvertFrom-Json
+            $treeRows = @($tree.data)
+            if ([int]$tree.code -ne 200 -or -not ($treeRows | Where-Object { [string]$_.id -eq $rootId })) {
+                throw "sys menu tree did not include created root menu: $treeRaw"
+            }
+
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $duplicateRaw = & curl.exe -sS -X POST "$base/sys/menu/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $duplicate = $duplicateRaw | ConvertFrom-Json
+            if ([int]$duplicate.code -eq 200) {
+                throw "sys menu duplicate title should fail: $duplicateRaw"
+            }
+
+            $body = @{ parentId = $rootId; title = ($prefix + '_CHILD'); menuType = 'MENU'; module = $moduleAId; path = '/codex-sys-child'; name = ($prefix + '_CHILD_NAME'); component = 'codex/sys/child'; icon = 'BarsOutlined'; visible = 'TRUE'; sortCode = 9997 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $childRaw = & curl.exe -sS -X POST "$base/sys/menu/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $child = $childRaw | ConvertFrom-Json
+            if ([int]$child.code -ne 200 -or -not $child.data.id) {
+                throw "unexpected sys child menu add response: $childRaw"
+            }
+            $childId = [string]$child.data.id
+
+            $body = @{ parentId = $rootId; title = ($prefix + '_BAD_CHILD'); menuType = 'MENU'; module = $moduleBId; path = '/codex-sys-bad-child'; name = ($prefix + '_BAD_CHILD_NAME'); component = 'codex/sys/badChild'; sortCode = 9996 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $badChildRaw = & curl.exe -sS -X POST "$base/sys/menu/add" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $badChild = $badChildRaw | ConvertFrom-Json
+            if ([int]$badChild.code -eq 200) {
+                throw "sys menu parent/module mismatch should fail: $badChildRaw"
+            }
+
+            $body = @{ id = $childId; parentId = $rootId; title = ($prefix + '_CHILD_EDITED'); menuType = 'IFRAME'; module = $moduleAId; path = 'https://example.test/sys'; visible = 'FALSE'; sortCode = 9995 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editRaw = & curl.exe -sS -X POST "$base/sys/menu/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'sys menu edit request failed'
+            }
+            $edit = $editRaw | ConvertFrom-Json
+            if ([int]$edit.code -ne 200 -or [string]$edit.data.menuType -ne 'IFRAME' -or [string]$edit.data.visible -ne 'FALSE' -or $null -ne $edit.data.component) {
+                throw "unexpected sys menu edit response: $editRaw"
+            }
+
+            $body = @{ id = $childId; parentId = $rootId; title = ($prefix + '_CHILD_EDITED'); menuType = 'MENU'; module = $moduleAId; path = '/codex-sys-child-edited'; name = ($prefix + '_CHILD_EDITED_NAME'); component = 'codex/sys/childEdited'; visible = 'TRUE'; sortCode = 9995 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $editMenuRaw = & curl.exe -sS -X POST "$base/sys/menu/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $editMenu = $editMenuRaw | ConvertFrom-Json
+            if ([int]$editMenu.code -ne 200 -or [string]$editMenu.data.component -ne 'codex/sys/childEdited') {
+                throw "unexpected sys menu edit-back response: $editMenuRaw"
+            }
+
+            $body = @{ id = $rootId; parentId = $childId; title = ($prefix + '_ROOT'); menuType = 'MENU'; module = $moduleAId; path = '/codex-sys-root'; name = ($prefix + '_ROOT_NAME'); component = 'codex/sys/root'; visible = 'TRUE'; sortCode = 9999 } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $badParentRaw = & curl.exe -sS -X POST "$base/sys/menu/edit" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $badParent = $badParentRaw | ConvertFrom-Json
+            if ([int]$badParent.code -eq 200) {
+                throw "sys menu parent self/child edit should fail: $badParentRaw"
+            }
+
+            $body = @{ id = $childId; module = $moduleBId } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $badChangeRaw = & curl.exe -sS -X POST "$base/sys/menu/changeModule" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $badChange = $badChangeRaw | ConvertFrom-Json
+            if ([int]$badChange.code -eq 200) {
+                throw "child sys menu changeModule should fail: $badChangeRaw"
+            }
+
+            $body = @{ id = $rootId; module = $moduleBId } | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $changeRaw = & curl.exe -sS -X POST "$base/sys/menu/changeModule" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            $change = $changeRaw | ConvertFrom-Json
+            if ([int]$change.code -ne 200 -or [int]$change.data.count -ne 2) {
+                throw "unexpected sys menu changeModule response: $changeRaw"
+            }
+
+            $fixtureCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$service = new app\service\sys\ResourceService();
+`$button = `$service->buttonAdd(['parentId' => '$childId', 'title' => '$prefix' . '_BUTTON', 'code' => '$prefix' . '_BUTTON_CODE', 'sortCode' => 9994], ['userId' => 'codex-smoke']);
+think\facade\Db::name('sys_relation')->insert(['ID' => 'codex-rel-' . random_int(100000, 999999), 'OBJECT_ID' => 'codex-role', 'TARGET_ID' => '$childId', 'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE', 'EXT_JSON' => json_encode(['buttonInfo' => [`$button['id']]], JSON_UNESCAPED_SLASHES)]);
+`$relationId = (string)think\facade\Db::name('sys_relation')->where('TARGET_ID', '$childId')->where('CATEGORY', 'SYS_ROLE_HAS_RESOURCE')->order('ID', 'desc')->value('ID');
+echo `$button['id'] . ':' . `$relationId;
+"@
+            $fixtureState = & php -r $fixtureCode
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($fixtureState)) {
+                throw 'failed to prepare sys menu delete fixtures'
+            }
+            $fixtureParts = ([string]$fixtureState).Split(':')
+            $buttonId = $fixtureParts[0]
+            $relationId = $fixtureParts[1]
+
+            $body = @(@{ id = $rootId }, @{ id = 'missing-sys-menu' }) | ConvertTo-Json -Compress
+            Set-Content -LiteralPath $jsonTmp -Value $body -Encoding ASCII
+            $deleteRaw = & curl.exe -sS -X POST "$base/sys/menu/delete" -H "Authorization: Bearer $token" -H 'Content-Type: application/json' --data-binary "@$jsonTmp"
+            if ($LASTEXITCODE -ne 0) {
+                throw 'sys menu delete request failed'
+            }
+            $delete = $deleteRaw | ConvertFrom-Json
+            if ([int]$delete.code -ne 200) {
+                throw "unexpected sys menu delete response: $deleteRaw"
+            }
+
+            $deleteState = & php -r "require getcwd() . '/vendor/autoload.php'; (new think\App(getcwd()))->initialize(); `$flags = think\facade\Db::name('sys_resource')->whereIn('ID', ['$rootId', '$childId', '$buttonId'])->column('DELETE_FLAG', 'ID'); `$relationCount = think\facade\Db::name('sys_relation')->where('ID', '$relationId')->count(); echo implode(',', [`$flags['$rootId'] ?? '', `$flags['$childId'] ?? '', `$flags['$buttonId'] ?? '']) . ':' . `$relationCount;"
+            if ([string]$deleteState -ne 'DELETED,DELETED,DELETED:0') {
+                throw "sys menu delete did not update expected state: $deleteState"
+            }
+        } finally {
+            $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+(new think\App(getcwd()))->initialize();
+`$ids = array_values(array_filter(['$moduleAId', '$moduleBId', '$rootId', '$childId', '$buttonId']));
+if ('$relationId' !== '') { think\facade\Db::name('sys_relation')->where('ID', '$relationId')->delete(); }
+if (`$ids !== []) { think\facade\Db::name('sys_resource')->whereIn('ID', `$ids)->delete(); }
 "@
             & php -r $cleanupCode | Out-Null
             if (Test-Path -LiteralPath $jsonTmp) {

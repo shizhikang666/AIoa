@@ -176,6 +176,16 @@ Start the ThinkPHP server separately, then run:
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/sys/module/add`, verifies the created module appears in `/sys/module/page`, verifies duplicate `title` rejection, calls `/sys/module/edit`, prepares a temporary child menu and `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/module/delete`, verifies module and child menu reach `DELETE_FLAG = DELETED`, verifies the relation is removed, and removes temporary rows. It does not print tokens or local credentials.
 
+## Optional Sys Menu HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysMenuHttpSmoke
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, creates temporary system modules through the service layer, calls `/sys/menu/add`, verifies the created menu appears in `/sys/menu/tree`, verifies duplicate sibling-title rejection, validates child parent/module mismatch rejection, calls `/sys/menu/edit`, verifies `IFRAME` normalization, verifies self/descendant parent rejection, verifies child `changeModule` rejection, calls root `/sys/menu/changeModule`, prepares a temporary system button and `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/menu/delete` with a mixed existing and missing id payload, verifies the menu/button tree is logically deleted, verifies the role-resource relation row is removed, and removes temporary rows. It does not print tokens or local credentials.
+
 ## Optional Mobile Button HTTP Smoke
 
 Start the ThinkPHP server separately, then run:
@@ -272,6 +282,7 @@ Add these only when a backend and frontend browser session are already available
 - optional sale-project invoicing HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SaleProjectInvoicingHttpSmoke`
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
 - optional sys-module HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke`
+- optional sys-menu HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysMenuHttpSmoke`
 - optional sys-button HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysButtonHttpSmoke`
 - optional mobile-module HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -MobileModuleHttpSmoke`
 - optional mobile-menu HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -MobileMenuHttpSmoke`

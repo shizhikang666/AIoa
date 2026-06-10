@@ -1864,6 +1864,247 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'ResourceService menu write compatibility' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$service = new app\service\sys\ResourceService();
+$payload = ['userId' => 'codex-smoke'];
+$prefix = 'CODEX_SYS_MENU_' . date('YmdHis') . random_int(1000, 9999);
+$createdIds = [];
+$relationId = '';
+
+try {
+    $moduleA = $service->moduleAdd([
+        'title' => $prefix . '_MODULE_A',
+        'icon' => 'AppstoreOutlined',
+        'color' => '#1677FF',
+        'sortCode' => 9999,
+    ], $payload);
+    $moduleB = $service->moduleAdd([
+        'title' => $prefix . '_MODULE_B',
+        'icon' => 'SettingOutlined',
+        'color' => '#13C2C2',
+        'sortCode' => 9998,
+    ], $payload);
+    $moduleAId = (string)$moduleA['id'];
+    $moduleBId = (string)$moduleB['id'];
+    $createdIds[] = $moduleAId;
+    $createdIds[] = $moduleBId;
+
+    $root = $service->menuAdd([
+        'parentId' => '0',
+        'title' => $prefix . '_ROOT',
+        'menuType' => 'MENU',
+        'module' => $moduleAId,
+        'path' => '/codex-sys-root',
+        'name' => $prefix . '_ROOT_NAME',
+        'component' => 'codex/sys/root',
+        'icon' => 'AppstoreOutlined',
+        'visible' => 'TRUE',
+        'sortCode' => 9999,
+        'extJson' => ['smoke' => true],
+    ], $payload);
+    $rootId = (string)$root['id'];
+    $createdIds[] = $rootId;
+    if (($root['category'] ?? '') !== 'MENU' || ($root['code'] ?? null) !== null) {
+        throw new RuntimeException('sys menu add did not force category MENU without code');
+    }
+
+    $duplicateFailed = false;
+    try {
+        $service->menuAdd([
+            'parentId' => '0',
+            'title' => $prefix . '_ROOT',
+            'menuType' => 'MENU',
+            'module' => $moduleAId,
+            'path' => '/codex-sys-root-dup',
+            'name' => $prefix . '_ROOT_DUP_NAME',
+            'component' => 'codex/sys/rootDup',
+            'sortCode' => 9998,
+        ], $payload);
+    } catch (RuntimeException) {
+        $duplicateFailed = true;
+    }
+    if (!$duplicateFailed) {
+        throw new RuntimeException('duplicate sys menu title under same parent should fail');
+    }
+
+    $child = $service->menuAdd([
+        'parentId' => $rootId,
+        'title' => $prefix . '_CHILD',
+        'menuType' => 'MENU',
+        'module' => $moduleAId,
+        'path' => '/codex-sys-child',
+        'name' => $prefix . '_CHILD_NAME',
+        'component' => 'codex/sys/child',
+        'icon' => 'BarsOutlined',
+        'visible' => 'TRUE',
+        'sortCode' => 9997,
+    ], $payload);
+    $childId = (string)$child['id'];
+    $createdIds[] = $childId;
+
+    $moduleMismatchFailed = false;
+    try {
+        $service->menuAdd([
+            'parentId' => $rootId,
+            'title' => $prefix . '_BAD_CHILD',
+            'menuType' => 'MENU',
+            'module' => $moduleBId,
+            'path' => '/codex-sys-bad-child',
+            'name' => $prefix . '_BAD_CHILD_NAME',
+            'component' => 'codex/sys/badChild',
+            'sortCode' => 9996,
+        ], $payload);
+    } catch (RuntimeException) {
+        $moduleMismatchFailed = true;
+    }
+    if (!$moduleMismatchFailed) {
+        throw new RuntimeException('sys menu parent/module mismatch should fail');
+    }
+
+    $edited = $service->menuEdit([
+        'id' => $childId,
+        'parentId' => $rootId,
+        'title' => $prefix . '_CHILD_EDITED',
+        'menuType' => 'IFRAME',
+        'module' => $moduleAId,
+        'path' => 'https://example.test/sys',
+        'visible' => 'FALSE',
+        'sortCode' => 9995,
+    ], $payload);
+    if (($edited['title'] ?? '') !== $prefix . '_CHILD_EDITED' || ($edited['menuType'] ?? '') !== 'IFRAME' || ($edited['component'] ?? null) !== null || ($edited['name'] ?? '') === '') {
+        throw new RuntimeException('sys menu edit did not update iframe fields');
+    }
+
+    $child = $service->menuEdit([
+        'id' => $childId,
+        'parentId' => $rootId,
+        'title' => $prefix . '_CHILD_EDITED',
+        'menuType' => 'MENU',
+        'module' => $moduleAId,
+        'path' => '/codex-sys-child-edited',
+        'name' => $prefix . '_CHILD_EDITED_NAME',
+        'component' => 'codex/sys/childEdited',
+        'visible' => 'TRUE',
+        'sortCode' => 9995,
+    ], $payload);
+
+    $selfParentFailed = false;
+    try {
+        $service->menuEdit([
+            'id' => $rootId,
+            'parentId' => $childId,
+            'title' => $prefix . '_ROOT',
+            'menuType' => 'MENU',
+            'module' => $moduleAId,
+            'path' => '/codex-sys-root',
+            'name' => $prefix . '_ROOT_NAME',
+            'component' => 'codex/sys/root',
+            'visible' => 'TRUE',
+            'sortCode' => 9999,
+        ], $payload);
+    } catch (RuntimeException) {
+        $selfParentFailed = true;
+    }
+    if (!$selfParentFailed) {
+        throw new RuntimeException('sys menu parent cannot be self/child should fail');
+    }
+
+    $changeChildFailed = false;
+    try {
+        $service->menuChangeModule(['id' => $childId, 'module' => $moduleBId], $payload);
+    } catch (RuntimeException) {
+        $changeChildFailed = true;
+    }
+    if (!$changeChildFailed) {
+        throw new RuntimeException('child sys menu changeModule should fail');
+    }
+
+    $changed = $service->menuChangeModule(['id' => $rootId, 'module' => $moduleBId], $payload);
+    if (($changed['count'] ?? 0) !== 2) {
+        throw new RuntimeException('sys menu changeModule count mismatch');
+    }
+    $modules = think\facade\Db::name('sys_resource')->whereIn('ID', [$rootId, $childId])->column('MODULE', 'ID');
+    if (($modules[$rootId] ?? '') !== $moduleBId || ($modules[$childId] ?? '') !== $moduleBId) {
+        throw new RuntimeException('sys menu changeModule did not update child tree');
+    }
+
+    $button = $service->buttonAdd([
+        'parentId' => $childId,
+        'title' => $prefix . '_BUTTON',
+        'code' => $prefix . '_BUTTON_CODE',
+        'sortCode' => 9994,
+    ], $payload);
+    $buttonId = (string)$button['id'];
+    $createdIds[] = $buttonId;
+
+    $relationId = 'codex-rel-' . random_int(100000, 999999);
+    think\facade\Db::name('sys_relation')->insert([
+        'ID' => $relationId,
+        'OBJECT_ID' => 'codex-role',
+        'TARGET_ID' => $childId,
+        'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE',
+        'EXT_JSON' => json_encode(['buttonInfo' => [$buttonId]], JSON_UNESCAPED_SLASHES),
+    ]);
+
+    $deleted = $service->menuDelete([['id' => $rootId], ['id' => 'missing-sys-menu']], $payload);
+    if (($deleted['count'] ?? 0) !== 3) {
+        throw new RuntimeException('sys menu delete count mismatch');
+    }
+    $flags = think\facade\Db::name('sys_resource')->whereIn('ID', [$rootId, $childId, $buttonId])->column('DELETE_FLAG', 'ID');
+    if (($flags[$rootId] ?? '') !== 'DELETED' || ($flags[$childId] ?? '') !== 'DELETED' || ($flags[$buttonId] ?? '') !== 'DELETED') {
+        throw new RuntimeException('sys menu tree/button was not logically deleted');
+    }
+    $relationCount = think\facade\Db::name('sys_relation')->where('ID', $relationId)->count();
+    if ($relationCount !== 0) {
+        throw new RuntimeException('role resource relation cleanup failed');
+    }
+
+    echo "ResourceService menu write checks passed\n";
+} catch (Throwable $e) {
+    echo get_class($e) . ':' . $e->getMessage() . ':' . $e->getFile() . ':' . $e->getLine() . "\n";
+    throw $e;
+} finally {
+    if ($relationId !== '') {
+        think\facade\Db::name('sys_relation')->where('ID', $relationId)->delete();
+    }
+    if ($createdIds !== []) {
+        think\facade\Db::name('sys_resource')->whereIn('ID', $createdIds)->delete();
+    }
+}
+'@
+
+    $probePath = Join-Path ([System.IO.Path]::GetTempPath()) ("codex-resource-menu-smoke-$([guid]::NewGuid()).php")
+    $oldErrorActionPreference = $ErrorActionPreference
+    try {
+        Set-Content -LiteralPath $probePath -Value $probe -Encoding UTF8
+        $ErrorActionPreference = 'Continue'
+        $output = & php $probePath 2>&1
+        $ErrorActionPreference = $oldErrorActionPreference
+        if ($LASTEXITCODE -ne 0) {
+            throw "php ResourceService menu write probe failed: $output"
+        }
+
+        $outputText = [string]($output | Out-String)
+        if ($outputText -notmatch 'ResourceService menu write checks passed' -or $outputText -match '(RuntimeException|Exception trace)') {
+            throw "php ResourceService menu write probe did not pass cleanly: $outputText"
+        }
+    } finally {
+        $ErrorActionPreference = $oldErrorActionPreference
+        if (Test-Path -LiteralPath $probePath) {
+            Remove-Item -LiteralPath $probePath -Force
+        }
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'MobileResourceService button write compatibility' {
 $probe = @'
 <?php

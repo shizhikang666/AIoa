@@ -160,6 +160,10 @@ Route::group('sys/menu', function () {
     Route::get('detail', 'sys.MenuController/detail');
     Route::get('moduleSelector', 'sys.MenuController/moduleSelector');
     Route::get('menuTreeSelector', 'sys.MenuController/menuTreeSelector');
+    Route::post('add', 'sys.MenuController/add');
+    Route::post('edit', 'sys.MenuController/edit');
+    Route::post('changeModule', 'sys.MenuController/changeModule');
+    Route::post('delete', 'sys.MenuController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('sys/button', function () {

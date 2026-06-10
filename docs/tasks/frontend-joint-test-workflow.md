@@ -322,6 +322,24 @@ Cleanup:
 
 - Temporary `CODEX_HTTP_MODULE_*` module/menu rows and temporary smoke relation rows are removed.
 
+## Sys Menu Write HTTP Smoke, 2026-06-10
+
+Verified after `/sys/menu/add`, `/sys/menu/edit`, `/sys/menu/changeModule`, and `/sys/menu/delete` compatibility was added:
+
+- Copied frontend API wrapper: `snowy-admin-web/src/api/sys/resource/menuApi.js`
+- Copied frontend pages: `snowy-admin-web/src/views/sys/resource/menu/index.vue`, `form.vue`, and `changeModuleForm.vue`
+- Authenticated HTTP smoke creates temporary system modules, calls `POST /sys/menu/add`, and verifies the created menu appears in `GET /sys/menu/tree`.
+- The same smoke verifies duplicate sibling-title rejection, child parent/module mismatch rejection, `POST /sys/menu/edit`, `IFRAME` field normalization, self/descendant parent rejection, child `changeModule` rejection, and root `POST /sys/menu/changeModule` propagation to child menu rows.
+- The same smoke prepares a temporary system button and `SYS_ROLE_HAS_RESOURCE` relation, calls `POST /sys/menu/delete` with a mixed existing and missing id payload, confirms the menu/button tree reaches `DELETE_FLAG = DELETED`, and confirms the relation row is removed.
+
+Cleanup:
+
+- Temporary `CODEX_HTTP_SYS_MENU_*` module/menu/button rows and temporary smoke relation rows are removed.
+
+Not verified:
+
+- The visible Vue system menu page button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied page.
+
 ## Mobile Button Write HTTP Smoke, 2026-06-09
 
 Verified after `/mobile/button/add`, `/mobile/button/edit`, and `/mobile/button/delete` compatibility was added:

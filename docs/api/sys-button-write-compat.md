@@ -52,6 +52,6 @@ Java source stays read-only under `F:\AI\projects\testJava\OA`.
 
 ## Deferred
 
-- Module, menu, and field write compatibility remains deferred.
+- Module and menu write compatibility are covered separately; field write compatibility remains deferred.
 - Java `CommonDataChangeEventCenter` cache/event behavior is not implemented yet.
 - No Java source, frontend source, database schema, Composer files, `.env`, or public config files were changed.
