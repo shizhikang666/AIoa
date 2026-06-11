@@ -1620,7 +1620,9 @@ $payload = ['userId' => 'codex-smoke'];
 $prefix = 'CODEX_SYS_MODULE_' . date('YmdHis') . random_int(1000, 9999);
 $moduleId = '';
 $menuId = '';
+$fieldId = '';
 $relationId = '';
+$fieldRelationId = '';
 
 try {
     $created = $service->moduleAdd([
@@ -1678,6 +1680,13 @@ try {
         'CREATE_TIME' => date('Y-m-d H:i:s'),
         'CREATE_USER' => 'codex-smoke',
     ]);
+    $field = $service->fieldAdd([
+        'parentId' => $menuId,
+        'title' => $prefix . '_FIELD',
+        'code' => $prefix . '_FIELD_CODE',
+        'sortCode' => 9998,
+    ], $payload);
+    $fieldId = (string)$field['id'];
     $relationId = 'codex-rel-' . random_int(100000, 999999);
     think\facade\Db::name('sys_relation')->insert([
         'ID' => $relationId,
@@ -1686,21 +1695,29 @@ try {
         'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE',
         'EXT_JSON' => '{}',
     ]);
+    $fieldRelationId = 'cfr' . random_int(100000, 999999);
+    think\facade\Db::name('sys_relation')->insert([
+        'ID' => $fieldRelationId,
+        'OBJECT_ID' => 'codex-role',
+        'TARGET_ID' => $fieldId,
+        'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE',
+        'EXT_JSON' => '{}',
+    ]);
 
     $deleted = $service->moduleDelete([['id' => $moduleId]], $payload);
-    if (($deleted['count'] ?? 0) < 2) {
-        throw new RuntimeException('module delete did not include module/menu rows');
+    if (($deleted['count'] ?? 0) < 3) {
+        throw new RuntimeException('module delete did not include module/menu/field rows');
     }
 
     $flags = think\facade\Db::name('sys_resource')
-        ->whereIn('ID', [$moduleId, $menuId])
+        ->whereIn('ID', [$moduleId, $menuId, $fieldId])
         ->column('DELETE_FLAG', 'ID');
-    if (($flags[$moduleId] ?? '') !== 'DELETED' || ($flags[$menuId] ?? '') !== 'DELETED') {
-        throw new RuntimeException('module delete did not logically delete module and menu');
+    if (($flags[$moduleId] ?? '') !== 'DELETED' || ($flags[$menuId] ?? '') !== 'DELETED' || ($flags[$fieldId] ?? '') !== 'DELETED') {
+        throw new RuntimeException('module delete did not logically delete module, menu, and field');
     }
-    $relationCount = think\facade\Db::name('sys_relation')->where('ID', $relationId)->count();
+    $relationCount = think\facade\Db::name('sys_relation')->whereIn('ID', [$relationId, $fieldRelationId])->count();
     if ($relationCount !== 0) {
-        throw new RuntimeException('module delete did not remove role resource relation');
+        throw new RuntimeException('module delete did not remove role resource relations');
     }
 
     echo "ResourceService module write checks passed\n";
@@ -1708,7 +1725,10 @@ try {
     if ($relationId !== '') {
         think\facade\Db::name('sys_relation')->where('ID', $relationId)->delete();
     }
-    foreach ([$menuId, $moduleId] as $id) {
+    if ($fieldRelationId !== '') {
+        think\facade\Db::name('sys_relation')->where('ID', $fieldRelationId)->delete();
+    }
+    foreach ([$fieldId, $menuId, $moduleId] as $id) {
         if ($id !== '') {
             think\facade\Db::name('sys_resource')->where('ID', $id)->delete();
         }
@@ -2019,6 +2039,7 @@ $payload = ['userId' => 'codex-smoke'];
 $prefix = 'CODEX_SYS_MENU_' . date('YmdHis') . random_int(1000, 9999);
 $createdIds = [];
 $relationId = '';
+$fieldRelationId = '';
 
 try {
     $moduleA = $service->moduleAdd([
@@ -2186,6 +2207,15 @@ try {
     $buttonId = (string)$button['id'];
     $createdIds[] = $buttonId;
 
+    $field = $service->fieldAdd([
+        'parentId' => $childId,
+        'title' => $prefix . '_FIELD',
+        'code' => $prefix . '_FIELD_CODE',
+        'sortCode' => 9993,
+    ], $payload);
+    $fieldId = (string)$field['id'];
+    $createdIds[] = $fieldId;
+
     $relationId = 'codex-rel-' . random_int(100000, 999999);
     think\facade\Db::name('sys_relation')->insert([
         'ID' => $relationId,
@@ -2194,18 +2224,26 @@ try {
         'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE',
         'EXT_JSON' => json_encode(['buttonInfo' => [$buttonId]], JSON_UNESCAPED_SLASHES),
     ]);
+    $fieldRelationId = 'cfr' . random_int(100000, 999999);
+    think\facade\Db::name('sys_relation')->insert([
+        'ID' => $fieldRelationId,
+        'OBJECT_ID' => 'codex-role',
+        'TARGET_ID' => $fieldId,
+        'CATEGORY' => 'SYS_ROLE_HAS_RESOURCE',
+        'EXT_JSON' => '{}',
+    ]);
 
     $deleted = $service->menuDelete([['id' => $rootId], ['id' => 'missing-sys-menu']], $payload);
-    if (($deleted['count'] ?? 0) !== 3) {
+    if (($deleted['count'] ?? 0) !== 4) {
         throw new RuntimeException('sys menu delete count mismatch');
     }
-    $flags = think\facade\Db::name('sys_resource')->whereIn('ID', [$rootId, $childId, $buttonId])->column('DELETE_FLAG', 'ID');
-    if (($flags[$rootId] ?? '') !== 'DELETED' || ($flags[$childId] ?? '') !== 'DELETED' || ($flags[$buttonId] ?? '') !== 'DELETED') {
-        throw new RuntimeException('sys menu tree/button was not logically deleted');
+    $flags = think\facade\Db::name('sys_resource')->whereIn('ID', [$rootId, $childId, $buttonId, $fieldId])->column('DELETE_FLAG', 'ID');
+    if (($flags[$rootId] ?? '') !== 'DELETED' || ($flags[$childId] ?? '') !== 'DELETED' || ($flags[$buttonId] ?? '') !== 'DELETED' || ($flags[$fieldId] ?? '') !== 'DELETED') {
+        throw new RuntimeException('sys menu tree/button/field was not logically deleted');
     }
-    $relationCount = think\facade\Db::name('sys_relation')->where('ID', $relationId)->count();
+    $relationCount = think\facade\Db::name('sys_relation')->whereIn('ID', [$relationId, $fieldRelationId])->count();
     if ($relationCount !== 0) {
-        throw new RuntimeException('role resource relation cleanup failed');
+        throw new RuntimeException('role resource relation cleanup failed for menu field cascade');
     }
 
     echo "ResourceService menu write checks passed\n";
@@ -2215,6 +2253,9 @@ try {
 } finally {
     if ($relationId !== '') {
         think\facade\Db::name('sys_relation')->where('ID', $relationId)->delete();
+    }
+    if ($fieldRelationId !== '') {
+        think\facade\Db::name('sys_relation')->where('ID', $fieldRelationId)->delete();
     }
     if ($createdIds !== []) {
         think\facade\Db::name('sys_resource')->whereIn('ID', $createdIds)->delete();

@@ -4406,3 +4406,39 @@ The copied Vue system resource field drawer calls `/sys/field/add`, `/edit`, and
 - Requests without token should return business `code=401`.
 - DB smoke should create a temporary module/menu/field, verify duplicate sibling-code rejection, edit fields, logically delete with a mixed existing/missing id payload, clean direct role-resource relation rows, and clean temporary rows.
 - Authenticated HTTP smoke should cover add, page lookup, detail lookup, duplicate rejection, edit, delete, database back-checks, and cleanup through `-SysFieldHttpSmoke`.
+
+---
+
+# Public File Change Request: System Field Drawer Entry And Cascade Cleanup
+
+## Request
+
+Expose the copied system field drawer from the copied system menu page, and make parent menu/module delete clean descendant field resources.
+
+## Reason
+
+The copied frontend already contains `snowy-admin-web/src/views/sys/resource/field/index.vue`, but `snowy-admin-web/src/views/sys/resource/menu/index.vue` did not mount it. Users maintaining system menu resources therefore had no visible entry to field permissions. After field writes were opened, parent menu/module deletion also needed to prevent orphan `FIELD` rows and stale direct role-resource relations.
+
+## Applied Change
+
+`main control agent/test-agent` updates:
+
+- `snowy-admin-web/src/views/sys/resource/menu/index.vue`
+- `app/service/sys/ResourceService.php`
+- `scripts/test-agent-db-smoke.ps1`
+
+## Guardrails
+
+- `字段权限` is exposed only for `MENU` rows from the row-level `更多` dropdown.
+- The existing field drawer component is reused; no new API shape is introduced.
+- System menu delete now cascades active descendant `MENU`, `BUTTON`, and `FIELD` rows.
+- System module delete now cascades module-owned `MENU`, `BUTTON`, and `FIELD` rows.
+- Direct `SYS_ROLE_HAS_RESOURCE` relation rows targeting deleted fields are removed with the rest of the deleted resource id set.
+- No Java source, database schema, Composer, `.env`, local credentials, or public config files are changed.
+
+## Verification
+
+- DB smoke covers module/menu FIELD cascade and direct field relation cleanup.
+- Frontend production build must pass.
+- Browser smoke should load `/sys/menu`, expand a catalog row, open a `MENU` row's `更多`, confirm `按钮权限` and `字段权限`, click `字段权限`, and verify `GET /api/sys/field/page`.
+- If the current local admin menu lacks `/sys/menu`, temporary marked `sys_relation` authorization rows may be inserted only for the browser smoke and must be deleted before final verification.

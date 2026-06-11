@@ -211,9 +211,16 @@ Cleanup:
 
 - Temporary `sys_relation` and `sys_resource` rows were deleted.
 
-Not verified:
+Browser smoke on 2026-06-11:
 
-- The visible Vue system field drawer button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied drawer.
+- Real dynamic routes from `sys_resource`: `/sys/module` and `/sys/menu`.
+- Copied menu page loaded through `snowy-admin-web/src/views/sys/resource/menu/index.vue`.
+- Copied frontend API wrappers loaded: `menuApi.js`, `buttonApi.js`, and `fieldApi.js`.
+- The current local admin menu data did not include `/sys/module` or `/sys/menu`, so the smoke inserted temporary `SYS_USER_HAS_RESOURCE` rows in `sys_relation`, logged in again, verified the page, and deleted the temporary relation rows afterward.
+- `/sys/menu` loaded and called `GET /api/sys/menu/moduleSelector` plus `GET /api/sys/menu/tree`.
+- After expanding a catalog row, a `MENU` row's `更多` dropdown exposed both `按钮权限` and `字段权限`.
+- Clicking `字段权限` opened the field drawer and called `GET /api/sys/field/page`.
+- Screenshot artifact for local inspection: `runtime/codex-smoke/sys-menu-field-drawer-expanded.png`.
 
 ## Browser Dev File Delete Smoke, 2026-06-08
 

@@ -60,9 +60,9 @@ The DB smoke command reads the ignored local `.env`, uses the bundled MySQL and 
 - `SaleProjectBillingService` invoicing complete behavior, tenant-scoped row lookup, idempotent state update, and cross-tenant rejection
 - local file upload plus `BizFileRelationService` add/list/edit/delete behavior
 - file-relation category validation, missing-file rejection, tenant spoofing rejection, and logical delete without deleting `dev_file`
-- `ResourceService` module add/edit/delete behavior, duplicate-title rejection, built-in module delete rejection path coverage through service logic, child-resource logical delete, and role-resource relation cleanup
+- `ResourceService` module add/edit/delete behavior, duplicate-title rejection, built-in module delete rejection path coverage through service logic, child menu/button/field logical delete, and role-resource relation cleanup
 - `ResourceService` button add/edit/delete behavior, duplicate-code rejection, logical delete, and role-resource `buttonInfo` cleanup
-- `ResourceService` field add/edit/delete behavior, sibling duplicate-code rejection, menu-parent validation, logical delete tolerance for mixed missing ids, and direct role-resource relation cleanup
+- `ResourceService` field add/edit/delete behavior, sibling duplicate-code rejection, menu-parent validation, logical delete tolerance for mixed missing ids, direct role-resource relation cleanup, and parent module/menu FIELD cascade coverage through the module/menu smoke steps
 - `MobileResourceService` module add/edit/delete behavior, generated 10-character code, duplicate-title rejection, module/menu logical delete, mixed missing-id delete tolerance, and role mobile-menu relation cleanup
 - `MobileResourceService` button add/edit/delete behavior, duplicate-code rejection, logical delete, mixed missing-id delete tolerance, and role mobile-menu `buttonInfo` cleanup
 - `TeamProjectService` base add/edit/delete behavior, automatic current-user `LEADER` member creation, member edit audit refresh without role/permission mutation, project permission relation sync, version increment, and project/member logical delete
@@ -185,7 +185,7 @@ Start the ThinkPHP server separately, then run:
 .\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke
 ```
 
-This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/sys/module/add`, verifies the created module appears in `/sys/module/page`, verifies duplicate `title` rejection, calls `/sys/module/edit`, prepares a temporary child menu and `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/module/delete`, verifies module and child menu reach `DELETE_FLAG = DELETED`, verifies the relation is removed, and removes temporary rows. It does not print tokens or local credentials.
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/sys/module/add`, verifies the created module appears in `/sys/module/page`, verifies duplicate `title` rejection, calls `/sys/module/edit`, prepares a temporary child menu and `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/module/delete`, verifies module and child menu reach `DELETE_FLAG = DELETED`, verifies the relation is removed, and removes temporary rows. DB smoke additionally covers module delete FIELD cascade and direct field relation cleanup. It does not print tokens or local credentials.
 
 ## Optional Sys Menu HTTP Smoke
 
@@ -195,7 +195,7 @@ Start the ThinkPHP server separately, then run:
 .\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysMenuHttpSmoke
 ```
 
-This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, creates temporary system modules through the service layer, calls `/sys/menu/add`, verifies the created menu appears in `/sys/menu/tree`, verifies duplicate sibling-title rejection, validates child parent/module mismatch rejection, calls `/sys/menu/edit`, verifies `IFRAME` normalization, verifies self/descendant parent rejection, verifies child `changeModule` rejection, calls root `/sys/menu/changeModule`, prepares a temporary system button and `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/menu/delete` with a mixed existing and missing id payload, verifies the menu/button tree is logically deleted, verifies the role-resource relation row is removed, and removes temporary rows. It does not print tokens or local credentials.
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, creates temporary system modules through the service layer, calls `/sys/menu/add`, verifies the created menu appears in `/sys/menu/tree`, verifies duplicate sibling-title rejection, validates child parent/module mismatch rejection, calls `/sys/menu/edit`, verifies `IFRAME` normalization, verifies self/descendant parent rejection, verifies child `changeModule` rejection, calls root `/sys/menu/changeModule`, prepares a temporary system button and `SYS_ROLE_HAS_RESOURCE` relation, calls `/sys/menu/delete` with a mixed existing and missing id payload, verifies the menu/button tree is logically deleted, verifies the role-resource relation row is removed, and removes temporary rows. DB smoke additionally covers menu delete FIELD cascade and direct field relation cleanup. It does not print tokens or local credentials.
 
 ## Optional Mobile Button HTTP Smoke
 
@@ -300,3 +300,4 @@ Add these only when a backend and frontend browser session are already available
 - optional mobile-button HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -MobileButtonHttpSmoke`
 - optional team-project base HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -TeamProjectHttpSmoke`
 - browser smoke through the copied Vue frontend for affected visible pages, including dev config "other config" maintenance when `/dev/config/add|edit|delete` changes
+- system resource browser smoke should use the real dynamic routes `/sys/module` and `/sys/menu`; if the current local admin menu lacks these routes, insert only temporary `sys_relation` user-resource rows, run the browser check, and delete those rows before final verification

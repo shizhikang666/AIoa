@@ -1717,3 +1717,28 @@ This slice supports the Java-generated team-project member edit endpoint:
 ### Deferred
 
 - Role-changing member edit, notification push, Java data-change events, Java physical delete behavior, and relation cleanup policy remain out of scope.
+
+## 2026-06-11 System Menu Field Drawer Entry
+
+Agent: main control agent / frontend browser smoke
+
+### Scope
+
+This slice connects the copied system field drawer to the copied system menu page:
+
+- `snowy-admin-web/src/views/sys/resource/menu/index.vue`
+- `snowy-admin-web/src/views/sys/resource/field/index.vue`
+- `snowy-admin-web/src/api/sys/resource/fieldApi.js`
+
+### Result
+
+- `MENU` rows now expose `字段权限` in the row-level `更多` dropdown.
+- The menu page mounts the existing field drawer and opens it with the selected menu row.
+- The drawer keeps using the existing `/sys/field/page`, `/add`, `/edit`, and `/delete` wrappers.
+- Production build passes after the import/mount change.
+- Browser smoke used the real dynamic route `/sys/menu`, expanded a catalog row, opened a menu row's `更多`, clicked `字段权限`, and verified the drawer called `/api/sys/field/page`.
+
+### Notes
+
+- The current local admin menu data did not include `/sys/menu`; browser smoke used temporary marked `sys_relation` authorization rows and deleted them after verification.
+- No credentials, tokens, database passwords, or Redis passwords are stored in tracked files.

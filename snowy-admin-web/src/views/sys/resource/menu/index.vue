@@ -102,6 +102,9 @@
 										<a-menu-item v-if="record.menuType === 'MENU'">
 											<a @click="buttonRef.onOpen(record)">按钮权限</a>
 										</a-menu-item>
+										<a-menu-item v-if="record.menuType === 'MENU'">
+											<a @click="fieldRef.onOpen(record)">字段权限</a>
+										</a-menu-item>
 									</a-menu>
 								</template>
 							</a-dropdown>
@@ -114,6 +117,7 @@
 	<Form ref="formRef" @successful="tableRef.refresh(true)" />
 	<changeModuleForm ref="changeModuleFormRef" @successful="tableRef.refresh(true)" />
 	<Button ref="buttonRef" />
+	<Field ref="fieldRef" />
 </template>
 
 <script setup name="sysMenu">
@@ -121,11 +125,13 @@
 	import Form from './form.vue'
 	import ChangeModuleForm from './changeModuleForm.vue'
 	import Button from '../button/index.vue'
+	import Field from '../field/index.vue'
 	const searchFormState = ref({})
 	const tableRef = ref(null)
 	const formRef = ref()
 	const changeModuleFormRef = ref()
 	const buttonRef = ref()
+	const fieldRef = ref()
 	const moduleType = ref()
 	const moduleTypeList = ref([])
 	const toolConfig = { refresh: true, height: true, columnSetting: false, striped: false }
@@ -169,7 +175,7 @@
 		{
 			title: '操作',
 			dataIndex: 'action',
-			width: '200px',
+			width: '240px',
 			scopedSlots: { customRender: 'action' }
 		}
 	]

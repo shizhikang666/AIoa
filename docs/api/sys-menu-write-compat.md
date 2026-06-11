@@ -39,8 +39,8 @@ The existing read routes remain documented in `docs/api/resource-readonly-compat
 - Non-root menus require an existing parent menu, and the parent `MODULE` must match the submitted `module`.
 - `edit` rejects parent changes to self or to any descendant menu.
 - `changeModule` is allowed only for root menus and updates only the current menu plus active descendant `MENU` rows.
-- `delete` logically deletes target active menus plus descendant active menu/button rows.
-- `delete` removes whole `sys_relation` rows where `CATEGORY = SYS_ROLE_HAS_RESOURCE` and `TARGET_ID` is in the deleted menu/button tree.
+- `delete` logically deletes target active menus plus descendant active menu/button/field rows.
+- `delete` removes whole `sys_relation` rows where `CATEGORY = SYS_ROLE_HAS_RESOURCE` and `TARGET_ID` is in the deleted menu/button/field tree.
 
 ## Verification
 
@@ -54,9 +54,11 @@ Verified on 2026-06-10 against the user-provided local MySQL/Redis runtime:
 
 The DB and HTTP smokes cover add, tree lookup, duplicate-title rejection, parent/module mismatch rejection, edit, `IFRAME` field normalization, self/descendant parent rejection, root-only `changeModule`, descendant module propagation, logical delete of menu/button tree, role-resource relation cleanup, and temporary row cleanup.
 
+The DB smoke also covers the later FIELD cascade: menu delete logically deletes descendant `FIELD` rows and removes direct role-resource relation rows targeting deleted fields.
+
 ## Deferred
 
-- System field write compatibility remains deferred.
+- System field write compatibility is covered by `docs/api/sys-field-write-compat.md`.
 - System role/resource grant mutations remain deferred.
 - Java `CommonDataChangeEventCenter` cache/event behavior is not implemented yet.
-- No Java source, database schema, seed data, Composer files, `.env`, frontend source, or public config files were changed.
+- No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.

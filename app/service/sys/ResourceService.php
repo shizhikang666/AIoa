@@ -259,7 +259,11 @@ class ResourceService
         }
 
         $payload = is_array($payload) ? $payload : [];
-        $toDeleteIds = $this->resourceTreeIdsForDelete($idList, [self::CATEGORY_MENU, self::CATEGORY_BUTTON]);
+        $toDeleteIds = $this->resourceTreeIdsForDelete($idList, [
+            self::CATEGORY_MENU,
+            self::CATEGORY_BUTTON,
+            self::CATEGORY_FIELD,
+        ]);
         if ($toDeleteIds === []) {
             return [
                 'ids' => $idList,
@@ -276,7 +280,7 @@ class ResourceService
 
             return Db::name('sys_resource')
                 ->whereIn('ID', $toDeleteIds)
-                ->whereIn('CATEGORY', [self::CATEGORY_MENU, self::CATEGORY_BUTTON])
+                ->whereIn('CATEGORY', [self::CATEGORY_MENU, self::CATEGORY_BUTTON, self::CATEGORY_FIELD])
                 ->where(function ($query): void {
                     $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
                 })
@@ -1108,7 +1112,7 @@ class ResourceService
     {
         $deleteMap = array_fill_keys($moduleIds, true);
         $rows = Db::name('sys_resource')
-            ->whereIn('CATEGORY', [self::CATEGORY_MENU, self::CATEGORY_BUTTON])
+            ->whereIn('CATEGORY', [self::CATEGORY_MENU, self::CATEGORY_BUTTON, self::CATEGORY_FIELD])
             ->where(function ($query): void {
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             })

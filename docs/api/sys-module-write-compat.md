@@ -40,16 +40,17 @@ Java source stays read-only under `F:\AI\projects\testJava\OA`.
 - `delete` accepts Java-style array bodies such as `[{ "id": "..." }]`, plus local compatibility forms `idList`, `ids`, `id`, and `moduleIds`.
 - Built-in modules with codes `system` and `tenant` are rejected for deletion.
 - Deletion is logical: `DELETE_FLAG = DELETED`.
-- Deletion also logically deletes active menu/button resources under the module and physically removes role-resource relations whose `TARGET_ID` belongs to the deleted module/menu/button id set.
+- Deletion also logically deletes active menu/button/field resources under the module and physically removes role-resource relations whose `TARGET_ID` belongs to the deleted module/menu/button/field id set.
 
 ## Verification
 
 - `php think route:list` lists `POST /sys/module/add`, `POST /sys/module/edit`, and `POST /sys/module/delete`.
 - `scripts/test-agent-db-smoke.ps1` includes `ResourceService module write compatibility`.
 - `scripts/test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke` covers authenticated HTTP add, page lookup, duplicate-title rejection, edit, delete, child menu logical delete, and role-resource relation cleanup.
+- `scripts/test-agent-db-smoke.ps1` also verifies module delete cascades to child field resources and removes direct role-resource relation rows targeting deleted fields.
 
 ## Deferred
 
-- Menu write compatibility is covered by `docs/api/sys-menu-write-compat.md`; field write compatibility remains deferred.
+- Menu write compatibility is covered by `docs/api/sys-menu-write-compat.md`; field write compatibility is covered by `docs/api/sys-field-write-compat.md`.
 - Java `CommonDataChangeEventCenter` cache/event behavior is not implemented yet.
 - No Java source, frontend source, database schema, Composer files, `.env`, or public config files were changed.

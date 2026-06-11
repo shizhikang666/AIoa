@@ -49,10 +49,10 @@ The Java module/menu/button APIs all read from `sys_resource` and separate recor
 The following Java endpoints remain intentionally deferred:
 
 - relation/grant mutation behavior
-- system field write behavior
 
 Module add/edit/delete is now covered by `docs/api/sys-module-write-compat.md`.
 Menu add/edit/changeModule/delete is now covered by `docs/api/sys-menu-write-compat.md`.
 Button add/edit/delete is now covered by `docs/api/sys-button-write-compat.md`.
+Field add/edit/delete is now covered by `docs/api/sys-field-write-compat.md`.
 
 No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.
