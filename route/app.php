@@ -137,9 +137,13 @@ Route::group('sys/role', function () {
     Route::get('page', 'sys.RoleController/page');
     Route::get('detail', 'sys.RoleController/detail');
     Route::get('ownResource', 'sys.RoleController/ownResource');
+    Route::post('grantResource', 'sys.RoleController/grantResource');
     Route::get('ownMobileMenu', 'sys.RoleController/ownMobileMenu');
+    Route::post('grantMobileMenu', 'sys.RoleController/grantMobileMenu');
     Route::get('ownPermission', 'sys.RoleController/ownPermission');
+    Route::post('grantPermission', 'sys.RoleController/grantPermission');
     Route::get('ownUser', 'sys.RoleController/ownUser');
+    Route::post('grantUser', 'sys.RoleController/grantUser');
     Route::get('orgTreeSelector', 'sys.RoleController/orgTreeSelector');
     Route::get('resourceTreeSelector', 'sys.RoleController/resourceTreeSelector');
     Route::get('mobileMenuTreeSelector', 'sys.RoleController/mobileMenuTreeSelector');

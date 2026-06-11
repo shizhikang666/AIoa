@@ -6,6 +6,7 @@ namespace app\service\auth;
 
 use app\service\user\OrgService;
 use app\service\user\UserDirectoryService;
+use RuntimeException;
 use think\facade\Db;
 
 /**
@@ -23,6 +24,14 @@ class RoleService
     private const CATEGORY_MENU = 'MENU';
     private const CATEGORY_BUTTON = 'BUTTON';
     private const MENU_TYPE_CATALOG = 'CATALOG';
+    private const BUILD_IN_ROLE_CODES = ['superadmin', 'tenantadmin'];
+    private const SCOPE_CATEGORIES = [
+        'SCOPE_ALL',
+        'SCOPE_SELF',
+        'SCOPE_ORG',
+        'SCOPE_ORG_CHILD',
+        'SCOPE_ORG_DEFINE',
+    ];
 
     public function __construct(
         private readonly OrgService $orgService = new OrgService(),
@@ -63,6 +72,20 @@ class RoleService
         ];
     }
 
+    public function grantResource(array $input): array
+    {
+        return $this->saveGrant(
+            $input,
+            self::ROLE_HAS_RESOURCE,
+            $this->resourceGrantInfoList($this->requiredGrantInfoList($input)),
+            'menuId',
+            function (array $role, array $grantInfoList): void {
+                $this->assertActiveResourceGrantInfo($grantInfoList, 'sys_resource');
+                $this->assertSystemModuleResourceGrant($role, $grantInfoList);
+            }
+        );
+    }
+
     public function ownMobileMenu(string $id): array
     {
         return [
@@ -71,12 +94,38 @@ class RoleService
         ];
     }
 
+    public function grantMobileMenu(array $input): array
+    {
+        return $this->saveGrant(
+            $input,
+            self::ROLE_HAS_MOBILE_MENU,
+            $this->resourceGrantInfoList($this->requiredGrantInfoList($input)),
+            'menuId',
+            function (array $role, array $grantInfoList): void {
+                $this->assertActiveResourceGrantInfo($grantInfoList, 'mobile_resource');
+            }
+        );
+    }
+
     public function ownPermission(string $id): array
     {
         return [
             'id' => $id,
             'grantInfoList' => $this->grantInfoList($id, self::ROLE_HAS_PERMISSION, 'apiUrl'),
         ];
+    }
+
+    public function grantPermission(array $input): array
+    {
+        return $this->saveGrant(
+            $input,
+            self::ROLE_HAS_PERMISSION,
+            $this->permissionGrantInfoList($this->requiredGrantInfoList($input)),
+            'apiUrl',
+            function (array $role, array $grantInfoList): void {
+                $this->assertActivePermissionScopeOrgs($grantInfoList);
+            }
+        );
     }
 
     /**
@@ -88,6 +137,50 @@ class RoleService
             ->where('TARGET_ID', $id)
             ->where('CATEGORY', self::USER_HAS_ROLE)
             ->column('OBJECT_ID')));
+    }
+
+    public function grantUser(array $input): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        if (!array_key_exists('grantInfoList', $input)) {
+            throw new RuntimeException('missing grantInfoList', 400);
+        }
+
+        $role = $this->activeRoleRow($id);
+        $userIds = $this->stringList($input['grantInfoList']);
+        if ($userIds === [] && $this->isBuiltInRole($role)) {
+            throw new RuntimeException('built-in role must keep at least one user', 400);
+        }
+
+        $this->assertActiveUsers($userIds);
+
+        return Db::transaction(function () use ($id, $userIds): array {
+            Db::name('sys_relation')
+                ->where('TARGET_ID', $id)
+                ->where('CATEGORY', self::USER_HAS_ROLE)
+                ->delete();
+
+            $rows = [];
+            foreach ($userIds as $userId) {
+                $rows[] = [
+                    'ID' => $this->newId(),
+                    'OBJECT_ID' => $userId,
+                    'TARGET_ID' => $id,
+                    'CATEGORY' => self::USER_HAS_ROLE,
+                    'EXT_JSON' => null,
+                ];
+            }
+
+            if ($rows !== []) {
+                Db::name('sys_relation')->insertAll($rows);
+            }
+
+            return [
+                'id' => $id,
+                'grantInfoList' => $userIds,
+                'count' => count($userIds),
+            ];
+        });
     }
 
     /**
@@ -201,6 +294,272 @@ class RoleService
     }
 
     /**
+     * @param array<int, array<string, mixed>> $grantInfoList
+     */
+    private function saveGrant(array $input, string $category, array $grantInfoList, string $targetKey, callable $validator): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $role = $this->activeRoleRow($id);
+        $validator($role, $grantInfoList);
+
+        return Db::transaction(function () use ($id, $category, $grantInfoList, $targetKey): array {
+            Db::name('sys_relation')
+                ->where('OBJECT_ID', $id)
+                ->where('CATEGORY', $category)
+                ->delete();
+
+            $rows = [];
+            foreach ($grantInfoList as $grantInfo) {
+                $targetId = trim((string)($grantInfo[$targetKey] ?? ''));
+                if ($targetId === '') {
+                    continue;
+                }
+
+                $extJson = json_encode($grantInfo, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $rows[] = [
+                    'ID' => $this->newId(),
+                    'OBJECT_ID' => $id,
+                    'TARGET_ID' => $targetId,
+                    'CATEGORY' => $category,
+                    'EXT_JSON' => $extJson === false ? '{}' : $extJson,
+                ];
+            }
+
+            if ($rows !== []) {
+                Db::name('sys_relation')->insertAll($rows);
+            }
+
+            return [
+                'id' => $id,
+                'grantInfoList' => $grantInfoList,
+                'count' => count($grantInfoList),
+            ];
+        });
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function requiredGrantInfoList(array $input): array
+    {
+        if (!array_key_exists('grantInfoList', $input)) {
+            throw new RuntimeException('missing grantInfoList', 400);
+        }
+        if (!is_array($input['grantInfoList'])) {
+            throw new RuntimeException('invalid grantInfoList', 400);
+        }
+
+        return $input['grantInfoList'];
+    }
+
+    private function activeRoleRow(string $id): array
+    {
+        $role = $this->roleQuery(['id' => $id])->find();
+        if (!is_array($role) || $role === []) {
+            throw new RuntimeException('role not found', 404);
+        }
+
+        return $role;
+    }
+
+    private function isBuiltInRole(array $role): bool
+    {
+        return in_array(strtolower((string)($role['CODE'] ?? '')), self::BUILD_IN_ROLE_CODES, true);
+    }
+
+    /**
+     * @param array<int, mixed> $value
+     * @return array<int, array{menuId: string, buttonInfo: array<int, string>}>
+     */
+    private function resourceGrantInfoList(array $value): array
+    {
+        $byMenuId = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('invalid grantInfoList', 400);
+            }
+
+            $menuId = trim((string)($item['menuId'] ?? $item['menu_id'] ?? $item['id'] ?? ''));
+            if ($menuId === '') {
+                throw new RuntimeException('missing menuId', 400);
+            }
+            if (!array_key_exists('buttonInfo', $item) && !array_key_exists('button_info', $item)) {
+                throw new RuntimeException('missing buttonInfo', 400);
+            }
+
+            $buttonInfo = $this->stringList($item['buttonInfo'] ?? $item['button_info'] ?? []);
+            $byMenuId[$menuId] = [
+                'menuId' => $menuId,
+                'buttonInfo' => array_values(array_unique(array_merge($byMenuId[$menuId]['buttonInfo'] ?? [], $buttonInfo))),
+            ];
+        }
+
+        return array_values($byMenuId);
+    }
+
+    /**
+     * @param array<int, mixed> $value
+     * @return array<int, array{apiUrl: string, scopeCategory: string, scopeDefineOrgIdList: array<int, string>}>
+     */
+    private function permissionGrantInfoList(array $value): array
+    {
+        $items = [];
+        foreach ($value as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('invalid grantInfoList', 400);
+            }
+
+            $apiUrl = trim((string)($item['apiUrl'] ?? $item['api_url'] ?? ''));
+            if ($apiUrl === '') {
+                throw new RuntimeException('missing apiUrl', 400);
+            }
+
+            $scopeCategory = trim((string)($item['scopeCategory'] ?? $item['scope_category'] ?? ''));
+            if (!in_array($scopeCategory, self::SCOPE_CATEGORIES, true)) {
+                throw new RuntimeException('invalid scopeCategory', 400);
+            }
+
+            $items[$apiUrl] = [
+                'apiUrl' => $apiUrl,
+                'scopeCategory' => $scopeCategory,
+                'scopeDefineOrgIdList' => $this->stringList($item['scopeDefineOrgIdList'] ?? $item['scope_define_org_id_list'] ?? []),
+            ];
+        }
+
+        return array_values($items);
+    }
+
+    /**
+     * @param array<int, array{menuId: string, buttonInfo: array<int, string>}> $grantInfoList
+     */
+    private function assertActiveResourceGrantInfo(array $grantInfoList, string $table): void
+    {
+        $menuIds = array_values(array_unique(array_map(static fn (array $grantInfo): string => $grantInfo['menuId'], $grantInfoList)));
+        $buttonIds = [];
+        foreach ($grantInfoList as $grantInfo) {
+            $buttonIds = array_merge($buttonIds, $grantInfo['buttonInfo']);
+        }
+
+        $this->assertActiveIds($table, $menuIds, 'menu resource not found');
+        $this->assertActiveIds($table, array_values(array_unique($buttonIds)), 'button resource not found');
+    }
+
+    /**
+     * @param array<int, array{apiUrl: string, scopeCategory: string, scopeDefineOrgIdList: array<int, string>}> $grantInfoList
+     */
+    private function assertActivePermissionScopeOrgs(array $grantInfoList): void
+    {
+        $orgIds = [];
+        foreach ($grantInfoList as $grantInfo) {
+            if ($grantInfo['scopeCategory'] === 'SCOPE_ORG_DEFINE') {
+                $orgIds = array_merge($orgIds, $grantInfo['scopeDefineOrgIdList']);
+            }
+        }
+
+        $this->assertActiveIds('sys_org', array_values(array_unique($orgIds)), 'scope organization not found');
+    }
+
+    /**
+     * @param array<int, string> $ids
+     */
+    private function assertActiveIds(string $table, array $ids, string $message): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        if ($ids === []) {
+            return;
+        }
+
+        $validIds = array_values(array_filter(array_map('strval', Db::name($table)
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->column('ID'))));
+        $missing = array_values(array_diff($ids, $validIds));
+        if ($missing !== []) {
+            throw new RuntimeException($message, 404);
+        }
+    }
+
+    /**
+     * @param array<int, array{menuId: string, buttonInfo: array<int, string>}> $grantInfoList
+     */
+    private function assertSystemModuleResourceGrant(array $role, array $grantInfoList): void
+    {
+        if ($this->isBuiltInRole($role)) {
+            return;
+        }
+
+        $menuIds = array_values(array_unique(array_map(static fn (array $grantInfo): string => $grantInfo['menuId'], $grantInfoList)));
+        if ($menuIds === []) {
+            return;
+        }
+
+        $rows = Db::name('sys_resource')
+            ->whereIn('ID', $menuIds)
+            ->field(['ID', 'MODULE', 'CODE', 'CATEGORY'])
+            ->select()
+            ->toArray();
+        $moduleIds = [];
+        foreach ($rows as $row) {
+            if ((string)($row['CATEGORY'] ?? '') === self::CATEGORY_MODULE) {
+                $moduleIds[] = (string)($row['ID'] ?? '');
+            }
+            $moduleIds[] = (string)($row['MODULE'] ?? '');
+        }
+        $moduleIds = array_values(array_filter(array_unique($moduleIds)));
+        if ($moduleIds === []) {
+            return;
+        }
+
+        $moduleCodes = array_map('strtolower', array_filter(array_map('strval', Db::name('sys_resource')
+            ->whereIn('ID', $moduleIds)
+            ->column('CODE'))));
+        if (in_array('system', $moduleCodes, true)) {
+            throw new RuntimeException('non-super roles cannot be granted system module resources', 400);
+        }
+    }
+
+    /**
+     * @param array<int, string> $userIds
+     */
+    private function assertActiveUsers(array $userIds): void
+    {
+        $this->assertActiveIds('sys_user', $userIds, 'user not found');
+    }
+
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($value as $item) {
+            if (is_array($item)) {
+                $id = trim((string)($item['id'] ?? $item['userId'] ?? $item['roleId'] ?? $item['value'] ?? $item['key'] ?? ''));
+            } else {
+                $id = trim((string)$item);
+            }
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function grantTree(string $table): array
@@ -289,5 +648,10 @@ class RoleService
         $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 }
