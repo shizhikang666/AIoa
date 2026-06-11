@@ -91,3 +91,19 @@ Still deferred:
 - Java SM4 encrypted-field migration for phone/identity fields.
 - Full file storage/provider integration for avatar uploads.
 - Message send/delete, all-mark-read, WebPush, and full realtime push.
+
+## 2026-06-11 Public Password-Recovery Captcha
+
+Agent: main-agent
+
+The public password-recovery captcha endpoint now matches the old frontend path:
+
+| Method | Path | Scope |
+| --- | --- | --- |
+| GET | `/sys/userCenter/getPicCaptcha` | Public captcha generation for the find-password flow |
+
+Compatibility notes:
+
+- The route is intentionally registered outside `AuthMiddleware`, matching Java's anonymous access list.
+- The response shape reuses the existing auth captcha payload: `validCodeBase64` and `validCodeReqNo`.
+- Verification-code sending and password reset remain deferred because they involve SMS/email provider side effects and password writes.

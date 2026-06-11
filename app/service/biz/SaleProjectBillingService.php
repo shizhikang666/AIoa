@@ -287,6 +287,56 @@ class SaleProjectBillingService
         });
     }
 
+    public function rateEdit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $row = $this->rateQuery(['id' => $id], $payload)
+                ->field('r.*')
+                ->find();
+            if (!is_array($row) || $row === []) {
+                throw new RuntimeException('sale project rate not found', 404);
+            }
+
+            $currentProjectId = (string)$row['PROJECT_ID'];
+            $project = $this->assertRateProjectWritable($currentProjectId, $payload, 'edit');
+            $projectId = trim((string)($input['projectId'] ?? $input['project_id'] ?? $currentProjectId));
+            if ($projectId === '') {
+                throw new RuntimeException('missing projectId', 400);
+            }
+            if ($projectId !== $currentProjectId) {
+                $project = $this->assertRateProjectWritable($projectId, $payload, 'edit');
+            }
+
+            $updates = [
+                'PROJECT_ID' => $projectId,
+                'TENANT_ID' => $this->tenantId($input, $payload, $project),
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+            ];
+
+            if (array_key_exists('rateAmount', $input) || array_key_exists('rate_amount', $input)) {
+                $updates['RATE_AMOUNT'] = $this->rateAmount($input['rateAmount'] ?? $input['rate_amount']);
+            }
+            if (array_key_exists('content', $input)) {
+                $updates['CONTENT'] = (string)($input['content'] ?? '');
+            }
+            if (array_key_exists('subject', $input)) {
+                $updates['SUBJECT'] = trim((string)($input['subject'] ?? ''));
+            }
+            if (array_key_exists('imgList', $input) || array_key_exists('extJson', $input)) {
+                $updates['EXT_JSON'] = $this->rateExtJson($input);
+            }
+
+            $updated = Db::name('sale_project_rate')
+                ->where('ID', $id)
+                ->update($updates);
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
     /**
      * @param array<int, mixed> $ids
      */

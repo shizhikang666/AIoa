@@ -45,6 +45,8 @@ Route::group('auth/third', function () {
 
 Route::get('dev/config/sysBaseList', 'dev.ConfigController/sysBaseList');
 
+Route::get('sys/userCenter/getPicCaptcha', 'sys.UserCenterController/getPicCaptcha');
+
 Route::group('sys/userCenter', function () {
     Route::get('loginMenu', 'auth.UserCenterAuthController/loginMenu');
     Route::get('loginOrgTree', 'sys.UserCenterController/loginOrgTree');
@@ -616,6 +618,7 @@ Route::group('biz/ccrecords', function () {
 Route::group('biz/projectrate', function () {
     Route::get('page', 'biz.SaleProjectRateController/page');
     Route::post('add', 'biz.SaleProjectRateController/add');
+    Route::post('edit', 'biz.SaleProjectRateController/edit');
     Route::get('list', 'biz.SaleProjectRateController/list');
     Route::post('delete', 'biz.SaleProjectRateController/delete');
     Route::get('detail', 'biz.SaleProjectRateController/detail');

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\controller\sys;
 
+use app\service\auth\AuthService;
 use app\service\user\UserDirectoryService;
 use app\service\user\UserCenterWriteService;
 use think\Request;
@@ -13,8 +14,14 @@ class UserCenterController extends BaseSysController
 {
     public function __construct(
         private readonly UserDirectoryService $userDirectoryService = new UserDirectoryService(),
-        private readonly UserCenterWriteService $userCenterWriteService = new UserCenterWriteService()
+        private readonly UserCenterWriteService $userCenterWriteService = new UserCenterWriteService(),
+        private readonly AuthService $authService = new AuthService()
     ) {
+    }
+
+    public function getPicCaptcha(): Response
+    {
+        return $this->guard(fn () => $this->authService->getPicCaptcha());
     }
 
     public function loginOrgTree(Request $request): Response

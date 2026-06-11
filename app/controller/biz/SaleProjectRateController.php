@@ -25,6 +25,11 @@ class SaleProjectRateController extends BaseSysController
         return $this->guard(fn () => $this->billingService->rateAdd($this->body($request), $this->authPayload($request)));
     }
 
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->billingService->rateEdit($this->body($request), $this->authPayload($request)));
+    }
+
     public function list(Request $request): Response
     {
         return $this->guard(fn () => $this->billingService->rateList($this->requiredString($request, 'projectId'), $this->authPayload($request)));
