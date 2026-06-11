@@ -169,9 +169,40 @@ Cleanup:
 - The temporary business file relation row was deleted.
 - Temporary uploaded physical files under `runtime/upload/dev_file` were deleted.
 
-Not verified:
+Follow-up:
 
-- Rich-text image upload was not browser-smoked because the currently tested visible pages do not expose a TinyMCE image-upload control. When a rich-text page is exposed, smoke the TinyMCE image button against `/dev/file/uploadDynamicReturnUrl`.
+- Rich-text image upload was covered later through the visible email send form; see `Browser Rich-Text Upload Smoke, 2026-06-11`.
+
+## Browser Rich-Text Upload Smoke, 2026-06-11
+
+Coordinator plus sub-agent mode was used. Helmholtz performed read-only TinyMCE/upload entry discovery while the main session ran browser automation against the live local services.
+
+Runtime:
+
+- Backend: `http://127.0.0.1:82`
+- Frontend: `http://127.0.0.1:83`
+- Login credentials came from the ignored project `.env`.
+
+Verified:
+
+- Page path: `/dev/email/index`.
+- Because the current local admin menu did not include `/dev/email/index`, the smoke used a minimal temporary browser `MENU` cache so the copied Vue dynamic route could load directly.
+- The visible "发送邮件" form opened through `snowy-admin-web/src/views/dev/email/form.vue`.
+- The local email tab was switched from plain text to `HTML`, mounting the copied TinyMCE wrapper from `snowy-admin-web/src/components/Editor/index.vue`.
+- The email send component passes `fileUploadFunction`, so TinyMCE image upload called `POST /api/dev/file/uploadDynamicReturnUrl`.
+- The upload endpoint returned `code=200` and a Java-compatible `/api/dev/file/download?id=<id>` URL.
+- Browser console had no blocking error during the smoke.
+- Screenshot artifact for local inspection: `runtime/codex-smoke/dev-email-richtext-upload.png`.
+
+Cleanup:
+
+- The uploaded `dev_file` row was deleted after first passing through the API delete path.
+- The temporary physical file under `runtime/upload/dev_file` was removed.
+- A database back-check confirmed no `CODEX_RICHTEXT_*` `dev_file` rows remained.
+
+Known boundary:
+
+- `snowy-admin-web/src/views/exm/editor/index.vue` still uses the old `components/Editor` wrapper without passing `fileUploadFunction`; if that sample page is exposed as a real route, add the same default upload fallback used by `components/XnEditor`.
 
 ## Team Project Base HTTP Smoke, 2026-06-08
 
