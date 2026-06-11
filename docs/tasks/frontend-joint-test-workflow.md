@@ -382,9 +382,9 @@ Cleanup:
 
 - Temporary `CODEX_HTTP_MOBILE_BUTTON_*` button rows, temporary mobile menu rows created only if needed, and temporary smoke relation rows are removed.
 
-Not verified:
+Browser note:
 
-- The visible Vue mobile button page button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied page.
+- The standalone mobile button drawer is browser-smoked through the mobile menu page in the 2026-06-11 mobile resource browser smoke below.
 
 ## Mobile Module Write HTTP Smoke, 2026-06-09
 
@@ -400,9 +400,9 @@ Cleanup:
 
 - Temporary `CODEX_HTTP_MOBILE_MODULE_*` module/menu rows and temporary smoke relation rows are removed.
 
-Not verified:
+Browser note:
 
-- The visible Vue mobile module page button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied page.
+- The visible Vue mobile module page is browser-smoked in the 2026-06-11 mobile resource browser smoke below.
 
 ## Mobile Menu Write HTTP Smoke, 2026-06-09
 
@@ -418,9 +418,21 @@ Cleanup:
 
 - Temporary `CODEX_HTTP_MOBILE_MENU_*` module/menu/button rows and temporary smoke relation rows are removed.
 
-Not verified:
+Browser smoke on 2026-06-11:
 
-- The visible Vue mobile menu page button flow was not browser-smoked in this slice; HTTP smoke covered the backend endpoints used by the copied page.
+- Real copied frontend routes used for smoke: `/mobile/module` and `/mobile/menu`.
+- The imported database did not include dynamic `sys_resource` menu rows for those copied mobile resource pages, so the smoke inserted temporary marked `sys_resource` menu rows and `SYS_USER_HAS_RESOURCE` relations, then deleted them after verification.
+- Temporary marked `mobile_resource` module/menu/button rows were inserted for a deterministic page target and deleted after verification.
+- `/mobile/module` loaded the copied module page and called `GET /api/mobile/module/page`.
+- `/mobile/menu` loaded the copied menu page and called `GET /api/mobile/menu/moduleSelector` plus `GET /api/mobile/menu/tree`.
+- After selecting the temporary mobile module radio, the temporary root and child mobile menu rows were visible.
+- Opening the child menu row's more dropdown exposed the mobile button permission drawer entry.
+- Opening the button permission drawer called `GET /api/mobile/button/page` and displayed the temporary button row.
+- Screenshot artifact for local inspection: `runtime/codex-smoke/mobile-resource-button-drawer-selected.png`.
+
+Cleanup:
+
+- Temporary `sys_relation`, `sys_resource`, and `mobile_resource` rows with the browser-smoke markers were deleted; remaining counts were verified as zero.
 
 ## Gap Recording Rule
 

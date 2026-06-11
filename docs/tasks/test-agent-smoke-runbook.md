@@ -301,3 +301,4 @@ Add these only when a backend and frontend browser session are already available
 - optional team-project base HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -TeamProjectHttpSmoke`
 - browser smoke through the copied Vue frontend for affected visible pages, including dev config "other config" maintenance when `/dev/config/add|edit|delete` changes
 - system resource browser smoke should use the real dynamic routes `/sys/module` and `/sys/menu`; if the current local admin menu lacks these routes, insert only temporary `sys_relation` user-resource rows, run the browser check, and delete those rows before final verification
+- mobile resource browser smoke should use `/mobile/module` and `/mobile/menu`; if imported data lacks dynamic menu rows, insert temporary marked `sys_resource`, `sys_relation`, and `mobile_resource` rows, run the browser check, and delete those rows before final verification

@@ -1742,3 +1742,33 @@ This slice connects the copied system field drawer to the copied system menu pag
 
 - The current local admin menu data did not include `/sys/menu`; browser smoke used temporary marked `sys_relation` authorization rows and deleted them after verification.
 - No credentials, tokens, database passwords, or Redis passwords are stored in tracked files.
+
+## 2026-06-11 Mobile Resource Browser Smoke
+
+Agent: main control agent / frontend browser smoke
+
+### Scope
+
+This browser smoke covers the copied mobile resource maintenance pages:
+
+- `snowy-admin-web/src/views/mobile/resource/module/index.vue`
+- `snowy-admin-web/src/views/mobile/resource/menu/index.vue`
+- `snowy-admin-web/src/views/mobile/resource/button/index.vue`
+- `snowy-admin-web/src/api/mobile/resource/moduleApi.js`
+- `snowy-admin-web/src/api/mobile/resource/menuApi.js`
+- `snowy-admin-web/src/api/mobile/resource/buttonApi.js`
+
+### Result
+
+- `/mobile/module` loaded and called `/api/mobile/module/page`.
+- `/mobile/menu` loaded and called `/api/mobile/menu/moduleSelector` plus `/api/mobile/menu/tree`.
+- Selecting a temporary mobile module showed its temporary root and child menu rows.
+- Opening the child menu row's more dropdown exposed the mobile button permission drawer entry.
+- Opening the button drawer called `/api/mobile/button/page` and displayed the temporary button row.
+
+### Notes
+
+- The imported database did not include dynamic `sys_resource` menu rows for the copied mobile resource pages. The smoke inserted temporary marked `sys_resource` menu rows and `SYS_USER_HAS_RESOURCE` relations, then deleted them.
+- Temporary marked `mobile_resource` module/menu/button rows were inserted for deterministic browser targets and deleted after verification.
+- Cleanup verification showed zero remaining temporary `sys_relation`, `sys_resource`, and `mobile_resource` rows.
+- No credentials, tokens, database passwords, or Redis passwords are stored in tracked files.
