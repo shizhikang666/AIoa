@@ -136,6 +136,9 @@ Route::group('sys/user', function () {
 Route::group('sys/role', function () {
     Route::get('page', 'sys.RoleController/page');
     Route::get('detail', 'sys.RoleController/detail');
+    Route::post('add', 'sys.RoleController/add');
+    Route::post('edit', 'sys.RoleController/edit');
+    Route::post('delete', 'sys.RoleController/delete');
     Route::get('ownResource', 'sys.RoleController/ownResource');
     Route::post('grantResource', 'sys.RoleController/grantResource');
     Route::get('ownMobileMenu', 'sys.RoleController/ownMobileMenu');

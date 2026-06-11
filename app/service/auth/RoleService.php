@@ -10,16 +10,19 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only RBAC role queries compatible with Java SysRoleController.
+ * RBAC role queries and writes compatible with Java SysRoleController.
  */
 class RoleService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const USER_HAS_ROLE = 'SYS_USER_HAS_ROLE';
     private const ROLE_HAS_RESOURCE = 'SYS_ROLE_HAS_RESOURCE';
     private const ROLE_HAS_MOBILE_MENU = 'SYS_ROLE_HAS_MOBILE_MENU';
     private const ROLE_HAS_PERMISSION = 'SYS_ROLE_HAS_PERMISSION';
     private const USER_HAS_PERMISSION = 'SYS_USER_HAS_PERMISSION';
+    private const ROLE_CATEGORY_GLOBAL = 'GLOBAL';
+    private const ROLE_CATEGORY_ORG = 'ORG';
     private const CATEGORY_MODULE = 'MODULE';
     private const CATEGORY_MENU = 'MENU';
     private const CATEGORY_BUTTON = 'BUTTON';
@@ -62,6 +65,115 @@ class RoleService
         $role = $this->roleQuery(['id' => $id])->find();
 
         return is_array($role) && $role !== [] ? $role : null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function add(array $input, mixed $payload = []): array
+    {
+        $payload = is_array($payload) ? $payload : [];
+        $data = $this->roleWriteData($input);
+        $this->assertDuplicateRoleName($data['ORG_ID'], $data['NAME'], null);
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->payloadUserId($payload);
+        $row = array_merge($data, [
+            'ID' => $this->newId(),
+            'CODE' => $this->newRoleCode(),
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'TENANT_ID' => $this->tenantIdForWrite($payload, $data['ORG_ID']),
+        ]);
+
+        Db::name('sys_role')->insert($row);
+
+        return $this->activeRoleRow((string)$row['ID']);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function edit(array $input, mixed $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $payload = is_array($payload) ? $payload : [];
+        $existing = $this->activeRoleRow($id);
+        if ($this->isBuiltInRole($existing)) {
+            throw new RuntimeException('built-in role cannot be edited', 400);
+        }
+
+        $data = $this->roleWriteData($input);
+        $this->assertDuplicateRoleName($data['ORG_ID'], $data['NAME'], $id);
+
+        $operatorId = $this->payloadUserId($payload);
+        $update = array_merge($data, [
+            'UPDATE_TIME' => date('Y-m-d H:i:s'),
+            'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+        ]);
+
+        Db::name('sys_role')
+            ->where('ID', $id)
+            ->where('DELETE_FLAG', self::NOT_DELETE)
+            ->update($update);
+
+        return $this->activeRoleRow($id);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed>|mixed $payload
+     */
+    public function delete(array $input, mixed $payload = []): array
+    {
+        $ids = $this->deleteIds($input);
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $payload = is_array($payload) ? $payload : [];
+        $roles = $this->activeRoleRows($ids);
+        foreach ($roles as $role) {
+            if ($this->isBuiltInRole($role)) {
+                throw new RuntimeException('built-in role cannot be deleted', 400);
+            }
+        }
+
+        $operatorId = $this->payloadUserId($payload);
+        $updated = Db::transaction(function () use ($ids, $operatorId): int {
+            Db::name('sys_relation')
+                ->where('CATEGORY', self::USER_HAS_ROLE)
+                ->whereIn('TARGET_ID', $ids)
+                ->delete();
+
+            Db::name('sys_relation')
+                ->whereIn('CATEGORY', [
+                    self::ROLE_HAS_RESOURCE,
+                    self::ROLE_HAS_MOBILE_MENU,
+                    self::ROLE_HAS_PERMISSION,
+                ])
+                ->whereIn('OBJECT_ID', $ids)
+                ->delete();
+
+            return Db::name('sys_role')
+                ->whereIn('ID', $ids)
+                ->where('DELETE_FLAG', self::NOT_DELETE)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
+                ]);
+        });
+
+        return [
+            'ids' => $ids,
+            'count' => $updated,
+        ];
     }
 
     public function ownResource(string $id): array
@@ -369,6 +481,139 @@ class RoleService
         return $role;
     }
 
+    /**
+     * @param array<int, string> $ids
+     * @return array<int, array<string, mixed>>
+     */
+    private function activeRoleRows(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
+        if ($ids === []) {
+            return [];
+        }
+
+        $roles = Db::name('sys_role')
+            ->whereIn('ID', $ids)
+            ->where('DELETE_FLAG', self::NOT_DELETE)
+            ->select()
+            ->toArray();
+        $found = array_values(array_filter(array_map(static fn (array $row): string => (string)($row['ID'] ?? ''), $roles)));
+        $missing = array_values(array_diff($ids, $found));
+        if ($missing !== []) {
+            throw new RuntimeException('role not found', 404);
+        }
+
+        return $roles;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @return array{ORG_ID: ?string, NAME: string, CATEGORY: string, SORT_CODE: int, EXT_JSON: ?string}
+     */
+    private function roleWriteData(array $input): array
+    {
+        $name = $this->requiredInput($input, 'name');
+        $category = $this->requiredInput($input, 'category');
+        if (!in_array($category, [self::ROLE_CATEGORY_GLOBAL, self::ROLE_CATEGORY_ORG], true)) {
+            throw new RuntimeException('unsupported role category', 400);
+        }
+
+        if (!array_key_exists('sortCode', $input) && !array_key_exists('SORT_CODE', $input)) {
+            throw new RuntimeException('missing sortCode', 400);
+        }
+        $sortCodeValue = $input['sortCode'] ?? $input['SORT_CODE'] ?? null;
+        if ($sortCodeValue === null || trim((string)$sortCodeValue) === '') {
+            throw new RuntimeException('missing sortCode', 400);
+        }
+        if (!is_numeric($sortCodeValue)) {
+            throw new RuntimeException('invalid sortCode', 400);
+        }
+
+        $orgId = null;
+        if ($category === self::ROLE_CATEGORY_ORG) {
+            $orgId = $this->requiredInput($input, 'orgId');
+            $this->activeOrgRow($orgId);
+        }
+
+        $extJson = $input['extJson'] ?? $input['EXT_JSON'] ?? null;
+
+        return [
+            'ORG_ID' => $orgId,
+            'NAME' => $name,
+            'CATEGORY' => $category,
+            'SORT_CODE' => (int)$sortCodeValue,
+            'EXT_JSON' => $extJson === null || trim((string)$extJson) === '' ? null : (string)$extJson,
+        ];
+    }
+
+    private function assertDuplicateRoleName(?string $orgId, string $name, ?string $ignoreId): void
+    {
+        $query = Db::name('sys_role')
+            ->where('NAME', $name)
+            ->where('DELETE_FLAG', self::NOT_DELETE);
+        if ($orgId === null || $orgId === '') {
+            $query->where(function ($query): void {
+                $query->whereNull('ORG_ID')->whereOr('ORG_ID', '=', '');
+            });
+        } else {
+            $query->where('ORG_ID', $orgId);
+        }
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException($orgId === null || $orgId === '' ? 'global role name already exists' : 'organization role name already exists', 400);
+        }
+    }
+
+    private function activeOrgRow(string $id): array
+    {
+        $org = Db::name('sys_org')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+        if (!is_array($org) || $org === []) {
+            throw new RuntimeException('organization not found', 404);
+        }
+
+        return $org;
+    }
+
+    private function tenantIdForWrite(array $payload, ?string $orgId): string
+    {
+        $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($orgId === null || $orgId === '') {
+            return $payloadTenantId !== '' ? $payloadTenantId : '0';
+        }
+
+        $org = $this->activeOrgRow($orgId);
+        $orgTenantId = trim((string)($org['TENANT_ID'] ?? ''));
+        if ($payloadTenantId !== '' && $orgTenantId !== '' && $payloadTenantId !== $orgTenantId && !$this->isAdminCompatible($payload)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        return $orgTenantId !== '' ? $orgTenantId : ($payloadTenantId !== '' ? $payloadTenantId : '0');
+    }
+
+    private function isAdminCompatible(array $payload): bool
+    {
+        $account = strtolower(trim((string)($payload['account'] ?? '')));
+        if (in_array($account, ['superadmin', 'bizadmin', 'tenantadmin'], true)) {
+            return true;
+        }
+
+        foreach ($this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []) as $roleCode) {
+            if (in_array(strtolower($roleCode), ['superadmin', 'bizadmin', 'tenantadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private function isBuiltInRole(array $role): bool
     {
         return in_array(strtolower((string)($role['CODE'] ?? '')), self::BUILD_IN_ROLE_CODES, true);
@@ -560,6 +805,25 @@ class RoleService
     }
 
     /**
+     * @param array<string|int, mixed> $input
+     * @return array<int, string>
+     */
+    private function deleteIds(array $input): array
+    {
+        if (isset($input[0])) {
+            return $this->stringList($input);
+        }
+
+        foreach (['idList', 'ids', 'id', 'roleIds'] as $key) {
+            if (array_key_exists($key, $input)) {
+                return $this->stringList($input[$key]);
+            }
+        }
+
+        return [];
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function grantTree(string $table): array
@@ -648,6 +912,25 @@ class RoleService
         $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function payloadUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    private function newRoleCode(): string
+    {
+        $chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        do {
+            $code = '';
+            for ($i = 0; $i < 10; $i++) {
+                $code .= $chars[random_int(0, strlen($chars) - 1)];
+            }
+            $exists = Db::name('sys_role')->where('CODE', $code)->count() > 0;
+        } while ($exists);
+
+        return $code;
     }
 
     private function newId(): string

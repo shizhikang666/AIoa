@@ -1,4 +1,4 @@
-# RBAC Role Read-Only Compatibility
+# RBAC Role Compatibility
 
 Date: 2026-05-29
 
@@ -6,7 +6,7 @@ Agent: merge-agent
 
 ## Goal
 
-Expose the `/sys/role/*` endpoints used by the existing Vue role management API. The first slice opened read-only endpoints; the 2026-06-11 slice adds role grant save compatibility while keeping role add/edit/delete deferred.
+Expose the `/sys/role/*` endpoints used by the existing Vue role management API. The first slice opened read-only endpoints; the 2026-06-11 slices add role grant save compatibility and role metadata add/edit/delete compatibility.
 
 ## Java Inputs
 
@@ -40,14 +40,6 @@ All routes are protected by `AuthMiddleware`.
 - Organization selector: existing `OrgService`
 - User selector: existing `UserDirectoryService`
 
-## Deferred
-
-- `POST /sys/role/add`
-- `POST /sys/role/edit`
-- `POST /sys/role/delete`
-
-Role metadata mutations still need dedicated validation, built-in role protection, audit logging, and test coverage before implementation.
-
 ## 2026-06-11 Grant Save Compatibility
 
 Agent: main-agent
@@ -70,4 +62,34 @@ Compatibility notes:
 - Permission data-scope categories and custom organization ids are validated before existing grants are changed.
 - Non-built-in roles cannot be granted system-module resources.
 - Built-in roles cannot have all users removed through `grantUser`.
-- This slice does not add role metadata add/edit/delete, route-permission middleware, cache invalidation hooks, or Java data-change events.
+- This slice does not add route-permission middleware, cache invalidation hooks, or Java data-change events.
+
+## 2026-06-11 Role Metadata Write Compatibility
+
+Agent: main-agent with explorer-agent verification
+
+The copied Vue role management page can now create, edit, and delete roles:
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| POST | `/sys/role/add` | Creates `sys_role` rows from `name/category/sortCode/orgId/extJson` and generates a 10-character role `CODE` server-side |
+| POST | `/sys/role/edit` | Updates ordinary roles while preserving `CODE`, create audit fields, and tenant ownership |
+| POST | `/sys/role/delete` | Soft-deletes ordinary roles and removes role relation rows |
+
+Compatibility notes:
+
+- `category` accepts Java-compatible `GLOBAL` and `ORG`; `ORG` requires an active `orgId`, while `GLOBAL` clears `ORG_ID`.
+- Role names are unique within the same `ORG_ID`; global roles are unique where `ORG_ID` is null or empty.
+- `sortCode` is required and must be numeric.
+- `superAdmin` and `tenantAdmin` roles cannot be edited or deleted.
+- Delete accepts Java frontend payloads such as `[{ id }]`, plus `id`, `ids`, `idList`, and `roleIds` aliases.
+- Delete clears `SYS_USER_HAS_ROLE` by `TARGET_ID` and clears `SYS_ROLE_HAS_RESOURCE`, `SYS_ROLE_HAS_MOBILE_MENU`, and `SYS_ROLE_HAS_PERMISSION` by `OBJECT_ID`.
+- Java currently omits `SYS_ROLE_HAS_MOBILE_MENU` cleanup on role delete; ThinkPHP clears it because the PHP compatibility layer now supports mobile-menu grant writes.
+
+Smoke evidence:
+
+- `php -l app/service/auth/RoleService.php`
+- `php -l app/controller/sys/RoleController.php`
+- `php -l route/app.php`
+- `php think route:list` includes `/sys/role/add`, `/sys/role/edit`, and `/sys/role/delete`
+- DB smoke created a temporary global role, rejected duplicate global add, rejected missing `orgId` for `ORG`, edited the role, soft-deleted it, verified four role relation categories were removed, and verified built-in role deletion is rejected

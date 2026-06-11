@@ -24,6 +24,30 @@ class RoleController extends BaseSysController
         return $this->guard(fn () => $this->roleService->detail($this->requiredString($request, 'id')));
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->roleService->add(
+            $this->body($request),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->roleService->edit(
+            $this->body($request),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
+    public function delete(Request $request): Response
+    {
+        return $this->guard(fn () => $this->roleService->delete(
+            $this->body($request),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
     public function ownResource(Request $request): Response
     {
         return $this->guard(fn () => $this->roleService->ownResource($this->requiredString($request, 'id')));
