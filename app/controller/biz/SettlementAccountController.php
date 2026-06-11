@@ -25,6 +25,21 @@ class SettlementAccountController extends BaseSysController
         return $this->guard(fn () => $this->settlementAccountService->list($request->get(), $this->authPayload($request)));
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->settlementAccountService->add($this->body($request), $this->authPayload($request)));
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->settlementAccountService->edit($this->body($request), $this->authPayload($request)));
+    }
+
+    public function editStatus(Request $request): Response
+    {
+        return $this->guard(fn () => $this->settlementAccountService->editStatus($this->body($request), $this->authPayload($request)));
+    }
+
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->settlementAccountService->detail($this->requiredString($request, 'id'), $this->authPayload($request)));
@@ -40,5 +55,29 @@ class SettlementAccountController extends BaseSysController
         $payload = $request->middleware('auth_payload', []);
 
         return is_array($payload) ? $payload : [];
+    }
+
+    private function body(Request $request): array
+    {
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $request->param();
     }
 }

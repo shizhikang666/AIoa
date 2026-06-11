@@ -351,6 +351,9 @@ Route::group('biz/supplier', function () {
 Route::group('biz/settlementaccount', function () {
     Route::get('page', 'biz.SettlementAccountController/page');
     Route::get('list', 'biz.SettlementAccountController/list');
+    Route::post('add', 'biz.SettlementAccountController/add');
+    Route::post('edit', 'biz.SettlementAccountController/edit');
+    Route::post('edit/status', 'biz.SettlementAccountController/editStatus');
     Route::get('detail', 'biz.SettlementAccountController/detail');
     Route::get('queryName', 'biz.SettlementAccountController/queryName');
 })->middleware(AuthMiddleware::class);

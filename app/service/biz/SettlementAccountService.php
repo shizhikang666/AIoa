@@ -8,12 +8,13 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only settlement-account queries compatible with Java SettlementAccountController.
+ * Settlement-account queries and base writes compatible with Java SettlementAccountController.
  */
 class SettlementAccountService
 {
     private const NOT_DELETE = 'NOT_DELETE';
     private const ENABLE = 'ENABLE';
+    private const DISABLED = 'DISABLED';
     private const ACCOUNT_FIELDS = <<<SQL
 a.ID AS ID,
 a.ACCOUNT_NAME AS ACCOUNT_NAME,
@@ -109,6 +110,347 @@ SQL;
         }
 
         return (string)($row['ACCOUNT_NAME'] ?? '');
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $accountName = $this->requiredInput($input, 'accountName');
+        $accountNumber = $this->requiredInput($input, 'accountNumber');
+        $status = $this->accountStatus($input['accountStatus'] ?? self::ENABLE);
+
+        return Db::transaction(function () use ($input, $payload, $accountName, $accountNumber, $status): array {
+            $tenantId = $this->tenantId($input, $payload);
+            $this->assertUniqueAccountName($accountName, $tenantId);
+
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $id = $this->newId();
+            $initialAmount = $this->decimalAmount($input['initialAmount'] ?? 0);
+            $row = [
+                'ID' => $id,
+                'ACCOUNT_NAME' => $accountName,
+                'ACCOUNT_NUMBER' => $accountNumber,
+                'INITIAL_AMOUNT' => $initialAmount,
+                'CURRENT_AMOUNT' => $initialAmount,
+                'ACCOUNT_STATUS' => $status,
+                'SORT_CODE' => $this->nullableInt($input['sortCode'] ?? null),
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId,
+                'VERSION' => 0,
+            ];
+
+            $orgId = $this->nullableString($input['org'] ?? $input['orgId'] ?? null) ?? $this->defaultOrgId($payload);
+            if ($orgId !== null) {
+                $row['org'] = $orgId;
+            }
+            $this->assertNewAccountWritable($row, $payload);
+
+            Db::name('settlement_account')->insert($row);
+
+            return ['id' => $id];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $accountName = $this->requiredInput($input, 'accountName');
+
+        return Db::transaction(function () use ($id, $input, $payload, $accountName): array {
+            $account = $this->assertAccountWritable($id, $payload, 'edit');
+            $tenantId = (string)($account['TENANT_ID'] ?? $this->tenantId($input, $payload));
+            if ($accountName !== (string)($account['ACCOUNT_NAME'] ?? '')) {
+                $this->assertUniqueAccountName($accountName, $tenantId, $id);
+            }
+
+            $row = [
+                'ACCOUNT_NAME' => $accountName,
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => ($this->currentUserId($payload) !== '') ? $this->currentUserId($payload) : null,
+            ];
+            if (array_key_exists('accountStatus', $input)) {
+                $row['ACCOUNT_STATUS'] = $this->accountStatus($input['accountStatus']);
+            }
+            if (array_key_exists('sortCode', $input)) {
+                $row['SORT_CODE'] = $this->nullableInt($input['sortCode']);
+            }
+            if (array_key_exists('org', $input) || array_key_exists('orgId', $input)) {
+                $orgId = $this->nullableString($input['org'] ?? $input['orgId'] ?? null);
+                $this->assertOrgWritable($orgId, $payload);
+                $row['org'] = $orgId;
+            }
+
+            $updated = Db::name('settlement_account')
+                ->where('ID', $id)
+                ->update($row);
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    public function editStatus(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $status = $this->accountStatus($input['accountStatus'] ?? null);
+
+        return Db::transaction(function () use ($id, $status, $payload): array {
+            $this->assertAccountWritable($id, $payload, 'edit status');
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('settlement_account')
+                ->where('ID', $id)
+                ->update([
+                    'ACCOUNT_STATUS' => $status,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                ]);
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    private function assertAccountWritable(string $id, array $payload, string $action): array
+    {
+        $row = $this->activeAccount($id, $payload);
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $accountOrg = trim((string)($row['org'] ?? $row['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $accountOrg !== '' && in_array($accountOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action} this settlement account", 403);
+    }
+
+    private function assertNewAccountWritable(array $row, array $payload): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $accountOrg = trim((string)($row['org'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $accountOrg !== '' && in_array($accountOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to add this settlement account', 403);
+    }
+
+    private function assertOrgWritable(?string $orgId, array $payload): void
+    {
+        if ($orgId === null || $orgId === '' || $this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && in_array($orgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to use this organization', 403);
+    }
+
+    private function activeAccount(string $id, array $payload): array
+    {
+        $query = Db::name('settlement_account')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('settlement account not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertUniqueAccountName(string $accountName, string $tenantId, ?string $ignoreId = null): void
+    {
+        $query = Db::name('settlement_account')
+            ->where('ACCOUNT_NAME', $accountName)
+            ->where('TENANT_ID', $tenantId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException('settlement account name already exists', 400);
+        }
+    }
+
+    private function accountStatus(mixed $value): string
+    {
+        $status = trim((string)$value);
+        if (!in_array($status, [self::ENABLE, self::DISABLED], true)) {
+            throw new RuntimeException('unsupported settlement account status', 400);
+        }
+
+        return $status;
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    private function tenantId(array $input, array $payload): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function defaultOrgId(array $payload): ?string
+    {
+        $orgId = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($orgId !== '') {
+            return $orgId;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId === '') {
+            return null;
+        }
+
+        $user = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->field('ORG_ID')
+            ->find();
+        if (!is_array($user) || $user === []) {
+            return null;
+        }
+
+        $orgId = trim((string)($user['ORG_ID'] ?? ''));
+
+        return $orgId !== '' ? $orgId : null;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function scopeOrgIds(array $payload): array
+    {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            $ids = array_merge($ids, array_map(static function (mixed $scope): string {
+                if (!is_array($scope)) {
+                    return '';
+                }
+
+                return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            }, $scopes));
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? $payload['roleCodeList'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string)$value);
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function nullableInt(mixed $value): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        return (int)$value;
+    }
+
+    private function decimalAmount(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '0.00';
+        }
+        if (!is_numeric($value)) {
+            throw new RuntimeException('invalid amount', 400);
+        }
+
+        return number_format((float)$value, 2, '.', '');
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function accountQuery(array $filters, array $payload, bool $enabledOnly)
