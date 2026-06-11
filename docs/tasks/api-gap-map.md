@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 455 | `php think route:list` concrete route count after public password-recovery captcha, project-rate edit, role grant-save routes, and role add/edit/delete |
-| Endpoints already covered by route path | 427 | Includes read adapters, auth/system routes, index schedule/message routes, user-center self-service routes, user and role grants, role add/edit/delete, status switches, reset-password/delete compatibility, organization and position write compatibility, system module/menu/button/field write compatibility, mobile module/menu/button write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, team-project base maintenance, and selected low-risk writes |
+| Current ThinkPHP routes | 456 | `php think route:list` concrete route count after public password-recovery captcha, project-rate edit, role grant-save routes, role add/edit/delete, and system process-config edit |
+| Endpoints already covered by route path | 428 | Includes read adapters, auth/system routes, index schedule/message routes, sys process-config edit, user-center self-service routes, user and role grants, role add/edit/delete, status switches, reset-password/delete compatibility, organization and position write compatibility, system module/menu/button/field write compatibility, mobile module/menu/button write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, team-project base maintenance, and selected low-risk writes |
 | Missing read/selector/report candidates | 68 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 107 | Add/edit/audit/import/export/workflow/finance/stock actions; sys role grant saves, sys role add/edit/delete, sys module/menu/button/field write compatibility, mobile module/menu/button write compatibility, dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, sale-project invoicing complete, project-rate edit, and team-project base maintenance moved out of deferred scope |
+| Deferred write/side-effect candidates | 106 | Add/edit/audit/import/export/workflow/finance/stock actions; sys process-config edit, sys role grant saves, sys role add/edit/delete, sys module/menu/button/field write compatibility, mobile module/menu/button write compatibility, dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, sale-project invoicing complete, project-rate edit, and team-project base maintenance moved out of deferred scope |
 
 ## Already Covered Route Groups
 
@@ -31,7 +31,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | Group | Current Coverage |
 | --- | --- |
 | `auth` | Login, logout, current user, token/session reads |
-| `sys/index` | User info, menu, permissions, dashboard basics |
+| `sys/index` and `sys/sysConfig` | User info, menu, permissions, dashboard basics, and process-config detail/edit |
 | `sys/org` | Tree, selector, page/detail style reads plus base add/edit/delete |
 | `sys/user` | User page/detail/list style reads, selectors, own-role, own-resource, own-permission, delete, grant saves, reset password, enable/disable status switches, and export/download blobs |
 | `sys/position` | Position page/list/detail/selector reads plus base add/edit/delete |
@@ -93,7 +93,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page`, and `complete` covered; add/edit/delete remain deferred |
 | `biz/saleprojectinvoiceItem` | `page` covered; invoice item writes remain deferred |
 | `biz/projectrate` | `page`, `list`, `detail`, `add`, `edit`, and `delete` covered; file upload/storage remains deferred |
-| `biz/saleprojectreissueorder` | `list/query` |
+| `biz/saleprojectreissueorder` | `list/query` covered; reissue-order writes remain deferred |
 | `biz/saleprojectproductitemrelation` | `list` and `mark/edit` covered |
 | `biz/bizteamproject` | `page`, `detail`, `add`, `edit`, and `delete` covered; notification/data-change side effects remain deferred |
 | `biz/bizteamprojectcomment` | `page`, `list`, `detail`, `add`, and `delete` covered; notification/data-change side effects remain deferred |

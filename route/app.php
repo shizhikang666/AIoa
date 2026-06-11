@@ -82,6 +82,7 @@ Route::group('sys/index', function () {
 
 Route::group('sys/sysConfig', function () {
     Route::get('detail', 'sys.SysConfigController/detail');
+    Route::post('edit', 'sys.SysConfigController/edit');
 })->middleware(AuthMiddleware::class);
 
 Route::group('sys/org', function () {
