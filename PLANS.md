@@ -1390,7 +1390,7 @@ Add old-frontend-compatible read-only collection-receipt endpoints for received-
 
 ### 4. Risks
 
-- Java mark-success and batch-expenditure methods mutate settlement state and expenditure records, so they must remain deferred.
+- Java mark-success is now covered as a single-table status update; batch-expenditure mutates expenditure records and settlement-account side effects, so it remains deferred.
 - Java add/edit/delete/detail mappings are commented out in the analyzed controller, while the old frontend still has a detail wrapper; this slice exposes detail only as a read-only compatibility endpoint.
 - `route/app.php` is locked and must only receive documented protected read-only routes.
 
@@ -1407,8 +1407,9 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 
 ### 6. Acceptance Criteria
 
-- Only read-only `/biz/bizcollectionreceipt/page`, `/biz/bizcollectionreceipt/list`, and `/biz/bizcollectionreceipt/detail` routes are added.
-- No collection-receipt add/edit/delete/mark-success/batch-expenditure route is added.
+- Read-only `/biz/bizcollectionreceipt/page`, `/biz/bizcollectionreceipt/list`, and `/biz/bizcollectionreceipt/detail` routes are available.
+- `POST /biz/bizcollectionreceipt/mark/success/edit` is now available as a single-table status update.
+- No collection-receipt add/edit/delete/batch-expenditure route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
 
@@ -8418,3 +8419,63 @@ git diff --check
 ### 7. Forbidden Scope
 
 - Do not implement `/biz/dict/add`, `/biz/dict/delete`, `/dev/dict` writes, dictionary cache invalidation parity, frontend source changes, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated business writes.
+
+## Completed Plan: merge-agent - Collection Receipt Mark-Success Compatibility
+
+Status: completed on 2026-06-11 after explorer review, route registration, PHP lint, and DB smoke.
+
+### 1. Current Goal
+
+Add old-frontend-compatible collection-receipt mark-success endpoint:
+
+- `POST /biz/bizcollectionreceipt/mark/success/edit`
+
+This slice mirrors Java `BizCollectionReceiptServiceImpl.markSettlement(String id)` as a single-table settlement-status marker.
+
+### 2. Involved Modules
+
+- `biz/bizcollectionreceipt` route/controller/service
+- copied frontend `snowy-admin-web/src/api/biz/bizCollectionReceiptApi.js`
+- Java source remains read-only under `F:\AI\projects\testJava\OA`
+
+### 3. Involved Files
+
+- `app/service/biz/CollectionReceiptService.php`
+- `app/controller/biz/CollectionReceiptController.php`
+- `route/app.php`
+- `docs/api/biz-collection-receipt-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- `batchExpenditure` creates expenditure and settlement-account side effects and remains deferred.
+- This mark-success route must not update settlement account balances, statements, payment records, expenditure records, receipt amount, or settlement amount.
+- Write access must stay tenant-scoped and guarded by admin-compatible role, payment-record organization scope, or creator ownership.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\CollectionReceiptService.php
+php -l app\controller\biz\CollectionReceiptController.php
+php -l route\app.php
+php think route:list
+git diff --check
+```
+
+Focused DB smoke was run through ThinkPHP bootstrap using the user-designated local MySQL/Redis runtime.
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizcollectionreceipt/mark/success/edit` is registered behind `AuthMiddleware`.
+- Controller accepts form POST, raw JSON, and request parameter payloads.
+- Service validates `id`, finds only active current-tenant receipts, and rejects unauthorized writes.
+- Service sets only `PLAY_STATUS = AlreadySettled`, `UPDATE_TIME`, `UPDATE_USER`, and `VERSION = VERSION + 1`.
+- DB smoke verifies missing-id `400`, non-admin `403`, version increment, unchanged amount/payment fields, and no account/statement/payment/expenditure side effects.
+
+### 7. Forbidden Scope
+
+- Do not implement `batchExpenditure`, collection-receipt add/edit/delete, settlement-account balance changes, expenditure-record creation, frontend changes, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated finance writes in this slice.

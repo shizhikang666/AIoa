@@ -1,8 +1,8 @@
-# Biz Collection Receipt Read-Only Compatibility
+# Biz Collection Receipt Compatibility
 
 ## Scope
 
-This slice adds read-only ThinkPHP compatibility endpoints for the old Java collection-receipt APIs used by the Vue OA frontend.
+This document tracks ThinkPHP compatibility endpoints for the old Java collection-receipt APIs used by the Vue OA frontend.
 
 Java source analyzed:
 
@@ -25,13 +25,28 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizcollectionreceipt/page` | Paginated collection-receipt list. |
 | GET | `/biz/bizcollectionreceipt/list` | Non-paginated collection-receipt list. |
 | GET | `/biz/bizcollectionreceipt/detail` | Read-only detail lookup for old frontend compatibility. |
+| POST | `/biz/bizcollectionreceipt/mark/success/edit` | Marks one collection receipt as settled. |
+
+## Write Compatibility
+
+`POST /biz/bizcollectionreceipt/mark/success/edit` accepts a Java-compatible body containing `id`.
+
+The ThinkPHP implementation intentionally matches Java `BizCollectionReceiptServiceImpl.markSettlement(String id)` as a single-table update:
+
+- validates that `id` is present;
+- checks the target receipt in the current tenant;
+- allows admin-compatible users, matching scoped organization access through the linked payment record, or the original creator;
+- sets `biz_collection_receipt.PLAY_STATUS` to `AlreadySettled`;
+- refreshes `UPDATE_TIME` and `UPDATE_USER`;
+- increments `VERSION` to match the Java entity's optimistic-lock field behavior.
+
+It does not update `AMOUNT`, `SETTLEMENT_AMOUNT`, `PAYMENT_RECORD_ID`, settlement account balances, settlement account statements, payment records, or expenditure records.
 
 ## Explicitly Deferred Routes
 
-These Java/frontend routes are not implemented in this slice because they mutate settlement state, expenditure records, or collection receipt records:
+These Java/frontend routes are not implemented in this slice because they mutate expenditure records, collection receipt records, or settlement-account side effects beyond the single Java mark-settlement update:
 
 - `POST /biz/bizcollectionreceipt/batchExpenditure/edit`
-- `POST /biz/bizcollectionreceipt/mark/success/edit`
 - `POST /biz/bizcollectionreceipt/add`
 - `POST /biz/bizcollectionreceipt/edit`
 - `POST /biz/bizcollectionreceipt/delete`
@@ -87,5 +102,5 @@ Rows return frontend-friendly camelCase fields:
 ## Notes
 
 - The Java controller comments out add, edit, delete, and detail mappings. The old frontend still has a `detail` wrapper, so ThinkPHP exposes only a protected read-only detail endpoint.
-- Java's mark-settlement and batch-expenditure flows update settlement state and create/update expenditure data. They require a later transaction design before implementation.
-- This slice does not modify Java source, database schema, Composer files, `.env`, or any write endpoint.
+- Java's batch-expenditure flow creates expenditure data and account-side settlement records. It still requires a later transaction design before implementation.
+- This slice does not modify Java source, database schema, Composer files, `.env`, or any account/statement/expenditure side-effect endpoint.

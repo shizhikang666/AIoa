@@ -2578,7 +2578,7 @@ Agent: api-agent
 
 ### Current Issues
 
-- Collection-receipt mark-success and batch-expenditure flows mutate settlement state and expenditure records. Those routes need a later transaction design before implementation.
+- Collection-receipt mark-success is now covered as a single-table status update; batch-expenditure still mutates expenditure records and settlement-account side effects and needs a later transaction design.
 - Customer-related reads remain deferred until the SM4 encrypted-field strategy is documented.
 
 ### Next Plan
@@ -7720,3 +7720,48 @@ Agent: api-agent
 ### Next Plan
 
 - Main merge/coordinator can review and commit when ready.
+
+## 2026-06-11 15:55 +08:00 - merge-agent - Collection Receipt Mark-Success Compatibility
+
+### Completed
+
+- Continued in real multi-Agent mode: the main merge/coordinator implemented and accepted the slice, while explorer Agent `019eb59c-47f3-79e0-8951-984177410965` verified the Java behavior and side-effect boundary.
+- Added Java-compatible `POST /biz/bizcollectionreceipt/mark/success/edit`.
+- Matched Java `BizCollectionReceiptServiceImpl.markSettlement(String id)` as a single-table update:
+  - requires `id`;
+  - checks current tenant and write scope;
+  - sets `PLAY_STATUS = AlreadySettled`;
+  - updates `UPDATE_TIME` and `UPDATE_USER`;
+  - increments `VERSION`.
+- Kept batch expenditure, add, edit, and delete deferred because they require expenditure-record, settlement-account, or broader transactional side-effect handling.
+
+### Modified Files
+
+- `app/service/biz/CollectionReceiptService.php`
+- `app/controller/biz/CollectionReceiptController.php`
+- `route/app.php`
+- `docs/api/biz-collection-receipt-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\biz\CollectionReceiptService.php`: passed.
+- `php -l app\controller\biz\CollectionReceiptController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists `POST /biz/bizcollectionreceipt/mark/success/edit`.
+- DB smoke marked one imported collection receipt as settled, verified `PLAY_STATUS`, unchanged amount/payment fields, `VERSION` increment, no settlement-account/statement/payment/expenditure side effects, restored the original row, and verified missing-id `400` plus non-admin `403`.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- `POST /biz/bizcollectionreceipt/batchExpenditure/edit`, collection-receipt add/edit/delete, and related finance side effects remain deferred.
+- Debit-note mark-success remains deferred because that module's Java behavior includes payment/settlement-account side-effect paths.
+
+### Next Plan
+
+- Commit this collection-receipt mark-success compatibility slice.
+- Continue with the next true low-risk write or browser-visible compatibility gap, not scanner false positives.

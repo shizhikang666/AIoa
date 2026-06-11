@@ -376,6 +376,7 @@ Route::group('biz/bizcollectionreceipt', function () {
     Route::get('page', 'biz.CollectionReceiptController/page');
     Route::get('list', 'biz.CollectionReceiptController/list');
     Route::get('detail', 'biz.CollectionReceiptController/detail');
+    Route::post('mark/success/edit', 'biz.CollectionReceiptController/markSuccess');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizdebitnote', function () {
