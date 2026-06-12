@@ -3,6 +3,7 @@
 </template>
 
 <script setup name="Editor">
+	import fileApi from '@/api/dev/fileApi'
 	import Editor from '@tinymce/tinymce-vue'
 	import tinymce from 'tinymce/tinymce'
 	import 'tinymce/themes/silver'
@@ -71,14 +72,12 @@
 			return new Promise((resolve, reject) => {
 				const param = new FormData()
 				param.append('file', blobInfo.blob(), blobInfo.filename())
-				props
-					.fileUploadFunction(param)
-					.then((data) => {
-						return resolve(data)
-					})
-					.catch((err) => {
-						return reject('err:' + err)
-					})
+				const uploadPromise = props.fileUploadFunction
+					? props.fileUploadFunction(param)
+					: fileApi.fileUploadDynamicReturnUrl(param)
+				uploadPromise
+					.then((data) => resolve(data))
+					.catch((err) => reject('err:' + err))
 			})
 		},
 		setup: (editor) => {

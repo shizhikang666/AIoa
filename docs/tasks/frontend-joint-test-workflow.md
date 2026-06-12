@@ -200,9 +200,34 @@ Cleanup:
 - The temporary physical file under `runtime/upload/dev_file` was removed.
 - A database back-check confirmed no `CODEX_RICHTEXT_*` `dev_file` rows remained.
 
-Known boundary:
+Follow-up coverage:
 
-- `snowy-admin-web/src/views/exm/editor/index.vue` still uses the old `components/Editor` wrapper without passing `fileUploadFunction`; if that sample page is exposed as a real route, add the same default upload fallback used by `components/XnEditor`.
+- The old `components/Editor` default upload fallback was covered on 2026-06-12; see `Browser Old Editor Fallback Smoke, 2026-06-12`.
+
+## Browser Old Editor Fallback Smoke, 2026-06-12
+
+Coordinator plus sub-agent mode was used. Einstein checked the copied TinyMCE wrappers and fallback behavior, Bernoulli checked old `components/Editor` consumers and route exposure, and the main session implemented the compatibility change plus browser verification.
+
+Runtime:
+
+- Backend: `http://127.0.0.1:82`
+- Frontend: `http://127.0.0.1:83`
+- Login credentials came from the ignored project `.env`.
+
+Verified:
+
+- Page path: `/exm/editor`.
+- The smoke used a minimal temporary browser `MENU` cache because the sample editor page is not exposed by the imported local admin menu.
+- The temporary dynamic route loaded `snowy-admin-web/src/views/exm/editor/index.vue`, which mounts the old wrapper from `snowy-admin-web/src/components/Editor/index.vue` without passing `fileUploadFunction`.
+- TinyMCE image upload fell back to `POST /api/dev/file/uploadDynamicReturnUrl`.
+- The upload handler returned a Java-compatible `/api/dev/file/download?id=<id>` URL.
+- Browser console had no blocking error during the smoke.
+
+Cleanup:
+
+- The uploaded row was first deleted through `POST /dev/file/delete`.
+- The temporary `dev_file` row was hard-deleted after the smoke back-check.
+- The temporary physical file under `runtime/upload/dev_file` was removed.
 
 ## Team Project Base HTTP Smoke, 2026-06-08
 
