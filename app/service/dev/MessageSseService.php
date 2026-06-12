@@ -32,6 +32,12 @@ class MessageSseService
                 'msg' => 'ok',
                 'data' => 'FlushMessageNotice',
             ]),
+            $this->event([
+                'code' => 200,
+                'message' => 'ok',
+                'msg' => 'ok',
+                'data' => 'FlushProcessNotice',
+            ]),
             ': heartbeat ' . date('c') . "\n\n",
         ]);
 

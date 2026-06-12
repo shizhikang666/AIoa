@@ -310,6 +310,7 @@ This slice adapts only the copied layout message panel's SSE client to the curre
 - Short-lived disconnects retry every 30 seconds instead of every 5 seconds.
 - The retry loop stops after 3 short-lived disconnects and logs a compatibility-mode warning instead of continuously treating the short stream as a hard error.
 - Reconnect requests use the latest stored `CLIENTID`.
+- The backend compatibility stream now emits both `FlushMessageNotice` and `FlushProcessNotice` once on connect, so the existing layout handlers refresh message and task counts without adding long-lived push.
 
 ### Verification
 
@@ -320,7 +321,7 @@ This slice adapts only the copied layout message panel's SSE client to the curre
 ### Deferred
 
 - Full Redis/queue-backed realtime push remains deferred.
-- Message send/delete/read-state write routes remain deferred.
+- Long-lived process/message push, Redis pub/sub fanout, and workflow-triggered realtime events remain deferred.
 
 ## 2026-06-03 Sys User Grant Echo Read-Only Compatibility
 

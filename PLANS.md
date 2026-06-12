@@ -8895,3 +8895,40 @@ Reduce repeated context loading and token usage for future continuations without
 - No business code, route behavior, frontend source, database schema, Composer files, `.env`, or Java source files are changed.
 - Future conversations have one clear low-token workflow entry point.
 - Quality gates remain explicit and risk-based.
+
+## Completed Plan: merge-agent - Message SSE Process Notice Compatibility
+
+Status: completed on 2026-06-12 after Java/frontend SSE behavior review, minimal service update, PHP lint, and service smoke.
+
+### 1. Current Goal
+
+Make the existing `/dev/message/createSseConnect` compatibility stream refresh both message and task counts in the copied layout panel without adding a standalone task SSE route.
+
+### 2. Involved Files
+
+- `app/service/dev/MessageSseService.php`
+- `docs/api/dev-message-sse-compat-plan.md`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Findings
+
+- Java `BizTaskController` imports `SseEmitter` but does not expose `/biz/task/sse/stream`.
+- The copied frontend `bizTaskApi.sse()` wrapper exists, but no active caller was found.
+- The active layout EventSource is `/dev/message/createSseConnect`, and it refreshes tasks when it receives `FlushProcessNotice`.
+
+### 4. Acceptance Criteria
+
+- The existing short-lived SSE response still returns `text/event-stream`.
+- The response emits the initial `code = 0` client-id payload.
+- The response emits both `FlushMessageNotice` and `FlushProcessNotice`.
+- No route, frontend, database, Redis, queue, or workflow write behavior is changed.
+
+### 5. Forbidden Scope
+
+- Do not add `/biz/task/sse/stream`, `approve`, `reject`, workflow start/cancel, Redis pub/sub, long-lived loops, frontend source changes, database writes, Java source changes, Composer changes, or `.env` changes in this slice.

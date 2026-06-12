@@ -65,3 +65,5 @@ All routes are protected by `AuthMiddleware`.
 - All process start/edit routes
 - Java delegate side effects
 - Long-lived task SSE or Redis workflow push
+
+Note: Java `BizTaskController` does not currently expose `/biz/task/sse/stream`; the copied frontend wrapper contains `sse()` but no active caller was found. Layout task refresh currently flows through `/dev/message/createSseConnect` and the `FlushProcessNotice` SSE payload.

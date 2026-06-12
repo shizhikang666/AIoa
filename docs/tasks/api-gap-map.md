@@ -85,7 +85,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/position` | `detail`, `list`, `orgTreeSelector`, `page`, `positionSelector`, `add`, `edit`, and `delete` |
 | `biz/dict` | `page`, `tree`, `treeAll`, and Java-compatible `edit` covered; business add/delete remain intentionally absent like Java |
 | `biz/process` | Read aliases added for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and `query/list`; write/start/cancel routes remain deferred |
-| `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
+| `biz/task` | `runtime/activity/detail` added; standalone `sse/stream`, `approve`, and `reject` remain deferred. Java `BizTaskController` does not currently expose `/biz/task/sse/stream`, and no active copied frontend caller was found; layout task refresh is covered through `/dev/message/createSseConnect` `FlushProcessNotice` |
 | `biz/bizuservacation` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `biz/ccrecords` | `page`, `detail`, and `delete` covered; add/edit and workflow copy-generation remain deferred |
 | `biz/bizdraft` | `detail` and `saleproject/add` covered |
@@ -121,13 +121,13 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/customerfollowup` | Attachment upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file side effects remain deferred |
 | `biz/org`, `biz/user`, `biz/position`, `biz/dict` | business user import, real Office export rendering, resource/permission grants, business dictionary add/delete | `/biz/org/add`, `/biz/org/edit`, `/biz/org/delete`, `/biz/position/add`, `/biz/position/edit`, `/biz/position/delete`, `/biz/user/add`, `/biz/user/edit`, `/biz/user/center/edit`, `/biz/user/delete`, `/biz/user/grantRole`, `/biz/user/disableUser`, `/biz/user/enableUser`, `/biz/user/resetPassword`, `/biz/user/export`, `/biz/user/exportUserInfo`, and `/biz/dict/edit` are covered; `/dev/dict/add|edit|delete` cover BIZ maintenance; `/sys/user/import` covers Java system user import; business user import remains intentionally absent like Java; real `.docx` rendering and business dictionary add/delete remain deferred |
 | `biz/process` | `leave/start`, `payment/start`, `procure/start`, project start actions, `cancel` | Workflow runtime and business hooks |
-| `biz/task` | `approve`, `reject` | Workflow transitions and audit records |
+| `biz/task` | `approve`, `reject`, standalone `sse/stream` if a real caller appears | Workflow transitions and audit records; current layout task refresh uses `/dev/message/createSseConnect` |
 | `dev/file` | cloud `upload*`, physical file cleanup | LOCAL/dynamic upload, public local download, metadata logical delete, and business relation binding are covered; cloud storage and optional physical cleanup still need dedicated plans |
 | `biz/settlementaccount` | `delete`, `expenses/add`, `payment/add`, `transfer/add` | Settlement-account base add/edit/status is covered; delete is absent in Java controller and quick income/expense/transfer mutate account balance, statements, and payment/expenditure records |
 | `dev/config` | `editBatch`, `SYS_BASE` writes, provider/system config cache mutation | `BIZ_DEFINE` add/edit/delete are covered with Java-style success envelopes, malformed delete payload rejection, sensitive-mask preservation, and logical delete |
 | `dev/log` | Cross-tenant/global clear behavior | Category delete is covered with physical deletion and current-tenant protection when the token payload has a tenant id; Java clears globally by category |
 | `dev/job` | `add`, `edit`, `stopJob`, `runJob`, `runJobNow`, scheduler lifecycle | Metadata delete is covered as logical delete with malformed-payload protection; scheduler stop/remove behavior remains deferred until a ThinkPHP scheduler exists |
-| `dev/message` | Full realtime push | User-center/index detail mark-read, homepage all-mark-read, minimal SSE compatibility, message send, and message delete are covered; full SSE/WebPush parity remains deferred |
+| `dev/message` | Full realtime push | User-center/index detail mark-read, homepage all-mark-read, minimal SSE compatibility with initial message/process refresh notices, message send, and message delete are covered; full SSE/WebPush parity remains deferred |
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | payroll add, import/export, and generate actions; leave add; invoicing add/edit/delete | Payroll import-template download, edit/batch-edit/delete, leave-application edit/delete, and invoicing complete are covered; generation, import/export, leave balance, workflow, and broader business side effects remain deferred |
 | `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
 | `biz/bizproduct` | Inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and data-change/cache side effects | Product base add/edit/delete, kit relation maintenance, status toggle, and reconciliation edits are covered |
@@ -158,7 +158,7 @@ The frontend still references several auth monitoring and third-party routes:
 1. frontend-agent: document and fix visible org/user field-display and dictionary-label compatibility, with backend changes only if the route output shape is confirmed.
 2. api-agent: add safe read-only `biz/saleproject` and `biz/customer` routes in small slices.
 3. user-agent: add `biz/org`, `biz/user`, `biz/position`, and `biz/dict` selector/read aliases where they overlap with existing system data.
-4. workflow-agent: review task SSE stream and workflow write actions only after the read-only workflow pages are stable.
+4. workflow-agent: review approve/reject and workflow write actions only after the read-only workflow pages are stable; revisit standalone task SSE only if a real Java route or active frontend caller appears.
 5. test-agent/frontend-agent: browser-smoke copied upload controls now that `/dev/file/upload*` and `/biz/bizfilerelation/add` are both covered.
 6. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
 

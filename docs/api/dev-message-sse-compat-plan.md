@@ -86,12 +86,14 @@ Initial behavior is conservative:
 - accept optional `clientId`;
 - return `text/event-stream`;
 - send one initial event with `code = 0` and the effective `clientId`;
-- send a lightweight compatible message event for `FlushMessageNotice`;
+- send lightweight compatible message events for `FlushMessageNotice` and `FlushProcessNotice`;
 - send a heartbeat comment;
 - avoid mutation of message records;
 - avoid implementing broadcast/push writes until workflow/message mutation modules are ready.
 
 The response is short-lived by design. A persistent PHP SSE loop could block the local `php think run` development server, so full long-lived realtime behavior is deferred to a later runtime design.
+
+2026-06-12 update: the short-lived ThinkPHP stream now emits both initial refresh notices. `FlushMessageNotice` refreshes the layout message count, and `FlushProcessNotice` refreshes the layout task count. This does not add Redis pub/sub, long-lived push, workflow writes, or database mutation.
 
 ## Deferred Behavior
 

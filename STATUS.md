@@ -8116,3 +8116,49 @@ Agent: api-agent
 
 - Commit this process optimization.
 - Resume implementation with the next small slice, likely task SSE compatibility, using the lean startup and risk-based quality gates.
+
+## 2026-06-12 13:38 +08:00 - merge-agent - Message SSE Process Notice Compatibility
+
+### Completed
+
+- Used the lean workflow single-conversation fallback because sub-Agent quota was unavailable in the prior SSE explorer attempt.
+- Rechecked Java and frontend behavior before implementing:
+  - Java `BizTaskController` does not expose `/biz/task/sse/stream`.
+  - copied `bizTaskApi.sse()` exists but no active frontend caller was found.
+  - the real layout EventSource is `/dev/message/createSseConnect`.
+  - the layout task count refreshes on `FlushProcessNotice`.
+- Updated the existing short-lived SSE compatibility stream to emit both:
+  - `FlushMessageNotice`
+  - `FlushProcessNotice`
+- Kept standalone task SSE, workflow approve/reject, Redis pub/sub, long-lived push, and workflow side effects deferred.
+
+### Modified Files
+
+- `app/service/dev/MessageSseService.php`
+- `docs/api/dev-message-sse-compat-plan.md`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\dev\MessageSseService.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists existing `GET /dev/message/createSseConnect`; no `/biz/task/sse/stream` route was added.
+- `MessageSseService` response smoke: passed with `text/event-stream`, `code = 0`, `FlushMessageNotice`, and `FlushProcessNotice`.
+- `git diff --check`: passed with CRLF conversion warnings only.
+
+### Current Issues
+
+- Full realtime push remains deferred.
+- `/biz/task/approve`, `/biz/task/reject`, and workflow start/cancel remain deferred.
+- `/biz/task/sse/stream` remains deferred because no Java route or active frontend caller was confirmed.
+
+### Next Plan
+
+- Run the targeted checks and commit this SSE compatibility refinement.
+- Continue with the next low-risk frontend-visible gap after checking Java/frontend/PHP scope.

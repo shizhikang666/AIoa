@@ -985,3 +985,25 @@ Explicit non-goals:
 - No Composer or `.env` changes.
 - No Java source changes.
 
+## 2026-06-12 Message SSE Process Notice Compatibility
+
+Agent: merge-agent / workflow-agent fallback
+
+Execution summary:
+
+1. Reviewed Java `BizTaskController` and confirmed it does not expose `/biz/task/sse/stream`.
+2. Reviewed copied frontend task API and layout message panel; the active EventSource path is `/dev/message/createSseConnect`.
+3. Confirmed the layout task refresh handler listens for `FlushProcessNotice`.
+4. Updated `MessageSseService` so the existing short-lived compatibility stream emits both `FlushMessageNotice` and `FlushProcessNotice`.
+5. Updated SSE/workflow/gap/progress docs to keep standalone `/biz/task/sse/stream` deferred unless a real caller appears.
+
+Explicit non-goals:
+
+- No `/biz/task/sse/stream` route.
+- No task approve/reject.
+- No workflow start/cancel.
+- No long-lived SSE loop.
+- No Redis pub/sub fanout.
+- No frontend source changes.
+- No database writes, Java source changes, Composer changes, or `.env` changes.
+
