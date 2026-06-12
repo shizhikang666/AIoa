@@ -7809,3 +7809,57 @@ Agent: api-agent
 
 - Commit this debit-note mark-success compatibility slice.
 - Continue with payroll `edit`, `bath/edit`, and `delete` as a separate low-risk DB write slice.
+
+## 2026-06-12 08:29 +08:00 - merge-agent - Payroll Edit Batch-Edit Delete Compatibility
+
+### Completed
+
+- Continued in real multi-Agent mode: the main merge/coordinator implemented and accepted the slice using the payroll explorer report as the Java behavior reference.
+- Added Java-compatible payroll write endpoints:
+  - `POST /biz/bizpayroll/edit`
+  - `POST /biz/bizpayroll/bath/edit`
+  - `POST /biz/bizpayroll/delete`
+- Matched the low-risk Java behavior boundary:
+  - `edit` updates only Java `BizPayrollEditParam` fields.
+  - `bath/edit` validates all ids before writing and rejects duplicate ids.
+  - `delete` performs staged logical delete with `DELETE_FLAG = DELETED`.
+- Preserved non-edit fields such as `POST_WAGE`, `YEAR_END_BONUS`, `PUBLIC_ACCOUNT`, `PRIVATE_ACCOUNT`, `REMARK`, `USER`, `ORG`, and `SALARY_TIME`.
+- Kept payroll add, generate, import, export, and template download deferred.
+
+### Modified Files
+
+- `app/service/biz/BizPayrollService.php`
+- `app/controller/biz/BizPayrollController.php`
+- `route/app.php`
+- `docs/api/biz-payroll-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\biz\BizPayrollService.php`: passed.
+- `php -l app\controller\biz\BizPayrollController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists the three payroll write routes.
+- Focused DB smoke with temporary payroll rows passed:
+  - `edit` updated editable salary fields.
+  - non-edit payroll fields were preserved.
+  - `bath/edit` updated two rows.
+  - missing-id batch edit failed before changing existing rows.
+  - non-admin out-of-scope edit returned `403`.
+  - `delete` set `DELETE_FLAG = DELETED` and hid the row from `detail`.
+  - temporary smoke rows were physically cleaned up.
+
+### Current Issues
+
+- Payroll `add`, `generate/add`, `import`, `export`, and `downloadImportTemplate` remain deferred.
+- Broader payroll calculation, Excel parsing/rendering, and workflow/business side effects remain out of scope.
+
+### Next Plan
+
+- Commit this payroll compatibility slice.
+- Continue with the next low-risk backend slice after reviewing Java behavior through a scoped worker.

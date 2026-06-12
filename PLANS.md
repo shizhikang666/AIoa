@@ -8540,3 +8540,68 @@ Focused DB smoke was run through ThinkPHP bootstrap using the user-designated lo
 ### 7. Forbidden Scope
 
 - Do not implement `history/add`, `batchRepayment/edit`, debit-note add/edit/delete, settlement-account balance changes, payment-record creation, frontend changes, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated finance writes in this slice.
+
+## Completed Plan: merge-agent - Payroll Edit Batch-Edit Delete Compatibility
+
+Status: completed on 2026-06-12 after payroll explorer review, route registration, PHP lint, route-list verification, and DB smoke with temporary-row cleanup.
+
+### 1. Current Goal
+
+Add old-frontend-compatible payroll low-risk write endpoints:
+
+- `POST /biz/bizpayroll/edit`
+- `POST /biz/bizpayroll/bath/edit`
+- `POST /biz/bizpayroll/delete`
+
+This slice mirrors Java `BizPayrollServiceImpl.edit`, `bathEdit`, and `delete` for base payroll rows only.
+
+### 2. Involved Modules
+
+- `biz/bizpayroll` route/controller/service
+- copied frontend `snowy-admin-web/src/api/biz/bizPayrollApi.js`
+- Java source remains read-only under `F:\AI\projects\testJava\OA`
+
+### 3. Involved Files
+
+- `app/service/biz/BizPayrollService.php`
+- `app/controller/biz/BizPayrollController.php`
+- `route/app.php`
+- `docs/api/biz-payroll-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Payroll generation, import, and export are broader flows and remain deferred.
+- `edit` and `bath/edit` must update only Java `BizPayrollEditParam` fields.
+- Batch edit must validate all ids before writing to avoid partial updates.
+- Delete uses logical `DELETE_FLAG = DELETED` for staged refactor safety.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\BizPayrollService.php
+php -l app\controller\biz\BizPayrollController.php
+php -l route\app.php
+php think route:list
+git diff --check
+```
+
+Focused DB smoke was run through ThinkPHP bootstrap using the user-designated local MySQL/Redis runtime.
+
+### 6. Acceptance Criteria
+
+- All three payroll write routes are registered behind `AuthMiddleware`.
+- Controller accepts form POST, raw JSON, and request parameter payloads.
+- `edit` updates only Java edit fields and preserves non-edit fields such as `POST_WAGE`, `YEAR_END_BONUS`, `PUBLIC_ACCOUNT`, `PRIVATE_ACCOUNT`, `REMARK`, `USER`, `ORG`, and `SALARY_TIME`.
+- `bath/edit` accepts `{ list: [...] }`, rejects missing or duplicate ids, and validates the full batch before any update.
+- `delete` accepts Java-style `[{ id }]` payloads and logically deletes active rows.
+- DB smoke verifies field preservation, batch update, missing-id rollback behavior, non-admin `403`, deleted-detail hiding, and temporary-row cleanup.
+
+### 7. Forbidden Scope
+
+- Do not implement payroll `add`, `generate/add`, `import`, `export`, `downloadImportTemplate`, Java source changes, database schema changes, Composer changes, `.env` changes, frontend changes, or unrelated workflow/business side effects in this slice.

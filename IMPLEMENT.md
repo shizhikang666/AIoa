@@ -844,3 +844,28 @@ Explicit non-goals:
 - No dictionary cache invalidation parity with Java.
 - No frontend source, Java source, database schema, Composer, `.env`, workflow, finance, stock, file storage, or unrelated business changes.
 
+## 2026-06-12 Payroll Edit Batch-Edit Delete Implementation
+
+Agent: merge-agent / api-agent
+
+Execution summary:
+
+1. Used the payroll explorer result for Java behavior: `/edit` copies Java `BizPayrollEditParam` into the row, `/bath/edit` validates all ids then batch-updates, and `/delete` removes rows through Java logical-delete behavior.
+2. Added protected `POST /biz/bizpayroll/edit`, `POST /biz/bizpayroll/bath/edit`, and `POST /biz/bizpayroll/delete`.
+3. Added controller body parsing for form POST, raw JSON, and request parameters.
+4. Added `BizPayrollService::edit`, `bathEdit`, and `delete`.
+5. Limited edit writes to Java edit fields only, preserving non-edit payroll fields such as `POST_WAGE`, `YEAR_END_BONUS`, `PUBLIC_ACCOUNT`, `PRIVATE_ACCOUNT`, `REMARK`, `USER`, `ORG`, and `SALARY_TIME`.
+6. Added batch validation for missing and duplicate ids before any update.
+7. Added logical delete via `DELETE_FLAG = DELETED`.
+8. Added tenant-scoped write guards for admin-compatible users, data-scope organization rows, current-user rows, and creator-owned rows.
+9. Updated payroll API docs, API gap map, progress dashboard, new-conversation bootstrap notes, implementation notes, and active plan status.
+
+Explicit non-goals:
+
+- No payroll add.
+- No payroll generate/add.
+- No payroll import/export.
+- No payroll download template.
+- No payroll calculation logic.
+- No workflow, notification, finance, data-change event, Java source, database schema, Composer, `.env`, frontend source, or unrelated business module changes.
+

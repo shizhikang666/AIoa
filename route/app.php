@@ -620,6 +620,9 @@ Route::group('biz/bizpayroll', function () {
     Route::get('page', 'biz.BizPayrollController/page');
     Route::get('mypage', 'biz.BizPayrollController/myPage');
     Route::get('detail', 'biz.BizPayrollController/detail');
+    Route::post('edit', 'biz.BizPayrollController/edit');
+    Route::post('bath/edit', 'biz.BizPayrollController/bathEdit');
+    Route::post('delete', 'biz.BizPayrollController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/ccrecords', function () {
