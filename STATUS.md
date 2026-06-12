@@ -5133,7 +5133,7 @@ Agent: api-agent
 - Added read-only sale-project draft detail endpoint for the copied sale-project draft flow.
 - Matched Java `BizDraftServiceImpl.detail` behavior by querying `biz_draft.TARGET_ID`.
 - Preserved raw `EXT_JSON` as `extJson` so frontend form/file draft parsing remains compatible.
-- Kept draft save, sale-project add/edit, workflow start, file upload, Java source, database schema, Composer files, `.env`, and frontend source unchanged.
+- Kept draft save, sale-project add/edit, workflow start, file upload, Java source, database schema, Composer files, `.env`, and frontend source unchanged in this 2026-06-04 read-only slice. Draft save is now covered by the 2026-06-12 sale-project draft save slice.
 
 ### Modified Files
 
@@ -5162,7 +5162,7 @@ Agent: api-agent
 
 ### Current Issues
 
-- `/biz/bizdraft/saleproject/add` remains intentionally deferred.
+- `/biz/bizdraft/saleproject/add` was intentionally deferred in this 2026-06-04 read-only slice and is now covered by the 2026-06-12 sale-project draft save slice.
 - Sale-project add/edit, workflow start, and file upload side effects remain deferred.
 - Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
 
@@ -7963,3 +7963,57 @@ Agent: api-agent
 
 - Commit this leave compatibility slice.
 - Continue with the next low-risk backend slice after checking Java behavior and frontend consumers through scoped sub-Agents.
+
+## 2026-06-12 09:19 +08:00 - merge-agent - Sale Project Draft Save Compatibility
+
+### Completed
+
+- Continued in real multi-Agent mode: the main merge/coordinator selected a smaller `bizdraft` slice while a scoped explorer reviewed remaining low-risk candidates.
+- Added Java-compatible sale-project draft save endpoint:
+  - `POST /biz/bizdraft/saleproject/add`
+- Matched Java `addOrEditSaleProjectDraft` behavior:
+  - create by `targetId` when no active draft exists
+  - set `CATEGORY = SALE_PROJECT_INIT`
+  - preserve raw frontend `EXT_JSON`
+  - update the existing active draft for the same `targetId` and tenant
+- Kept real sale-project writes, workflow start/approval, and file upload/storage side effects deferred.
+
+### Modified Files
+
+- `app/service/biz/BizDraftService.php`
+- `app/controller/biz/BizDraftController.php`
+- `route/app.php`
+- `docs/api/biz-draft-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/public-file-change-request.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\biz\BizDraftService.php`: passed.
+- `php -l app\controller\biz\BizDraftController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists `POST /biz/bizdraft/saleproject/add`.
+- Focused DB smoke with temporary draft rows passed:
+  - first save created one active `biz_draft` row.
+  - second save for the same `targetId` updated the existing active row, not a duplicate.
+  - `detail` returned the updated raw `extJson`.
+  - missing `targetId` returned a controlled `400`.
+  - `biz_sale_project` row count stayed unchanged.
+  - temporary smoke rows were physically cleaned up.
+
+### Current Issues
+
+- Real sale-project add/edit and process-start behavior remain deferred.
+- File upload/storage side effects remain handled by existing file routes, not this draft endpoint.
+- Browser smoke for the sale-project draft save button should still be run with the frontend active.
+
+### Next Plan
+
+- Commit this sale-project draft save compatibility slice.
+- Next sub-Agent recommendation is `GET /gen/basic/previewGen` as a low-risk generator preview route, while keeping `execGenZip` and `execGenPro` deferred.

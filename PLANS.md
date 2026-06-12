@@ -4694,7 +4694,7 @@ Add Java-compatible read-only detail support for sale-project draft data used by
 
 - Java `detail` queries by `TARGET_ID`, not by draft row `ID`.
 - The frontend expects the raw `EXT_JSON` draft payload to remain parseable.
-- `/biz/bizdraft/saleproject/add` is a write endpoint and must remain deferred.
+- `/biz/bizdraft/saleproject/add` was deferred in this read-only slice; it is now covered by the 2026-06-12 sale-project draft save slice.
 - `route/app.php` is a locked public file, so the route change must be recorded.
 
 ### 5. Test Commands
@@ -4715,12 +4715,12 @@ git diff --check
 - `GET /biz/bizdraft/detail` is registered behind token middleware.
 - Detail reads by `TARGET_ID` and returns the matching non-deleted draft row.
 - Rows include `id`, `targetId`, `category`, `extJson`, audit fields, and tenant id.
-- Java source, database schema, sale-project draft writes, Composer files, `.env`, and frontend source remain unchanged.
+- Java source, database schema, Composer files, `.env`, and frontend source remain unchanged. Sale-project draft save writes are covered by the later 2026-06-12 draft save slice.
 
 ### 7. Forbidden Scope
 
-- Do not add `/biz/bizdraft/saleproject/add`.
-- Do not modify sale-project add/edit, workflow start, file upload, or draft save behavior.
+- At the time of this read-only slice, do not add `/biz/bizdraft/saleproject/add`; it is now covered by the later 2026-06-12 draft save slice.
+- Do not modify sale-project add/edit, workflow start, or file upload behavior.
 - Do not modify `F:\AI\projects\testJava\OA`.
 
 ## Active Plan: workflow-agent/api-agent - Biz User Vacation Detail Read-Only Compatibility
@@ -8568,8 +8568,10 @@ This slice mirrors Java `BizPayrollServiceImpl.edit`, `bathEdit`, and `delete` f
 - `route/app.php`
 - `docs/api/biz-payroll-readonly.md`
 - `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
 - `docs/tasks/refactor-progress-dashboard.md`
 - `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/public-file-change-request.md`
 - `PLANS.md`
 - `IMPLEMENT.md`
 - `STATUS.md`
@@ -8732,3 +8734,66 @@ Focused DB smoke was run through ThinkPHP bootstrap using the user-designated lo
 ### 7. Forbidden Scope
 
 - Do not implement leave `add`, workflow start/approve/reject/cancel, annual-leave/vacation generation or deduction, payroll-facing leave recalculation, Java source changes, database schema changes, Composer changes, `.env` changes, frontend changes, or unrelated business side effects in this slice.
+
+## Completed Plan: merge-agent - Sale Project Draft Save Compatibility
+
+Status: completed on 2026-06-12 after Java draft behavior review, route registration, PHP lint, route-list verification, and DB smoke with temporary-row cleanup.
+
+### 1. Current Goal
+
+Add copied-frontend-compatible sale-project draft save endpoint:
+
+- `POST /biz/bizdraft/saleproject/add`
+
+This slice mirrors Java `BizDraftServiceImpl.addOrEditSaleProjectDraft`: save or overwrite one draft row by `targetId`.
+
+### 2. Involved Modules
+
+- `biz/bizdraft` route/controller/service
+- copied frontend `snowy-admin-web/src/api/biz/bizDraftApi.js`
+- copied frontend sale-project process form draft save/reload flow
+- Java source remains read-only under `F:\AI\projects\testJava\OA`
+
+### 3. Involved Files
+
+- `app/service/biz/BizDraftService.php`
+- `app/controller/biz/BizDraftController.php`
+- `route/app.php`
+- `docs/api/biz-draft-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The endpoint is named `saleproject/add`, but it must only persist draft JSON in `biz_draft`; it must not create or edit real sale-project rows.
+- Formal workflow start, project initialization, file upload/storage, and approval side effects remain outside this slice.
+- `EXT_JSON` is intentionally raw frontend JSON and should not be parsed or normalized by this endpoint.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\BizDraftService.php
+php -l app\controller\biz\BizDraftController.php
+php -l route\app.php
+php think route:list
+git diff --check
+```
+
+Focused DB smoke was run through ThinkPHP bootstrap using the user-designated local MySQL/Redis runtime.
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizdraft/saleproject/add` is registered behind `AuthMiddleware`.
+- `targetId` and `extJson` are required.
+- Missing active draft creates a `biz_draft` row with `CATEGORY = SALE_PROJECT_INIT`, `DELETE_FLAG = NOT_DELETE`, current tenant, and create audit fields.
+- Existing active draft for the same `targetId` and tenant updates only `EXT_JSON`, `UPDATE_TIME`, and `UPDATE_USER`.
+- `detail` returns the updated raw `extJson`.
+- DB smoke verifies no `biz_sale_project` row-count side effect and cleans temporary draft rows.
+
+### 7. Forbidden Scope
+
+- Do not implement sale-project add/edit, workflow start/approve/reject/cancel, file upload/storage behavior, Java source changes, database schema changes, Composer changes, `.env` changes, frontend changes, or unrelated business side effects in this slice.

@@ -2454,8 +2454,8 @@ The copied Vue sale-project draft flow calls Java-compatible `/biz/bizdraft/deta
 
 ## Explicit Exclusions
 
-- No `/biz/bizdraft/saleproject/add` route was added.
-- No draft save/update, sale-project add/edit, workflow start, file upload, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
+- No `/biz/bizdraft/saleproject/add` route was added in this read-only change. That route is now covered by the 2026-06-12 sale-project draft save slice.
+- No sale-project add/edit, workflow start, file upload, Java source, database schema, Composer, `.env`, or deployment configuration was changed.
 
 ## Verification
 

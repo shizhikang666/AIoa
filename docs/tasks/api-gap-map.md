@@ -19,10 +19,10 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 467 | `php think route:list` concrete route count after public password-recovery captcha, project-rate edit, role grant-save routes, role add/edit/delete, system process-config edit, settlement-account base maintenance, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, and leave-application edit/delete |
-| Endpoints already covered by route path | 439 | Includes read adapters, auth/system routes, index schedule/message routes, sys process-config edit, settlement-account add/edit/status, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, user-center self-service routes, user and role grants, role add/edit/delete, status switches, reset-password/delete compatibility, organization and position write compatibility, system module/menu/button/field write compatibility, mobile module/menu/button write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, team-project base maintenance, and selected low-risk writes |
+| Current ThinkPHP routes | 468 | `php think route:list` concrete route count after public password-recovery captcha, project-rate edit, role grant-save routes, role add/edit/delete, system process-config edit, settlement-account base maintenance, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, and sale-project draft save |
+| Endpoints already covered by route path | 440 | Includes read adapters, auth/system routes, index schedule/message routes, sys process-config edit, settlement-account add/edit/status, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, sale-project draft save, user-center self-service routes, user and role grants, role add/edit/delete, status switches, reset-password/delete compatibility, organization and position write compatibility, system module/menu/button/field write compatibility, mobile module/menu/button write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, team-project base maintenance, and selected low-risk writes |
 | Missing read/selector/report candidates | 68 | Priority candidates for safe compatibility work |
-| Deferred write/side-effect candidates | 95 | Add/edit/audit/import/export/workflow/finance/stock actions; sys process-config edit, settlement-account add/edit/status, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, sys role grant saves, sys role add/edit/delete, sys module/menu/button/field write compatibility, mobile module/menu/button write compatibility, dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, sale-project invoicing complete, project-rate edit, and team-project base maintenance moved out of deferred scope |
+| Deferred write/side-effect candidates | 94 | Add/edit/audit/import/export/workflow/finance/stock actions; sys process-config edit, settlement-account add/edit/status, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, sale-project draft save, sys role grant saves, sys role add/edit/delete, sys module/menu/button/field write compatibility, mobile module/menu/button write compatibility, dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, sale-project invoicing complete, project-rate edit, and team-project base maintenance moved out of deferred scope |
 
 ## Already Covered Route Groups
 
@@ -57,7 +57,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/teamproject`, `biz/task` | Team project add/edit/delete, member add/manage/edit/delete, task, task category, task user, project comment, project comment reply, task comment read/add/edit/delete slices, task base maintenance, task category maintenance, task assignee sync, and project comment/reply base write compatibility |
 | `biz/process` | Basic workflow query/read slices |
 | `biz/ccrecords` | Workflow copy/CC record page and detail reads |
-| `biz/bizdraft` | Sale-project draft detail read |
+| `biz/bizdraft` | Sale-project draft detail read and draft save |
 
 ## Priority 1: Visible Frontend Follow-Ups
 
@@ -88,7 +88,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/task` | `runtime/activity/detail` added; `sse/stream`, `approve`, and `reject` remain deferred |
 | `biz/bizuservacation` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `biz/ccrecords` | `page`, `detail`, and `delete` covered; add/edit and workflow copy-generation remain deferred |
-| `biz/bizdraft` | `detail` covered; `saleproject/add` remains deferred |
+| `biz/bizdraft` | `detail` and `saleproject/add` covered |
 | `biz/bizhistoryexcel` | `page`, `detail`, `add`, `edit`, and `delete` covered; import/export parsing and row-table storage remain deferred |
 | `biz/saleprojectinvoicing` | `customer`, `detail`, `page`, and `complete` covered; add/edit/delete remain deferred |
 | `biz/saleprojectinvoiceItem` | `page` covered; invoice item writes remain deferred |
@@ -113,7 +113,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | Group | Deferred Examples | Reason |
 | --- | --- | --- |
 | `biz/saleproject` | `add`, `edit`, `delete`, `amount/edit`, `deal/edit`, `cancel`, `history/add`, `special/add`, `visibility/edit` | Project state, finance, visibility, and history side effects |
-| `biz/bizdraft` | `saleproject/add` | Draft save mutates sale-project draft state and needs validation/audit coverage |
+| `biz/bizdraft` | Sale-project workflow submission and real project writes | Draft save is covered as isolated `biz_draft` persistence; formal sale-project add/edit and workflow side effects remain deferred |
 | `biz/saleprojectfollowup` | File upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file and message side effects remain deferred |
 | `biz/saleprojectproductitemrelation` | Delivery/invoice/stock side effects | Relation `mark/edit` is covered |
 | `biz/saleprojectproductitem` | Add/edit/delete, delivery/invoice/stock side effects | Product item `mark/edit` is covered |

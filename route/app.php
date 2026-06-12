@@ -611,6 +611,7 @@ Route::group('biz/bizuservacation', function () {
 
 Route::group('biz/bizdraft', function () {
     Route::get('detail', 'biz.BizDraftController/detail');
+    Route::post('saleproject/add', 'biz.BizDraftController/addSaleProjectDraft');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/settlementaccountpayment', function () {

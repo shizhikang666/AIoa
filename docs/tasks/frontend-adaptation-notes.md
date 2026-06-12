@@ -378,7 +378,7 @@ This slice supports the copied sale-project draft detail call in `snowy-admin-we
 
 ### Deferred
 
-- `/biz/bizdraft/saleproject/add` remains deferred because it writes draft state.
+- `/biz/bizdraft/saleproject/add` was deferred in the original read-only slice and is now covered by the 2026-06-12 draft save compatibility slice.
 - Sale-project add/edit, workflow start, and file upload side effects remain deferred.
 
 ## 2026-06-04 Biz User Vacation Detail Read-Only Compatibility

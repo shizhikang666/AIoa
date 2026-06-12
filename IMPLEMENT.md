@@ -917,3 +917,25 @@ Explicit non-goals:
 - No payroll-facing leave recalculation.
 - No Java source, database schema, Composer, `.env`, frontend source, notification, data-change event, or unrelated business changes.
 
+## 2026-06-12 Sale Project Draft Save Implementation
+
+Agent: merge-agent / api-agent
+
+Execution summary:
+
+1. Reviewed Java `BizDraftController` and `BizDraftServiceImpl.addOrEditSaleProjectDraft`: the route saves a draft by `targetId`, creates `CATEGORY = SALE_PROJECT_INIT` when missing, and otherwise updates `EXT_JSON`.
+2. Added protected `POST /biz/bizdraft/saleproject/add`.
+3. Added controller body parsing for form POST, raw JSON, and request parameters.
+4. Added `BizDraftService::addOrEditSaleProjectDraft`.
+5. Required `targetId` and `extJson`, preserving raw frontend JSON.
+6. Created missing active drafts with current tenant, `DELETE_FLAG = NOT_DELETE`, `CREATE_TIME`, and `CREATE_USER`.
+7. Updated existing active drafts in the current tenant with only `EXT_JSON`, `UPDATE_TIME`, and `UPDATE_USER`.
+8. Updated draft API docs, API gap map, progress dashboard, new-conversation bootstrap notes, implementation notes, and active plan status.
+
+Explicit non-goals:
+
+- No real sale-project add or edit.
+- No workflow start/approve/reject/cancel.
+- No file upload or storage writes.
+- No Java source, database schema, Composer, `.env`, frontend source, notification, data-change event, or unrelated business changes.
+

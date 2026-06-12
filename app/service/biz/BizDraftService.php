@@ -4,14 +4,16 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only draft queries compatible with Java BizDraftController.
+ * Draft queries and save compatibility for Java BizDraftController.
  */
 class BizDraftService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const SALE_PROJECT_INIT = 'SALE_PROJECT_INIT';
     private const FIELDS = <<<SQL
 d.ID AS ID,
 d.TARGET_ID AS TARGET_ID,
@@ -24,6 +26,56 @@ d.UPDATE_USER AS UPDATE_USER,
 d.EXT_JSON AS EXT_JSON,
 d.TENANT_ID AS TENANT_ID
 SQL;
+
+    public function addOrEditSaleProjectDraft(array $input, array $payload = []): null
+    {
+        $targetId = $this->requiredInput($input, 'targetId');
+        $extJson = $this->requiredExtJson($input['extJson'] ?? null);
+        $tenantId = $this->tenantId($payload);
+        if ($tenantId === '') {
+            throw new RuntimeException('missing tenantId', 400);
+        }
+
+        Db::transaction(function () use ($targetId, $extJson, $tenantId, $payload): void {
+            $existing = Db::name('biz_draft')
+                ->where('TARGET_ID', $targetId)
+                ->where('TENANT_ID', $tenantId)
+                ->where('DELETE_FLAG', self::NOT_DELETE)
+                ->order('UPDATE_TIME', 'desc')
+                ->order('CREATE_TIME', 'desc')
+                ->order('ID', 'desc')
+                ->find();
+
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            if (is_array($existing) && $existing !== []) {
+                Db::name('biz_draft')
+                    ->where('ID', (string)$existing['ID'])
+                    ->update([
+                        'EXT_JSON' => $extJson,
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    ]);
+
+                return;
+            }
+
+            Db::name('biz_draft')->insert([
+                'ID' => $this->newId(),
+                'TARGET_ID' => $targetId,
+                'CATEGORY' => self::SALE_PROJECT_INIT,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'EXT_JSON' => $extJson,
+                'TENANT_ID' => $tenantId,
+            ]);
+        });
+
+        return null;
+    }
 
     public function detail(string $targetId, array $payload = []): ?array
     {
@@ -69,5 +121,39 @@ SQL;
     private function tenantId(array $payload): string
     {
         return (string)($payload['tenantId'] ?? $payload['tenant_id'] ?? '');
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function requiredExtJson(mixed $value): string
+    {
+        if (is_array($value)) {
+            $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        $value = trim((string)$value);
+        if ($value === '') {
+            throw new RuntimeException('missing extJson', 400);
+        }
+
+        return $value;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 }
