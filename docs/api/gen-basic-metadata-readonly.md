@@ -63,5 +63,5 @@ Both routes are protected by `AuthMiddleware`.
 ## Deferred
 
 - `/gen/basic/add`, `/edit`, and `/delete` remain deferred.
-- `/gen/basic/previewGen`, `/execGenZip`, and `/execGenPro` remain deferred because they generate or write code.
+- `/gen/basic/previewGen` is now covered as a safe metadata-only preview route; `/execGenZip` and `/execGenPro` remain deferred because they write ZIP or project output.
 - Generator templates, business code generation, database schema changes, Java source changes, Composer files, `.env`, and frontend source are unchanged.

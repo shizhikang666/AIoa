@@ -20,6 +20,7 @@ Protected routes:
 
 - `GET /gen/basic/page`
 - `GET /gen/basic/detail`
+- `GET /gen/basic/previewGen`
 - `GET /gen/basic/tables`
 - `GET /gen/basic/tableColumns`
 - `GET /gen/basic/mobileModuleSelector`
@@ -104,6 +105,25 @@ Each item supports:
 
 The implementation validates the full batch before writing, rejects deleted or missing rows, updates only the Java edit-parameter column whitelist, ignores client-supplied audit/delete fields, writes update audit metadata from the bearer-token payload when available, and returns `data = null`.
 
+## Preview Compatibility
+
+`GET /gen/basic/previewGen` returns Java-compatible preview buckets:
+
+- `genBasicCodeSqlResultList`
+- `genBasicCodeFrontendResultList`
+- `genBasicCodeBackendResultList`
+- `genBasicCodeMobileResultList`
+
+Each bucket item includes:
+
+- `codeFileName`
+- `codeFileWithPathName`
+- `codeFileContent`
+
+`genBasicCodeMobileResultList` is `null` when the saved generator basic row has no `mobileModule`, matching the copied preview modal's mobile-tab guard.
+
+This ThinkPHP implementation renders safe preview strings from `gen_basic` and `gen_config` metadata. It does not execute Java Beetl templates, write project files, create ZIP archives, or run generator output.
+
 ## Supported Filters
 
 `/gen/basic/page` supports:
@@ -135,9 +155,8 @@ The implementation validates the full batch before writing, rejects deleted or m
 - No `/gen/config/delete` route is implemented.
 - No `/gen/basic/execGenZip` route is implemented.
 - No `/gen/basic/execGenPro` route is implemented.
-- No `/gen/basic/previewGen` route is implemented.
-- No database schema scanning, code template rendering, file writing, ZIP generation, or Java source modification is performed.
+- No file writing, ZIP generation, direct project generation, or Java source modification is performed.
 
 ## Later Work
 
-Generator writes, code preview, code generation, and database table/column scanning need a dedicated approval and safety design, including schema allow-listing, output path restrictions, permission checks, audit logging, and a clear policy for generated ThinkPHP code ownership.
+Generator writes, executable code generation, and direct project output need a dedicated approval and safety design, including schema allow-listing, output path restrictions, permission checks, audit logging, and a clear policy for generated ThinkPHP code ownership.

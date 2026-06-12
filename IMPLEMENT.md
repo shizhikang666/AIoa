@@ -939,3 +939,27 @@ Explicit non-goals:
 - No file upload or storage writes.
 - No Java source, database schema, Composer, `.env`, frontend source, notification, data-change event, or unrelated business changes.
 
+## 2026-06-12 Gen Basic Preview Implementation
+
+Agent: merge-agent / api-agent / test-agent
+
+Execution summary:
+
+1. Used the scoped next-candidate explorer recommendation for `GET /gen/basic/previewGen`.
+2. Reviewed Java `GenBasicController.previewGen`, `GenBasicServiceImpl.previewGen`, `GenBasicPreviewResult`, and the copied Vue preview modal.
+3. Added protected `GET /gen/basic/previewGen`.
+4. Added `BasicController::previewGen` with the existing shared guarded response handling.
+5. Added `BasicService::previewGen` to load active `gen_basic` plus active `gen_config` rows and return Java-compatible preview bucket fields.
+6. Rendered safe preview strings for SQL, frontend, backend, and optional mobile files without executing Java Beetl templates.
+7. Preserved copied-modal behavior by returning `genBasicCodeMobileResultList = null` when no `mobileModule` is configured.
+8. Updated generator API docs, API gap map, frontend adaptation notes, public route-change notes, progress dashboard, new-conversation bootstrap notes, implementation notes, and active plan status.
+
+Explicit non-goals:
+
+- No `/gen/basic/add`, `/edit`, or `/delete`.
+- No `/gen/basic/execGenZip` or `/execGenPro`.
+- No direct project file writes.
+- No ZIP output.
+- No full Java Beetl template parity.
+- No Java source, database schema, Composer, `.env`, frontend source, scheduler, or unrelated generator writes.
+

@@ -4878,7 +4878,7 @@ Agent: api-agent
 
 ### Current Issues
 
-- `/gen/basic/previewGen`, `/execGenZip`, and `/execGenPro` remain deferred because they generate or write code.
+- At that point, `/gen/basic/previewGen`, `/execGenZip`, and `/execGenPro` remained deferred; `/gen/basic/previewGen` was later covered as a safe metadata-only preview route, while `execGenZip` and `execGenPro` remain deferred.
 - `/gen/basic/add`, `/edit`, and `/delete` remain deferred until the generator module is explicitly opened for write work.
 - Generator metadata reads depend on the configured MySQL database being available.
 - Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
@@ -8017,3 +8017,61 @@ Agent: api-agent
 
 - Commit this sale-project draft save compatibility slice.
 - Next sub-Agent recommendation is `GET /gen/basic/previewGen` as a low-risk generator preview route, while keeping `execGenZip` and `execGenPro` deferred.
+
+## 2026-06-12 09:35 +08:00 - merge-agent - Gen Basic Preview Compatibility
+
+### Completed
+
+- Continued in real multi-Agent mode: the main merge/coordinator picked up the prior scoped explorer recommendation for `GET /gen/basic/previewGen`.
+- Added copied-frontend-compatible generator preview endpoint:
+  - `GET /gen/basic/previewGen`
+- Matched the Java preview result shape used by `snowy-admin-web/src/views/gen/preview.vue`:
+  - `genBasicCodeSqlResultList`
+  - `genBasicCodeFrontendResultList`
+  - `genBasicCodeBackendResultList`
+  - `genBasicCodeMobileResultList`
+  - per-file `codeFileName`, `codeFileWithPathName`, and `codeFileContent`
+- Kept generator add/edit/delete, ZIP generation, direct project output, and full Java Beetl template parity deferred.
+
+### Modified Files
+
+- `app/service/gen/BasicService.php`
+- `app/controller/gen/BasicController.php`
+- `route/app.php`
+- `docs/api/gen-readonly-compat.md`
+- `docs/api/gen-basic-metadata-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\gen\BasicService.php`: passed.
+- `php -l app\controller\gen\BasicController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists `GET /gen/basic/previewGen`.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- Focused service smoke through ThinkPHP bootstrap passed:
+  - sample active `gen_basic` id `1809769215206965250` returned preview data.
+  - SQL/frontend/backend buckets contained non-empty file objects with the expected fields.
+  - missing id returned controlled `404`.
+  - no-mobile generator rows returned `genBasicCodeMobileResultList = null`.
+  - `gen_basic` and `gen_config` row counts stayed unchanged.
+  - runtime file count stayed unchanged.
+
+### Current Issues
+
+- `/gen/basic/add`, `/edit`, and `/delete` remain deferred.
+- `/gen/basic/execGenZip` and `/execGenPro` remain deferred because they write ZIP or project output.
+- Preview content is safe PHP-rendered compatibility text, not full Java Beetl template parity.
+- Browser smoke for the generator preview modal should still be run with the frontend active.
+
+### Next Plan
+
+- Commit this generator preview compatibility slice.
+- Continue with the next low-risk frontend-visible gap after a scoped sub-Agent checks Java behavior and current frontend consumers.

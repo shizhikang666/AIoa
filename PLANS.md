@@ -8797,3 +8797,69 @@ Focused DB smoke was run through ThinkPHP bootstrap using the user-designated lo
 ### 7. Forbidden Scope
 
 - Do not implement sale-project add/edit, workflow start/approve/reject/cancel, file upload/storage behavior, Java source changes, database schema changes, Composer changes, `.env` changes, frontend changes, or unrelated business side effects in this slice.
+
+## Completed Plan: merge-agent - Gen Basic Preview Compatibility
+
+Status: completed on 2026-06-12 after Java preview behavior review, route registration, PHP lint, route-list verification, and service smoke with no-write checks.
+
+### 1. Current Goal
+
+Add copied-frontend-compatible generator preview endpoint:
+
+- `GET /gen/basic/previewGen`
+
+This slice mirrors the Java preview response shape enough for the copied preview modal while keeping real generator output disabled.
+
+### 2. Involved Modules
+
+- `gen/basic` route/controller/service
+- copied frontend `snowy-admin-web/src/api/gen/genBasicApi.js`
+- copied frontend preview modal `snowy-admin-web/src/views/gen/preview.vue`
+- Java source remains read-only under `F:\AI\projects\testJava\OA`
+
+### 3. Involved Files
+
+- `app/service/gen/BasicService.php`
+- `app/controller/gen/BasicController.php`
+- `route/app.php`
+- `docs/api/gen-readonly-compat.md`
+- `docs/api/gen-basic-metadata-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Java preview renders Beetl templates, but executing template generation in PHP would widen scope and could imply file-output parity.
+- The copied frontend only needs stable preview buckets and file-content strings; ZIP/direct generation remains a separate, higher-risk plan.
+- Mobile preview must stay `null` when no `mobileModule` is configured so the copied modal does not show an empty mobile tab.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\gen\BasicService.php
+php -l app\controller\gen\BasicController.php
+php -l route\app.php
+php think route:list
+git diff --check
+```
+
+Focused service smoke was run through ThinkPHP bootstrap using the user-designated local MySQL/Redis runtime.
+
+### 6. Acceptance Criteria
+
+- `GET /gen/basic/previewGen` is registered behind `AuthMiddleware`.
+- Missing `id` or a missing active generator row returns a controlled API failure.
+- Response includes Java-compatible `genBasicCodeSqlResultList`, `genBasicCodeFrontendResultList`, `genBasicCodeBackendResultList`, and `genBasicCodeMobileResultList` fields.
+- Each generated preview item includes `codeFileName`, `codeFileWithPathName`, and `codeFileContent`.
+- `genBasicCodeMobileResultList` is `null` when no mobile module is configured.
+- Service smoke verifies no `gen_basic` or `gen_config` DB writes and no runtime file creation.
+
+### 7. Forbidden Scope
+
+- Do not implement `/gen/basic/add`, `/edit`, `/delete`, `/execGenZip`, `/execGenPro`, direct project writes, ZIP output, full Java Beetl template parity, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated generator writes in this slice.

@@ -25,6 +25,11 @@ class BasicController extends BaseSysController
         return $this->guard(fn () => $this->basicService->detail($this->requiredString($request, 'id')));
     }
 
+    public function previewGen(Request $request): Response
+    {
+        return $this->guard(fn () => $this->basicService->previewGen($this->requiredString($request, 'id')));
+    }
+
     public function tables(Request $request): Response
     {
         return $this->guard(fn () => $this->basicService->tables($request->get()));

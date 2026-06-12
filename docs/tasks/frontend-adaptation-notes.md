@@ -611,7 +611,7 @@ This slice supports copied generator form metadata calls:
 ### Deferred
 
 - `/gen/basic/add`, `/edit`, and `/delete` remain deferred.
-- `/gen/basic/previewGen`, `/execGenZip`, and `/execGenPro` remain deferred because they generate or write code.
+- `/gen/basic/previewGen` is now covered as a safe metadata-only preview route; `/execGenZip` and `/execGenPro` remain deferred because they write ZIP or project output.
 - Generator templates, generated code output, and frontend source remain unchanged.
 
 ## 2026-06-05 Auth Third User Page Read-Only Compatibility

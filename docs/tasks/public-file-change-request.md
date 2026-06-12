@@ -1383,7 +1383,7 @@ The existing Vue generator pages call `/gen/basic/page`, `/gen/basic/detail`, `/
 - No `/gen/basic/add`, `/gen/basic/edit`, or `/gen/basic/delete` route was added.
 - No `/gen/config/edit`, `/gen/config/delete`, or `/gen/config/editBatch` route was added.
 - No `/gen/basic/tables` or `/gen/basic/tableColumns` route was added.
-- No `/gen/basic/execGenZip`, `/gen/basic/execGenPro`, or `/gen/basic/previewGen` route was added.
+- At this stage, `/gen/basic/execGenZip`, `/gen/basic/execGenPro`, and `/gen/basic/previewGen` were excluded; `/gen/basic/previewGen` was later covered by the 2026-06-12 safe preview slice.
 - No database schema scanning, code generation, file writing, ZIP generation, Java source changes, `.env`, Composer files, or public config files were changed.
 
 ## Verification
@@ -2723,7 +2723,7 @@ Java exposes `/gen/basic/tables` and `/gen/basic/tableColumns` from `GenBasicCon
 
 ## Explicit Exclusions
 
-- No `/gen/basic/add`, `/edit`, `/delete`, `/previewGen`, `/execGenZip`, or `/execGenPro` route was added.
+- At this stage, `/gen/basic/add`, `/edit`, `/delete`, `/previewGen`, `/execGenZip`, and `/execGenPro` were excluded; `/previewGen` was later covered by the 2026-06-12 safe preview slice.
 - No generated code output, generator template, Java source, database schema, Composer, `.env`, frontend source, or deployment configuration was changed.
 
 ## Verification
