@@ -1,8 +1,8 @@
-# Biz Debit Note Read-Only Compatibility
+# Biz Debit Note Compatibility
 
 ## Scope
 
-This slice adds read-only ThinkPHP compatibility endpoints for the old Java debit-note APIs used by the Vue OA frontend.
+This document tracks ThinkPHP compatibility endpoints for the old Java debit-note APIs used by the Vue OA frontend.
 
 Java source analyzed:
 
@@ -25,13 +25,28 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizdebitnote/page` | Paginated debit-note list. |
 | GET | `/biz/bizdebitnote/list` | Non-paginated debit-note list. |
 | GET | `/biz/bizdebitnote/detail` | Read-only detail lookup. |
+| POST | `/biz/bizdebitnote/mark/success/edit` | Marks one debit note as settled. |
+
+## Write Compatibility
+
+`POST /biz/bizdebitnote/mark/success/edit` accepts a Java-compatible body containing `id`.
+
+The ThinkPHP implementation intentionally matches Java `BizDebitNoteServiceImpl.markSettlement(String id)` as a single-table update:
+
+- validates that `id` is present;
+- checks the target debit note in the current tenant;
+- allows admin-compatible users, matching scoped organization access, or the original creator;
+- sets `biz_debit_note.PLAY_STATUS` to `AlreadySettled`;
+- refreshes `UPDATE_TIME` and `UPDATE_USER`;
+- increments `VERSION` to match the Java entity's optimistic-lock field behavior.
+
+It does not update `AMOUNT`, `SETTLEMENT_AMOUNT`, `HISTORY_AMOUNT`, `EXPENDITURE_RECORD_ID`, settlement account balances, settlement account statements, payment records, or expenditure records.
 
 ## Explicitly Deferred Routes
 
-These Java/frontend routes are not implemented in this slice because they mutate debit-note settlement state, payment records, settlement accounts, or history data:
+These Java/frontend routes are not implemented in this slice because they mutate payment records, settlement accounts, or history data beyond the single Java mark-settlement update:
 
 - `POST /biz/bizdebitnote/history/add`
-- `POST /biz/bizdebitnote/mark/success/edit`
 - `POST /biz/bizdebitnote/batchRepayment/edit`
 - `POST /biz/bizdebitnote/add`
 - `POST /biz/bizdebitnote/edit`
@@ -94,5 +109,5 @@ Rows return frontend-friendly camelCase fields:
 ## Notes
 
 - Java page/list conditionally joins expenditure records for account/category filters. This ThinkPHP read query always uses left joins for display enrichment.
-- Java history-add, mark-success, and batch-repayment flows change balances and settlement status. They need a later transactional write design before implementation.
-- This slice does not modify Java source, database schema, Composer files, `.env`, or any write endpoint.
+- Java history-add and batch-repayment flows can change payment records, settlement-account data, and debit-note settlement amounts. They still need a later transactional write design before implementation.
+- This slice does not modify Java source, database schema, Composer files, `.env`, or any account/statement/payment side-effect endpoint.

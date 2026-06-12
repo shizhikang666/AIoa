@@ -2595,7 +2595,7 @@ Agent: api-agent
 - Enriched debit-note rows with linked expenditure-record payer time, settlement category, payer/bank fields, settlement account name/number, and organization name.
 - Supported Java/old-frontend filters for play status, create time range, remark, account name, category, search key, sorting, pagination, expenditure record id, org id, amount, and tenant id.
 - Registered protected `/biz/bizdebitnote/*` read-only routes behind `AuthMiddleware`.
-- Kept debit-note history add, mark success, batch repayment, add, edit, and delete behavior deferred.
+- Kept debit-note history add, batch repayment, add, edit, and delete behavior deferred; mark-success is now covered separately as a single-table status update.
 
 ### Modified Files
 
@@ -2626,7 +2626,7 @@ Agent: api-agent
 
 ### Current Issues
 
-- Debit-note history add, mark-success, and batch-repayment flows mutate settlement state, payment records, and settlement accounts. Those routes need a later transactional write design before implementation.
+- Debit-note mark-success is now covered as a single-table status update; history add and batch-repayment still mutate payment records and settlement accounts and need a later transactional write design.
 - Customer-related reads remain deferred until the SM4 encrypted-field strategy is documented.
 
 ### Next Plan
@@ -7759,9 +7759,53 @@ Agent: api-agent
 ### Current Issues
 
 - `POST /biz/bizcollectionreceipt/batchExpenditure/edit`, collection-receipt add/edit/delete, and related finance side effects remain deferred.
-- Debit-note mark-success remains deferred because that module's Java behavior includes payment/settlement-account side-effect paths.
+- Debit-note mark-success is now covered as a single-table status update; payment/settlement-account side-effect paths remain deferred in history-add and batch-repayment.
 
 ### Next Plan
 
 - Commit this collection-receipt mark-success compatibility slice.
 - Continue with the next true low-risk write or browser-visible compatibility gap, not scanner false positives.
+
+## 2026-06-12 08:18 +08:00 - merge-agent - Debit Note Mark-Success Compatibility
+
+### Completed
+
+- Continued in real multi-Agent mode: the main merge/coordinator implemented and accepted the slice, while explorer Agent `019eb605-9191-7502-b1f4-dcc337233471` verified the Java behavior and side-effect boundary.
+- Added Java-compatible `POST /biz/bizdebitnote/mark/success/edit`.
+- Matched Java `BizDebitNoteServiceImpl.markSettlement(String id)` as a single-table update:
+  - requires `id`;
+  - checks current tenant and write scope;
+  - sets `PLAY_STATUS = AlreadySettled`;
+  - updates `UPDATE_TIME` and `UPDATE_USER`;
+  - increments `VERSION`.
+- Kept history add, batch repayment, add, edit, and delete deferred because they require payment-record, settlement-account, or broader transactional side-effect handling.
+
+### Modified Files
+
+- `app/service/biz/DebitNoteService.php`
+- `app/controller/biz/DebitNoteController.php`
+- `route/app.php`
+- `docs/api/biz-debit-note-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\biz\DebitNoteService.php`: passed.
+- `php -l app\controller\biz\DebitNoteController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists `POST /biz/bizdebitnote/mark/success/edit`.
+- DB smoke marked one imported debit note as settled, verified `PLAY_STATUS`, unchanged amount/history/expenditure/org fields, `VERSION` increment, no settlement-account/statement/payment/expenditure side effects, restored the original row, and verified missing-id `400` plus non-admin `403`.
+
+### Current Issues
+
+- `POST /biz/bizdebitnote/history/add`, `POST /biz/bizdebitnote/batchRepayment/edit`, debit-note add/edit/delete, and related finance side effects remain deferred.
+- Payroll low-risk edit/batch-edit/delete is the next candidate recommended by the payroll explorer.
+
+### Next Plan
+
+- Commit this debit-note mark-success compatibility slice.
+- Continue with payroll `edit`, `bath/edit`, and `delete` as a separate low-risk DB write slice.

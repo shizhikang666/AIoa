@@ -13,6 +13,7 @@ use think\facade\Db;
 class DebitNoteService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const ALREADY_SETTLED = 'AlreadySettled';
     private const NOTE_FIELDS = <<<SQL
 d.ID AS ID,
 d.EXPENDITURE_RECORD_ID AS EXPENDITURE_RECORD_ID,
@@ -105,6 +106,26 @@ SQL;
         return $this->noteRows([$row])[0];
     }
 
+    public function markSuccess(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $payload): array {
+            $this->assertNoteWritable($id, $payload, 'mark this debit note settled');
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('biz_debit_note')
+                ->where('ID', $id)
+                ->update([
+                    'PLAY_STATUS' => self::ALREADY_SETTLED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                ]);
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
     private function noteQuery(array $filters, array $payload)
     {
         $query = Db::name('biz_debit_note')
@@ -165,6 +186,51 @@ SQL;
         $this->applyTimeRange($query, $filters, 'd.CREATE_TIME', 'startCreateTime', 'endCreateTime');
 
         return $query;
+    }
+
+    private function assertNoteWritable(string $id, array $payload, string $action): array
+    {
+        $row = $this->activeNote($id, $payload);
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $noteOrg = trim((string)($row['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $noteOrg !== '' && in_array($noteOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    private function activeNote(string $id, array $payload): array
+    {
+        $query = Db::name('biz_debit_note')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query
+            ->field('ID,CREATE_USER,TENANT_ID,ORG')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('debit note not found', 404);
+        }
+
+        return $row;
     }
 
     private function applyTimeRange($query, array $filters, string $column, string $startKey, string $endKey): void
@@ -235,6 +301,73 @@ SQL;
         $limit = max(1, min(200, (int)($filters['size'] ?? $filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function scopeOrgIds(array $payload): array
+    {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            $ids = array_merge($ids, array_map(static function (mixed $scope): string {
+                if (!is_array($scope)) {
+                    return '';
+                }
+
+                return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            }, $scopes));
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? $payload['roleCodeList'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
     }
 
     private function decimal(mixed $value): int|float|null

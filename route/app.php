@@ -383,6 +383,7 @@ Route::group('biz/bizdebitnote', function () {
     Route::get('page', 'biz.DebitNoteController/page');
     Route::get('list', 'biz.DebitNoteController/list');
     Route::get('detail', 'biz.DebitNoteController/detail');
+    Route::post('mark/success/edit', 'biz.DebitNoteController/markSuccess');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizfilerelation', function () {

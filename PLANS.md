@@ -1443,7 +1443,7 @@ Add old-frontend-compatible read-only debit-note endpoints for loan/payment-on-b
 
 ### 4. Risks
 
-- Java debit-note history add, mark success, and batch repayment methods mutate debit-note settlement state, payment records, and settlement accounts, so they must remain deferred.
+- Java debit-note mark success is now covered as a single-table status update; history add and batch repayment still mutate payment records and settlement accounts, so they remain deferred.
 - Java list/page joins expenditure records only when account/category filters are present. This slice always enriches read rows by the linked expenditure record but keeps mutation routes excluded.
 - `route/app.php` is locked and must only receive documented protected read-only routes.
 
@@ -1460,8 +1460,9 @@ Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l
 
 ### 6. Acceptance Criteria
 
-- Only read-only `/biz/bizdebitnote/page`, `/biz/bizdebitnote/list`, and `/biz/bizdebitnote/detail` routes are added.
-- No debit-note history add, mark-success, batch-repayment, add, edit, or delete route is added.
+- Read-only `/biz/bizdebitnote/page`, `/biz/bizdebitnote/list`, and `/biz/bizdebitnote/detail` routes are available.
+- `POST /biz/bizdebitnote/mark/success/edit` is now available as a single-table status update.
+- No debit-note history add, batch-repayment, add, edit, or delete route is added.
 - Routes are protected by `AuthMiddleware`.
 - Baseline ThinkPHP checks and representative HTTP smoke tests pass.
 
@@ -8479,3 +8480,63 @@ Focused DB smoke was run through ThinkPHP bootstrap using the user-designated lo
 ### 7. Forbidden Scope
 
 - Do not implement `batchExpenditure`, collection-receipt add/edit/delete, settlement-account balance changes, expenditure-record creation, frontend changes, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated finance writes in this slice.
+
+## Completed Plan: merge-agent - Debit Note Mark-Success Compatibility
+
+Status: completed on 2026-06-11 after explorer review, route registration, PHP lint, and DB smoke.
+
+### 1. Current Goal
+
+Add old-frontend-compatible debit-note mark-success endpoint:
+
+- `POST /biz/bizdebitnote/mark/success/edit`
+
+This slice mirrors Java `BizDebitNoteServiceImpl.markSettlement(String id)` as a single-table settlement-status marker.
+
+### 2. Involved Modules
+
+- `biz/bizdebitnote` route/controller/service
+- copied frontend `snowy-admin-web/src/api/biz/bizDebitNoteApi.js`
+- Java source remains read-only under `F:\AI\projects\testJava\OA`
+
+### 3. Involved Files
+
+- `app/service/biz/DebitNoteService.php`
+- `app/controller/biz/DebitNoteController.php`
+- `route/app.php`
+- `docs/api/biz-debit-note-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- `history/add` and `batchRepayment/edit` can create payment records and settlement-account side effects and remain deferred.
+- This mark-success route must not update settlement account balances, statements, payment records, expenditure records, debit-note amount, settlement amount, or history amount.
+- Write access must stay tenant-scoped and guarded by admin-compatible role, debit-note organization scope, or creator ownership.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\DebitNoteService.php
+php -l app\controller\biz\DebitNoteController.php
+php -l route\app.php
+php think route:list
+git diff --check
+```
+
+Focused DB smoke was run through ThinkPHP bootstrap using the user-designated local MySQL/Redis runtime.
+
+### 6. Acceptance Criteria
+
+- `POST /biz/bizdebitnote/mark/success/edit` is registered behind `AuthMiddleware`.
+- Controller accepts form POST, raw JSON, and request parameter payloads.
+- Service validates `id`, finds only active current-tenant debit notes, and rejects unauthorized writes.
+- Service sets only `PLAY_STATUS = AlreadySettled`, `UPDATE_TIME`, `UPDATE_USER`, and `VERSION = VERSION + 1`.
+- DB smoke verifies missing-id `400`, non-admin `403`, version increment, unchanged amount/history/expenditure/org fields, and no account/statement/payment/expenditure side effects.
+
+### 7. Forbidden Scope
+
+- Do not implement `history/add`, `batchRepayment/edit`, debit-note add/edit/delete, settlement-account balance changes, payment-record creation, frontend changes, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated finance writes in this slice.
