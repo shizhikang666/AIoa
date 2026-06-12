@@ -21,6 +21,7 @@ Protected routes:
 - `GET /gen/basic/page`
 - `GET /gen/basic/detail`
 - `GET /gen/basic/previewGen`
+- `GET /gen/basic/execGenZip`
 - `GET /gen/basic/tables`
 - `GET /gen/basic/tableColumns`
 - `GET /gen/basic/mobileModuleSelector`
@@ -122,7 +123,28 @@ Each bucket item includes:
 
 `genBasicCodeMobileResultList` is `null` when the saved generator basic row has no `mobileModule`, matching the copied preview modal's mobile-tab guard.
 
-This ThinkPHP implementation renders safe preview strings from `gen_basic` and `gen_config` metadata. It does not execute Java Beetl templates, write project files, create ZIP archives, or run generator output.
+This ThinkPHP implementation renders safe preview strings from `gen_basic` and `gen_config` metadata. It does not execute Java Beetl templates, write project files, or run direct project generator output.
+
+## ZIP Download Compatibility
+
+`GET /gen/basic/execGenZip` reuses the same preview buckets and returns an authenticated blob download for copied frontend code-generation ZIP buttons.
+
+The ZIP layout follows Java's `genTempFolder()` grouping:
+
+- SQL files are stored under their preview path, such as `sql/Mysql.sql`.
+- Frontend files are stored under `frontend/`.
+- Backend files are stored under `backend/`.
+- Mobile files are stored under `mobile/` when `genBasicCodeMobileResultList` is present.
+
+The implementation creates a temporary ZIP outside the project tree, reads it into the response, and deletes the temporary file before returning. It performs no database writes, no Java source writes, no frontend source writes, and no menu/role generation side effects.
+
+Focused smoke on 2026-06-12 verified:
+
+- Service output is a valid ZIP (`PK`) containing SQL, frontend, and backend preview entries.
+- Authenticated HTTP download returns `Content-Type: application/octet-stream;charset=UTF-8` and Java-style encoded `Content-Disposition`.
+- Missing generator id returns 404 through the service.
+- No-token HTTP access returns business `code=401`.
+- `gen_basic` and `gen_config` row counts stay unchanged.
 
 ## Supported Filters
 
@@ -153,10 +175,9 @@ This ThinkPHP implementation renders safe preview strings from `gen_basic` and `
 - No `/gen/basic/delete` route is implemented.
 - No `/gen/config/edit` route is implemented.
 - No `/gen/config/delete` route is implemented.
-- No `/gen/basic/execGenZip` route is implemented.
 - No `/gen/basic/execGenPro` route is implemented.
-- No file writing, ZIP generation, direct project generation, or Java source modification is performed.
+- No direct project generation or Java source modification is performed.
 
 ## Later Work
 
-Generator writes, executable code generation, and direct project output need a dedicated approval and safety design, including schema allow-listing, output path restrictions, permission checks, audit logging, and a clear policy for generated ThinkPHP code ownership.
+Generator writes, direct project output, and full Java Beetl template parity need a dedicated approval and safety design, including schema allow-listing, output path restrictions, permission checks, audit logging, and a clear policy for generated ThinkPHP code ownership.

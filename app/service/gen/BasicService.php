@@ -86,6 +86,67 @@ class BasicService
     }
 
     /**
+     * @return array{filename:string, contentType:string, content:string}
+     */
+    public function execGenZip(string $id): array
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            throw new RuntimeException('zip extension not available', 500);
+        }
+
+        $row = $this->basicQuery(['id' => $id])->find();
+        if (!$row) {
+            throw new RuntimeException('gen basic not found', 404);
+        }
+
+        $basic = is_array($row) ? $row : $row->toArray();
+        $preview = $this->previewGen($id);
+        $temp = tempnam(sys_get_temp_dir(), 'gen_basic_');
+        if ($temp === false) {
+            throw new RuntimeException('cannot create temporary zip file', 500);
+        }
+
+        $zipPath = $temp . '.zip';
+        @unlink($temp);
+
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            @unlink($zipPath);
+            throw new RuntimeException('cannot open temporary zip file', 500);
+        }
+
+        $closed = false;
+        try {
+            $seen = [];
+            $this->addPreviewZipEntries($zip, $preview['genBasicCodeSqlResultList'] ?? [], '', $seen);
+            $this->addPreviewZipEntries($zip, $preview['genBasicCodeFrontendResultList'] ?? [], 'frontend', $seen);
+            $this->addPreviewZipEntries($zip, $preview['genBasicCodeBackendResultList'] ?? [], 'backend', $seen);
+            $this->addPreviewZipEntries($zip, $preview['genBasicCodeMobileResultList'] ?? [], 'mobile', $seen);
+
+            $closed = $zip->close();
+            if (!$closed) {
+                throw new RuntimeException('cannot close temporary zip file', 500);
+            }
+
+            $content = file_get_contents($zipPath);
+            if ($content === false || $content === '') {
+                throw new RuntimeException('cannot read temporary zip file', 500);
+            }
+
+            return [
+                'filename' => $this->zipFilename($basic),
+                'contentType' => 'application/octet-stream;charset=UTF-8',
+                'content' => $content,
+            ];
+        } finally {
+            if (!$closed) {
+                @$zip->close();
+            }
+            @unlink($zipPath);
+        }
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     public function mobileModuleSelector(array $filters = []): array
@@ -277,6 +338,107 @@ SQL, [$tableName, $tableName]);
             'codeFileWithPathName' => str_replace('\\', '/', $path),
             'codeFileContent' => $content,
         ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>>|mixed $items
+     * @param array<string, bool> $seen
+     */
+    private function addPreviewZipEntries(\ZipArchive $zip, mixed $items, string $prefix, array &$seen): void
+    {
+        if (!is_array($items)) {
+            return;
+        }
+
+        foreach ($items as $index => $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $fallbackName = $this->str($item['codeFileName'] ?? '');
+            if ($fallbackName === '') {
+                $fallbackName = 'generated-' . ((int)$index + 1) . '.txt';
+            }
+
+            $path = $this->zipPath(
+                $prefix,
+                $this->str($item['codeFileWithPathName'] ?? ''),
+                $fallbackName
+            );
+            $path = $this->uniqueZipPath($path, $seen);
+            if (!$zip->addFromString($path, (string)($item['codeFileContent'] ?? ''))) {
+                throw new RuntimeException('cannot add generated file to zip', 500);
+            }
+        }
+    }
+
+    private function zipPath(string $prefix, string $path, string $fallbackName): string
+    {
+        $prefixSegments = $this->zipPathSegments($prefix);
+        $pathSegments = $this->zipPathSegments($path);
+        if ($pathSegments === []) {
+            $pathSegments = $this->zipPathSegments($fallbackName);
+        }
+        if ($pathSegments === []) {
+            $pathSegments = ['generated.txt'];
+        }
+
+        return implode('/', array_merge($prefixSegments, $pathSegments));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function zipPathSegments(string $path): array
+    {
+        $path = str_replace("\0", '', str_replace('\\', '/', $path));
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            $segment = trim($segment);
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        return $segments;
+    }
+
+    /**
+     * @param array<string, bool> $seen
+     */
+    private function uniqueZipPath(string $path, array &$seen): string
+    {
+        $candidate = $path;
+        $index = 2;
+        while (isset($seen[strtolower($candidate)])) {
+            $dot = strrpos($path, '.');
+            $candidate = $dot === false
+                ? $path . '-' . $index
+                : substr($path, 0, $dot) . '-' . $index . substr($path, $dot);
+            $index++;
+        }
+
+        $seen[strtolower($candidate)] = true;
+
+        return $candidate;
+    }
+
+    /**
+     * @param array<string, mixed> $basic
+     */
+    private function zipFilename(array $basic): string
+    {
+        $name = $this->str($basic['FUNCTION_NAME'] ?? '');
+        if ($name === '') {
+            $name = $this->str($basic['CLASS_NAME'] ?? '');
+        }
+        $name = str_replace(["\0", '/', '\\'], '', $name);
+        if ($name === '') {
+            $name = 'gen-basic';
+        }
+
+        return str_ends_with(strtolower($name), '.zip') ? $name : $name . '.zip';
     }
 
     private function basicQuery(array $filters)
