@@ -4,6 +4,12 @@
 
 Let the main control Agent continue the Java OA to ThinkPHP refactor with fewer interruptions while preserving hard safety boundaries.
 
+## Current Continuation Entry Point
+
+For normal future continuations, use `docs/tasks/lean-continuation-workflow.md` together with `docs/tasks/new-conversation-bootstrap.md`.
+
+This file records autonomy boundaries. The lean workflow records the faster startup packet, targeted search rules, task triage, multi-Agent fallback, documentation scope, and risk-based quality gates.
+
 ## User Authorization Template
 
 Copy this into the chat when you want the Agent to proceed autonomously:

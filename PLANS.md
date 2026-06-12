@@ -8863,3 +8863,35 @@ Focused service smoke was run through ThinkPHP bootstrap using the user-designat
 ### 7. Forbidden Scope
 
 - Do not implement `/gen/basic/add`, `/edit`, `/delete`, `/execGenZip`, `/execGenPro`, direct project writes, ZIP output, full Java Beetl template parity, Java source changes, database schema changes, Composer changes, `.env` changes, frontend source changes, or unrelated generator writes in this slice.
+
+## Completed Plan: merge-agent - Lean Continuation Workflow Optimization
+
+Status: completed on 2026-06-12 as a documentation-only process improvement.
+
+### 1. Current Goal
+
+Reduce repeated context loading and token usage for future continuations without lowering implementation quality or changing completed behavior.
+
+### 2. Involved Files
+
+- `AGENTS.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/autonomous-execution-rules.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Rules Added
+
+- Use a fast startup packet instead of reading all long logs end to end.
+- Use targeted `rg` / `Select-String` searches for current modules.
+- Classify each slice by risk before editing.
+- Keep multi-Agent mode as default, with a documented single-conversation fallback when sub-Agent tools or quota are unavailable.
+- Preserve strict quality gates for write routes, side-effect-heavy flows, browser-visible changes, and secret handling.
+
+### 4. Acceptance Criteria
+
+- No business code, route behavior, frontend source, database schema, Composer files, `.env`, or Java source files are changed.
+- Future conversations have one clear low-token workflow entry point.
+- Quality gates remain explicit and risk-based.

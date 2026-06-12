@@ -6,7 +6,7 @@ This repository uses a main architect Agent plus multiple module Agents.
 
 Future new Codex conversations should default to the real multi-Agent mode for this project. The main conversation acts as the merge/coordinator session, and work is split into explicit worker roles such as `frontend-agent`, `api-agent`, `test-agent`, `docs-agent`, and other module Agents defined below.
 
-New conversation startup details are tracked in `docs/tasks/new-conversation-bootstrap.md`. Read that file together with `AGENTS.md`, `PLANS.md`, `IMPLEMENT.md`, and `STATUS.md` before continuing project work.
+New conversation startup details are tracked in `docs/tasks/new-conversation-bootstrap.md`. Use the lean startup packet there together with `docs/tasks/lean-continuation-workflow.md` before continuing project work. Read full `PLANS.md`, `IMPLEMENT.md`, and `STATUS.md` only when targeted search or the current task requires deeper history.
 
 The current main architect Agent is responsible for:
 
@@ -19,7 +19,7 @@ The current main architect Agent is responsible for:
 - integrating worker results into the final target project
 - committing only after reviewing the combined changes
 
-The main architect Agent does not implement business features directly unless the user explicitly changes the task.
+The main architect Agent may implement a small scoped slice directly when acting as the merge/coordinator and the user has asked to continue project execution. It must still preserve the multi-Agent discipline: define scope, use explorers/workers when available and useful, review the result, run acceptance checks, and commit only coherent reviewed changes.
 
 Worker Agents must only operate inside their explicitly assigned task scope. They do not broaden the task, take over merge/coordinator responsibilities, or edit unrelated modules. The main conversation is responsible for consolidating worker output, resolving overlap, and preparing the final commit.
 
@@ -86,6 +86,18 @@ Each Agent:
 - must not modify the Java source project
 - must not delete database fields
 - must not do broad unrelated refactors
+
+## Lean Continuation Rules
+
+Use `docs/tasks/lean-continuation-workflow.md` for faster continuation with the same quality bar.
+
+Key rules:
+
+- Start with `git status`, `AGENTS.md`, `new-conversation-bootstrap.md`, `lean-continuation-workflow.md`, the dashboard head, and the latest `STATUS.md` tail.
+- Use targeted `rg` / `Select-String` searches before reading large logs.
+- Classify each slice as read-only, isolated write, side-effect write, frontend-visible fix, or infrastructure.
+- Run risk-appropriate checks; do not skip DB/negative/side-effect smoke for write routes.
+- If sub-Agent tools or quota are unavailable, emulate explorer, implementation, test, and docs passes in the main conversation and report the limitation when relevant.
 
 ## Module Scope
 

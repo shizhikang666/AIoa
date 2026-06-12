@@ -963,3 +963,25 @@ Explicit non-goals:
 - No full Java Beetl template parity.
 - No Java source, database schema, Composer, `.env`, frontend source, scheduler, or unrelated generator writes.
 
+## 2026-06-12 Lean Continuation Workflow Optimization
+
+Agent: merge-agent / docs-agent fallback
+
+Execution summary:
+
+1. Reviewed current startup, Agent coordination, runtime, dashboard, API gap, and smoke-runbook docs.
+2. Added `docs/tasks/lean-continuation-workflow.md` as the primary low-token continuation playbook.
+3. Updated `docs/tasks/new-conversation-bootstrap.md` to use a fast startup packet and targeted module search before reading long logs.
+4. Updated `AGENTS.md` so project-level rules point to the lean workflow and document the current coordinator-led small-slice mode.
+5. Updated `docs/tasks/autonomous-execution-rules.md` to point normal continuations at the lean workflow while preserving autonomy boundaries.
+6. Recorded quality-preserving rules for task triage, multi-Agent fallback, documentation scope, and risk-based checks.
+
+Explicit non-goals:
+
+- No business code changes.
+- No route behavior changes.
+- No frontend source changes.
+- No database schema changes.
+- No Composer or `.env` changes.
+- No Java source changes.
+

@@ -4,17 +4,26 @@ Use this note when starting a future Codex conversation for the ThinkPHP OA refa
 
 ## Required Startup Reads
 
-Before continuing any task, read these project files in the target worktree:
+Before continuing a normal task, use the lean startup packet instead of loading every long log file end to end:
 
 ```powershell
-Get-Content -Raw AGENTS.md
-Get-Content -Raw PLANS.md
-Get-Content -Raw IMPLEMENT.md
-Get-Content -Raw STATUS.md
 git status --short --branch
+Get-Content -Raw AGENTS.md
+Get-Content -Raw docs\tasks\new-conversation-bootstrap.md
+Get-Content -Raw docs\tasks\lean-continuation-workflow.md
+Get-Content docs\tasks\refactor-progress-dashboard.md -TotalCount 90
+Get-Content STATUS.md -Tail 140
 ```
 
+Then use targeted `rg` / `Select-String -Context` searches for the active module in `PLANS.md`, `IMPLEMENT.md`, `STATUS.md`, `docs`, `app`, `route`, and `snowy-admin-web\src`.
+
+Read full `PLANS.md`, `IMPLEMENT.md`, or `STATUS.md` only for cross-module audits, release/merge work, or when targeted search cannot answer the current task.
+
 Treat existing local changes as another Agent's work unless the user explicitly says otherwise. Do not revert unrelated changes.
+
+Detailed low-token continuation rules are in:
+
+`docs/tasks/lean-continuation-workflow.md`
 
 ## Default Agent Mode
 
@@ -27,6 +36,13 @@ Default to real multi-Agent mode for this project.
 - Multiple worktrees are temporary parallel workspaces. The final deliverable remains one merged ThinkPHP project at `F:\AI\projects\testJava\OA-ThinkPHP`.
 
 If a new conversation does not have all tools, connectors, or worker-thread capabilities available, it must state what is missing and continue with the closest available safe workflow. For example, emulate worker roles in one conversation, keep scopes explicit, and record any limitations in the final report.
+
+For speed and token control, use sub-Agents only for bounded, non-overlapping work:
+
+- explorer Agents answer Java/frontend/current-PHP behavior questions and do not edit files.
+- worker Agents edit only assigned files or modules.
+- the main merge/coordinator reviews, runs acceptance checks, updates docs, and commits.
+- if sub-Agent quota is unavailable, continue with the same explorer/implementation/test/docs passes inside the main conversation.
 
 ## Runtime Services
 

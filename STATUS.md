@@ -8075,3 +8075,44 @@ Agent: api-agent
 
 - Commit this generator preview compatibility slice.
 - Continue with the next low-risk frontend-visible gap after a scoped sub-Agent checks Java behavior and current frontend consumers.
+
+## 2026-06-12 10:39 +08:00 - merge-agent - Lean Continuation Workflow Optimization
+
+### Completed
+
+- Added a documentation-only low-token workflow for future continuations.
+- Optimized new-conversation startup from full long-log reads to a fast startup packet plus targeted module search.
+- Preserved the quality bar by keeping risk-based gates for:
+  - read-only routes
+  - isolated writes
+  - side-effect-heavy writes
+  - frontend-visible changes
+  - infrastructure/runtime work
+- Documented multi-Agent fallback behavior when sub-Agent tools or quota are unavailable.
+
+### Modified Files
+
+- `AGENTS.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/autonomous-execution-rules.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- Documentation-only change; no PHP or frontend runtime behavior changed.
+- Process search consistency check passed: all new startup references point to `docs/tasks/lean-continuation-workflow.md`.
+- `git diff --check`: passed with CRLF conversion warnings only.
+- `git status --short --branch`: passed and showed only scoped documentation changes.
+
+### Current Issues
+
+- Sub-Agent quota was unavailable during the previous attempted SSE explorer task, so the new workflow explicitly records the single-conversation fallback.
+- Existing large historical logs remain large by design; future turns should use targeted search and tails instead of full reads.
+
+### Next Plan
+
+- Commit this process optimization.
+- Resume implementation with the next small slice, likely task SSE compatibility, using the lean startup and risk-based quality gates.
