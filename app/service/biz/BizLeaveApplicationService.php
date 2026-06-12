@@ -8,11 +8,21 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only leave-application queries compatible with Java BizLeaveApplicationController.
+ * Leave-application compatibility for Java BizLeaveApplicationController.
  */
 class BizLeaveApplicationService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
+    private const EDITABLE_FIELDS = [
+        'userId' => 'USER_ID',
+        'processId' => 'PROCESS_ID',
+        'category' => 'category',
+        'amount' => 'AMOUNT',
+        'remark' => 'REMARK',
+        'startTime' => 'START_TIME',
+        'endTime' => 'END_TIME',
+    ];
     private const FIELDS = <<<SQL
 l.ID AS ID,
 l.USER_ID AS USER_ID,
@@ -106,6 +116,48 @@ SQL;
         return $this->leaveRows([$row])[0];
     }
 
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $this->assertLeaveWritable($id, $payload, 'edit leave application');
+            $this->assertTargetUserWritable($this->requiredInput($input, 'userId'), $payload);
+            $updated = Db::name('biz_leave_application')
+                ->where('ID', $id)
+                ->update($this->editableUpdate($input, $payload));
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    public function delete(array $input, array $payload = []): array
+    {
+        $ids = $this->deleteIds($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $rows = $this->activeLeaveRows($ids, $payload);
+            if (count($rows) !== count($ids)) {
+                throw new RuntimeException('leave application batch contains missing rows', 400);
+            }
+
+            foreach ($ids as $id) {
+                $this->assertLeaveRowWritable($rows[$id], $payload, 'delete leave application');
+            }
+
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('biz_leave_application')
+                ->whereIn('ID', $ids)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                ]);
+
+            return ['count' => $updated];
+        });
+    }
+
     private function leaveQuery(array $filters, array $payload, bool $onlyCurrentUser)
     {
         $query = Db::name('biz_leave_application')
@@ -189,6 +241,125 @@ SQL;
         }
 
         return $query;
+    }
+
+    private function assertLeaveWritable(string $id, array $payload, string $action): array
+    {
+        $rows = $this->activeLeaveRows([$id], $payload);
+        if ($rows === []) {
+            throw new RuntimeException('leave application not found', 404);
+        }
+
+        return $this->assertLeaveRowWritable(reset($rows), $payload, $action);
+    }
+
+    private function assertLeaveRowWritable(array $row, array $payload, string $action): array
+    {
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $rowOrg = trim((string)($row['ORG_ID'] ?? ''));
+        if ($scopeOrgIds !== [] && $rowOrg !== '' && in_array($rowOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $rowUser = trim((string)($row['USER_ID'] ?? ''));
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && ($rowUser === $currentUserId || $createUser === $currentUserId)) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<string, array<string, mixed>>
+     */
+    private function activeLeaveRows(array $ids, array $payload): array
+    {
+        $query = Db::name('biz_leave_application')
+            ->alias('l')
+            ->leftJoin('sys_user u', 'u.ID = l.USER_ID')
+            ->whereIn('l.ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('l.DELETE_FLAG')->whereOr('l.DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('l.TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field('l.ID,l.USER_ID,l.CREATE_USER,l.TENANT_ID,u.ORG_ID AS ORG_ID')
+            ->select()
+            ->toArray();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[(string)$row['ID']] = $row;
+        }
+
+        return $result;
+    }
+
+    private function assertTargetUserWritable(string $userId, array $payload): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $query = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->field('ID,ORG_ID,TENANT_ID');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('target user not found', 404);
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        if ($currentUserId !== '' && (string)$row['ID'] === $currentUserId) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $orgId = trim((string)($row['ORG_ID'] ?? ''));
+        if ($scopeOrgIds !== [] && $orgId !== '' && in_array($orgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to assign leave application user', 403);
+    }
+
+    private function editableUpdate(array $input, array $payload): array
+    {
+        $row = [];
+        foreach (self::EDITABLE_FIELDS as $field => $column) {
+            $row[$column] = match ($field) {
+                'amount' => $this->decimalAmount($input[$field] ?? null),
+                'startTime', 'endTime' => $this->requiredTime($input, $field),
+                default => $this->requiredInput($input, $field),
+            };
+        }
+
+        $userId = $this->currentUserId($payload);
+        $row['UPDATE_TIME'] = date('Y-m-d H:i:s');
+        $row['UPDATE_USER'] = $userId !== '' ? $userId : null;
+
+        return $row;
     }
 
     private function applySort($query, array $filters)
@@ -280,6 +451,60 @@ SQL;
     /**
      * @return array<int, string>
      */
+    private function deleteIds(array $input): array
+    {
+        $source = $input['ids'] ?? $input['idList'] ?? null;
+        if ($source === null && array_key_exists('id', $input)) {
+            $source = [$input['id']];
+        }
+        if ($source === null && $this->isListArray($input)) {
+            $source = array_map(static function (mixed $item): mixed {
+                return is_array($item) ? ($item['id'] ?? null) : $item;
+            }, $input);
+        }
+        if (is_string($source)) {
+            $source = explode(',', $source);
+        }
+        if (!is_array($source)) {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        $ids = array_values(array_unique(array_filter(array_map(
+            fn (mixed $id): string => $this->idValue($id),
+            $source
+        ))));
+        if ($ids === []) {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        return $ids;
+    }
+
+    private function idValue(mixed $value): string
+    {
+        if (is_array($value)) {
+            return trim((string)($value['id'] ?? $value['ID'] ?? ''));
+        }
+
+        return trim((string)$value);
+    }
+
+    private function isListArray(array $input): bool
+    {
+        $index = 0;
+        foreach (array_keys($input) as $key) {
+            if ($key !== $index) {
+                return false;
+            }
+            $index++;
+        }
+
+        return true;
+    }
+
+    /**
+     * @return array<int, string>
+     */
     private function orgAndChildren(string $orgId): array
     {
         $orgId = trim($orgId);
@@ -347,6 +572,60 @@ SQL;
     private function currentUserId(array $payload): string
     {
         return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? $payload['roleCodeList'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function decimalAmount(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            throw new RuntimeException('missing amount', 400);
+        }
+        if (!is_numeric($value)) {
+            throw new RuntimeException('invalid amount', 400);
+        }
+
+        return number_format((float)$value, 2, '.', '');
+    }
+
+    private function requiredTime(array $input, string $key): string
+    {
+        $value = $this->requiredInput($input, $key);
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
     }
 
     private function decimal(mixed $value): int|float|null

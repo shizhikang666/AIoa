@@ -7910,3 +7910,56 @@ Agent: api-agent
 
 - Commit this payroll template download compatibility slice.
 - The next candidate from explorer review is leave-application `edit/delete`, but it should be treated as a separate slice because it can affect workflow history and payroll-facing leave calculations.
+
+## 2026-06-12 09:10 +08:00 - merge-agent - Leave Application Edit Delete Compatibility
+
+### Completed
+
+- Continued in real multi-Agent mode: a leave/vacation explorer recommended only `edit/delete` as a low-risk leave slice, and a follow-up read-only explorer checked local PHP write/delete patterns.
+- Added Java-compatible leave-application write endpoints:
+  - `POST /biz/bizleaveapplication/edit`
+  - `POST /biz/bizleaveapplication/delete`
+- `edit` now updates only Java `BizLeaveApplicationEditParam` fields and preserves create audit, tenant, object metadata, and delete state.
+- `delete` now performs staged logical delete with full-batch validation before any write.
+- Enhanced delete id parsing after sub-Agent review so `[{ id }]`, `{ ids: [{ id }] }`, scalar ids, and comma-separated ids are supported.
+- Added tenant/data-scope write guards for admin-compatible users, applicant organization rows, current-applicant rows, and creator-owned rows.
+- Kept leave `add`, workflow start/approval actions, annual-leave/vacation balance mutation, and payroll-facing recalculation deferred.
+
+### Modified Files
+
+- `app/service/biz/BizLeaveApplicationService.php`
+- `app/controller/biz/BizLeaveApplicationController.php`
+- `route/app.php`
+- `docs/api/biz-leave-application-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\biz\BizLeaveApplicationService.php`: passed.
+- `php -l app\controller\biz\BizLeaveApplicationController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists the two leave write routes.
+- Focused DB smoke with temporary leave rows passed:
+  - `edit` updated `processId`, `amount`, `remark`, `startTime`, and `endTime`.
+  - create audit, tenant, and object metadata were preserved.
+  - nested `{ ids: [{ id }] }` missing-id delete failed before changing existing rows.
+  - non-admin out-of-scope edit returned `403`.
+  - `delete` set `DELETE_FLAG = DELETED` and hid the row from `detail`.
+  - payroll and vacation table counts stayed unchanged.
+  - temporary smoke rows were physically cleaned up.
+
+### Current Issues
+
+- `POST /biz/bizleaveapplication/add` remains intentionally absent because Java controller comments it out.
+- Workflow start/approve/reject/cancel, annual-leave/vacation deduction, and payroll-facing leave recalculation remain deferred.
+- Browser smoke for the copied leave page should still be run after the frontend server is active.
+
+### Next Plan
+
+- Commit this leave compatibility slice.
+- Continue with the next low-risk backend slice after checking Java behavior and frontend consumers through scoped sub-Agents.

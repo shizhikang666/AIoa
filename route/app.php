@@ -600,6 +600,8 @@ Route::group('biz/bizleaveapplication', function () {
     Route::get('page', 'biz.BizLeaveApplicationController/page');
     Route::get('my/page', 'biz.BizLeaveApplicationController/myPage');
     Route::get('detail', 'biz.BizLeaveApplicationController/detail');
+    Route::post('edit', 'biz.BizLeaveApplicationController/edit');
+    Route::post('delete', 'biz.BizLeaveApplicationController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizuservacation', function () {

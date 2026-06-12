@@ -8668,3 +8668,67 @@ Focused service and authenticated HTTP smokes were run through the user-designat
 ### 7. Forbidden Scope
 
 - Do not implement payroll `import`, `export`, `generate/add`, `add`, Excel parsing/rendering, payroll calculation logic, Java source changes, database schema changes, Composer changes, `.env` changes, frontend changes, or unrelated workflow/business side effects in this slice.
+
+## Completed Plan: merge-agent - Leave Application Edit Delete Compatibility
+
+Status: completed on 2026-06-12 after leave/vacation explorer review, route registration, PHP lint, route-list verification, and DB smoke with temporary-row cleanup.
+
+### 1. Current Goal
+
+Add old-frontend-compatible leave-application low-risk write endpoints:
+
+- `POST /biz/bizleaveapplication/edit`
+- `POST /biz/bizleaveapplication/delete`
+
+This slice mirrors Java `BizLeaveApplicationServiceImpl.edit` and `delete` for existing leave rows only. Java `add` is commented out in the controller and remains absent.
+
+### 2. Involved Modules
+
+- `biz/bizleaveapplication` route/controller/service
+- copied frontend `snowy-admin-web/src/api/biz/bizLeaveApplicationApi.js`
+- copied frontend leave form/detail consumers
+- Java source remains read-only under `F:\AI\projects\testJava\OA`
+
+### 3. Involved Files
+
+- `app/service/biz/BizLeaveApplicationService.php`
+- `app/controller/biz/BizLeaveApplicationController.php`
+- `route/app.php`
+- `docs/api/biz-leave-application-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- Leave rows are connected to workflow history and annual-leave/vacation balances, so this slice must not create leave records or run approval side effects.
+- `edit` must update only Java `BizLeaveApplicationEditParam` fields and preserve tenant/create/object metadata.
+- Delete must validate every id before writing to avoid partial updates.
+- Frontend batch delete can send both `[{ id }]` and nested `{ ids: [{ id }] }` shapes.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\BizLeaveApplicationService.php
+php -l app\controller\biz\BizLeaveApplicationController.php
+php -l route\app.php
+php think route:list
+git diff --check
+```
+
+Focused DB smoke was run through ThinkPHP bootstrap using the user-designated local MySQL/Redis runtime.
+
+### 6. Acceptance Criteria
+
+- Both leave write routes are registered behind `AuthMiddleware`.
+- Controller accepts form POST, raw JSON, and request parameter payloads.
+- `edit` requires Java edit fields and updates only `USER_ID`, `PROCESS_ID`, `category`, `AMOUNT`, `REMARK`, `START_TIME`, `END_TIME`, `UPDATE_TIME`, and `UPDATE_USER`.
+- `delete` accepts Java-style `[{ id }]`, `{ ids: [{ id }] }`, and scalar id list payloads.
+- DB smoke verifies field preservation, nested missing-id rollback behavior, non-admin `403`, deleted-detail hiding, no payroll/vacation side effects, and temporary-row cleanup.
+
+### 7. Forbidden Scope
+
+- Do not implement leave `add`, workflow start/approve/reject/cancel, annual-leave/vacation generation or deduction, payroll-facing leave recalculation, Java source changes, database schema changes, Composer changes, `.env` changes, frontend changes, or unrelated business side effects in this slice.

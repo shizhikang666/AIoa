@@ -892,3 +892,28 @@ Explicit non-goals:
 - No payroll calculation logic.
 - No Java source, database schema, Composer, `.env`, frontend source, workflow, finance, data-change event, or unrelated business changes.
 
+## 2026-06-12 Leave Application Edit Delete Implementation
+
+Agent: merge-agent / api-agent
+
+Execution summary:
+
+1. Used the leave/vacation explorer result for Java behavior: Java exposes `edit` and `delete`, while `add` is commented out and workflow-owned.
+2. Added protected `POST /biz/bizleaveapplication/edit` and `POST /biz/bizleaveapplication/delete`.
+3. Added controller body parsing for form POST, raw JSON, and request parameters.
+4. Added `BizLeaveApplicationService::edit` and `delete`.
+5. Limited edit writes to Java `BizLeaveApplicationEditParam` fields only: `USER_ID`, `PROCESS_ID`, `category`, `AMOUNT`, `REMARK`, `START_TIME`, and `END_TIME`.
+6. Preserved `OBJECT_ID`, `TENANT_ID`, `CREATE_TIME`, `CREATE_USER`, and delete state on edit.
+7. Added logical delete via `DELETE_FLAG = DELETED` with `UPDATE_TIME` and `UPDATE_USER`.
+8. Added full-batch validation before delete writes, including nested `{ ids: [{ id }] }` payload support.
+9. Added tenant/data-scope write guards for admin-compatible users, applicant organization, current applicant, and creator-owned rows.
+10. Updated leave API docs, API gap map, progress dashboard, new-conversation bootstrap notes, implementation notes, and active plan status.
+
+Explicit non-goals:
+
+- No leave add.
+- No workflow start/approve/reject/cancel.
+- No annual-leave or vacation deduction/generation.
+- No payroll-facing leave recalculation.
+- No Java source, database schema, Composer, `.env`, frontend source, notification, data-change event, or unrelated business changes.
+
