@@ -6,8 +6,11 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\BizPayrollService;
+use app\support\ApiResponse;
+use RuntimeException;
 use think\Request;
 use think\Response;
+use Throwable;
 
 class BizPayrollController extends BaseSysController
 {
@@ -28,6 +31,11 @@ class BizPayrollController extends BaseSysController
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->payrollService->detail($this->requiredString($request, 'id'), $this->authPayload($request)));
+    }
+
+    public function downloadImportTemplate(Request $request): Response
+    {
+        return $this->downloadGuard(fn () => $this->payrollService->downloadImportTemplate());
     }
 
     public function edit(Request $request): Response
@@ -74,5 +82,38 @@ class BizPayrollController extends BaseSysController
         }
 
         return $request->param();
+    }
+
+    private function downloadGuard(callable $callback): Response
+    {
+        try {
+            return $this->downloadResponse($callback());
+        } catch (RuntimeException $exception) {
+            $code = $exception->getCode();
+            $status = is_int($code) && $code >= 400 && $code <= 599 ? $code : 400;
+
+            return ApiResponse::fail($exception->getMessage(), $status);
+        } catch (Throwable) {
+            return ApiResponse::fail('server error', 500);
+        }
+    }
+
+    /**
+     * @param array{filename:string, contentType:string, content:string} $file
+     */
+    private function downloadResponse(array $file): Response
+    {
+        $filename = (string)($file['filename'] ?? 'download.xlsx');
+        $content = (string)($file['content'] ?? '');
+        $contentType = (string)($file['contentType'] ?? 'application/octet-stream');
+        $encodedFilename = rawurlencode($filename);
+
+        return Response::create($content, 'html', 200)->header([
+            'Content-Type' => $contentType,
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"; filename*=UTF-8\'\'' . $encodedFilename,
+            'Content-Length' => (string)strlen($content),
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            'Pragma' => 'no-cache',
+        ]);
     }
 }

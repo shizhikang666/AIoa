@@ -6,7 +6,7 @@ Agent: api-agent / merge-agent
 
 ## Scope
 
-This document tracks ThinkPHP compatibility for the Java payroll module. The original slice added read-only page/detail APIs. The 2026-06-12 slice adds the low-risk Java-compatible base writes for edit, batch edit, and logical delete.
+This document tracks ThinkPHP compatibility for the Java payroll module. The original slice added read-only page/detail APIs. The 2026-06-12 slices add the low-risk Java-compatible base writes for edit, batch edit, logical delete, and import-template download.
 
 Java reference inputs:
 
@@ -21,6 +21,7 @@ Java reference inputs:
 | GET | `/biz/bizpayroll/page` | `biz.BizPayrollController/page` | `BizPayrollController.page` |
 | GET | `/biz/bizpayroll/mypage` | `biz.BizPayrollController/myPage` | `BizPayrollController.mypage` |
 | GET | `/biz/bizpayroll/detail` | `biz.BizPayrollController/detail` | `BizPayrollController.detail` |
+| GET | `/biz/bizpayroll/downloadImportTemplate` | `biz.BizPayrollController/downloadImportTemplate` | `BizPayrollController.download` |
 | POST | `/biz/bizpayroll/edit` | `biz.BizPayrollController/edit` | `BizPayrollController.edit` |
 | POST | `/biz/bizpayroll/bath/edit` | `biz.BizPayrollController/bathEdit` | `BizPayrollController.bathEdit` |
 | POST | `/biz/bizpayroll/delete` | `biz.BizPayrollController/delete` | `BizPayrollController.delete` |
@@ -77,11 +78,23 @@ The write guards are tenant-scoped. Admin-compatible users may write all current
 
 The write slice intentionally preserves fields that Java `BizPayrollEditParam` does not expose, including `POST_WAGE`, `YEAR_END_BONUS`, `PUBLIC_ACCOUNT`, `PRIVATE_ACCOUNT`, `REMARK`, `USER`, `ORG`, and `SALARY_TIME`.
 
+## Import Template Download
+
+`GET /biz/bizpayroll/downloadImportTemplate` returns the original Java resource `userPayrollTemplate.xlsx` as an authenticated blob response. The tracked ThinkPHP copy is stored at:
+
+`app/resources/biz/payroll/userPayrollTemplate.xlsx`
+
+The template bytes match the Java source resource:
+
+- size: `13427`
+- SHA256: `4A98E66E74E8D310D6226A5F6DD60602652FC25FD6D0FB272281BBF19CD861B8`
+
+The route is intentionally a download response, not a JSON `ApiResponse::ok` wrapper.
+
 ## Explicit Exclusions
 
 The following Java/frontend routes remain deferred:
 
-- `/biz/bizpayroll/downloadImportTemplate`
 - `/biz/bizpayroll/import`
 - `/biz/bizpayroll/export`
 - `/biz/bizpayroll/generate/add`
@@ -109,3 +122,9 @@ Focused DB smoke on 2026-06-12 inserted temporary `biz_payroll` rows, then verif
 - non-admin out-of-scope edit returns `403`.
 - `delete` sets `DELETE_FLAG = DELETED` and hides the row from `detail`.
 - temporary smoke rows are physically cleaned up.
+
+Focused template download smoke on 2026-06-12 verified:
+
+- service returns filename `工资条导入模板.xlsx`, xlsx content type, 13427 bytes, SHA256 `4A98E66E74E8D310D6226A5F6DD60602652FC25FD6D0FB272281BBF19CD861B8`, and `PK` file header.
+- authenticated HTTP GET returns `200`, xlsx content type, `.xlsx` content disposition, 13427 bytes, matching SHA256, and `PK` file header.
+- `biz_payroll` row count remains unchanged by template download.

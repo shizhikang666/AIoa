@@ -869,3 +869,26 @@ Explicit non-goals:
 - No payroll calculation logic.
 - No workflow, notification, finance, data-change event, Java source, database schema, Composer, `.env`, frontend source, or unrelated business module changes.
 
+## 2026-06-12 Payroll Import Template Download Implementation
+
+Agent: merge-agent / api-agent
+
+Execution summary:
+
+1. Used the payroll explorer result for Java behavior: `downloadImportTemplate` is a GET route that reads `userPayrollTemplate.xlsx` and returns a blob; it does not perform payroll writes.
+2. Added the original Java template as a versioned ThinkPHP asset at `app/resources/biz/payroll/userPayrollTemplate.xlsx`.
+3. Added `BizPayrollService::downloadImportTemplate` to read the template asset and return filename, content type, and bytes.
+4. Added `BizPayrollController::downloadImportTemplate` with a local download response helper so the endpoint returns a file response rather than a JSON envelope.
+5. Registered protected `GET /biz/bizpayroll/downloadImportTemplate`.
+6. Updated payroll API docs, API gap map, progress dashboard, new-conversation bootstrap notes, implementation notes, and active plan status.
+
+Explicit non-goals:
+
+- No payroll import.
+- No payroll export.
+- No payroll generate/add.
+- No payroll add.
+- No Excel parser/renderer changes.
+- No payroll calculation logic.
+- No Java source, database schema, Composer, `.env`, frontend source, workflow, finance, data-change event, or unrelated business changes.
+

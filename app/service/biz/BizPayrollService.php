@@ -135,6 +135,28 @@ SQL;
         return $this->payrollRows([$row])[0];
     }
 
+    /**
+     * @return array{filename:string, contentType:string, content:string}
+     */
+    public function downloadImportTemplate(): array
+    {
+        $path = app()->getRootPath() . 'app/resources/biz/payroll/userPayrollTemplate.xlsx';
+        if (!is_file($path) || !is_readable($path)) {
+            throw new RuntimeException('payroll import template not found', 500);
+        }
+
+        $content = file_get_contents($path);
+        if ($content === false || $content === '') {
+            throw new RuntimeException('payroll import template not readable', 500);
+        }
+
+        return [
+            'filename' => '工资条导入模板.xlsx',
+            'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'content' => $content,
+        ];
+    }
+
     public function edit(array $input, array $payload = []): array
     {
         $id = $this->requiredInput($input, 'id');

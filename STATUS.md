@@ -7863,3 +7863,50 @@ Agent: api-agent
 
 - Commit this payroll compatibility slice.
 - Continue with the next low-risk backend slice after reviewing Java behavior through a scoped worker.
+
+## 2026-06-12 09:01 +08:00 - merge-agent - Payroll Import Template Download Compatibility
+
+### Completed
+
+- Continued in real multi-Agent mode: payroll explorer confirmed that only `downloadImportTemplate` is safe for the next low-risk payroll slice.
+- Added protected `GET /biz/bizpayroll/downloadImportTemplate`.
+- Copied the original Java `userPayrollTemplate.xlsx` into the ThinkPHP project as a versioned non-public resource:
+  - `app/resources/biz/payroll/userPayrollTemplate.xlsx`
+- Added service/controller support to return a direct xlsx blob response instead of a JSON envelope.
+- Kept payroll import, export, generate, and add deferred.
+
+### Modified Files
+
+- `app/resources/biz/payroll/userPayrollTemplate.xlsx`
+- `app/service/biz/BizPayrollService.php`
+- `app/controller/biz/BizPayrollController.php`
+- `route/app.php`
+- `docs/api/biz-payroll-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\biz\BizPayrollService.php`: passed.
+- `php -l app\controller\biz\BizPayrollController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists `GET /biz/bizpayroll/downloadImportTemplate`.
+- Service smoke verified filename, xlsx content type, 13427 bytes, `PK` file header, and SHA256 `4A98E66E74E8D310D6226A5F6DD60602652FC25FD6D0FB272281BBF19CD861B8`.
+- Authenticated HTTP smoke on local backend `http://127.0.0.1:82` returned `200`, xlsx content type, `.xlsx` content disposition, 13427 bytes, matching SHA256, and `PK` file header.
+- `biz_payroll` count remained stable before and after template download.
+
+### Current Issues
+
+- `POST /biz/bizpayroll/import` remains deferred because Java import parses EasyExcel, matches employees by name, allows partial success, writes payroll rows, and triggers data-change events.
+- `GET /biz/bizpayroll/export` remains deferred because Java export uses EasyExcel multi-level headers and merged organization groups.
+- `POST /biz/bizpayroll/generate/add` remains deferred because it aggregates users, sale projects, payment records, and leave records before writing payroll rows.
+- `/biz/bizpayroll/add` remains intentionally absent because the Java controller does not expose that endpoint.
+
+### Next Plan
+
+- Commit this payroll template download compatibility slice.
+- The next candidate from explorer review is leave-application `edit/delete`, but it should be treated as a separate slice because it can affect workflow history and payroll-facing leave calculations.

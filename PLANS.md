@@ -8605,3 +8605,66 @@ Focused DB smoke was run through ThinkPHP bootstrap using the user-designated lo
 ### 7. Forbidden Scope
 
 - Do not implement payroll `add`, `generate/add`, `import`, `export`, `downloadImportTemplate`, Java source changes, database schema changes, Composer changes, `.env` changes, frontend changes, or unrelated workflow/business side effects in this slice.
+
+## Completed Plan: merge-agent - Payroll Import Template Download Compatibility
+
+Status: completed on 2026-06-12 after explorer review, route registration, PHP lint, service hash smoke, authenticated HTTP smoke, and business-table no-write check.
+
+### 1. Current Goal
+
+Add old-frontend-compatible payroll import template download endpoint:
+
+- `GET /biz/bizpayroll/downloadImportTemplate`
+
+This slice returns the original Java `userPayrollTemplate.xlsx` bytes as a blob response and does not implement payroll import.
+
+### 2. Involved Modules
+
+- `biz/bizpayroll` route/controller/service
+- copied frontend `snowy-admin-web/src/api/biz/bizPayrollApi.js`
+- copied frontend import dialog `snowy-admin-web/src/views/biz/bizpayroll/impExp.vue`
+- Java source remains read-only under `F:\AI\projects\testJava\OA`
+
+### 3. Involved Files
+
+- `app/resources/biz/payroll/userPayrollTemplate.xlsx`
+- `app/service/biz/BizPayrollService.php`
+- `app/controller/biz/BizPayrollController.php`
+- `route/app.php`
+- `docs/api/biz-payroll-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 4. Risks
+
+- The template download is low risk, but `import` is not: Java import parses a complex workbook, allows partial success, writes payroll rows, and triggers data-change events.
+- `export` is also deferred because Java uses EasyExcel with multi-level headers and merged rows.
+- `generate/add` remains deferred because it aggregates users, projects, payment records, and leave records before writing payroll rows.
+
+### 5. Test Commands
+
+```powershell
+php -l app\service\biz\BizPayrollService.php
+php -l app\controller\biz\BizPayrollController.php
+php -l route\app.php
+php think route:list
+git diff --check
+```
+
+Focused service and authenticated HTTP smokes were run through the user-designated local MySQL/Redis/runtime.
+
+### 6. Acceptance Criteria
+
+- `GET /biz/bizpayroll/downloadImportTemplate` is registered behind `AuthMiddleware`.
+- The route returns a blob response, not a JSON envelope.
+- The response content type is `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+- The downloaded file is 13427 bytes, starts with `PK`, and has SHA256 `4A98E66E74E8D310D6226A5F6DD60602652FC25FD6D0FB272281BBF19CD861B8`.
+- `biz_payroll` row count remains stable before and after template download.
+
+### 7. Forbidden Scope
+
+- Do not implement payroll `import`, `export`, `generate/add`, `add`, Excel parsing/rendering, payroll calculation logic, Java source changes, database schema changes, Composer changes, `.env` changes, frontend changes, or unrelated workflow/business side effects in this slice.

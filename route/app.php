@@ -620,6 +620,7 @@ Route::group('biz/bizpayroll', function () {
     Route::get('page', 'biz.BizPayrollController/page');
     Route::get('mypage', 'biz.BizPayrollController/myPage');
     Route::get('detail', 'biz.BizPayrollController/detail');
+    Route::get('downloadImportTemplate', 'biz.BizPayrollController/downloadImportTemplate');
     Route::post('edit', 'biz.BizPayrollController/edit');
     Route::post('bath/edit', 'biz.BizPayrollController/bathEdit');
     Route::post('delete', 'biz.BizPayrollController/delete');
