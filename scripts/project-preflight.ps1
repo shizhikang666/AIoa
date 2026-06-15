@@ -5,6 +5,7 @@ param(
     [switch]$SkipRoleSelector,
     [switch]$SkipUserDisplay,
     [switch]$SkipBizRead,
+    [switch]$SkipInventoryDeliveryRead,
     [switch]$SkipDirectoryAlias,
     [switch]$SkipTenantRead,
     [switch]$SkipMessageSse,
@@ -66,6 +67,12 @@ if (-not $SkipUserDisplay) {
 if (-not $SkipBizRead) {
     Invoke-Step 'Business Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'business-read-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipInventoryDeliveryRead) {
+    Invoke-Step 'Inventory/Delivery Read HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'inventory-delivery-read-http-smoke.ps1')
     }
 }
 

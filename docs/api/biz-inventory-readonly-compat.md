@@ -43,3 +43,13 @@ ThinkPHP outputs:
 
 - Java inventory add and stock movement methods mutate `inventory` and publish warehouse inventory data-change events. Those operations are intentionally excluded from this read-only slice.
 - Java page/list validation checks the warehouse exists before querying inventory. This ThinkPHP slice does the same using the imported `warehouses` table and tenant filter when present.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/inventory-delivery-read-http-smoke.ps1` now verifies authenticated inventory reads against the local backend:
+
+- `GET /biz/inventory/page?warehousesId=...` returns Java-style paging keys and frontend-visible inventory/product fields when a visible row exists.
+- `GET /biz/inventory/list?warehousesId=...` returns an array with the same row contract.
+- `GET /biz/inventory/detail?id=...` is checked only with an id returned by the authenticated page result.
+
+The smoke is read-only. It does not call inventory add/delete, stock movement, batch adjustment, delivery writes, finance, workflow, provider, or data-change behavior.

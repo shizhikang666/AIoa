@@ -46,3 +46,13 @@ ThinkPHP outputs:
 
 - Java delivery record `add` compares requested stock against current inventory, creates an IN or OUT delivery record, mutates inventory, and publishes data-change events. That behavior is intentionally excluded from this read-only slice.
 - This slice keeps tenant filtering from the bearer token when present and does not introduce extra data-scope constraints that are absent from the Java delivery record page query.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/inventory-delivery-read-http-smoke.ps1` now verifies authenticated delivery-record reads against the local backend:
+
+- `GET /biz/warehouses/delivery/page` returns Java-style paging keys and frontend-visible delivery/product/operator fields when a visible row exists.
+- `GET /biz/warehouses/delivery/detail?id=...` is checked only with an id returned by the authenticated page result.
+- `GET /biz/warehouses/delivery/exportOtherCompanyRecordsList?warehousesId=...&orgId=...` returns an array and validates the export-list read contract when sample warehouse/org values are available.
+
+The smoke is read-only. It does not call delivery add/edit/delete, stock movement, inventory mutation, finance, workflow, provider, or data-change behavior.
