@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-15 12:15 +08:00
+Last updated: 2026-06-15 15:11 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -49,7 +49,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 - 2026-06-15 follow-up read smoke extension: `scripts/business-read-http-smoke.ps1` now also verifies customer follow-up and sale-project follow-up page/detail read payloads when local sample data exists, without calling follow-up writes, attachment cleanup, notifications, workflow, finance, or inventory.
 - 2026-06-15 sale-project billing nested read smoke extension: `scripts/business-read-http-smoke.ps1` now verifies invoicing page/detail/customer reads, invoice page/list nested `invoiceItems`, invoice-item page filtering, and reissue-order nested `productItemList`, without calling invoicing complete, stock, settlement, finance, workflow, or file cleanup.
 - 2026-06-15 sale-project product/package relation read smoke extension: `scripts/business-read-http-smoke.ps1` now verifies product-info page/list/detail and product-item relation list payloads, without calling product-info writes, relation mark edits, product-item mark edits, inventory, delivery, finance, workflow, or file cleanup.
-- 2026-06-15 directory alias HTTP smoke: `scripts/directory-alias-http-smoke.ps1` verified business org/position/dict alias pages, trees, and selectors, including `current=1&size=1` pagination compatibility; `OrgService::pagination()` now accepts `size`.
+- 2026-06-15 directory alias HTTP smoke: `scripts/directory-alias-http-smoke.ps1` verified system org selector plus business org/position/dict alias pages, trees, and selectors, including org selector `name` aliases and `current=1&size=1` pagination compatibility; `OrgService::pagination()` now accepts `size`.
 - 2026-06-15 workflow read HTTP smoke: `scripts/workflow-read-http-smoke.ps1` verifies task count/list/page/history, process page/all-page/query/query-list/detail/variable/file-list, project runtime query when sample data exists, and CC page/detail when current-user sample data exists, without calling approve/reject/start/cancel/delete/SSE.
 - 2026-06-15 selector pagination compatibility: authenticated HTTP smoke verified Java-style `records/current/total` payloads for system and business user/position selectors used by copied `XnPageSelect` and `XnUserSelector`; role selector services now return the same paged shape for copied `roleSelectorPlus`.
 - 2026-06-15 continuation speed helpers: `scripts/project-progress.ps1` now summarizes progress/problem/context handoff state and can run both runtime readiness and web readiness checks before DB, HTTP, or browser smokes.

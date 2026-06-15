@@ -163,3 +163,9 @@ The script verifies Java-style paging keys, selector aliases, no `PASSWORD` leak
 - `GET /biz/dict/treeAll`
 
 The smoke verifies Java-style paged shapes, tree/selector aliases, and `size` pagination compatibility. `scripts/project-preflight.ps1` runs this smoke by default unless `-SkipDirectoryAlias` is passed.
+
+## 2026-06-15 Organization Tree Selector Name Alias
+
+Organization tree selector nodes now include `name` in addition to `id`, `value`, `label`, `title`, `parentId`, and `children`.
+
+This matches the copied system and business organization forms, which configure Ant Design Vue `TreeSelect` with `fieldNames.label = 'name'`. The directory alias smoke now checks `GET /sys/org/orgTreeSelector` and `GET /biz/org/orgTreeSelector` for the `name` alias so parent organization dropdowns render readable names instead of placeholder dashes.

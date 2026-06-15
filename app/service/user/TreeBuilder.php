@@ -74,6 +74,7 @@ class TreeBuilder
                 'id' => $node['ID'] ?? null,
                 'parentId' => $node['PARENT_ID'] ?? null,
                 'value' => $node['ID'] ?? null,
+                'name' => $node['NAME'] ?? null,
                 'label' => $node['NAME'] ?? null,
                 'title' => $node['NAME'] ?? null,
                 'children' => is_array($children) ? $this->toSelector($children) : [],

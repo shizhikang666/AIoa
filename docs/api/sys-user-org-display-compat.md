@@ -23,6 +23,7 @@ The initial ThinkPHP read services returned many raw SQL fields such as `ID`, `N
 | `GET /sys/org/page` | `records[]` now includes `id`, `parentId`, `name`, `category`, `sortCode`, audit aliases, and pagination aliases |
 | `GET /sys/org/list` | Rows now include org camelCase aliases |
 | `GET /sys/org/tree` | Tree nodes now include org camelCase aliases plus normalized `children` |
+| `GET /sys/org/orgTreeSelector` | Selector nodes now include `id`, `value`, `name`, `label`, `title`, `parentId`, and `children` |
 | `GET /sys/org/detail` | Detail row now includes org camelCase aliases |
 | `GET /sys/position/page` | `records[]` now includes `id`, `orgId`, `name`, `category`, `sortCode`, audit aliases, and pagination aliases |
 | `GET /sys/position/list` | Rows now include position camelCase aliases |

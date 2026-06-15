@@ -111,6 +111,19 @@ function Assert-Paths {
     }
 }
 
+function Assert-PathNotBlank {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $value = Read-JsonPath -Json $Json -Path $Path
+    if ([string]::IsNullOrWhiteSpace($value) -or $value -eq 'null') {
+        throw "$Name expected non-blank $Path"
+    }
+}
+
 function Has-Path {
     param(
         [Parameter(Mandatory = $true)][string]$Json,
@@ -215,6 +228,14 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
 
 $baseUrl = $BackendBaseUrl.TrimEnd('/')
 
+$sysOrgSelector = Invoke-RawGet -Url "$baseUrl/sys/org/orgTreeSelector" -Token $token
+Assert-FirstNodeIfPresent -Json $sysOrgSelector -Name 'sys org orgTreeSelector' -Keys @('id', 'value', 'name', 'label', 'title', 'parentId', 'children')
+if (Has-Path -Json $sysOrgSelector -Path 'data.0') {
+    Assert-PathNotBlank -Json $sysOrgSelector -Path 'data.0.name' -Name 'sys org orgTreeSelector first node'
+    Assert-PathNotBlank -Json $sysOrgSelector -Path 'data.0.label' -Name 'sys org orgTreeSelector first node'
+    Assert-PathNotBlank -Json $sysOrgSelector -Path 'data.0.title' -Name 'sys org orgTreeSelector first node'
+}
+
 $bizOrgPage = Invoke-RawGet -Url "$baseUrl/biz/org/page?current=1&size=1" -Token $token
 Assert-PagedShape -Json $bizOrgPage -Name 'biz org page'
 Assert-FirstRecordIfPresent -Json $bizOrgPage -Name 'biz org page' -Keys @('id', 'name', 'parentId', 'category', 'sortCode')
@@ -223,7 +244,12 @@ $bizOrgTree = Invoke-RawGet -Url "$baseUrl/biz/org/tree" -Token $token
 Assert-FirstNodeIfPresent -Json $bizOrgTree -Name 'biz org tree' -Keys @('id', 'name', 'parentId', 'children')
 
 $bizOrgSelector = Invoke-RawGet -Url "$baseUrl/biz/org/orgTreeSelector" -Token $token
-Assert-FirstNodeIfPresent -Json $bizOrgSelector -Name 'biz org orgTreeSelector' -Keys @('id', 'value', 'label', 'title', 'parentId', 'children')
+Assert-FirstNodeIfPresent -Json $bizOrgSelector -Name 'biz org orgTreeSelector' -Keys @('id', 'value', 'name', 'label', 'title', 'parentId', 'children')
+if (Has-Path -Json $bizOrgSelector -Path 'data.0') {
+    Assert-PathNotBlank -Json $bizOrgSelector -Path 'data.0.name' -Name 'biz org orgTreeSelector first node'
+    Assert-PathNotBlank -Json $bizOrgSelector -Path 'data.0.label' -Name 'biz org orgTreeSelector first node'
+    Assert-PathNotBlank -Json $bizOrgSelector -Path 'data.0.title' -Name 'biz org orgTreeSelector first node'
+}
 
 $bizOrgUserSelector = Invoke-RawGet -Url "$baseUrl/biz/org/userSelector?current=1&size=1" -Token $token
 Assert-PagedShape -Json $bizOrgUserSelector -Name 'biz org userSelector'
