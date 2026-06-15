@@ -831,7 +831,7 @@ class OrgService
     private function pagination(array $filters): array
     {
         $page = max(1, (int)($filters['page'] ?? $filters['current'] ?? 1));
-        $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
+        $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? $filters['size'] ?? 20)));
 
         return [$page, $limit];
     }

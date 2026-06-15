@@ -9673,3 +9673,43 @@ Keep the core customer and sale-project read contracts under local regression co
 - Do not implement sale-project write/state transitions.
 - Do not implement customer encryption migration or file cleanup.
 - Do not touch real email/SMS/provider behavior.
+
+## Completed Plan: merge-agent - Parallel Coordination And Directory Alias Smoke
+
+Status: completed on 2026-06-15 after formalizing parallel work rules and adding directory alias smoke coverage.
+
+### 1. Current Goal
+
+Enable safe parallel reconnaissance while keeping implementation, shared files, and side-effect-heavy behavior under coordinator control.
+
+### 2. Involved Files
+
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `app/service/user/OrgService.php`
+- `scripts/directory-alias-http-smoke.ps1`
+- `scripts/project-preflight.ps1`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Parallel rules identify safe read-only tracks, serial shared files, deferred high-risk modules, and worker prompt templates.
+- Sub-agent reconnaissance is recorded in the current queue and next recommended queue.
+- `/biz/org/page?current=1&size=1` honors copied frontend `size` pagination.
+- Directory alias HTTP smoke verifies biz org/position/dict pages, trees, and selectors without writes.
+- `scripts/project-preflight.ps1` runs the directory alias smoke by default and supports `-SkipDirectoryAlias`.
+- No real Email/SMS, provider, scheduler execution, workflow write, finance/inventory side effect, cloud storage, Java source edit, schema change, `.env` change, production data operation, or Git push is performed.
+
+### 4. Forbidden Scope
+
+- Do not let parallel workers edit shared files without coordinator assignment.
+- Do not implement workflow approve/reject/start/cancel.
+- Do not implement real provider sends or cloud storage.

@@ -90,6 +90,7 @@ Default to multi-Agent mode when the tools and quota are available:
 - Explorers answer bounded codebase questions and do not edit files.
 - Workers edit only their assigned file/module ownership and must report changed files.
 - The coordinator reviews, integrates, runs acceptance checks, and commits only when the user explicitly asks or the coordinator explicitly approves it.
+- `docs/tasks/parallel-execution-plan.md` is the active coordination table for safe parallel tracks, serial shared files, deferred side-effect groups, and worker prompt templates.
 
 If sub-Agent tools or quota are unavailable, continue in single-conversation fallback:
 

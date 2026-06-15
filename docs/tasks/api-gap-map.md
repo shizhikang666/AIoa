@@ -65,7 +65,7 @@ These are the highest-priority follow-ups because they affect pages the user can
 
 | Area | Gap | Suggested Owner | Notes |
 | --- | --- | --- | --- |
-| Org/User visible tables | Verified by `scripts/user-display-http-smoke.ps1` | frontend-agent with api-agent support | Authenticated smoke confirms sys/biz user page/detail/list/detail/userSelector rows expose `orgName`, `positionName`, `genderName`, selector aliases, Java-style paging keys, and no `PASSWORD`; keep browser spot-check for future UI regressions |
+| Org/User visible tables | Verified by `scripts/user-display-http-smoke.ps1` and `scripts/directory-alias-http-smoke.ps1` | frontend-agent with api-agent support | Authenticated smokes confirm sys/biz user page/detail/list/detail/userSelector rows expose `orgName`, `positionName`, `genderName`, selector aliases, Java-style paging keys, and no `PASSWORD`; directory alias smoke covers biz org/position/dict trees/pages/selectors and `size` pagination |
 | Message SSE | Frontend components call `/dev/message/createSseConnect` | api-agent or workflow/test support | Review Java behavior before adding a safe compatibility route |
 | Upload compatibility | LOCAL/dynamic `dev/file/upload*`, `dev/file/delete`, and business attachment relation binding are covered | api-agent/test-agent | Real Aliyun/Tencent/Minio storage and physical file cleanup remain deferred |
 | User profile center / homepage self-service | Current-user password, avatar, signature, profile, workbench, process-config edit, message detail mark-read, homepage all-mark-read, homepage schedule add/delete, and `/biz/user/center/edit` self-profile alias are covered | user-agent | Admin-side user CRUD/import/export and encrypted-field migration remain deferred |
@@ -162,10 +162,10 @@ The frontend still references several auth monitoring and third-party routes:
 
 ## Next Execution Order
 
-1. user-agent: keep `biz/org`, `biz/user`, `biz/position`, and `biz/dict` selector/read aliases under smoke coverage where they overlap with existing system data.
-2. api-agent: continue remaining safe read-only/detail-consumer checks after sale-project and customer smoke coverage.
-3. workflow-agent: review approve/reject and workflow write actions only after the read-only workflow pages are stable; revisit standalone task SSE only if a real Java route or active frontend caller appears.
-4. test-agent/frontend-agent: browser-smoke copied upload controls now that `/dev/file/upload*` and `/biz/bizfilerelation/add` are both covered.
+1. api-agent: add or extend safe smoke coverage for customer/sale-project follow-up detail consumers.
+2. workflow-agent: add a no-write workflow HTTP smoke for list/query endpoints only; approve/reject/start/cancel/SSE remain deferred.
+3. api-agent: continue sale-project billing nested read smoke, excluding invoicing complete, stock, settlement, and file cleanup.
+4. test-agent/frontend-agent: browser-smoke copied upload controls or selected read pages only after a concrete forbidden-request pattern is defined.
 5. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
 
 ## Guardrails

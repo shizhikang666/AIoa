@@ -4,6 +4,7 @@ param(
     [switch]$SkipRoleSelector,
     [switch]$SkipUserDisplay,
     [switch]$SkipBizRead,
+    [switch]$SkipDirectoryAlias,
     [switch]$SkipDiffCheck
 )
 
@@ -55,6 +56,12 @@ if (-not $SkipUserDisplay) {
 if (-not $SkipBizRead) {
     Invoke-Step 'Business Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'business-read-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipDirectoryAlias) {
+    Invoke-Step 'Directory Alias HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'directory-alias-http-smoke.ps1')
     }
 }
 

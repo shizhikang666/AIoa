@@ -164,3 +164,23 @@ Still deferred:
 - `/biz/dict/delete`
 - FRM/system dictionary writes under `/dev/dict`
 - dictionary cache invalidation parity with Java
+
+## 2026-06-15 Directory Alias HTTP Smoke
+
+`scripts/directory-alias-http-smoke.ps1` verifies the copied business directory alias payloads against the local authenticated backend.
+
+Covered read-only checks:
+
+- `GET /biz/org/page`
+- `GET /biz/org/tree`
+- `GET /biz/org/orgTreeSelector`
+- `GET /biz/org/userSelector`
+- `GET /biz/position/page`
+- `GET /biz/position/positionSelector`
+- `GET /biz/dict/page`
+- `GET /biz/dict/tree`
+- `GET /biz/dict/treeAll`
+
+The smoke checks Java-style paging keys where applicable, first-row or first-node display aliases when data exists, no `PASSWORD` leakage from user selectors, and `current=1&size=1` compatibility. `OrgService::pagination()` now accepts copied frontend `size` pagination in addition to `limit` and `pageSize`.
+
+This smoke is read-only. It does not call organization, position, user, or dictionary add/edit/delete routes.

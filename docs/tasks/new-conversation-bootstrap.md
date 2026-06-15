@@ -44,6 +44,10 @@ Detailed low-token continuation rules are in:
 
 `docs/tasks/lean-continuation-workflow.md`
 
+Parallel conversation and sub-agent coordination rules are in:
+
+`docs/tasks/parallel-execution-plan.md`
+
 Recurring problems and workflow optimizations are tracked in:
 
 `docs/tasks/problem-optimization-log.md`
@@ -70,6 +74,7 @@ For speed and token control, use sub-Agents only for bounded, non-overlapping wo
 - worker Agents edit only assigned files or modules.
 - the main merge/coordinator reviews, runs acceptance checks, updates docs, and commits only when explicitly approved.
 - if sub-Agent quota is unavailable, continue with the same explorer/implementation/test/docs passes inside the main conversation.
+- `docs/tasks/parallel-execution-plan.md` defines which tracks may run in parallel and which shared files or side-effect-heavy modules must remain serial under the coordinator.
 
 ## Runtime Services
 
@@ -105,12 +110,15 @@ Use the focused smoke scripts when relevant:
 .\scripts\runtime-ready.ps1
 .\scripts\web-ready.ps1
 .\scripts\role-selector-http-smoke.ps1
+.\scripts\user-display-http-smoke.ps1
+.\scripts\business-read-http-smoke.ps1
+.\scripts\directory-alias-http-smoke.ps1
 .\scripts\test-agent-smoke.ps1
 .\scripts\test-agent-smoke.ps1 -SkipComposer
 .\scripts\test-agent-db-smoke.ps1
 ```
 
-`scripts/project-progress.ps1` prints the current branch/status, dashboard head, next execution order, recent problem rows, context handoff pointer, and commit guardrail without reading secrets; use `-Lean` for the shortest normal startup snapshot. `scripts/project-preflight.ps1` runs the repeatable local preflight bundle: Git status, runtime readiness, web readiness, role-selector HTTP smoke, and `git diff --check`, with skip switches for unavailable layers. `scripts/runtime-ready.ps1` checks local MySQL, Redis, and PHP FastCGI ports without credentials. `scripts\web-ready.ps1` checks the local ThinkPHP backend on port `82` and Vue frontend on port `83` before browser or authenticated HTTP smoke tests. `scripts\role-selector-http-smoke.ps1` creates a short-lived local token from the ignored `.env` account and verifies the role-selector payloads used by copied user grant dialogs without printing credentials or tokens. `scripts/test-agent-smoke.ps1` covers the repeatable ThinkPHP baseline checks. `scripts/test-agent-db-smoke.ps1` expects the local runtime and ignored `.env` credentials, then checks MySQL, Redis, and current DB-backed export smoke coverage without printing secrets.
+`scripts/project-progress.ps1` prints the current branch/status, dashboard head, next execution order, recent problem rows, context handoff pointer, and commit guardrail without reading secrets; use `-Lean` for the shortest normal startup snapshot. `scripts/project-preflight.ps1` runs the repeatable local preflight bundle: Git status, runtime readiness, web readiness, role-selector HTTP smoke, user-display HTTP smoke, business-read HTTP smoke, directory-alias HTTP smoke, and `git diff --check`, with skip switches for unavailable layers. `scripts/runtime-ready.ps1` checks local MySQL, Redis, and PHP FastCGI ports without credentials. `scripts\web-ready.ps1` checks the local ThinkPHP backend on port `82` and Vue frontend on port `83` before browser or authenticated HTTP smoke tests. `scripts\role-selector-http-smoke.ps1`, `scripts\user-display-http-smoke.ps1`, `scripts\business-read-http-smoke.ps1`, and `scripts\directory-alias-http-smoke.ps1` create short-lived local tokens from the ignored `.env` account and verify copied frontend payloads without printing credentials or tokens. `scripts/test-agent-smoke.ps1` covers the repeatable ThinkPHP baseline checks. `scripts/test-agent-db-smoke.ps1` expects the local runtime and ignored `.env` credentials, then checks MySQL, Redis, and current DB-backed export smoke coverage without printing secrets.
 
 When a JSON response may contain case-variant duplicate aliases such as `ID` and `id`, avoid PowerShell 5.1 `ConvertFrom-Json`. Use the case-sensitive Node helper instead:
 

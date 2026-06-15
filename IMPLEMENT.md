@@ -1564,3 +1564,28 @@ Explicit non-goals:
 
 - No customer write call, sale-project state/write call, workflow action, finance effect, stock effect, provider send, frontend source edit, Java source edit, schema change, `.env` edit, production data operation, or Git push.
 
+## 2026-06-15 Parallel Coordination And Directory Alias Smoke
+
+Agent: merge-agent / multi-agent coordinator
+
+Execution summary:
+
+1. Spawned three read-only explorer agents for directory alias smoke scouting, remaining read-only/detail-consumer scouting, and workflow read/write boundary reconnaissance.
+2. Added `docs/tasks/parallel-execution-plan.md` to define safe parallel tracks, serial shared files, deferred high-risk modules, worker prompt templates, and the current recommended queue.
+3. Linked the parallel plan from context handoff, new conversation bootstrap, and lean continuation workflow docs.
+4. Fixed `OrgService::pagination()` to accept copied frontend `size` pagination for `/biz/org/page`.
+5. Added `scripts/directory-alias-http-smoke.ps1` for authenticated read-only checks of biz org/position/dict alias pages, trees, and selectors.
+6. Added the directory alias smoke to `scripts/project-preflight.ps1` with a `-SkipDirectoryAlias` switch.
+7. Updated directory alias docs, selector docs, API gap map, progress dashboard, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\service\user\OrgService.php`: passed.
+- `.\scripts\directory-alias-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No organization, position, user, or dictionary write call; no workflow write; no finance/inventory side effect; no job execution; no provider send; no cloud storage; no Java source edit; no schema change; no `.env` edit; no production data operation; no Git push.
+

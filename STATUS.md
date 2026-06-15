@@ -9050,3 +9050,50 @@ Agent: api-agent
 
 - Continue remaining safe read-only/detail-consumer checks or selector coverage before any side-effect-heavy business writes.
 - Keep workflow writes, finance/inventory side effects, job scheduler execution, real provider sends, and final online data sync deferred.
+
+## 2026-06-15 18:35 +08:00 - merge-agent - Parallel Coordination And Directory Alias Smoke
+
+### Completed
+
+- Spawned three read-only explorer agents for directory alias smoke scouting, remaining read-only/detail-consumer scouting, and workflow boundary reconnaissance.
+- Added `docs/tasks/parallel-execution-plan.md` with safe parallel tracks, serial shared files, deferred high-risk modules, worker prompt templates, and the current recommended queue.
+- Linked the parallel plan from context handoff, new conversation bootstrap, and lean continuation workflow docs.
+- Fixed `OrgService::pagination()` so `/biz/org/page?current=1&size=1` honors copied frontend `size` pagination.
+- Added `scripts/directory-alias-http-smoke.ps1` for authenticated read-only biz org/position/dict page/tree/selector checks.
+- Added the directory alias smoke to `scripts/project-preflight.ps1` with `-SkipDirectoryAlias`.
+- Updated directory alias docs, selector docs, API gap map, progress dashboard, plan log, and implementation log.
+
+### Modified Files
+
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `app/service/user/OrgService.php`
+- `scripts/directory-alias-http-smoke.ps1`
+- `scripts/project-preflight.ps1`
+- `docs/api/biz-directory-alias-readonly.md`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\user\OrgService.php`: passed.
+- `.\scripts\directory-alias-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Parallel workers should remain read-only unless the coordinator assigns disjoint file ownership.
+- Workflow approve/reject/start/cancel, job execution, finance/inventory side effects, cloud storage, and provider sends remain deferred.
+- Real Email remains deferred until the final provider phase before real SMS.
+
+### Next Plan
+
+- Next candidate slice: customer/sale-project follow-up detail-consumer smoke.
+- Alternative safe slice: no-write workflow HTTP smoke for list/query endpoints only.

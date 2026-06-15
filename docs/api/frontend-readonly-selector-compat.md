@@ -147,3 +147,19 @@ Covered checks:
 - `GET /biz/user/userSelector`
 
 The script verifies Java-style paging keys, selector aliases, no `PASSWORD` leakage, and frontend-visible `orgName`, `positionName`, and `genderName` fields. `scripts/project-preflight.ps1` now runs this smoke by default unless `-SkipUserDisplay` is passed.
+
+## 2026-06-15 Directory Alias HTTP Smoke
+
+`scripts/directory-alias-http-smoke.ps1` verifies business directory aliases used by copied organization, position, user, and dictionary pages:
+
+- `GET /biz/org/page`
+- `GET /biz/org/tree`
+- `GET /biz/org/orgTreeSelector`
+- `GET /biz/org/userSelector`
+- `GET /biz/position/page`
+- `GET /biz/position/positionSelector`
+- `GET /biz/dict/page`
+- `GET /biz/dict/tree`
+- `GET /biz/dict/treeAll`
+
+The smoke verifies Java-style paged shapes, tree/selector aliases, and `size` pagination compatibility. `scripts/project-preflight.ps1` runs this smoke by default unless `-SkipDirectoryAlias` is passed.
