@@ -36,3 +36,12 @@ The following remain intentionally deferred:
 - server process management
 - Java source changes
 - database schema changes
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/dev-read-http-smoke.ps1` now covers authenticated monitor reads for:
+
+- `GET /dev/monitor/serverInfo`
+- `GET /dev/monitor/networkInfo`
+
+The smoke asserts CPU, memory, storage, server, JVM/PHP, and network rate sections. It intentionally does not call monitor writes, server control, metric persistence, provider, or external services.

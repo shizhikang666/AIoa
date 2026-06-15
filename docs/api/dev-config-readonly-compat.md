@@ -93,3 +93,13 @@ When editing a sensitive key, submitting the mask value `******` preserves the e
 ## Later Work
 
 `editBatch` needs a separate permission, cache, and audit plan. Unmasking sensitive values should require explicit confirmation and should preferably be avoided.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/dev-read-http-smoke.ps1` now covers authenticated config metadata reads for:
+
+- `GET /dev/config/page`
+- `GET /dev/config/list`
+- `GET /dev/config/detail` when a visible `BIZ_DEFINE` sample exists
+
+The smoke asserts Java-style paging keys, masked sensitive value fields, and the `sensitive` flag. It intentionally does not call add, edit, delete, `editBatch`, `SYS_BASE` writes, provider config mutation, Redis cache mutation, Email/SMS provider routes, or external services.

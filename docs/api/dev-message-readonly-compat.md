@@ -141,3 +141,11 @@ The endpoint:
 ## Later Work
 
 Full SSE/WebPush notification parity still needs a later plan.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/dev-read-http-smoke.ps1` now covers authenticated message management reads for:
+
+- `GET /dev/message/page`
+
+The smoke asserts Java-style paging keys and page row count fields. It intentionally does not call `GET /dev/message/detail` because detail marks the current receiver relation as read. It also does not call message send/delete, SSE/WebPush fanout, provider routes, or external services.

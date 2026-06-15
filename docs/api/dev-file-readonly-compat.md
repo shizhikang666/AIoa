@@ -130,3 +130,13 @@ Supported sort fields are:
 ## Later Work
 
 Cloud provider uploads, thumbnail generation, and optional physical-file cleanup need dedicated plans covering provider credentials, access control, file-size limits, audit logging, cleanup, and safe path handling. Current LOCAL download compatibility follows Java by reading existing local paths into memory before returning them.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/dev-read-http-smoke.ps1` now covers authenticated file metadata reads for:
+
+- `GET /dev/file/page`
+- `GET /dev/file/list`
+- `GET /dev/file/detail` when a visible file sample exists
+
+The smoke asserts Java-style paging keys, normalized download paths, and metadata fields. It intentionally does not call upload, download, delete, cloud provider upload stubs, physical file cleanup, thumbnail generation, or external storage.

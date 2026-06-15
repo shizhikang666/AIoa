@@ -50,3 +50,14 @@ The following Java endpoints remain intentionally deferred:
 - FRM/system dictionary write management
 
 No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/dev-read-http-smoke.ps1` now covers authenticated dictionary reads for:
+
+- `GET /dev/dict/page`
+- `GET /dev/dict/list`
+- `GET /dev/dict/tree`
+- `GET /dev/dict/detail` when a visible dictionary sample exists
+
+The smoke asserts Java-style paging keys plus tree `name`/`label`/`value` aliases. It intentionally does not call add, edit, delete, FRM/system dictionary writes, translation cache refresh, or data-change behavior.

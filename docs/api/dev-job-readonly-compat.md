@@ -96,3 +96,14 @@ Supported sort fields are:
 ## Later Work
 
 Job mutation and execution need a dedicated scheduler design for ThinkPHP, permission checks, audit logging, cron validation, class allow-listing, and a safe migration strategy for Java task classes.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/dev-read-http-smoke.ps1` now covers authenticated job metadata reads for:
+
+- `GET /dev/job/page`
+- `GET /dev/job/list`
+- `GET /dev/job/detail` when a visible job sample exists
+- `GET /dev/job/getActionClass`
+
+The smoke asserts Java-style paging keys and action-class list shape. It intentionally does not call delete, add, edit, stop, run, run-now, scheduler lifecycle, job class execution, or data-change behavior.

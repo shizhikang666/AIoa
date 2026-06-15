@@ -39,3 +39,16 @@ All routes are protected by `AuthMiddleware`.
 No dev log Java endpoints remain deferred in this slice.
 
 No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/dev-read-http-smoke.ps1` now covers authenticated log reads for:
+
+- `GET /dev/log/page`
+- `GET /dev/log/detail` when a visible log sample exists
+- `GET /dev/log/vis/lineChartData`
+- `GET /dev/log/vis/pieChartData`
+- `GET /dev/log/op/barChartData`
+- `GET /dev/log/op/pieChartData`
+
+The smoke asserts page/detail row fields plus chart response wrappers. It intentionally does not call category delete/clear or any log write behavior.
