@@ -9,6 +9,7 @@ param(
     [switch]$SkipFinanceRead,
     [switch]$SkipPurchaseOrderRead,
     [switch]$SkipSettlementAccountPaymentRead,
+    [switch]$SkipSupplierWarehouseRead,
     [switch]$SkipDirectoryAlias,
     [switch]$SkipTenantRead,
     [switch]$SkipMessageSse,
@@ -94,6 +95,12 @@ if (-not $SkipPurchaseOrderRead) {
 if (-not $SkipSettlementAccountPaymentRead) {
     Invoke-Step 'Settlement Account Payment Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'settlement-account-payment-read-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipSupplierWarehouseRead) {
+    Invoke-Step 'Supplier/Warehouse Read HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'supplier-warehouse-read-http-smoke.ps1')
     }
 }
 

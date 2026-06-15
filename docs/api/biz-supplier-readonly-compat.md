@@ -99,3 +99,14 @@ The endpoint validates every target supplier through the current user's write sc
 - Java page reads apply login-user data scope. This slice applies tenant filtering from the bearer token and, when present, filters supplier `org` by token data-scope org ids.
 - If no data-scope org ids are present in the token, the slice does not add the Java fallback `CREATE_USER = loginId` constraint yet, because the current auth token stores a simplified data-scope payload and imported superadmin data may otherwise become invisible.
 - Write routes use a stricter scope: admin-compatible roles, scoped organization, or matching `CREATE_USER`.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/supplier-warehouse-read-http-smoke.ps1` now verifies authenticated supplier reads against the local backend:
+
+- `GET /biz/supplier/page`
+- `GET /biz/supplier/list`
+- `GET /biz/supplier/list/query/name` when a visible supplier name exists
+- `GET /biz/supplier/detail` when a visible page row exists
+
+The smoke checks Java-style paging keys and stable frontend-visible fields such as `name`, `contacts`, `phone`, `bankName`, `bankAccount`, `status`, `aliasName`, `org`, and `orgName`. It does not call supplier add, edit, delete, import/export, purchase, payment, procurement, inventory, workflow, provider, or data-change behavior.

@@ -99,3 +99,13 @@ The endpoint validates every target warehouse through the current user's write s
 - Java page reads apply login-user data scope through the warehouse owner user. This slice applies tenant filtering from the bearer token and, when token data-scope org ids are present, filters by warehouse `ORG` or owner users in those orgs.
 - If no data-scope org ids are present in the token, the slice does not add the Java fallback `USER = loginId` constraint yet, because the current auth token stores a simplified data-scope payload and imported superadmin data may otherwise become invisible.
 - Write routes use a stricter scope: admin-compatible roles, scoped organization ids, or matching warehouse `USER`.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/supplier-warehouse-read-http-smoke.ps1` now verifies authenticated warehouse reads against the local backend:
+
+- `GET /biz/warehouses/page`
+- `GET /biz/warehouses/list`
+- `GET /biz/warehouses/detail` when a visible page row exists
+
+The smoke checks Java-style paging keys and stable frontend-visible fields such as `name`, `code`, `address`, `headName`, `org`, `orgName`, and `extJson`. It does not call warehouse add, edit, delete, inventory stock updates, delivery writes, purchase-order writes, sale-project invoice writes, workflow, provider, or data-change behavior.
