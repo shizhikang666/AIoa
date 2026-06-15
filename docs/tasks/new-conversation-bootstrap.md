@@ -2,6 +2,16 @@
 
 Use this note when starting a future Codex conversation for the ThinkPHP OA refactor.
 
+## New Chat Starter Prompt
+
+Paste this into a new Codex conversation when the current thread is too long:
+
+```text
+Continue the ThinkPHP OA refactor in F:\AI\projects\testJava\OA-ThinkPHP. Do not rely on prior chat history. Use real multi-Agent mode by default: the main conversation coordinates, assigns bounded sub-Agent work when available, reviews, verifies, updates docs, and commits coherent slices. If sub-Agent tools or quota are unavailable, use the documented single-conversation fallback.
+
+First read the lean startup packet from docs\tasks\new-conversation-bootstrap.md and docs\tasks\lean-continuation-workflow.md, then check git status. Treat F:\AI\projects\testJava\OA as read-only Java reference only. Do not print or commit secrets; read local database, Redis, and login smoke values only from the ignored .env. Continue with the next smallest safe slice from docs\tasks\refactor-progress-dashboard.md and STATUS.md.
+```
+
 ## Required Startup Reads
 
 Before continuing a normal task, use the lean startup packet instead of loading every long log file end to end:
@@ -81,7 +91,7 @@ Use the focused smoke scripts when relevant:
 
 Current focused DB-backed coverage also includes sys process-config detail/edit behavior with admin-compatible write rejection checks, settlement-account base add/edit/status behavior without balance or statement side effects, collection-receipt mark-success behavior with version increment and no account/statement/payment/expenditure side effects, debit-note mark-success behavior with version increment and no account/statement/payment/expenditure side effects, payroll edit/batch-edit/delete behavior with non-edit field preservation and missing-id rollback, payroll import-template service/HTTP download with original Java template SHA verification, leave-application edit/delete behavior with Java edit-field-only updates, nested delete payload support, missing-id rollback, non-admin rejection, deleted-detail hiding, and no payroll/vacation side effects, sale-project draft save behavior with create/update by `TARGET_ID`, raw `EXT_JSON` preservation, validation failure, and no `biz_sale_project` side effects, gen-basic preview behavior with Java-compatible buckets, missing-id 404, no DB writes, and no runtime file creation, gen-basic ZIP download behavior that reuses preview buckets and writes no project files, dev-file local upload/delete behavior, dev email/SMS metadata logical delete behavior, dev-log category delete behavior, dev-job logical delete behavior, gen-config `editBatch` metadata saves, sale-project invoicing complete, business file-relation maintenance, sys module add/edit/delete maintenance with child-resource and role-resource cleanup, sys menu add/edit/changeModule/delete maintenance with menu/button-tree relation cleanup, sys button add/edit/delete maintenance with role-resource `buttonInfo` cleanup, sys field add/edit/delete maintenance with menu-parent validation and direct relation cleanup, mobile module add/edit/delete maintenance with role mobile-menu relation cleanup, mobile menu add/edit/changeModule/delete maintenance with menu-tree relation cleanup and button preservation, mobile button add/edit/delete maintenance with role mobile-menu `buttonInfo` cleanup, team-project base add/edit/delete maintenance, Java-compatible team-project member edit audit refresh, and `DevConfigService` `BIZ_DEFINE` add/edit/delete with sensitive-value preservation and logical delete checks.
 
-Current browser-side focused coverage additionally includes dev-file upload/delete, product `XnUpload`, sale-project attachment relation binding, email TinyMCE rich-text upload, and old `components/Editor` fallback upload through a temporary `/exm/editor` route.
+Current browser-side focused coverage additionally includes dev-file upload/delete, product `XnUpload`, sale-project attachment relation binding, email TinyMCE rich-text upload, old `components/Editor` fallback upload through a temporary `/exm/editor` route, and workflow read-only pages `/biz/biztask`, `/biz/biztask/historyTask`, `/biz/biztask/mystarttask`, `/biz/biztask/allprocess`, and `/biz/biztask/copytask`.
 
 When the backend server is already running, use focused authenticated HTTP smokes as needed:
 

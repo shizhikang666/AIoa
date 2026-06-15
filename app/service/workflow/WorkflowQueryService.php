@@ -34,17 +34,23 @@ class WorkflowQueryService
     {
         [$page, $limit] = $this->pagination($filters);
         $total = $this->pendingTaskQuery($userId, $filters)->count();
-        $records = $this->pendingTaskQuery($userId, $filters)
-            ->order(['CREATE_TIME_' => 'desc', 'ID_' => 'desc'])
-            ->page($page, $limit)
-            ->select()
-            ->toArray();
+        $records = $this->taskRows(
+            $this->pendingTaskQuery($userId, $filters)
+                ->order(['CREATE_TIME_' => 'desc', 'ID_' => 'desc'])
+                ->page($page, $limit)
+                ->select()
+                ->toArray(),
+            true
+        );
 
         return [
             'records' => $records,
             'total' => $total,
             'page' => $page,
+            'current' => $page,
             'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
         ];
     }
 
@@ -53,27 +59,36 @@ class WorkflowQueryService
      */
     public function pendingTaskList(string $userId, array $filters = []): array
     {
-        return $this->pendingTaskQuery($userId, $filters)
-            ->order(['CREATE_TIME_' => 'desc', 'ID_' => 'desc'])
-            ->select()
-            ->toArray();
+        return $this->taskRows(
+            $this->pendingTaskQuery($userId, $filters)
+                ->order(['CREATE_TIME_' => 'desc', 'ID_' => 'desc'])
+                ->select()
+                ->toArray(),
+            true
+        );
     }
 
     public function historyTaskPage(string $userId, array $filters = []): array
     {
         [$page, $limit] = $this->pagination($filters);
         $total = $this->historyTaskQuery($userId, $filters)->count();
-        $records = $this->historyTaskQuery($userId, $filters)
-            ->order(['END_TIME_' => 'desc', 'START_TIME_' => 'desc', 'ID_' => 'desc'])
-            ->page($page, $limit)
-            ->select()
-            ->toArray();
+        $records = $this->taskRows(
+            $this->historyTaskQuery($userId, $filters)
+                ->order(['END_TIME_' => 'desc', 'START_TIME_' => 'desc', 'ID_' => 'desc'])
+                ->page($page, $limit)
+                ->select()
+                ->toArray(),
+            false
+        );
 
         return [
             'records' => $records,
             'total' => $total,
             'page' => $page,
+            'current' => $page,
             'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
         ];
     }
 
@@ -81,17 +96,22 @@ class WorkflowQueryService
     {
         [$page, $limit] = $this->pagination($filters);
         $total = $this->startedProcessQuery($userId, $filters)->count();
-        $records = $this->startedProcessQuery($userId, $filters)
-            ->order(['START_TIME_' => 'desc', 'ID_' => 'desc'])
-            ->page($page, $limit)
-            ->select()
-            ->toArray();
+        $records = $this->historicProcessRows(
+            $this->startedProcessQuery($userId, $filters)
+                ->order(['START_TIME_' => 'desc', 'ID_' => 'desc'])
+                ->page($page, $limit)
+                ->select()
+                ->toArray()
+        );
 
         return [
             'records' => $records,
             'total' => $total,
             'page' => $page,
+            'current' => $page,
             'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
         ];
     }
 
@@ -362,6 +382,33 @@ class WorkflowQueryService
     }
 
     /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function taskRows(array $rows, bool $runtimeVariables): array
+    {
+        $ids = array_values(array_filter(array_map(
+            fn (array $row): string => (string)($row['PROC_INST_ID_'] ?? ''),
+            $rows
+        )));
+        $variables = $runtimeVariables ? $this->runtimeVariablesByProcess($ids) : $this->historyVariablesByProcess($ids);
+
+        return array_map(function (array $row) use ($variables): array {
+            $processId = (string)($row['PROC_INST_ID_'] ?? '');
+            $taskId = (string)($row['ID_'] ?? '');
+            $record = $this->processRow($row, $variables[$processId] ?? []);
+            // Task pages pass record.id as the task id; process ids stay on the instance aliases.
+            $record['id'] = $taskId !== '' ? $taskId : ($record['id'] ?? $processId);
+            $record['taskId'] = $taskId !== '' ? $taskId : null;
+            $record['instanceId'] = $processId;
+            $record['processInstanceId'] = $processId;
+            $record['processId'] = $processId;
+
+            return $record;
+        }, $rows);
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function runtimeProcessRows(array $processIds): array
@@ -412,8 +459,8 @@ class WorkflowQueryService
             'status' => $variables['status'] ?? ($row['STATE_'] ?? null),
             'remark' => $variables['remark'] ?? null,
             'amount' => $variables['amount'] ?? null,
-            'createTime' => $row['START_TIME_'] ?? null,
-            'startTime' => $row['START_TIME_'] ?? null,
+            'createTime' => $row['START_TIME_'] ?? $row['CREATE_TIME_'] ?? null,
+            'startTime' => $row['START_TIME_'] ?? $row['CREATE_TIME_'] ?? null,
             'endTime' => $row['END_TIME_'] ?? null,
             'startUserId' => $row['START_USER_ID_'] ?? null,
             'variable' => $variables,

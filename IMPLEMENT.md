@@ -1007,3 +1007,37 @@ Explicit non-goals:
 - No frontend source changes.
 - No database writes, Java source changes, Composer changes, or `.env` changes.
 
+## 2026-06-15 Workflow Read-Only Row Compatibility And Handoff
+
+Agent: merge-agent / workflow-agent sidecar
+
+Execution summary:
+
+1. Used real multi-Agent mode. Mencius reviewed the workflow diff as a read-only sidecar and confirmed the scope stayed within read-only workflow compatibility.
+2. Updated `WorkflowQueryService` page/list shaping for copied workflow pages:
+   - `/biz/task/page`
+   - `/biz/task/history/page`
+   - `/biz/process/page`
+   - `/biz/process/all/page`
+3. Added copied frontend pagination aliases: `current`, `size`, and `pages` alongside existing `page`, `limit`, `total`, and `records`.
+4. Added task-row normalization so task pages preserve `id` as the task id while process instance ids are available as `instanceId` and `processInstanceId`.
+5. Kept process-row normalization with `id` as the process instance id.
+6. Ensured workflow rows expose `variable` as an object for copied Vue templates that read `record.variable.amount`.
+7. Guarded `useProcessParam` against missing `SYS_CONFIG` or missing `processConfigMap`.
+8. Added a copy-paste new-conversation starter prompt to `docs/tasks/new-conversation-bootstrap.md` so future conversations can continue from repository docs instead of long chat history.
+
+Verification summary:
+
+- `php -l app\service\workflow\WorkflowQueryService.php`: passed.
+- `npm run build` in `snowy-admin-web`: passed before documentation-only follow-up edits, with existing warnings only.
+- Authenticated API shape check returned HTTP 200 with `code=200` for workflow pending, history, started, all-process, and copy-record pages.
+- Playwright browser smoke through `http://127.0.0.1:83` loaded `/biz/biztask`, `/biz/biztask/historyTask`, `/biz/biztask/mystarttask`, `/biz/biztask/allprocess`, and `/biz/biztask/copytask`; all rendered a table or empty state, had no blocking console errors, and triggered no workflow write requests.
+
+Explicit non-goals:
+
+- No workflow approve/reject.
+- No workflow start/cancel/edit.
+- No task SSE route.
+- No vacation deduction or workflow business side effects.
+- No Java source, database schema, Composer, `.env`, or unrelated frontend changes.
+

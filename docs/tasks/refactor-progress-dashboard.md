@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-12 13:55 +08:00
+Last updated: 2026-06-15 11:30 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -32,7 +32,13 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 | Frontend deferred write/side-effect candidates | 92 | Do not implement without module-specific write plans; sys process-config edit, settlement-account add/edit/status, collection-receipt mark-success, debit-note mark-success, payroll import-template download, payroll edit/batch-edit/delete, leave-application edit/delete, sale-project draft save, gen basic preview and ZIP download, sys role grant saves, sys role add/edit/delete, sys module/menu/button/field write compatibility, mobile module/menu/button write compatibility, dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, sale-project invoicing complete, project-rate edit, and team-project base maintenance moved to covered scope |
 | Frontend baseline files copied | 908 | Copied into `snowy-admin-web`; generated/cache files excluded |
 | Current branch | `refactor/thinkphp-main` | Integration branch; local commits may be ahead until the user asks to push |
-| Latest frontend-slice commit | See latest Git log | Current dashboard records system resource field drawer, mobile resource browser smoke, and rich-text upload browser smoke |
+| Latest frontend-slice commit | See latest Git log | Current dashboard records system resource field drawer, mobile resource browser smoke, rich-text upload browser smoke, old Editor upload fallback, and workflow read-only browser smoke |
+
+## Recent Verification Notes
+
+- 2026-06-15 workflow read-only compatibility: `/biz/task/page`, `/biz/task/history/page`, `/biz/process/page`, `/biz/process/all/page`, and `/biz/ccrecords/page` returned HTTP 200 with `code=200` against the local runtime.
+- 2026-06-15 workflow browser smoke: copied Vue routes `/biz/biztask`, `/biz/biztask/historyTask`, `/biz/biztask/mystarttask`, `/biz/biztask/allprocess`, and `/biz/biztask/copytask` rendered tables or empty states through the frontend dev server with no blocking console errors and no observed workflow write requests.
+- Workflow task rows now preserve task ids in `id`/`taskId`; process instance ids are exposed through `instanceId` and `processInstanceId`. Process rows continue to use the process instance id as `id`.
 
 ## Module Progress
 

@@ -1,6 +1,6 @@
 # Biz Workflow Read-Only Compatibility
 
-Date: 2026-06-02
+Date: 2026-06-15
 
 Agent: workflow-agent / api-agent
 
@@ -34,6 +34,10 @@ All routes are protected by `AuthMiddleware`.
 
 ## Response Notes
 
+- Task and process page responses include Java/S-Table pagination aliases: `page`, `current`, `limit`, `size`, `pages`, `total`, and `records`.
+- Task rows from `/biz/task/page` and `/biz/task/history/page` intentionally keep `id` as the task id for copied Vue task-detail callers. The workflow process instance id is exposed as `instanceId`, `processInstanceId`, and `processId`.
+- Process rows from `/biz/process/page` and `/biz/process/all/page` keep `id`, `instanceId`, and `processInstanceId` as the process instance id.
+- Task/process rows always include `variable` as an object so copied Vue templates can safely read fields such as `record.variable.amount` even when no workflow variables exist.
 - Process rows include raw Camunda fields plus frontend-friendly aliases:
   - `id`
   - `instanceId`
@@ -55,6 +59,19 @@ All routes are protected by `AuthMiddleware`.
 - `runtime/activity/detail` returns `category`, `variables`, `taskId`, `processKey`, `processInstanceId`, and `processDefinitionId`.
 - Existing `detail` and `variable` reads now accept either `processInstanceId` or the Java/frontend `id` parameter.
 - `detail` also returns the old frontend detail shape: `userProcess`, `startUser`, `startOrgTree`, `userActivityList`, and `ccUser`.
+
+## Browser And API Smoke, 2026-06-15
+
+- Runtime used local MySQL/Redis plus ThinkPHP `127.0.0.1:82` and Vue `127.0.0.1:83`.
+- Authenticated API shape check covered `/biz/task/page`, `/biz/task/history/page`, `/biz/process/page`, `/biz/process/all/page`, and `/biz/ccrecords/page`; all returned HTTP 200 with `code=200`.
+- Browser smoke used a temporary local menu cache to load copied workflow routes directly through `createWebHistory` paths:
+  - `/biz/biztask`
+  - `/biz/biztask/historyTask`
+  - `/biz/biztask/mystarttask`
+  - `/biz/biztask/allprocess`
+  - `/biz/biztask/copytask`
+- Each page rendered an Ant table or empty state and hit its corresponding read endpoint.
+- Browser console had no blocking errors, and the smoke observed no workflow write requests such as approve, reject, cancel, start, edit, CC delete, or task SSE.
 
 ## Deferred
 

@@ -628,7 +628,7 @@ Add the smallest safe password compatibility slice based on Java and `oa2026.sql
 
 ```powershell
 php -r "require 'vendor/autoload.php'; echo app\\service\\auth\\Sm3Hasher::hash('abc');"
-php -r "require 'vendor/autoload.php'; echo app\\service\\auth\\Sm3Hasher::hash('123456');"
+php -r "require 'vendor/autoload.php'; echo app\\service\\auth\\Sm3Hasher::hash('<sample-password>');"
 composer dump-autoload
 php think
 php think route:list
@@ -8932,3 +8932,37 @@ Make the existing `/dev/message/createSseConnect` compatibility stream refresh b
 ### 5. Forbidden Scope
 
 - Do not add `/biz/task/sse/stream`, `approve`, `reject`, workflow start/cancel, Redis pub/sub, long-lived loops, frontend source changes, database writes, Java source changes, Composer changes, or `.env` changes in this slice.
+
+## Completed Plan: merge-agent - Workflow Read-Only Row Compatibility And Handoff
+
+Status: completed on 2026-06-15 after sub-Agent review, API shape check, frontend build, and browser smoke.
+
+### 1. Current Goal
+
+Make the copied workflow read-only pages load through the Vue frontend without changing workflow write behavior, and keep the project resumable from a short new-conversation bootstrap.
+
+### 2. Involved Files
+
+- `app/service/workflow/WorkflowQueryService.php`
+- `snowy-admin-web/src/composables/useProcessParam/index.js`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/frontend-joint-test-workflow.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Workflow task/process page responses include copied frontend pagination aliases.
+- Task rows keep `id` as the task id and expose process instance ids through `instanceId` and `processInstanceId`.
+- Process rows keep `id` as the process instance id.
+- Missing `SYS_CONFIG.processConfigMap` no longer causes a frontend runtime crash.
+- Copied workflow read-only pages browser-smoke without blocking console errors.
+- No approve, reject, cancel, start, edit, CC delete, or task SSE request is triggered by the read-only smoke.
+- Future conversations have a copy-paste starter prompt and lean startup packet.
+
+### 4. Forbidden Scope
+
+- Do not implement workflow approve/reject/start/cancel/edit, task SSE, vacation deductions, business side effects, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated frontend changes in this slice.

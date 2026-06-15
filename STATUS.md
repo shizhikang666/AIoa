@@ -505,8 +505,8 @@ Agent: auth-agent
 ### Test Results
 
 - `php -r "require 'vendor/autoload.php'; echo app\\service\\auth\\Sm3Hasher::hash('abc');"`: passed, matched the standard SM3 test vector.
-- `php -r "require 'vendor/autoload.php'; echo app\\service\\auth\\Sm3Hasher::hash('123456');"`: passed, matched the default password hash in `oa2026.sql`.
-- `PasswordService::verify('123456', <SQL default hash>)`: passed.
+- `php -r "require 'vendor/autoload.php'; echo app\\service\\auth\\Sm3Hasher::hash('<sample-password>');"`: passed, matched the default password hash in `oa2026.sql`.
+- `PasswordService::verify('<sample-password>', <SQL default hash>)`: passed.
 - `Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }`: passed.
 - `composer dump-autoload`: passed.
 - `php think`: passed, ThinkPHP version `8.1.4`.
@@ -8162,3 +8162,47 @@ Agent: api-agent
 
 - Run the targeted checks and commit this SSE compatibility refinement.
 - Continue with the next low-risk frontend-visible gap after checking Java/frontend/PHP scope.
+
+## 2026-06-15 11:45 +08:00 - merge-agent - Workflow Read-Only Row Compatibility And New-Conversation Handoff
+
+### Completed
+
+- Continued in real multi-Agent mode. Mencius performed a read-only workflow diff review while the main merge/coordinator implemented, verified, and documented the slice.
+- Normalized workflow task/process page rows for the copied Vue workflow pages.
+- Added S-Table/Java-style pagination aliases to workflow page responses.
+- Preserved task-list `id` as the task id; process instance ids are available through `instanceId` and `processInstanceId`.
+- Preserved process-list `id` as the process instance id.
+- Guarded `useProcessParam` when `SYS_CONFIG` or `processConfigMap` is missing.
+- Added a copy-paste new-chat starter prompt to `docs/tasks/new-conversation-bootstrap.md`.
+- Updated workflow API docs, frontend joint-test notes, progress dashboard, implementation notes, and this status log.
+
+### Modified Files
+
+- `app/service/workflow/WorkflowQueryService.php`
+- `snowy-admin-web/src/composables/useProcessParam/index.js`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/frontend-joint-test-workflow.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\workflow\WorkflowQueryService.php`: passed.
+- `npm run build` under `snowy-admin-web`: passed, with existing warnings only.
+- Authenticated API shape check passed for `/biz/task/page`, `/biz/task/history/page`, `/biz/process/page`, `/biz/process/all/page`, and `/biz/ccrecords/page`.
+- Browser smoke passed for `/biz/biztask`, `/biz/biztask/historyTask`, `/biz/biztask/mystarttask`, `/biz/biztask/allprocess`, and `/biz/biztask/copytask`.
+- Browser smoke observed no blocking console errors, no request failures, and no workflow approve/reject/cancel/start/edit/CC-delete/task-SSE requests.
+
+### Current Issues
+
+- Workflow approve/reject/start/cancel/edit, task SSE, vacation deductions, and workflow business side effects remain deferred.
+- `useProcessParam` is guarded, but start/edit workflow forms still need their own write-flow design and browser smoke before workflow writes are enabled.
+- Long-context continuation should now start from `docs/tasks/new-conversation-bootstrap.md` instead of relying on old chat history.
+
+### Next Plan
+
+- Commit this workflow read-only compatibility and handoff slice after final `git diff --check`.
+- Continue with the next smallest safe slice from the progress dashboard/API gap map, using sub-Agents for scoped reconnaissance and keeping side-effect-heavy workflow writes deferred until a design is approved.

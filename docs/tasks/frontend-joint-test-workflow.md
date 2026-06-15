@@ -229,6 +229,36 @@ Cleanup:
 - The temporary `dev_file` row was hard-deleted after the smoke back-check.
 - The temporary physical file under `runtime/upload/dev_file` was removed.
 
+## Browser Workflow Read-Only Smoke, 2026-06-15
+
+Coordinator plus sub-agent mode was used. Mencius reviewed the workflow diff as a read-only sidecar check while the main session fixed task/process row shape and ran API plus browser verification.
+
+Runtime:
+
+- Backend: `http://127.0.0.1:82`
+- Frontend: `http://127.0.0.1:83`
+- Login credentials came from the ignored project `.env`.
+
+Verified:
+
+- API shape check covered `/biz/task/page`, `/biz/task/history/page`, `/biz/process/page`, `/biz/process/all/page`, and `/biz/ccrecords/page`; every call returned HTTP 200 with `code=200`.
+- Task page rows preserve task ids as `id`/`taskId`, while process instance ids are exposed through `instanceId` and `processInstanceId`.
+- Process page rows keep `id` as the process instance id.
+- A temporary browser `MENU` cache loaded copied workflow routes directly through Vue `createWebHistory` paths:
+  - `/biz/biztask`
+  - `/biz/biztask/historyTask`
+  - `/biz/biztask/mystarttask`
+  - `/biz/biztask/allprocess`
+  - `/biz/biztask/copytask`
+- Each page rendered an Ant table or empty state and hit its corresponding read endpoint.
+- Browser console had no blocking errors.
+- The smoke observed no approve, reject, cancel, start, edit, CC delete, or task SSE write requests.
+
+Not verified:
+
+- Workflow start, approve, reject, cancel, edit, SSE, and business side-effect hooks remain intentionally deferred.
+- `useProcessParam` is guarded for missing `SYS_CONFIG`, but it is mainly exercised by workflow start/edit forms, not by this read-only list smoke.
+
 ## Team Project Base HTTP Smoke, 2026-06-08
 
 Verified after `/biz/bizteamproject/add`, `/edit`, and `/delete` compatibility was added:

@@ -22,7 +22,8 @@ function mergeNonEmptyArrays(target, source, keys) {
 }
 
 export function useProcessParam(key) {
-	const processConfigMap = cloneDeep(tool.data.get('SYS_CONFIG').processConfigMap)
+	const sysConfig = tool.data.get('SYS_CONFIG') || {}
+	const processConfigMap = cloneDeep(sysConfig.processConfigMap || {})
 
 	const sys_user_process_config = tool.data.get('SYS_USER_PROCESS_CONFIG')
 		? cloneDeep(tool.data.get('SYS_USER_PROCESS_CONFIG').config)
