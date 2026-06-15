@@ -50,3 +50,37 @@ Read-only files checked under `F:\AI\projects\testJava\OA\snowy-admin-web\src\ap
 - Import, export, upload, avatar update, and signature update.
 - User-center workbench, message, process config, and password recovery flows.
 - Workflow approval/reject/cancel/start endpoints.
+
+## 2026-06-15 Selector Pagination Shape Compatibility
+
+Agent: merge-agent / user-agent
+
+The copied `XnPageSelect` and `XnUserSelector` components expect Java-style paged selector payloads:
+
+```json
+{
+  "records": [],
+  "total": 0,
+  "current": 1,
+  "size": 20
+}
+```
+
+The following existing routes now return that paged shape while preserving each record's existing selector fields such as `id`, `value`, `label`, and `title`:
+
+- `GET /sys/user/positionSelector`
+- `GET /biz/user/positionSelector`
+- `GET /sys/position/positionSelector`
+- `GET /biz/position/positionSelector`
+- `GET /sys/user/userSelector`
+- `GET /biz/user/userSelector`
+- `GET /sys/org/userSelector`
+- `GET /biz/org/userSelector`
+
+Compatibility notes:
+
+- The endpoints remain read-only.
+- The selector services now accept copied frontend `size` pagination in addition to existing `limit` and `pageSize`.
+- User selector records still remove password data and keep the richer display fields used by table selectors, including `name`, `account`, `avatar`, `orgId`, `orgName`, `positionId`, and `positionName`.
+- Position selector records still include full position row aliases such as `id`, `name`, `orgId`, `category`, and `sortCode`, plus `value`, `label`, and `title`.
+- Current ThinkPHP business selector aliases reuse the system controllers; Java business selectors apply additional data scope and child-organization behavior that remains a future hardening task.

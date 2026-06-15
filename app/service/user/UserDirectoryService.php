@@ -1466,11 +1466,12 @@ class UserDirectoryService
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<string, mixed>
      */
     public function userSelector(array $filters = []): array
     {
         [$page, $limit] = $this->pagination($filters);
+        $total = $this->baseQuery($filters)->count();
         $rows = $this->baseQuery($filters)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->page($page, $limit)
@@ -1479,20 +1480,16 @@ class UserDirectoryService
 
         $rows = $this->sanitizeUserRows($rows);
 
-        return array_map(static function (array $row): array {
-            return [
+        $records = array_map(static function (array $row): array {
+            return array_merge($row, [
                 'id' => $row['id'] ?? null,
                 'value' => $row['id'] ?? null,
                 'label' => $row['name'] ?? $row['account'] ?? null,
                 'title' => $row['name'] ?? $row['account'] ?? null,
-                'name' => $row['name'] ?? null,
-                'account' => $row['account'] ?? null,
-                'orgId' => $row['orgId'] ?? null,
-                'orgName' => $row['orgName'] ?? null,
-                'positionId' => $row['positionId'] ?? null,
-                'positionName' => $row['positionName'] ?? null,
-            ];
+            ]);
         }, $rows);
+
+        return $this->pageResult($records, $total, $page, $limit);
     }
 
     /**
@@ -3350,9 +3347,26 @@ class UserDirectoryService
     private function pagination(array $filters): array
     {
         $page = max(1, (int)($filters['page'] ?? $filters['current'] ?? 1));
-        $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
+        $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? $filters['size'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $records
+     * @return array<string, mixed>
+     */
+    private function pageResult(array $records, int $total, int $page, int $limit): array
+    {
+        return [
+            'records' => $records,
+            'total' => $total,
+            'page' => $page,
+            'current' => $page,
+            'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
+        ];
     }
 
     /**

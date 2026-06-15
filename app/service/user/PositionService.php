@@ -165,19 +165,37 @@ class PositionService
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<string, mixed>
      */
     public function selector(array $filters = []): array
     {
-        return array_map(static function (array $row): array {
-            return [
-                'id' => $row['ID'] ?? null,
-                'orgId' => $row['ORG_ID'] ?? null,
-                'value' => $row['ID'] ?? null,
-                'label' => $row['NAME'] ?? null,
-                'title' => $row['NAME'] ?? null,
-            ];
-        }, $this->all($filters));
+        [$page, $limit] = $this->pagination($filters);
+        $total = $this->baseQuery($filters)->count();
+        $rows = $this->baseQuery($filters)
+            ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+            ->page($page, $limit)
+            ->select()
+            ->toArray();
+
+        $records = array_map(function (array $row): array {
+            $position = $this->positionRow($row);
+
+            return array_merge($position, [
+                'value' => $position['id'] ?? null,
+                'label' => $position['name'] ?? null,
+                'title' => $position['name'] ?? null,
+            ]);
+        }, $rows);
+
+        return [
+            'records' => $records,
+            'total' => $total,
+            'page' => $page,
+            'current' => $page,
+            'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
+        ];
     }
 
     /**
@@ -681,7 +699,7 @@ class PositionService
     private function pagination(array $filters): array
     {
         $page = max(1, (int)($filters['page'] ?? $filters['current'] ?? 1));
-        $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
+        $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? $filters['size'] ?? 20)));
 
         return [$page, $limit];
     }

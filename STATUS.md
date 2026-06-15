@@ -8252,3 +8252,40 @@ Agent: api-agent
 ### Next Plan
 
 - Continue with the next bounded low-risk route only after confirming it is not a provider, workflow transition, finance/stock mutation, generator execution, tenant mutation, or sale-project state write.
+
+## 2026-06-15 12:15 +08:00 - merge-agent - Selector Pagination Shape Compatibility
+
+### Completed
+
+- Used Beauvoir's explorer recommendation for the next safe slice: selector pagination compatibility.
+- Spawned Locke for a bounded Java/frontend expectation check while the main merge/coordinator implemented the read-only PHP service shape fix.
+- Updated user and position selector services so existing system/business selector routes return Java-style paged payloads with `records`, `total`, `current`, `page`, `limit`, `size`, and `pages`.
+- Preserved full sanitized user selector fields and full position row aliases while adding select aliases.
+- Added support for copied frontend `size` pagination.
+- Updated selector API docs, dashboard, implementation log, plan, and this status log.
+
+### Modified Files
+
+- `app/service/user/UserDirectoryService.php`
+- `app/service/user/PositionService.php`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l app\service\user\PositionService.php`: passed.
+- Authenticated HTTP smoke using ignored `.env` login values passed for all eight selector routes: `/sys/user/positionSelector`, `/biz/user/positionSelector`, `/sys/position/positionSelector`, `/biz/position/positionSelector`, `/sys/user/userSelector`, `/biz/user/userSelector`, `/sys/org/userSelector`, and `/biz/org/userSelector`.
+
+### Current Issues
+
+- Browser form smoke for opening `/sys/user` and `/biz/user` selector dropdowns was not run in this slice.
+- Business selector aliases still reuse system controllers; Java's stricter business data-scope and child-organization selector behavior remain future hardening work.
+- Role selector pagination remains unchanged because this slice targeted the user/position selectors called by copied user forms.
+
+### Next Plan
+
+- Continue with browser-side selector smoke or another bounded read-only response-shape cleanup before any side-effect-heavy workflow, finance, stock, generator, tenant, or sale-project state write.

@@ -8998,3 +8998,33 @@ Replace copied frontend 404s for public auth verification, WebPush subscription,
 ### 4. Forbidden Scope
 
 - Do not implement phone-code login, provider sends, password recovery mutations, WebPush persistence, third-party OAuth, C-side auth, or unrelated route cleanup in this slice.
+
+## Completed Plan: merge-agent - Selector Pagination Shape Compatibility
+
+Status: completed on 2026-06-15 after frontend component review, service patch, PHP lint, and authenticated HTTP smoke.
+
+### 1. Current Goal
+
+Make existing user and position selector routes return Java-style paged payloads expected by copied `XnPageSelect` and `XnUserSelector` components.
+
+### 2. Involved Files
+
+- `app/service/user/UserDirectoryService.php`
+- `app/service/user/PositionService.php`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- User selector routes return `records`, `total`, `current`, `page`, `limit`, `size`, and `pages`.
+- Position selector routes return the same paged envelope.
+- Existing selector row fields are preserved, including position `name`, `category`, and `sortCode`.
+- Copied frontend `size` pagination is accepted.
+- No writes or route additions are made.
+
+### 4. Forbidden Scope
+
+- Do not change frontend files, user/org/position write behavior, imports, exports, grants, password behavior, workflow, finance, stock, Java source, database schema, Composer, or `.env`.

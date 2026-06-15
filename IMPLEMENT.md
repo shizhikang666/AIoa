@@ -1076,3 +1076,31 @@ Explicit non-goals:
 - No password reset mutation.
 - No Java source, frontend source, database schema, Composer, `.env`, workflow, finance, stock, or generator changes.
 
+## 2026-06-15 Selector Pagination Shape Compatibility
+
+Agent: merge-agent / user-agent sidecar
+
+Execution summary:
+
+1. Used Beauvoir's completed explorer recommendation to select a read-only selector response-shape slice.
+2. Assigned Locke a bounded Java/frontend expectation check while the main merge/coordinator inspected current ThinkPHP selector services and copied frontend components.
+3. Confirmed copied `XnPageSelect` and `XnUserSelector` expect `records`, `total`, `current`, and `size`.
+4. Updated `UserDirectoryService::userSelector` to return paged selector payloads while preserving full sanitized user display fields.
+5. Updated `PositionService::selector` to return paged selector payloads while preserving full position aliases such as `name`, `category`, and `sortCode`.
+6. Accepted copied frontend `size` as an alias for existing `limit` and `pageSize`.
+7. Updated selector API notes, dashboard, implementation log, plan, and status log.
+
+Verification summary:
+
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l app\service\user\PositionService.php`: passed.
+- Authenticated HTTP smoke with ignored `.env` login values passed for `/sys/user/positionSelector`, `/biz/user/positionSelector`, `/sys/position/positionSelector`, `/biz/position/positionSelector`, `/sys/user/userSelector`, `/biz/user/userSelector`, `/sys/org/userSelector`, and `/biz/org/userSelector`; each returned `code=200` with `data.records`, `data.current`, and `data.total`.
+
+Explicit non-goals:
+
+- No selector route additions.
+- No frontend source changes.
+- No user, organization, or position writes.
+- No role grant, import, export, password, workflow, finance, stock, Java source, database schema, Composer, or `.env` changes.
+- No business data-scope redesign or child-organization selector rewrite.
+
