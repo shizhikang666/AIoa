@@ -40,3 +40,12 @@ The following remain intentionally deferred:
 - notifications and side effects
 - Java source changes
 - database schema changes
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/team-project-read-http-smoke.ps1` now covers authenticated task-user reads for:
+
+- `GET /biz/bizteamprojecttaskuser/page`
+- `GET /biz/bizteamprojecttaskuser/detail` when a visible task-user row exists
+
+The smoke asserts Java-style paging keys and frontend-visible assignee display fields. It intentionally does not call task-user add/edit/delete, task assignee sync, task status/progress writes, notification, realtime, or data-change behavior.

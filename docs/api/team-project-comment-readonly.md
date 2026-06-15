@@ -96,3 +96,15 @@ Reply rows include:
 
 - Notifications and data-change events
 - Team-project, task, category, and task-user mutations
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/team-project-read-http-smoke.ps1` now covers authenticated project timeline comment reads for:
+
+- `GET /biz/bizteamprojectcomment/page`
+- `GET /biz/bizteamprojectcomment/list`
+- `GET /biz/bizteamprojectcomment/detail` when a visible comment exists
+- `GET /biz/bizteamprojectcommentreply/page`
+- `GET /biz/bizteamprojectcommentreply/detail` when a visible reply exists
+
+The smoke asserts nested reply shape on comments and frontend-visible creator/avatar/content fields. It intentionally does not call project-comment add/delete, reply add/edit/delete, notification, realtime, project/task/category/user mutation, or data-change behavior.

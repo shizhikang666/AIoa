@@ -139,3 +139,15 @@ The Java edit parameter class only contains `id`; Java then calls `updateById`, 
 - Member delete uses logical deletion through `DELETE_FLAG = DELETED` instead of Java's physical remove, and it rejects leader/current-user removal.
 - Project delete also uses logical deletion and marks active project members deleted; the permission relation row is retained until cleanup or later relation-maintenance work.
 - This slice does not modify Java source, database schema, Composer files, `.env`, notification push, data-change events, or frontend source.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/team-project-read-http-smoke.ps1` now covers authenticated team-project reads for:
+
+- `GET /biz/bizteamproject/page`
+- `GET /biz/bizteamproject/detail` when the current user has a visible sample project
+- `GET /biz/bizteamprojectuser/page`
+- `GET /biz/bizteamprojectuser/list`
+- `GET /biz/bizteamprojectuser/detail` when a visible member row exists
+
+The smoke asserts Java-style paging keys and frontend-visible project/member display fields. It intentionally does not call project add/edit/delete, member add/manage/edit/delete, notification, realtime, relation mutation, or data-change behavior.

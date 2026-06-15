@@ -89,3 +89,19 @@ These behaviors need a later write-flow design.
 - `php think route:list` route registration.
 - Runtime smoke tests for representative category, task, project-comment, task-comment reads, task base maintenance, category maintenance, task comment add, task assignee sync, and project-comment/reply base writes.
 - No-token check for a protected route.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/team-project-read-http-smoke.ps1` now covers authenticated team-project task reads for:
+
+- `GET /biz/bizteamprojecttaskcategory/page`
+- `GET /biz/bizteamprojecttaskcategory/list`
+- `GET /biz/bizteamprojecttaskcategory/detail` when a visible category exists
+- `GET /biz/bizteamprojecttask/page`
+- `GET /biz/bizteamprojecttask/list`
+- `GET /biz/bizteamprojecttask/detail` when a visible task exists
+- `GET /biz/bizteamprojecttaskcomment/page`
+- `GET /biz/bizteamprojecttaskcomment/list`
+- `GET /biz/bizteamprojecttaskcomment/detail` when a visible task comment exists
+
+The smoke asserts paging/list wrappers, task/category/comment display fields, and task-detail `users`. It intentionally does not call category add/edit/sort/delete, task add/edit/delete/user-edit, task-comment add/edit/delete, notification, realtime, workflow, or data-change behavior.
