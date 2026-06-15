@@ -78,3 +78,11 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git diff --check
 ```
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/datareport-read-http-smoke.ps1` now covers authenticated sale-project detail-report reads for:
+
+- `POST /biz/bizdatareport/saleProjectList/details`
+
+The smoke asserts list shape plus optional `productList` and `returnOrders` collections when a visible project exists. It intentionally does not call product-item, return-order, inventory, settlement, workflow, provider, or data-change writes.

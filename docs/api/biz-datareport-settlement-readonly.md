@@ -97,3 +97,12 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git diff --check
 ```
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/datareport-read-http-smoke.ps1` now covers authenticated settlement report reads for:
+
+- `POST /biz/bizdatareport/settlement/income`
+- `POST /biz/bizdatareport/settlement/expenses`
+
+The smoke asserts list wrappers and optional settlement record fields. It intentionally does not call settlement account income, expenses, payment, transfer, balance mutation, mark-success, workflow, provider, or data-change behavior.

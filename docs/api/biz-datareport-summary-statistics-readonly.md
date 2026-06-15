@@ -77,3 +77,11 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git diff --check
 ```
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/datareport-read-http-smoke.ps1` now covers authenticated summary-statistics reads for:
+
+- `POST /biz/bizdatareport/summary/statistics`
+
+The smoke submits the current report year and asserts the raw company summary collections expected by the copied frontend worker. `BizDataReportController` now parses JSON bodies through the shared compatibility body-reader pattern so copied POST report filters are not lost. It intentionally does not call settlement account income, expenses, payment, transfer, workflow, provider, or data-change writes.

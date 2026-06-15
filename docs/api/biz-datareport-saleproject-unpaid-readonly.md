@@ -75,3 +75,11 @@ php think route:list
 ```
 
 Smoke the service against representative sale-project rows and token payload data scope.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/datareport-read-http-smoke.ps1` now covers authenticated unpaid-payment report reads for:
+
+- `POST /biz/bizdatareport/saleproject/UnpaidPayment`
+
+The smoke asserts the Java-compatible `amount` wrapper. It intentionally does not call collection, debit-note, settlement-account, workflow, provider, or data-change writes.

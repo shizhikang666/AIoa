@@ -601,15 +601,15 @@ Route::group('biz/saleprojectproductitem', function () {
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizdatareport', function () {
-    Route::post('saleproject', 'biz.BizDataReportController/saleProjectAmount');
+    Route::post('saleProjectList/details', 'biz.BizDataReportController/saleProjectListDetails');
     Route::post('saleproject/list', 'biz.BizDataReportController/saleProjectList');
     Route::post('saleproject/report', 'biz.BizDataReportController/saleProjectReport');
     Route::post('saleproject/UnpaidPayment', 'biz.BizDataReportController/saleProjectUnpaidPayment');
+    Route::post('saleproject', 'biz.BizDataReportController/saleProjectAmount');
     Route::post('settlement/income', 'biz.BizDataReportController/settlementIncome');
     Route::post('settlement/expenses', 'biz.BizDataReportController/settlementExpenses');
     Route::post('saleProfit', 'biz.BizDataReportController/saleProfit');
     Route::post('summary/statistics', 'biz.BizDataReportController/summaryStatistics');
-    Route::post('saleProjectList/details', 'biz.BizDataReportController/saleProjectListDetails');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizleaveapplication', function () {

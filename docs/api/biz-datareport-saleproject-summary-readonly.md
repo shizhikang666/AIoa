@@ -104,3 +104,13 @@ php think route:list
 ```
 
 Smoke the service against representative sale-project rows and token payload data scope.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/datareport-read-http-smoke.ps1` now covers authenticated sale-project report reads for:
+
+- `POST /biz/bizdatareport/saleproject`
+- `POST /biz/bizdatareport/saleproject/list`
+- `POST /biz/bizdatareport/saleproject/report`
+
+The smoke asserts amount/list/report wrappers and optional project row fields. This slice also keeps the more specific `/saleproject/list` and `/saleproject/report` routes before `/saleproject` so they are not shadowed. It intentionally does not call sale-project writes, finance mutation, workflow, provider, or data-change behavior.
