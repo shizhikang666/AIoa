@@ -1746,3 +1746,30 @@ Explicit non-goals:
 
 - No business endpoint behavior change, no controller/service code change, no Java source edit, no schema change, no `.env` edit, no production data operation, no provider send, no workflow write, no finance/inventory side effect, and no Git push.
 
+## 2026-06-15 Workflow Detail Browser Smoke Compatibility
+
+Agent: workflow-agent / frontend-agent fallback
+
+Execution summary:
+
+1. Ran a targeted browser smoke for copied workflow detail navigation using system Chrome through Playwright, a temporary local token, and a temporary workflow menu cache.
+2. Confirmed `/biz/biztask/allprocess` rendered without 404 but had no local rows, then `/biz/biztask/mystarttask` rendered 3 rows.
+3. Clicked the first workflow row and opened the process detail drawer.
+4. Fixed `/biz/process/variable` to return Java-compatible variable rows for copied frontend detail forms while keeping the internal normalized variable map for service use.
+5. Hardened `useProcessParam()` so missing or partial `SYS_USER_PROCESS_CONFIG` cache does not crash copied workflow forms.
+6. Hardened project-return workflow detail so missing local related sale-project/warehouse rows do not turn a read-only detail into a console error.
+7. Updated workflow docs, problem log, progress dashboard, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\ProcessController.php`: passed.
+- `.\scripts\workflow-read-http-smoke.ps1`: passed.
+- Browser smoke: `/biz/biztask/mystarttask` detail drawer opened; observed `GET /api/biz/process/detail`, `POST /api/biz/process/fileList`, `POST /api/biz/process/variable`, `GET /api/biz/saleproject/detail`, and `GET /api/biz/warehouses/list`; no console errors, failed API requests, or forbidden write/upload/delete requests.
+- `npm run build` in `snowy-admin-web`: passed with existing Vite/Browserslist/chunk-size warnings.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No workflow approve/reject/start/cancel, no task SSE stream, no CC delete, no upload/delete, no sale-project write, no finance/inventory side effect, no provider send, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
+

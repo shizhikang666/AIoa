@@ -57,6 +57,7 @@ All routes are protected by `AuthMiddleware`.
 - `project/runtime/query/list` returns runtime process rows matching `projectId`.
 - `fileList` reads attachment rows through existing `biz_file_relation` and `dev_file` read logic.
 - `variable`, `fileList`, and `query/list` accept JSON request bodies from copied frontend callers, with query/form parameters retained as compatibility fallbacks.
+- `variable` returns Java-compatible variable entries with `name`, `value`, `label`, `type`, and `properties`; the internal workflow detail service still uses the normalized variable map.
 - `runtime/activity/detail` returns `category`, `variables`, `taskId`, `processKey`, `processInstanceId`, and `processDefinitionId`.
 - Existing `detail` and `variable` reads now accept either `processInstanceId` or the Java/frontend `id` parameter.
 - `detail` also returns the old frontend detail shape: `userProcess`, `startUser`, `startOrgTree`, `userActivityList`, and `ccUser`.
@@ -76,6 +77,14 @@ All routes are protected by `AuthMiddleware`.
   - `/biz/biztask/copytask`
 - Each page rendered an Ant table or empty state and hit its corresponding read endpoint.
 - Browser console had no blocking errors, and the smoke observed no workflow write requests such as approve, reject, cancel, start, edit, CC delete, or task SSE.
+
+Additional workflow detail browser smoke on 2026-06-15:
+
+- Used system Chrome through Playwright with a temporary local token and temporary workflow route cache.
+- `/biz/biztask/allprocess` rendered without 404 but had no current local rows.
+- `/biz/biztask/mystarttask` rendered 3 rows; clicking the first process opened the detail drawer.
+- The detail flow called `GET /api/biz/process/detail`, `POST /api/biz/process/fileList`, `POST /api/biz/process/variable`, `GET /api/biz/saleproject/detail`, and `GET /api/biz/warehouses/list`.
+- Browser console had no errors, no API requests failed, and no forbidden workflow write, CC delete, upload, delete, sale-project write, or business write request was observed.
 
 ## Deferred
 

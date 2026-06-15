@@ -25,9 +25,8 @@ export function useProcessParam(key) {
 	const sysConfig = tool.data.get('SYS_CONFIG') || {}
 	const processConfigMap = cloneDeep(sysConfig.processConfigMap || {})
 
-	const sys_user_process_config = tool.data.get('SYS_USER_PROCESS_CONFIG')
-		? cloneDeep(tool.data.get('SYS_USER_PROCESS_CONFIG').config)
-		: []
+	const userProcessConfig = tool.data.get('SYS_USER_PROCESS_CONFIG')
+	const sys_user_process_config = isArray(userProcessConfig?.config) ? cloneDeep(userProcessConfig.config) : []
 
 	const find = sys_user_process_config.find((v) => v.processName === key)
 

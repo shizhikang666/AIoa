@@ -38,9 +38,27 @@ class ProcessController extends BaseWorkflowController
     {
         $input = $this->body($request);
 
-        return $this->guard(fn () => $this->workflowVariableService->historyByProcessInstance(
-            $this->processInstanceId($request, $input)
-        ));
+        return $this->guard(function () use ($request, $input): array {
+            $variables = $this->workflowVariableService->historyByProcessInstance(
+                $this->processInstanceId($request, $input)
+            );
+            $fields = $this->stringList($input['fields'] ?? []);
+            if ($fields !== []) {
+                $variables = array_intersect_key($variables, array_flip($fields));
+            }
+
+            return array_map(
+                fn (string $name, mixed $value): array => [
+                    'name' => $name,
+                    'value' => $value,
+                    'label' => $name,
+                    'type' => is_array($value) ? 'json' : get_debug_type($value),
+                    'properties' => [],
+                ],
+                array_keys($variables),
+                array_values($variables)
+            );
+        });
     }
 
     public function allPage(Request $request): Response
@@ -120,5 +138,21 @@ class ProcessController extends BaseWorkflowController
         }
 
         return $this->requiredString($request, 'id');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
     }
 }

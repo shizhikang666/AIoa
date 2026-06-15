@@ -9913,3 +9913,34 @@ Prevent PowerShell/curl argument parsing from corrupting JSON bodies in authenti
 ### 4. Forbidden Scope
 
 - Do not change business endpoint behavior, controller/service code, Java source, schema, `.env`, production data, or provider/workflow/finance/inventory side effects.
+
+## Completed Plan: workflow-agent - Workflow Detail Browser Smoke Compatibility
+
+Status: completed on 2026-06-15 after browser-smoke opening a copied workflow detail drawer and fixing the read-only compatibility issues it exposed.
+
+### 1. Current Goal
+
+Verify a concrete workflow detail path in the copied Vue frontend without triggering workflow writes, uploads, CC deletes, or business side effects.
+
+### 2. Involved Files
+
+- `app/controller/biz/ProcessController.php`
+- `snowy-admin-web/src/composables/useProcessParam/index.js`
+- `snowy-admin-web/src/views/biz/bizprocess/processDetails/infoForm/project/projectReturnInfo.vue`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `/biz/process/variable` returns Java-compatible variable rows for copied frontend detail forms.
+- `useProcessParam()` tolerates missing or partial cached process config.
+- Project-return workflow detail tolerates missing related sale-project/warehouse rows in local data.
+- Browser smoke opens a workflow detail drawer and observes process detail/fileList/variable reads with no console errors and no forbidden write/upload/delete requests.
+
+### 4. Forbidden Scope
+
+- Do not implement or call workflow approve/reject/start/cancel, task SSE stream, CC delete, uploads, file deletes, sale-project writes, finance/inventory side effects, provider sends, Java source edits, schema changes, `.env` edits, production data operations, or Git push behavior.

@@ -53,6 +53,9 @@
 	const baseInfo = ref({})
 	const projectDetailRef = useTemplateRef('projectDetailRef')
 	const openProjectDetail = () => {
+		if (!projectBaseInfo.value.id) {
+			return
+		}
 		projectDetailRef.value.onOpen({
 			id: projectBaseInfo.value.id
 		})
@@ -64,9 +67,18 @@
 		res.forEach((item) => {
 			result[item.name] = item.value
 		})
-		const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
+		result.productList = Array.isArray(result.productList) ? result.productList : []
 
-		const list = await WarehousesApi.warehousesList()
+		let details = { bizSaleProject: { id: result.projectId, projectName: result.projectId || '' } }
+		if (result.projectId) {
+			try {
+				details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
+			} catch (e) {
+				details = { bizSaleProject: { id: result.projectId, projectName: result.projectId } }
+			}
+		}
+
+		const list = await WarehousesApi.warehousesList().catch(() => [])
 		const find = list.find((v) => {
 			return v.id === result.warehousesId
 		})
@@ -81,7 +93,7 @@
 			  )
 			: []
 		productItems.forEach((v) => {
-			const product = JSON.parse(v.extJson).product
+			const product = v.extJson ? JSON.parse(v.extJson).product : {}
 			const find = result.productList.find((f) => {
 				return f.projectProductItemId === v.objectId
 			})
@@ -93,10 +105,9 @@
 			}
 		})
 
-		console.log(result)
 		projectBaseInfo.value = details.bizSaleProject
 		baseInfo.value = result
-		baseInfo.value.warehouseName = find.name
+		baseInfo.value.warehouseName = find ? find.name : ''
 	})
 
 	const columns = [

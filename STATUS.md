@@ -9347,3 +9347,46 @@ Agent: api-agent
 
 - Commit this slice as `test: harden smoke json posts`.
 - Next candidate: targeted browser smoke after selecting a concrete visible page and forbidden request pattern, or cloud storage cleanup/provider planning after configuration policy is confirmed.
+
+## 2026-06-15 15:09 +08:00 - workflow-agent - Workflow Detail Browser Smoke Compatibility
+
+### Completed
+
+- Ran targeted workflow detail browser smoke with system Chrome through Playwright, using a temporary local token and temporary workflow route cache.
+- `/biz/biztask/allprocess` rendered without 404 but had no current local rows.
+- `/biz/biztask/mystarttask` rendered 3 rows; clicking the first row opened the process detail drawer.
+- Fixed `/biz/process/variable` to return Java-compatible variable rows expected by copied workflow detail forms.
+- Fixed `useProcessParam()` to tolerate missing or partial cached process config.
+- Hardened project-return workflow detail against missing local related sale-project/warehouse rows.
+- Updated workflow docs, problem log, progress dashboard, plan log, and implementation log.
+
+### Modified Files
+
+- `app/controller/biz/ProcessController.php`
+- `snowy-admin-web/src/composables/useProcessParam/index.js`
+- `snowy-admin-web/src/views/biz/bizprocess/processDetails/infoForm/project/projectReturnInfo.vue`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\ProcessController.php`: passed.
+- `.\scripts\workflow-read-http-smoke.ps1`: passed, with task runtime detail and CC detail skipped because the local smoke account currently has no pending task or current-user CC sample.
+- Browser smoke: passed; observed process detail/fileList/variable reads plus sale-project detail and warehouses list reads, with no console errors, failed API requests, or forbidden write/upload/delete requests.
+- `npm run build` in `snowy-admin-web`: passed with existing Vite/Browserslist/chunk-size warnings.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Workflow write paths remain deferred: approve, reject, start, cancel, task SSE, and Java delegate side effects were not implemented or called.
+- Real Email remains deferred until the final provider phase before real SMS.
+
+### Next Plan
+
+- Commit this slice as `fix: stabilize workflow detail reads`.
+- Next candidate: cloud storage cleanup/provider planning after configuration policy is confirmed, or another targeted browser smoke only after selecting a concrete page and forbidden request pattern.
