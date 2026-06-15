@@ -81,3 +81,14 @@ Behavior:
 - `php think route:list`
 - Token smoke tests for page, list, detail, queryName, and no-token 401.
 - DB smoke added a temporary account, verified `CURRENT_AMOUNT` equals `INITIAL_AMOUNT` and `org` comes from the current context, edited name/status/org, toggled status, checked duplicate-name, invalid-status, and non-admin rejection, then removed the temporary row.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/settlement-account-read-http-smoke.ps1` now verifies authenticated settlement-account read payloads against the local backend:
+
+- `GET /biz/settlementaccount/page`
+- `GET /biz/settlementaccount/list`
+- `GET /biz/settlementaccount/detail` when a visible page row exists
+- `GET /biz/settlementaccount/queryName` when a visible page row exists
+
+The smoke checks Java-style paging keys and stable frontend-visible fields such as `accountName`, `accountNumber`, `initialAmount`, `currentAmount`, `accountStatus`, `orgName`, `archiveAmount`, `archiveTime`, and decoded `ext`. It does not call add, edit, edit/status, delete, expenses, payment, transfer, balance mutation, statement writes, workflow, provider, or data-change behavior.
