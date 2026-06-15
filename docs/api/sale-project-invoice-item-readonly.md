@@ -40,3 +40,9 @@ The following remain intentionally deferred:
 - finance/payment side effects
 - Java source changes
 - database schema changes
+
+## 2026-06-15 Business Read HTTP Smoke
+
+`scripts/business-read-http-smoke.ps1` now verifies `/biz/saleprojectinvoiceItem/page` with Java-style pagination keys and frontend-visible invoice item fields: `id`, `invoiceId`, `projectProductItemId`, `warehousesId`, `amount`, `projectId`, `productId`, `productName`, and `warehousesName`.
+
+When a local invoice-item sample exists, the smoke also verifies the `invoiceId` filtered page path. It does not call invoice item writes, delivery writes, stock, project-state, workflow, finance, or file cleanup behavior.

@@ -1644,3 +1644,31 @@ Explicit non-goals:
 
 - No workflow approve/reject/start/cancel call, no task SSE stream, no CC delete, no process write, no finance/inventory side effect, no job execution, no provider send, no frontend source edit, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
 
+## 2026-06-15 Sale-Project Billing Nested Read Smoke Coverage
+
+Agent: merge-agent / api-agent fallback
+
+Execution summary:
+
+1. Reviewed sale-project billing routes, controllers, service methods, and compatibility docs.
+2. Extended `scripts/business-read-http-smoke.ps1` to load local invoicing, invoice, invoice-item, and reissue-order sample ids.
+3. Added authenticated read checks for `/biz/saleprojectinvoicing/page`, `/detail`, and `/customer`.
+4. Added authenticated read checks for `/biz/saleprojectinvoice/page`, `/list`, `/biz/saleprojectinvoiceItem/page`, invoice-filtered invoice-item page, and `/biz/saleprojectreissueorder/list/query`.
+5. Verified nested structures: `bizSaleProjectInvoice` plus `invoiceItems`, and `order` plus `productItemList`.
+6. Updated billing/read docs, API gap map next order, parallel plan, progress dashboard, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\SaleProjectInvoicingController.php`: passed.
+- `php -l app\controller\biz\SaleProjectInvoiceController.php`: passed.
+- `php -l app\controller\biz\SaleProjectInvoiceItemController.php`: passed.
+- `php -l app\controller\biz\SaleProjectReissueOrderController.php`: passed.
+- `php -l app\service\biz\SaleProjectBillingService.php`: passed.
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No `/biz/saleprojectinvoicing/complete` call, no invoicing add/edit/delete, no delivery invoice write, no reissue-order write, no stock, no settlement, no finance, no workflow, no sale-project state write, no file cleanup, no provider send, no frontend source edit, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
+

@@ -111,7 +111,15 @@ Covered sale-project checks:
 - `GET /biz/saleproject/product`
 - `POST /biz/saleproject/cost`
 - `POST /biz/saleproject/cost/details`
+- Billing nested reads through `scripts/business-read-http-smoke.ps1`:
+  - `GET /biz/saleprojectinvoicing/page`
+  - `GET /biz/saleprojectinvoicing/detail`
+  - `GET /biz/saleprojectinvoicing/customer`
+  - `GET /biz/saleprojectinvoice/page`
+  - `GET /biz/saleprojectinvoice/list`
+  - `GET /biz/saleprojectinvoiceItem/page`
+  - `GET /biz/saleprojectreissueorder/list/query`
 
 The smoke loads an existing active sale-project id from the local database, verifies Java-style paging keys, checks display fields such as `projectName`, `projectState`, `playState`, `customerName`, `headName`, `orgName`, and `accountName`, and checks detail aggregate buckets including product items, invoicing, invoices, payment records, follow-ups, change logs, and return orders.
 
-This smoke is read-only. It does not call sale-project add, edit, delete, deal edit, visibility edit, amount edit, repeal/cancel, history/special creation, workflow actions, finance effects, stock effects, or file cleanup.
+This smoke is read-only. It does not call sale-project add, edit, delete, deal edit, visibility edit, amount edit, repeal/cancel, history/special creation, invoicing complete, workflow actions, finance effects, stock effects, settlement effects, or file cleanup.

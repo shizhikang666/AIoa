@@ -9187,3 +9187,47 @@ Agent: api-agent
 
 - Commit this slice as `test: add workflow read smoke`.
 - Next candidate slice: sale-project billing nested read smoke, excluding invoicing complete, stock, settlement, and file cleanup.
+
+## 2026-06-15 23:20 +08:00 - merge-agent - Sale-Project Billing Nested Read Smoke Coverage
+
+### Completed
+
+- Reviewed sale-project billing routes, controllers, `SaleProjectBillingService`, and existing compatibility docs.
+- Extended `scripts/business-read-http-smoke.ps1` to verify billing-adjacent nested read contracts.
+- Covered invoicing page/detail/customer, delivery invoice page/list, invoice-item page and invoice-filtered page, and reissue-order `list/query`.
+- Verified nested response shapes for invoice list (`bizSaleProjectInvoice`, `invoiceItems`) and reissue list (`order`, `productItemList`).
+- Updated billing/read docs, API gap map, parallel plan, progress dashboard, plan log, and implementation log.
+
+### Modified Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `docs/api/biz-saleproject-billing-readonly.md`
+- `docs/api/biz-saleproject-readonly.md`
+- `docs/api/sale-project-invoice-item-readonly.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectInvoicingController.php`: passed.
+- `php -l app\controller\biz\SaleProjectInvoiceController.php`: passed.
+- `php -l app\controller\biz\SaleProjectInvoiceItemController.php`: passed.
+- `php -l app\controller\biz\SaleProjectReissueOrderController.php`: passed.
+- `php -l app\service\biz\SaleProjectBillingService.php`: passed.
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- This is read-contract coverage only; no billing writes, invoicing complete, stock, settlement, finance, workflow, sale-project state write, file cleanup, or browser click-through was added.
+- Real Email remains deferred until the final provider phase before real SMS.
+
+### Next Plan
+
+- Commit this slice as `test: extend sale project billing smoke`.
+- Next candidate slice: sale-project product/package relation read smoke, excluding product-info writes and relation mark writes.

@@ -80,3 +80,22 @@ Runtime smoke:
 - Request one route without token and confirm API `code = 401`.
 - Login locally and request representative page/list/detail routes with a token.
 - Keep backend on port `82` and frontend on port `83` reachable for joint testing.
+
+## 2026-06-15 Business Read HTTP Smoke
+
+`scripts/business-read-http-smoke.ps1` now verifies billing-adjacent nested reads alongside the core customer and sale-project read contracts.
+
+Covered billing checks:
+
+- `GET /biz/saleprojectinvoicing/page`
+- `GET /biz/saleprojectinvoicing/detail` when local invoicing sample data exists
+- `GET /biz/saleprojectinvoicing/customer` when local invoicing/customer sample data exists
+- `GET /biz/saleprojectinvoice/page`
+- `GET /biz/saleprojectinvoice/list`
+- `GET /biz/saleprojectinvoiceItem/page`
+- `GET /biz/saleprojectinvoiceItem/page?invoiceId=...` when local invoice-item sample data exists
+- `GET /biz/saleprojectreissueorder/list/query`
+
+The smoke verifies Java-style paging keys, display aliases such as `projectName` and `customerName`, invoice-list nesting under `bizSaleProjectInvoice` and `invoiceItems`, and reissue-order nesting under `order` and `productItemList`.
+
+This smoke is read-only. It does not call `/biz/saleprojectinvoicing/complete`, invoicing add/edit/delete, delivery invoice writes, reissue-order writes, stock, settlement, finance, workflow, file cleanup, provider, or sale-project state routes.

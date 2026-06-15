@@ -9786,3 +9786,38 @@ Keep copied workflow table/list/query/detail consumers under regression coverage
 - Do not implement workflow approve/reject/start/cancel.
 - Do not call CC delete or process write routes.
 - Do not optimize workflow query-list pagination outside a dedicated follow-up slice.
+
+## Completed Plan: merge-agent - Sale-Project Billing Nested Read Smoke Coverage
+
+Status: completed on 2026-06-15 after extending business read smoke coverage for sale-project billing nested read consumers.
+
+### 1. Current Goal
+
+Keep sale-project invoicing, delivery invoice, invoice item, and reissue-order read payloads under regression coverage without invoking billing writes or broader side effects.
+
+### 2. Involved Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `docs/api/biz-saleproject-billing-readonly.md`
+- `docs/api/biz-saleproject-readonly.md`
+- `docs/api/sale-project-invoice-item-readonly.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Authenticated HTTP smoke verifies invoicing page, detail, and customer reads when local sample data exists.
+- Authenticated HTTP smoke verifies delivery invoice page and nested invoice list reads.
+- Authenticated HTTP smoke verifies invoice-item page and invoice-filtered page reads.
+- Authenticated HTTP smoke verifies reissue-order `list/query` nested `order` and `productItemList` structure when local sample data exists.
+- The smoke calls no `/biz/saleprojectinvoicing/complete`, invoice/reissue writes, stock, settlement, finance, workflow, sale-project state, file cleanup, provider, Java source, schema, `.env`, production data, or Git push behavior.
+
+### 4. Forbidden Scope
+
+- Do not implement sale-project billing writes.
+- Do not call invoicing complete in read smoke.
+- Do not implement stock, settlement, finance, workflow, or file cleanup side effects.

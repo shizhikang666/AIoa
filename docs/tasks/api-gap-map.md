@@ -90,10 +90,10 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/ccrecords` | `page`, `detail`, and `delete` covered; add/edit and workflow copy-generation remain deferred |
 | `biz/bizdraft` | `detail` and `saleproject/add` covered |
 | `biz/bizhistoryexcel` | `page`, `detail`, `add`, `edit`, and `delete` covered; import/export parsing and row-table storage remain deferred |
-| `biz/saleprojectinvoicing` | `customer`, `detail`, `page`, and `complete` covered; add/edit/delete remain deferred |
-| `biz/saleprojectinvoiceItem` | `page` covered; invoice item writes remain deferred |
+| `biz/saleprojectinvoicing` | `customer`, `detail`, and `page` are smoke-covered; `complete` is routed but intentionally excluded from read smoke; add/edit/delete remain deferred |
+| `biz/saleprojectinvoiceItem` | `page` and `invoiceId` filtered page are smoke-covered; invoice item writes remain deferred |
 | `biz/projectrate` | `page`, `list`, `detail`, `add`, `edit`, and `delete` covered; file upload/storage remains deferred |
-| `biz/saleprojectreissueorder` | `list/query` covered; reissue-order writes remain deferred |
+| `biz/saleprojectreissueorder` | `list/query` nested `order` and `productItemList` structure is smoke-covered; reissue-order writes remain deferred |
 | `biz/saleprojectproductitemrelation` | `list` and `mark/edit` covered |
 | `biz/bizteamproject` | `page`, `detail`, `add`, `edit`, and `delete` covered; notification/data-change side effects remain deferred |
 | `biz/bizteamprojectcomment` | `page`, `list`, `detail`, `add`, and `delete` covered; notification/data-change side effects remain deferred |
@@ -162,11 +162,11 @@ The frontend still references several auth monitoring and third-party routes:
 
 ## Next Execution Order
 
-1. api-agent: continue sale-project billing nested read smoke, excluding invoicing complete, stock, settlement, and file cleanup.
-2. api-agent: add sale-project product/package relation read smoke, excluding product info and relation mark writes.
-3. test-agent/frontend-agent: browser-smoke copied upload controls or selected read pages only after a concrete forbidden-request pattern is defined.
-4. workflow-agent: revisit workflow `query/list` pagination or filtering only as a dedicated performance/compatibility slice.
-5. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
+1. api-agent: add sale-project product/package relation read smoke, excluding product info and relation mark writes.
+2. test-agent/frontend-agent: browser-smoke copied upload controls or selected read pages only after a concrete forbidden-request pattern is defined.
+3. workflow-agent: revisit workflow `query/list` pagination or filtering only as a dedicated performance/compatibility slice.
+4. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
+5. provider-agent: keep real Email before real SMS in the final provider phase.
 
 ## Guardrails
 

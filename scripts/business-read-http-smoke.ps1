@@ -65,7 +65,7 @@ function Invoke-RawGet {
         throw "HTTP GET failed: $Url"
     }
 
-    return $raw
+    return [string]::Join('', [string[]]$raw)
 }
 
 function Invoke-RawPost {
@@ -80,7 +80,7 @@ function Invoke-RawPost {
         throw "HTTP POST failed: $Url"
     }
 
-    return $raw
+    return [string]::Join('', [string[]]$raw)
 }
 
 function Read-JsonPath {
@@ -259,6 +259,86 @@ function Assert-SaleProjectFollowUpRow {
     )
 }
 
+function Assert-SaleProjectInvoicingRow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    Assert-Paths -Json $Json -Name $Name -Paths @(
+        "$Prefix.id",
+        "$Prefix.projectId",
+        "$Prefix.amount",
+        "$Prefix.invoicingState",
+        "$Prefix.invoicingCategory",
+        "$Prefix.companyName",
+        "$Prefix.customerCompany",
+        "$Prefix.unit",
+        "$Prefix.phone",
+        "$Prefix.projectName",
+        "$Prefix.customerName"
+    )
+}
+
+function Assert-SaleProjectInvoiceRow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    Assert-Paths -Json $Json -Name $Name -Paths @(
+        "$Prefix.id",
+        "$Prefix.projectId",
+        "$Prefix.logisticsCategory",
+        "$Prefix.phone",
+        "$Prefix.logisticsId",
+        "$Prefix.freight",
+        "$Prefix.freightTime",
+        "$Prefix.freightCategory",
+        "$Prefix.unit",
+        "$Prefix.address",
+        "$Prefix.projectName",
+        "$Prefix.customerName"
+    )
+}
+
+function Assert-SaleProjectInvoiceItemRow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    Assert-Paths -Json $Json -Name $Name -Paths @(
+        "$Prefix.id",
+        "$Prefix.invoiceId",
+        "$Prefix.projectProductItemId",
+        "$Prefix.warehousesId",
+        "$Prefix.amount",
+        "$Prefix.projectId",
+        "$Prefix.productId",
+        "$Prefix.productName",
+        "$Prefix.warehousesName"
+    )
+}
+
+function Assert-ReissueOrderRow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    Assert-Paths -Json $Json -Name $Name -Paths @(
+        "$Prefix.id",
+        "$Prefix.projectId",
+        "$Prefix.projectName",
+        "$Prefix.customerName"
+    )
+}
+
 $envMap = Get-EnvMap -Path $EnvPath
 $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
 if ($account -eq '') {
@@ -303,6 +383,36 @@ if (!`$saleProjectId) { throw new RuntimeException('sample sale project not foun
     ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
     ->field('f.ID AS ID, f.PROJECT_ID AS PROJECT_ID')
     ->find();
+`$invoicing = think\facade\Db::name('biz_sale_project_invoicing')
+    ->alias('i')
+    ->join('biz_sale_project p', 'p.ID = i.PROJECT_ID', 'INNER')
+    ->where(function (`$query) { `$query->whereNull('i.DELETE_FLAG')->whereOr('i.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->field('i.ID AS ID, i.PROJECT_ID AS PROJECT_ID, p.CUSTOMER AS CUSTOMER_ID')
+    ->find();
+`$invoice = think\facade\Db::name('biz_sale_project_invoice')
+    ->alias('v')
+    ->join('biz_sale_project p', 'p.ID = v.PROJECT_ID', 'INNER')
+    ->where(function (`$query) { `$query->whereNull('v.DELETE_FLAG')->whereOr('v.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->field('v.ID AS ID, v.PROJECT_ID AS PROJECT_ID')
+    ->find();
+`$invoiceItem = think\facade\Db::name('biz_sale_project_invoice_item')
+    ->alias('item')
+    ->join('biz_sale_project_invoice v', 'v.ID = item.INVOICE_ID', 'INNER')
+    ->join('biz_sale_project p', 'p.ID = v.PROJECT_ID', 'INNER')
+    ->where(function (`$query) { `$query->whereNull('item.DELETE_FLAG')->whereOr('item.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('v.DELETE_FLAG')->whereOr('v.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->field('item.ID AS ID, item.INVOICE_ID AS INVOICE_ID')
+    ->find();
+`$reissueOrder = think\facade\Db::name('biz_sale_project_reissue_order')
+    ->alias('o')
+    ->join('biz_sale_project p', 'p.ID = o.PROJECT_ID', 'INNER')
+    ->where(function (`$query) { `$query->whereNull('o.DELETE_FLAG')->whereOr('o.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->field('o.ID AS ID, o.PROJECT_ID AS PROJECT_ID')
+    ->find();
 echo json_encode([
     'customerId' => (string)`$customerId,
     'saleProjectId' => (string)`$saleProjectId,
@@ -310,6 +420,15 @@ echo json_encode([
     'customerFollowUpCustomerId' => `$customerFollowUp ? (string)`$customerFollowUp['CUSTOMER_ID'] : '',
     'saleProjectFollowUpId' => `$saleProjectFollowUp ? (string)`$saleProjectFollowUp['ID'] : '',
     'saleProjectFollowUpProjectId' => `$saleProjectFollowUp ? (string)`$saleProjectFollowUp['PROJECT_ID'] : '',
+    'saleProjectInvoicingId' => `$invoicing ? (string)`$invoicing['ID'] : '',
+    'saleProjectInvoicingProjectId' => `$invoicing ? (string)`$invoicing['PROJECT_ID'] : '',
+    'saleProjectInvoicingCustomerId' => `$invoicing ? (string)`$invoicing['CUSTOMER_ID'] : '',
+    'saleProjectInvoiceId' => `$invoice ? (string)`$invoice['ID'] : '',
+    'saleProjectInvoiceProjectId' => `$invoice ? (string)`$invoice['PROJECT_ID'] : '',
+    'saleProjectInvoiceItemId' => `$invoiceItem ? (string)`$invoiceItem['ID'] : '',
+    'saleProjectInvoiceItemInvoiceId' => `$invoiceItem ? (string)`$invoiceItem['INVOICE_ID'] : '',
+    'saleProjectReissueOrderId' => `$reissueOrder ? (string)`$reissueOrder['ID'] : '',
+    'saleProjectReissueOrderProjectId' => `$reissueOrder ? (string)`$reissueOrder['PROJECT_ID'] : '',
 ], JSON_UNESCAPED_UNICODE);
 "@
 
@@ -325,6 +444,15 @@ $customerFollowUpId = Read-JsonPath -Json $sampleJson -Path 'customerFollowUpId'
 $customerFollowUpCustomerId = Read-JsonPath -Json $sampleJson -Path 'customerFollowUpCustomerId'
 $saleProjectFollowUpId = Read-JsonPath -Json $sampleJson -Path 'saleProjectFollowUpId'
 $saleProjectFollowUpProjectId = Read-JsonPath -Json $sampleJson -Path 'saleProjectFollowUpProjectId'
+$saleProjectInvoicingId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectInvoicingId')
+$saleProjectInvoicingProjectId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectInvoicingProjectId')
+$saleProjectInvoicingCustomerId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectInvoicingCustomerId')
+$saleProjectInvoiceId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectInvoiceId')
+$saleProjectInvoiceProjectId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectInvoiceProjectId')
+$saleProjectInvoiceItemId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectInvoiceItemId')
+$saleProjectInvoiceItemInvoiceId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectInvoiceItemInvoiceId')
+$saleProjectReissueOrderId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectReissueOrderId')
+$saleProjectReissueOrderProjectId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectReissueOrderProjectId')
 $baseUrl = $BackendBaseUrl.TrimEnd('/')
 $encodedCustomerId = [System.Uri]::EscapeDataString($customerId.Trim())
 $encodedSaleProjectId = [System.Uri]::EscapeDataString($saleProjectId.Trim())
@@ -437,5 +565,90 @@ Assert-Paths -Json $saleProjectCostDetails -Name 'biz saleproject cost/details' 
     'data.productItems',
     'data.returnOrders'
 )
+
+$saleProjectInvoicingPage = Invoke-RawGet -Url "$baseUrl/biz/saleprojectinvoicing/page?current=1&size=1" -Token $token
+Assert-PagedShape -Json $saleProjectInvoicingPage -Name 'biz saleprojectinvoicing page'
+Assert-FirstRecordIfPresent -Json $saleProjectInvoicingPage -Name 'biz saleprojectinvoicing page' -Keys @(
+    'id',
+    'projectId',
+    'amount',
+    'invoicingState',
+    'invoicingCategory',
+    'companyName',
+    'customerCompany',
+    'unit',
+    'phone',
+    'projectName',
+    'customerName'
+)
+if ($saleProjectInvoicingId.Trim() -ne '') {
+    $encodedSaleProjectInvoicingId = [System.Uri]::EscapeDataString($saleProjectInvoicingId.Trim())
+    $saleProjectInvoicingDetail = Invoke-RawGet -Url "$baseUrl/biz/saleprojectinvoicing/detail?id=$encodedSaleProjectInvoicingId" -Token $token
+    Assert-Ok -Json $saleProjectInvoicingDetail -Name 'biz saleprojectinvoicing detail'
+    Assert-SaleProjectInvoicingRow -Json $saleProjectInvoicingDetail -Prefix 'data' -Name 'biz saleprojectinvoicing detail'
+}
+if ($saleProjectInvoicingCustomerId.Trim() -ne '') {
+    $encodedSaleProjectInvoicingCustomerId = [System.Uri]::EscapeDataString($saleProjectInvoicingCustomerId.Trim())
+    $saleProjectInvoicingCustomer = Invoke-RawGet -Url "$baseUrl/biz/saleprojectinvoicing/customer?id=$encodedSaleProjectInvoicingCustomerId" -Token $token
+    Assert-Ok -Json $saleProjectInvoicingCustomer -Name 'biz saleprojectinvoicing customer'
+    Assert-SaleProjectInvoicingRow -Json $saleProjectInvoicingCustomer -Prefix 'data' -Name 'biz saleprojectinvoicing customer'
+}
+
+$saleProjectInvoicePage = Invoke-RawGet -Url "$baseUrl/biz/saleprojectinvoice/page?current=1&size=1" -Token $token
+Assert-PagedShape -Json $saleProjectInvoicePage -Name 'biz saleprojectinvoice page'
+Assert-FirstRecordIfPresent -Json $saleProjectInvoicePage -Name 'biz saleprojectinvoice page' -Keys @(
+    'id',
+    'projectId',
+    'logisticsCategory',
+    'phone',
+    'logisticsId',
+    'freight',
+    'freightTime',
+    'freightCategory',
+    'unit',
+    'address',
+    'projectName',
+    'customerName'
+)
+
+$saleProjectInvoiceListProjectId = if ($saleProjectInvoiceProjectId.Trim() -ne '') { $saleProjectInvoiceProjectId } else { $saleProjectId }
+$encodedSaleProjectInvoiceListProjectId = [System.Uri]::EscapeDataString($saleProjectInvoiceListProjectId.Trim())
+$saleProjectInvoiceList = Invoke-RawGet -Url "$baseUrl/biz/saleprojectinvoice/list?projectId=$encodedSaleProjectInvoiceListProjectId" -Token $token
+Assert-Ok -Json $saleProjectInvoiceList -Name 'biz saleprojectinvoice list'
+Assert-Paths -Json $saleProjectInvoiceList -Name 'biz saleprojectinvoice list' -Paths @('data')
+if (Has-Path -Json $saleProjectInvoiceList -Path 'data.0') {
+    Assert-SaleProjectInvoiceRow -Json $saleProjectInvoiceList -Prefix 'data.0.bizSaleProjectInvoice' -Name 'biz saleprojectinvoice list invoice'
+    Assert-Paths -Json $saleProjectInvoiceList -Name 'biz saleprojectinvoice list nested items' -Paths @('data.0.invoiceItems')
+}
+
+$saleProjectInvoiceItemPage = Invoke-RawGet -Url "$baseUrl/biz/saleprojectinvoiceItem/page?current=1&size=1" -Token $token
+Assert-PagedShape -Json $saleProjectInvoiceItemPage -Name 'biz saleprojectinvoiceItem page'
+Assert-FirstRecordIfPresent -Json $saleProjectInvoiceItemPage -Name 'biz saleprojectinvoiceItem page' -Keys @(
+    'id',
+    'invoiceId',
+    'projectProductItemId',
+    'warehousesId',
+    'amount',
+    'projectId',
+    'productId',
+    'productName',
+    'warehousesName'
+)
+if ($saleProjectInvoiceItemInvoiceId.Trim() -ne '') {
+    $encodedSaleProjectInvoiceItemInvoiceId = [System.Uri]::EscapeDataString($saleProjectInvoiceItemInvoiceId.Trim())
+    $saleProjectInvoiceItemByInvoice = Invoke-RawGet -Url "$baseUrl/biz/saleprojectinvoiceItem/page?invoiceId=$encodedSaleProjectInvoiceItemInvoiceId&current=1&size=1" -Token $token
+    Assert-PagedShape -Json $saleProjectInvoiceItemByInvoice -Name 'biz saleprojectinvoiceItem page by invoice'
+    Assert-SaleProjectInvoiceItemRow -Json $saleProjectInvoiceItemByInvoice -Prefix 'data.records.0' -Name 'biz saleprojectinvoiceItem page by invoice first record'
+}
+
+$saleProjectReissueProjectId = if ($saleProjectReissueOrderProjectId.Trim() -ne '') { $saleProjectReissueOrderProjectId } else { $saleProjectId }
+$encodedSaleProjectReissueProjectId = [System.Uri]::EscapeDataString($saleProjectReissueProjectId.Trim())
+$saleProjectReissueList = Invoke-RawGet -Url "$baseUrl/biz/saleprojectreissueorder/list/query?projectId=$encodedSaleProjectReissueProjectId" -Token $token
+Assert-Ok -Json $saleProjectReissueList -Name 'biz saleprojectreissueorder list/query'
+Assert-Paths -Json $saleProjectReissueList -Name 'biz saleprojectreissueorder list/query' -Paths @('data')
+if (Has-Path -Json $saleProjectReissueList -Path 'data.0') {
+    Assert-ReissueOrderRow -Json $saleProjectReissueList -Prefix 'data.0.order' -Name 'biz saleprojectreissueorder list/query order'
+    Assert-Paths -Json $saleProjectReissueList -Name 'biz saleprojectreissueorder list/query nested items' -Paths @('data.0.productItemList')
+}
 
 Write-Host 'business read HTTP smoke passed'
