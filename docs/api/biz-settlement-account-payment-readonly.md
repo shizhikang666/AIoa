@@ -78,3 +78,12 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git diff --check
 ```
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/settlement-account-payment-read-http-smoke.ps1` now verifies authenticated settlement-account statement reads against the local backend:
+
+- `GET /biz/settlementaccountpayment/page`
+- `GET /biz/settlementaccountpayment/list`
+
+The smoke checks Java-style paging keys and stable frontend-visible fields such as `accountId`, `accountName`, `accountNumber`, `beforeAmount`, `amount`, `afterAmount`, `settlementType`, `settlementCategory`, `processCategory`, `payerTime`, `orgName`, and decoded `ext`. It does not call settlement account payment creation, expenses/income actions, transfer actions, account balance mutation, workflow, provider, or data-change behavior.
