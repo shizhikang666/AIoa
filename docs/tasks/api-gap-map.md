@@ -44,7 +44,7 @@ The current ThinkPHP project already covers these frontend-visible groups at lea
 | `biz/product`, `biz/supplier`, `biz/settlementaccount` | Core master-data read adapters; product base add/edit/delete, kit relation maintenance, product status/reconciliation, supplier base add/edit/delete, and settlement-account add/edit/status are covered |
 | `biz/bizpaymentrecord`, `biz/bizexpenditurerecord`, `biz/bizcollectionreceipt`, `biz/bizdebitnote` | Finance read adapters plus collection-receipt and debit-note mark-success |
 | `biz/bizpurchaserequest`, `biz/bizpurchaseorder`, `biz/warehouses`, `biz/inventory`, `biz/delivery`, `biz/returnorder` | Purchase, warehouse, inventory, delivery, return read slices; warehouse base add/edit/delete is covered |
-| `biz/saleprojectproductinfo` | Sale-project software package/version info reads and base add/edit/delete writes |
+| `biz/saleprojectproductinfo` | Sale-project software package/version info reads are smoke-covered; base add/edit/delete writes are routed but excluded from read smoke |
 | `biz/bizdatareport` | Sale-project amount/list/report, unpaid-payment, settlement income/expenses, sale-profit, summary-statistics, and details reads |
 | `biz/projectrate` | Project rating page, list, and detail reads |
 | `biz/bizleaveapplication` | Leave/business-trip page, my-page, detail, edit, and logical delete |
@@ -94,7 +94,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/saleprojectinvoiceItem` | `page` and `invoiceId` filtered page are smoke-covered; invoice item writes remain deferred |
 | `biz/projectrate` | `page`, `list`, `detail`, `add`, `edit`, and `delete` covered; file upload/storage remains deferred |
 | `biz/saleprojectreissueorder` | `list/query` nested `order` and `productItemList` structure is smoke-covered; reissue-order writes remain deferred |
-| `biz/saleprojectproductitemrelation` | `list` and `mark/edit` covered |
+| `biz/saleprojectproductitemrelation` | `list` is smoke-covered; relation and product-item `mark/edit` are routed but excluded from read smoke |
 | `biz/bizteamproject` | `page`, `detail`, `add`, `edit`, and `delete` covered; notification/data-change side effects remain deferred |
 | `biz/bizteamprojectcomment` | `page`, `list`, `detail`, `add`, and `delete` covered; notification/data-change side effects remain deferred |
 | `biz/bizteamprojectcommentreply` | `page`, `detail`, `add`, `edit`, and `delete` covered |
@@ -115,7 +115,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `biz/saleproject` | `add`, `edit`, `delete`, `amount/edit`, `deal/edit`, `cancel`, `history/add`, `special/add`, `visibility/edit` | Project state, finance, visibility, and history side effects |
 | `biz/bizdraft` | Sale-project workflow submission and real project writes | Draft save is covered as isolated `biz_draft` persistence; formal sale-project add/edit and workflow side effects remain deferred |
 | `biz/saleprojectfollowup` | File upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file and message side effects remain deferred |
-| `biz/saleprojectproductitemrelation` | Delivery/invoice/stock side effects | Relation `mark/edit` is covered |
+| `biz/saleprojectproductitemrelation` | Delivery/invoice/stock side effects | Relation `mark/edit` is covered but excluded from read smoke |
 | `biz/saleprojectproductitem` | Add/edit/delete, delivery/invoice/stock side effects | Product item `mark/edit` is covered |
 | `biz/customer` | SM4 plaintext search, file upload/storage, and related side effects | Customer base add/edit/delete and `head/edit` are covered |
 | `biz/customerfollowup` | Attachment upload/storage cleanup, notifications | Add/edit/delete base record writes are covered; file side effects remain deferred |
@@ -130,7 +130,7 @@ The frontend contains many wrappers that should stay deferred until their module
 | `dev/job` | `add`, `edit`, `stopJob`, `runJob`, `runJobNow`, scheduler lifecycle | Metadata delete is covered as logical delete with malformed-payload protection; scheduler stop/remove behavior remains deferred until a ThinkPHP scheduler exists |
 | `dev/message` | Full realtime push | User-center/index detail mark-read, homepage all-mark-read, minimal SSE compatibility with initial message/process refresh notices, message send, and message delete are covered; full SSE/WebPush parity remains deferred |
 | `biz/bizpayroll`, `biz/bizleaveapplication`, `biz/saleprojectinvoicing` | payroll add, import/export, and generate actions; leave add; invoicing add/edit/delete | Payroll import-template download, edit/batch-edit/delete, leave-application edit/delete, and invoicing complete are covered; generation, import/export, leave balance, workflow, and broader business side effects remain deferred |
-| `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered |
+| `biz/saleprojectproductinfo` | Product master-data writes, sale-project product-item changes, import/export/report side effects | Add/edit/delete base package info writes are covered; page/list/detail reads are smoke-covered |
 | `biz/bizproduct` | Inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and data-change/cache side effects | Product base add/edit/delete, kit relation maintenance, status toggle, and reconciliation edits are covered |
 | `biz/salesprojectfieldchangelog` | Sale-project amount/change generation, workflow, finance, audit side effects | Add/edit/delete base log-row writes are covered |
 | `biz/ccrecords` | `add`, `edit`, workflow copy-user delegate writes | Delete is covered as current-user logical delete; generation still belongs to workflow write runtime |
@@ -162,11 +162,11 @@ The frontend still references several auth monitoring and third-party routes:
 
 ## Next Execution Order
 
-1. api-agent: add sale-project product/package relation read smoke, excluding product info and relation mark writes.
-2. test-agent/frontend-agent: browser-smoke copied upload controls or selected read pages only after a concrete forbidden-request pattern is defined.
-3. workflow-agent: revisit workflow `query/list` pagination or filtering only as a dedicated performance/compatibility slice.
-4. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
-5. provider-agent: keep real Email before real SMS in the final provider phase.
+1. test-agent/frontend-agent: browser-smoke copied upload controls or selected read pages only after a concrete forbidden-request pattern is defined.
+2. workflow-agent: revisit workflow `query/list` pagination or filtering only as a dedicated performance/compatibility slice.
+3. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
+4. provider-agent: keep real Email before real SMS in the final provider phase.
+5. merge-agent: select the next low-risk slice from dashboard residual risks before opening any side-effect-heavy writes.
 
 ## Guardrails
 

@@ -9231,3 +9231,44 @@ Agent: api-agent
 
 - Commit this slice as `test: extend sale project billing smoke`.
 - Next candidate slice: sale-project product/package relation read smoke, excluding product-info writes and relation mark writes.
+## 2026-06-15 23:45 +08:00 - merge-agent - Sale-Project Product Relation Read Smoke Coverage
+
+### Completed
+
+- Reviewed product-info and product-item relation read controllers, services, routes, and existing compatibility docs.
+- Extended `scripts/business-read-http-smoke.ps1` to verify product/package info and combo-product child relation read contracts.
+- Covered `/biz/saleprojectproductinfo/page`, `/detail`, bounded `/list?targetIds=...`, and `/biz/saleprojectproductitemrelation/list`.
+- Verified product-info display fields and relation fields including `productId`, `extJson`, product aliases, project aliases, and child product attributes.
+- Updated product-info/relation docs, API gap map, parallel plan, progress dashboard, plan log, and implementation log.
+
+### Modified Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `docs/api/biz-saleproject-product-info-readonly.md`
+- `docs/api/biz-saleproject-product-item-relation-readonly.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\SaleProjectProductInfoController.php`: passed.
+- `php -l app\controller\biz\SaleProjectProductItemRelationController.php`: passed.
+- `php -l app\service\biz\SaleProjectProductInfoService.php`: passed.
+- `php -l app\service\biz\SaleProjectProductItemRelationService.php`: passed.
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- This is read-contract coverage only; no product-info writes, relation mark edits, product-item mark edits, inventory, delivery, finance, workflow, sale-project state write, file cleanup, or browser click-through was added.
+- Real Email remains deferred until the final provider phase before real SMS.
+
+### Next Plan
+
+- Commit this slice as `test: extend sale project product smoke`.
+- Next candidate: targeted browser smoke after selecting a concrete visible page and forbidden request pattern, or a dedicated workflow `query/list` performance/compatibility slice.

@@ -72,17 +72,17 @@ Work in F:\AI\projects\testJava\OA-ThinkPHP. You are not alone in the codebase; 
 | Priority | Track | Status | Coordinator Action After Result |
 | --- | --- | --- | --- |
 | 1 | Selector/read smoke scouting for `biz/org`, `biz/user`, `biz/position`, `biz/dict` | Completed | Directory alias smoke selected; `/biz/org/page` `size` compatibility fixed and smoke-covered |
-| 2 | Remaining read-only/detail-consumer scouting | Completed | Follow-up detail consumers and sale-project billing nested reads smoke-covered; next safe candidate is product/package relation reads |
+| 2 | Remaining read-only/detail-consumer scouting | Completed | Follow-up, sale-project billing, and product/package relation reads are smoke-covered |
 | 3 | Workflow read/write boundary reconnaissance | Completed | No-write workflow HTTP smoke added; approve/reject/start/cancel/SSE remain deferred |
 | 4 | Frontend/browser upload smoke | Pending | Run only after a concrete browser target is selected |
 | 5 | Cloud storage cleanup/provider plan | Deferred | Keep out of active work until provider config plan is approved |
 
 ## Current Recommended Queue
 
-1. Add sale-project product/package relation read smoke, excluding product info and relation mark writes.
-2. Run targeted browser smoke only after selecting a concrete visible page and forbidden request pattern.
-3. Revisit workflow query-list pagination or filtering only as a dedicated performance/compatibility slice.
-4. Plan cloud storage or physical-file cleanup only after provider config and cleanup policy are confirmed.
+1. Run targeted browser smoke only after selecting a concrete visible page and forbidden request pattern.
+2. Revisit workflow query-list pagination or filtering only as a dedicated performance/compatibility slice.
+3. Plan cloud storage or physical-file cleanup only after provider config and cleanup policy are confirmed.
+4. Keep real Email before real SMS in the final provider phase.
 
 ## Completion Rule
 

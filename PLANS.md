@@ -9821,3 +9821,35 @@ Keep sale-project invoicing, delivery invoice, invoice item, and reissue-order r
 - Do not implement sale-project billing writes.
 - Do not call invoicing complete in read smoke.
 - Do not implement stock, settlement, finance, workflow, or file cleanup side effects.
+
+## Completed Plan: merge-agent - Sale-Project Product Relation Read Smoke Coverage
+
+Status: completed on 2026-06-15 after extending business read smoke coverage for product/package info and product-item relation reads.
+
+### 1. Current Goal
+
+Keep sale-project product/package info and combo-product child relation read payloads under regression coverage without invoking product-info writes or mark-edit routes.
+
+### 2. Involved Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `docs/api/biz-saleproject-product-info-readonly.md`
+- `docs/api/biz-saleproject-product-item-relation-readonly.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Authenticated HTTP smoke verifies sale-project product-info page/list/detail read payloads.
+- Authenticated HTTP smoke verifies sale-project product-item relation list payloads with an existing object id when local sample data exists.
+- The smoke calls no product-info add/edit/delete, relation mark edit, product-item mark edit, product-item add/edit/delete, delivery, invoice, inventory, finance, workflow, sale-project state, file cleanup, provider, Java source, schema, `.env`, production data, or Git push behavior.
+
+### 4. Forbidden Scope
+
+- Do not implement or call product-info writes.
+- Do not call relation or product-item mark-edit routes in read smoke.
+- Do not implement product-item, inventory, delivery, finance, workflow, or file cleanup side effects.

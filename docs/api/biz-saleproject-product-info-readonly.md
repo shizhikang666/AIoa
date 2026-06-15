@@ -116,3 +116,17 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git diff --check
 ```
+
+## 2026-06-15 Business Read HTTP Smoke
+
+`scripts/business-read-http-smoke.ps1` now verifies sale-project product/package info reads alongside the core sale-project smoke.
+
+Covered read checks:
+
+- `GET /biz/saleprojectproductinfo/page`
+- `GET /biz/saleprojectproductinfo/detail` when local product-info sample data exists
+- `GET /biz/saleprojectproductinfo/list?targetIds=...`
+
+The smoke verifies Java-style pagination keys and frontend-visible fields including `productId`, `targetId`, `contentText`, `alias`, `versionType`, `abbreviation`, `extJson`, `createUserName`, `productName`, and `targetProductName`.
+
+This smoke is read-only. It does not call product-info add, edit, or delete; product master-data writes; sale-project product-item writes; import/export; reports; workflow; finance; inventory; delivery; provider; or file-cleanup behavior.

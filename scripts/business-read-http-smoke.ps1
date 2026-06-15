@@ -339,6 +339,57 @@ function Assert-ReissueOrderRow {
     )
 }
 
+function Assert-SaleProjectProductInfoRow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    Assert-Paths -Json $Json -Name $Name -Paths @(
+        "$Prefix.id",
+        "$Prefix.productId",
+        "$Prefix.targetId",
+        "$Prefix.contentText",
+        "$Prefix.alias",
+        "$Prefix.versionType",
+        "$Prefix.abbreviation",
+        "$Prefix.deleteFlag",
+        "$Prefix.extJson",
+        "$Prefix.createTime",
+        "$Prefix.createUserName",
+        "$Prefix.productName",
+        "$Prefix.targetProductName"
+    )
+}
+
+function Assert-SaleProjectProductItemRelationRow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    Assert-Paths -Json $Json -Name $Name -Paths @(
+        "$Prefix.id",
+        "$Prefix.objectId",
+        "$Prefix.targetId",
+        "$Prefix.productId",
+        "$Prefix.mark",
+        "$Prefix.number",
+        "$Prefix.deleteFlag",
+        "$Prefix.extJson",
+        "$Prefix.projectId",
+        "$Prefix.projectName",
+        "$Prefix.projectUser",
+        "$Prefix.projectOrg",
+        "$Prefix.productName",
+        "$Prefix.productCategory",
+        "$Prefix.productSysCategory",
+        "$Prefix.specs"
+    )
+}
+
 $envMap = Get-EnvMap -Path $EnvPath
 $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
 if ($account -eq '') {
@@ -413,6 +464,19 @@ if (!`$saleProjectId) { throw new RuntimeException('sample sale project not foun
     ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
     ->field('o.ID AS ID, o.PROJECT_ID AS PROJECT_ID')
     ->find();
+`$productInfo = think\facade\Db::name('biz_sale_project_product_info')
+    ->where(function (`$query) { `$query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->field('ID, PRODUCT_ID, TARGET_ID')
+    ->find();
+`$productItemRelation = think\facade\Db::name('sale_project_product_item_relation')
+    ->alias('r')
+    ->join('biz_sale_project_product_item i', 'i.ID = r.OBJECT_ID', 'INNER')
+    ->join('biz_sale_project p', 'p.ID = i.PROJECT_ID', 'INNER')
+    ->where(function (`$query) { `$query->whereNull('r.DELETE_FLAG')->whereOr('r.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('i.DELETE_FLAG')->whereOr('i.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->field('r.ID AS ID, r.OBJECT_ID AS OBJECT_ID')
+    ->find();
 echo json_encode([
     'customerId' => (string)`$customerId,
     'saleProjectId' => (string)`$saleProjectId,
@@ -429,6 +493,10 @@ echo json_encode([
     'saleProjectInvoiceItemInvoiceId' => `$invoiceItem ? (string)`$invoiceItem['INVOICE_ID'] : '',
     'saleProjectReissueOrderId' => `$reissueOrder ? (string)`$reissueOrder['ID'] : '',
     'saleProjectReissueOrderProjectId' => `$reissueOrder ? (string)`$reissueOrder['PROJECT_ID'] : '',
+    'saleProjectProductInfoId' => `$productInfo ? (string)`$productInfo['ID'] : '',
+    'saleProjectProductInfoTargetId' => `$productInfo ? (string)`$productInfo['TARGET_ID'] : '',
+    'saleProjectProductItemRelationId' => `$productItemRelation ? (string)`$productItemRelation['ID'] : '',
+    'saleProjectProductItemRelationObjectId' => `$productItemRelation ? (string)`$productItemRelation['OBJECT_ID'] : '',
 ], JSON_UNESCAPED_UNICODE);
 "@
 
@@ -453,6 +521,10 @@ $saleProjectInvoiceItemId = [string](Read-JsonPath -Json $sampleJson -Path 'sale
 $saleProjectInvoiceItemInvoiceId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectInvoiceItemInvoiceId')
 $saleProjectReissueOrderId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectReissueOrderId')
 $saleProjectReissueOrderProjectId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectReissueOrderProjectId')
+$saleProjectProductInfoId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectProductInfoId')
+$saleProjectProductInfoTargetId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectProductInfoTargetId')
+$saleProjectProductItemRelationId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectProductItemRelationId')
+$saleProjectProductItemRelationObjectId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectProductItemRelationObjectId')
 $baseUrl = $BackendBaseUrl.TrimEnd('/')
 $encodedCustomerId = [System.Uri]::EscapeDataString($customerId.Trim())
 $encodedSaleProjectId = [System.Uri]::EscapeDataString($saleProjectId.Trim())
@@ -649,6 +721,48 @@ Assert-Paths -Json $saleProjectReissueList -Name 'biz saleprojectreissueorder li
 if (Has-Path -Json $saleProjectReissueList -Path 'data.0') {
     Assert-ReissueOrderRow -Json $saleProjectReissueList -Prefix 'data.0.order' -Name 'biz saleprojectreissueorder list/query order'
     Assert-Paths -Json $saleProjectReissueList -Name 'biz saleprojectreissueorder list/query nested items' -Paths @('data.0.productItemList')
+}
+
+$saleProjectProductInfoPage = Invoke-RawGet -Url "$baseUrl/biz/saleprojectproductinfo/page?current=1&size=1" -Token $token
+Assert-PagedShape -Json $saleProjectProductInfoPage -Name 'biz saleprojectproductinfo page'
+Assert-FirstRecordIfPresent -Json $saleProjectProductInfoPage -Name 'biz saleprojectproductinfo page' -Keys @(
+    'id',
+    'productId',
+    'targetId',
+    'contentText',
+    'alias',
+    'versionType',
+    'abbreviation',
+    'deleteFlag',
+    'extJson',
+    'createTime',
+    'createUserName',
+    'productName',
+    'targetProductName'
+)
+if ($saleProjectProductInfoId.Trim() -ne '') {
+    $encodedSaleProjectProductInfoId = [System.Uri]::EscapeDataString($saleProjectProductInfoId.Trim())
+    $saleProjectProductInfoDetail = Invoke-RawGet -Url "$baseUrl/biz/saleprojectproductinfo/detail?id=$encodedSaleProjectProductInfoId" -Token $token
+    Assert-Ok -Json $saleProjectProductInfoDetail -Name 'biz saleprojectproductinfo detail'
+    Assert-SaleProjectProductInfoRow -Json $saleProjectProductInfoDetail -Prefix 'data' -Name 'biz saleprojectproductinfo detail'
+}
+
+$saleProjectProductInfoTargetId = if ($saleProjectProductInfoTargetId.Trim() -ne '') { $saleProjectProductInfoTargetId } else { '__codex_missing_target_id__' }
+$encodedSaleProjectProductInfoTargetId = [System.Uri]::EscapeDataString($saleProjectProductInfoTargetId.Trim())
+$saleProjectProductInfoList = Invoke-RawGet -Url "$baseUrl/biz/saleprojectproductinfo/list?targetIds=$encodedSaleProjectProductInfoTargetId" -Token $token
+Assert-Ok -Json $saleProjectProductInfoList -Name 'biz saleprojectproductinfo list'
+Assert-Paths -Json $saleProjectProductInfoList -Name 'biz saleprojectproductinfo list' -Paths @('data')
+if (Has-Path -Json $saleProjectProductInfoList -Path 'data.0') {
+    Assert-SaleProjectProductInfoRow -Json $saleProjectProductInfoList -Prefix 'data.0' -Name 'biz saleprojectproductinfo list first row'
+}
+
+$saleProjectProductItemRelationObjectId = if ($saleProjectProductItemRelationObjectId.Trim() -ne '') { $saleProjectProductItemRelationObjectId } else { '__codex_missing_product_item_id__' }
+$relationBody = '[{"id":"' + $saleProjectProductItemRelationObjectId.Replace('\', '\\').Replace('"', '\"') + '"}]'
+$saleProjectProductItemRelationList = Invoke-RawPost -Url "$baseUrl/biz/saleprojectproductitemrelation/list" -Token $token -Body $relationBody
+Assert-Ok -Json $saleProjectProductItemRelationList -Name 'biz saleprojectproductitemrelation list'
+Assert-Paths -Json $saleProjectProductItemRelationList -Name 'biz saleprojectproductitemrelation list' -Paths @('data')
+if (Has-Path -Json $saleProjectProductItemRelationList -Path 'data.0') {
+    Assert-SaleProjectProductItemRelationRow -Json $saleProjectProductItemRelationList -Prefix 'data.0' -Name 'biz saleprojectproductitemrelation list first row'
 }
 
 Write-Host 'business read HTTP smoke passed'

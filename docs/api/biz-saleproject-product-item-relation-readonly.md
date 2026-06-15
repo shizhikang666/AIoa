@@ -136,3 +136,9 @@ Date: 2026-06-06
 - `php think route:list` lists both mark-edit routes.
 - Unauthenticated HTTP smoke for `/biz/saleprojectproductitem/mark/edit` returned `code = 401`.
 - Unauthenticated HTTP smoke for `/biz/saleprojectproductitemrelation/mark/edit` returned `code = 401`.
+
+Date: 2026-06-15
+
+- `scripts/business-read-http-smoke.ps1` now verifies `/biz/saleprojectproductitemrelation/list` with an existing active product-item relation object id when local sample data exists.
+- The smoke checks frontend-visible fields including `objectId`, `targetId`, `productId`, `mark`, `number`, `extJson`, `projectId`, `projectName`, `projectUser`, `projectOrg`, `productName`, `productCategory`, `productSysCategory`, and `specs`.
+- The smoke remains read-only and does not call `/biz/saleprojectproductitemrelation/mark/edit`, `/biz/saleprojectproductitem/mark/edit`, sale-project product item add/edit/delete, delivery, invoice, inventory, finance, workflow, provider, or file-cleanup behavior.

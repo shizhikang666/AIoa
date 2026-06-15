@@ -1672,3 +1672,30 @@ Explicit non-goals:
 
 - No `/biz/saleprojectinvoicing/complete` call, no invoicing add/edit/delete, no delivery invoice write, no reissue-order write, no stock, no settlement, no finance, no workflow, no sale-project state write, no file cleanup, no provider send, no frontend source edit, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
 
+## 2026-06-15 Sale-Project Product Relation Read Smoke Coverage
+
+Agent: merge-agent / api-agent fallback
+
+Execution summary:
+
+1. Reviewed product-info and product-item relation read controllers, services, routes, and compatibility docs.
+2. Extended `scripts/business-read-http-smoke.ps1` to load local product-info and product-item relation sample ids.
+3. Added authenticated read checks for `/biz/saleprojectproductinfo/page`, `/detail`, and bounded `/list?targetIds=...`.
+4. Added authenticated read checks for `/biz/saleprojectproductitemrelation/list` using a Java-style JSON row body.
+5. Verified product-info fields and relation fields including `productId`, `extJson`, product display aliases, project aliases, and relation child product fields.
+6. Updated product-info/relation docs, API gap map next order, parallel plan, progress dashboard, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\SaleProjectProductInfoController.php`: passed.
+- `php -l app\controller\biz\SaleProjectProductItemRelationController.php`: passed.
+- `php -l app\service\biz\SaleProjectProductInfoService.php`: passed.
+- `php -l app\service\biz\SaleProjectProductItemRelationService.php`: passed.
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No product-info add/edit/delete, no relation mark edit, no product-item mark edit, no product-item add/edit/delete, no delivery, no invoice write, no inventory, no finance, no workflow, no sale-project state write, no file cleanup, no provider send, no frontend source edit, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
+
