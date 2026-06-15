@@ -9750,3 +9750,39 @@ Keep customer follow-up and sale-project follow-up read payloads under regressio
 - Do not implement follow-up side effects.
 - Do not call sale-project or customer write endpoints.
 - Do not implement workflow or provider behavior.
+
+## Completed Plan: merge-agent - Workflow Read Smoke Coverage
+
+Status: completed on 2026-06-15 after adding no-write workflow HTTP smoke coverage for task, process, and CC read endpoints.
+
+### 1. Current Goal
+
+Keep copied workflow table/list/query/detail consumers under regression coverage without invoking workflow transitions or CC delete behavior.
+
+### 2. Involved Files
+
+- `scripts/workflow-read-http-smoke.ps1`
+- `scripts/project-preflight.ps1`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Authenticated HTTP smoke verifies task count/list/page/history read endpoints.
+- Authenticated HTTP smoke verifies process page/all-page/query/query-list/detail/variable/file-list read endpoints.
+- Project runtime query, task runtime activity detail, and CC detail checks remain conditional on local sample data.
+- `scripts/project-preflight.ps1` runs the workflow smoke by default and supports `-SkipWorkflowRead`.
+- The smoke calls no approve, reject, start, cancel, delete, SSE stream, workflow write, provider send, finance/inventory, Java source, schema, `.env`, production data, or Git push behavior.
+
+### 4. Forbidden Scope
+
+- Do not implement workflow approve/reject/start/cancel.
+- Do not call CC delete or process write routes.
+- Do not optimize workflow query-list pagination outside a dedicated follow-up slice.

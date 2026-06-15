@@ -73,16 +73,16 @@ Work in F:\AI\projects\testJava\OA-ThinkPHP. You are not alone in the codebase; 
 | --- | --- | --- | --- |
 | 1 | Selector/read smoke scouting for `biz/org`, `biz/user`, `biz/position`, `biz/dict` | Completed | Directory alias smoke selected; `/biz/org/page` `size` compatibility fixed and smoke-covered |
 | 2 | Remaining read-only/detail-consumer scouting | Completed | Next safe candidates: follow-up detail consumers, sale-project billing nested reads, product/package relation reads |
-| 3 | Workflow read/write boundary reconnaissance | Completed | Recommended future no-write workflow smoke; approve/reject/start/cancel/SSE remain deferred |
+| 3 | Workflow read/write boundary reconnaissance | Completed | No-write workflow HTTP smoke added; approve/reject/start/cancel/SSE remain deferred |
 | 4 | Frontend/browser upload smoke | Pending | Run only after a concrete browser target is selected |
 | 5 | Cloud storage cleanup/provider plan | Deferred | Keep out of active work until provider config plan is approved |
 
 ## Current Recommended Queue
 
-1. Add no-write workflow HTTP smoke for table/list/query endpoints only.
-2. Add sale-project billing nested read smoke, explicitly excluding invoicing complete, stock, settlement, and file cleanup.
-3. Add sale-project product/package relation read smoke, excluding product info and relation mark writes.
-4. Run targeted browser smoke only after selecting a concrete visible page and forbidden request pattern.
+1. Add sale-project billing nested read smoke, explicitly excluding invoicing complete, stock, settlement, and file cleanup.
+2. Add sale-project product/package relation read smoke, excluding product info and relation mark writes.
+3. Run targeted browser smoke only after selecting a concrete visible page and forbidden request pattern.
+4. Revisit workflow query-list pagination or filtering only as a dedicated performance/compatibility slice.
 
 ## Completion Rule
 

@@ -5,6 +5,7 @@ param(
     [switch]$SkipUserDisplay,
     [switch]$SkipBizRead,
     [switch]$SkipDirectoryAlias,
+    [switch]$SkipWorkflowRead,
     [switch]$SkipDiffCheck
 )
 
@@ -62,6 +63,12 @@ if (-not $SkipBizRead) {
 if (-not $SkipDirectoryAlias) {
     Invoke-Step 'Directory Alias HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'directory-alias-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowRead) {
+    Invoke-Step 'Workflow Read HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-read-http-smoke.ps1')
     }
 }
 

@@ -64,6 +64,9 @@ All routes are protected by `AuthMiddleware`.
 
 - Runtime used local MySQL/Redis plus ThinkPHP `127.0.0.1:82` and Vue `127.0.0.1:83`.
 - Authenticated API shape check covered `/biz/task/page`, `/biz/task/history/page`, `/biz/process/page`, `/biz/process/all/page`, and `/biz/ccrecords/page`; all returned HTTP 200 with `code=200`.
+- Authenticated workflow read HTTP smoke is now available at `scripts/workflow-read-http-smoke.ps1` and is included in `scripts/project-preflight.ps1` by default.
+- The smoke covers `/biz/task/count`, `/biz/task/list`, `/biz/task/page`, `/biz/task/history/page`, `/biz/process/page`, `/biz/process/all/page`, `/biz/process/query`, `/biz/process/query/list`, `/biz/process/project/runtime/query/list` when a local `projectId` variable exists, `/biz/process/detail`, `/biz/process/variable`, `/biz/process/fileList`, `/biz/ccrecords/page`, and `/biz/ccrecords/detail` when a current-user CC record exists.
+- `/biz/process/query/list` is intentionally called with a missing `processKeys` filter so the regression check remains bounded on large local workflow-history datasets.
 - Browser smoke used a temporary local menu cache to load copied workflow routes directly through `createWebHistory` paths:
   - `/biz/biztask`
   - `/biz/biztask/historyTask`

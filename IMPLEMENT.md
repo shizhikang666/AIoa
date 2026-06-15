@@ -1615,3 +1615,32 @@ Explicit non-goals:
 
 - No follow-up add/edit/delete call, attachment cleanup, notification side effect, sale-project state write, workflow action, finance effect, inventory effect, provider send, frontend source edit, Java source edit, schema change, `.env` edit, production data operation, or Git push.
 
+## 2026-06-15 Workflow Read Smoke Coverage
+
+Agent: merge-agent / workflow-agent fallback
+
+Execution summary:
+
+1. Reviewed workflow task, process, and CC read controllers/services plus existing compatibility docs.
+2. Added `scripts/workflow-read-http-smoke.ps1` for authenticated read-only HTTP checks.
+3. Covered task count/list/page/history, process page/all-page/query/query-list/detail/variable/file-list, project runtime query when local sample data exists, and CC page/detail when current-user sample data exists.
+4. Kept query-list bounded with a missing `processKeys` filter after empty filters exhausted the local PHP memory limit on the large historic workflow dataset.
+5. Added the workflow-read smoke to `scripts/project-preflight.ps1` with a `-SkipWorkflowRead` switch.
+6. Updated workflow docs, API gap map next order, parallel plan, progress dashboard, bootstrap docs, problem log, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\TaskController.php`: passed.
+- `php -l app\controller\biz\ProcessController.php`: passed.
+- `php -l app\controller\biz\CcRecordsController.php`: passed.
+- `php -l app\service\workflow\WorkflowQueryService.php`: passed.
+- `php -l app\service\workflow\WorkflowVariableService.php`: passed.
+- `php -l app\service\biz\CcRecordsService.php`: passed.
+- `.\scripts\workflow-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No workflow approve/reject/start/cancel call, no task SSE stream, no CC delete, no process write, no finance/inventory side effect, no job execution, no provider send, no frontend source edit, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
+

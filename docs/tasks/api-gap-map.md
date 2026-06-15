@@ -84,8 +84,8 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector`, `disableUser`, `enableUser`, `export`, and `exportUserInfo` |
 | `biz/position` | `detail`, `list`, `orgTreeSelector`, `page`, `positionSelector`, `add`, `edit`, and `delete` |
 | `biz/dict` | `page`, `tree`, `treeAll`, and Java-compatible `edit` covered; business add/delete remain intentionally absent like Java |
-| `biz/process` | Read aliases added for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and `query/list`; write/start/cancel routes remain deferred |
-| `biz/task` | `runtime/activity/detail` added; standalone `sse/stream`, `approve`, and `reject` remain deferred. Java `BizTaskController` does not currently expose `/biz/task/sse/stream`, and no active copied frontend caller was found; layout task refresh is covered through `/dev/message/createSseConnect` `FlushProcessNotice` |
+| `biz/process` | Read aliases added and smoke-verified for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and bounded `query/list`; write/start/cancel routes remain deferred |
+| `biz/task` | `count`, `list`, `page`, `history/page`, and conditional `runtime/activity/detail` are smoke-covered; standalone `sse/stream`, `approve`, and `reject` remain deferred. Java `BizTaskController` does not currently expose `/biz/task/sse/stream`, and no active copied frontend caller was found; layout task refresh is covered through `/dev/message/createSseConnect` `FlushProcessNotice` |
 | `biz/bizuservacation` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `biz/ccrecords` | `page`, `detail`, and `delete` covered; add/edit and workflow copy-generation remain deferred |
 | `biz/bizdraft` | `detail` and `saleproject/add` covered |
@@ -162,10 +162,10 @@ The frontend still references several auth monitoring and third-party routes:
 
 ## Next Execution Order
 
-1. workflow-agent: add a no-write workflow HTTP smoke for list/query endpoints only; approve/reject/start/cancel/SSE remain deferred.
-2. api-agent: continue sale-project billing nested read smoke, excluding invoicing complete, stock, settlement, and file cleanup.
-3. api-agent: add sale-project product/package relation read smoke, excluding product info and relation mark writes.
-4. test-agent/frontend-agent: browser-smoke copied upload controls or selected read pages only after a concrete forbidden-request pattern is defined.
+1. api-agent: continue sale-project billing nested read smoke, excluding invoicing complete, stock, settlement, and file cleanup.
+2. api-agent: add sale-project product/package relation read smoke, excluding product info and relation mark writes.
+3. test-agent/frontend-agent: browser-smoke copied upload controls or selected read pages only after a concrete forbidden-request pattern is defined.
+4. workflow-agent: revisit workflow `query/list` pagination or filtering only as a dedicated performance/compatibility slice.
 5. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
 
 ## Guardrails

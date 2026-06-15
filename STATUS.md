@@ -9142,3 +9142,48 @@ Agent: api-agent
 
 - Next candidate slice: no-write workflow HTTP smoke for list/query endpoints only.
 - Alternative safe slice: sale-project billing nested read smoke excluding invoicing complete, stock, settlement, and file cleanup.
+## 2026-06-15 22:45 +08:00 - merge-agent - Workflow Read Smoke Coverage
+
+### Completed
+
+- Reviewed workflow task/process/CC read routes and services.
+- Added `scripts/workflow-read-http-smoke.ps1` for authenticated no-write HTTP smoke coverage.
+- Covered task count/list/page/history, process page/all-page/query/query-list/detail/variable/file-list, project runtime query when a local sample `projectId` exists, and CC page/detail when a current-user CC sample exists.
+- Added workflow-read smoke to `scripts/project-preflight.ps1` with `-SkipWorkflowRead`.
+- Updated workflow docs, API gap map, parallel plan, progress dashboard, bootstrap docs, problem log, plan log, and implementation log.
+
+### Modified Files
+
+- `scripts/workflow-read-http-smoke.ps1`
+- `scripts/project-preflight.ps1`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\TaskController.php`: passed.
+- `php -l app\controller\biz\ProcessController.php`: passed.
+- `php -l app\controller\biz\CcRecordsController.php`: passed.
+- `php -l app\service\workflow\WorkflowQueryService.php`: passed.
+- `php -l app\service\workflow\WorkflowVariableService.php`: passed.
+- `php -l app\service\biz\CcRecordsService.php`: passed.
+- `.\scripts\workflow-read-http-smoke.ps1`: passed, with task runtime detail and CC detail skipped because the local smoke account currently has no pending task or current-user CC sample.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Empty-filter `/biz/process/query/list` can load all historic workflows and variables on a large local dataset. The new smoke uses a bounded missing `processKeys` filter; a service-level pagination or required-filter decision should be a dedicated follow-up.
+- Workflow approve/reject/start/cancel, task SSE, CC generation/delete side effects, finance/inventory side effects, job execution, real Email/SMS provider sends, and final online data sync remain deferred.
+
+### Next Plan
+
+- Commit this slice as `test: add workflow read smoke`.
+- Next candidate slice: sale-project billing nested read smoke, excluding invoicing complete, stock, settlement, and file cleanup.
