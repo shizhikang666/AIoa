@@ -33,6 +33,7 @@ The baseline command runs:
 - `php think route:list`
 - required route coverage checks for current frontend-visible personnel, message SSE, and biz directory aliases
 - PHP syntax lint for `app`, `config`, and `route`
+- frontend API method smoke for missing read-like imported API methods
 - `git diff --check`
 
 ## DB Smoke Command

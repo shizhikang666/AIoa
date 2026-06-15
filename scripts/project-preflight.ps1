@@ -1,6 +1,7 @@
 param(
     [switch]$SkipRuntime,
     [switch]$SkipWeb,
+    [switch]$SkipFrontendApiMethod,
     [switch]$SkipRoleSelector,
     [switch]$SkipUserDisplay,
     [switch]$SkipBizRead,
@@ -40,6 +41,12 @@ if (-not $SkipRuntime) {
 if (-not $SkipWeb) {
     Invoke-Step 'Web Readiness' {
         & (Join-Path $PSScriptRoot 'web-ready.ps1')
+    }
+}
+
+if (-not $SkipFrontendApiMethod) {
+    Invoke-Step 'Frontend API Method Smoke' {
+        & (Join-Path $PSScriptRoot 'frontend-api-method-smoke.ps1')
     }
 }
 

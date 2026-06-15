@@ -1,5 +1,6 @@
 param(
     [switch]$SkipComposer,
+    [switch]$SkipFrontendApiMethod,
     [string]$BackendBaseUrl = '',
     [switch]$NoTokenSmoke,
     [switch]$DevFileHttpSmoke,
@@ -207,6 +208,15 @@ Invoke-TestStep 'PHP syntax lint for app, config, and route' {
     }
 
     Write-Host "[test-agent] linted PHP files: $($files.Count)"
+}
+
+if (-not $SkipFrontendApiMethod) {
+    Invoke-TestStep 'frontend API method smoke' {
+        & (Join-Path $PSScriptRoot 'frontend-api-method-smoke.ps1')
+        if ($LASTEXITCODE -ne 0) {
+            throw 'frontend API method smoke failed'
+        }
+    }
 }
 
 Invoke-TestStep 'git diff whitespace check' {
