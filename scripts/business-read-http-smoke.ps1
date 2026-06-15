@@ -75,12 +75,20 @@ function Invoke-RawPost {
         [string]$Body = '{}'
     )
 
-    $raw = & curl.exe -sS -X POST $Url -H "Authorization: Bearer $Token" -H 'Content-Type: application/json' --data $Body
-    if ($LASTEXITCODE -ne 0) {
-        throw "HTTP POST failed: $Url"
-    }
+    $bodyPath = Join-Path ([System.IO.Path]::GetTempPath()) ('business-read-smoke-' + [Guid]::NewGuid().ToString('N') + '.json')
+    Set-Content -LiteralPath $bodyPath -Value $Body -Encoding ASCII
+    try {
+        $raw = & curl.exe -sS -X POST $Url -H "Authorization: Bearer $Token" -H 'Content-Type: application/json' --data-binary "@$bodyPath"
+        if ($LASTEXITCODE -ne 0) {
+            throw "HTTP POST failed: $Url"
+        }
 
-    return [string]::Join('', [string[]]$raw)
+        return [string]::Join('', [string[]]$raw)
+    } finally {
+        if (Test-Path -LiteralPath $bodyPath) {
+            Remove-Item -LiteralPath $bodyPath -Force
+        }
+    }
 }
 
 function Read-JsonPath {

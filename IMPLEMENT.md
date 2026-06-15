@@ -1724,3 +1724,25 @@ Explicit non-goals:
 
 - No workflow approve/reject/start/cancel, no task SSE stream, no process write, no Java delegate side effect, no finance/inventory side effect, no provider send, no frontend source edit, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
 
+## 2026-06-15 PowerShell JSON Body Smoke Hardening
+
+Agent: test-agent / merge-agent fallback
+
+Execution summary:
+
+1. Rechecked smoke helper usage after the workflow query-list slice exposed PowerShell/curl inline JSON quote loss.
+2. Confirmed `scripts/business-read-http-smoke.ps1` was the remaining read-smoke helper using direct `curl.exe --data $Body`.
+3. Updated the business read POST helper to write JSON to a temporary file and call `curl.exe --data-binary @file`.
+4. Added cleanup in a `finally` block so temp files are removed even if curl or assertions fail.
+5. Updated the problem log, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No business endpoint behavior change, no controller/service code change, no Java source edit, no schema change, no `.env` edit, no production data operation, no provider send, no workflow write, no finance/inventory side effect, and no Git push.
+

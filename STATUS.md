@@ -9314,3 +9314,36 @@ Agent: api-agent
 
 - Commit this slice as `fix: guard workflow query list`.
 - Next candidate: targeted browser smoke after selecting a concrete visible page and forbidden request pattern, or cloud storage cleanup/provider planning after configuration policy is confirmed.
+
+## 2026-06-15 14:55 +08:00 - test-agent - PowerShell JSON Body Smoke Hardening
+
+### Completed
+
+- Reviewed smoke helper usage after the workflow query-list slice exposed PowerShell/curl inline JSON quote loss.
+- Updated `scripts/business-read-http-smoke.ps1` so POST JSON bodies are written to a temporary file and sent with `curl.exe --data-binary @file`.
+- Added `finally` cleanup for the temporary JSON body file.
+- Added problem-log row `P-020` and updated plan/implementation/status logs.
+
+### Modified Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- This is smoke reliability only; it does not change any business endpoint behavior.
+- Browser smoke still needs a concrete visible page and forbidden request pattern before running.
+
+### Next Plan
+
+- Commit this slice as `test: harden smoke json posts`.
+- Next candidate: targeted browser smoke after selecting a concrete visible page and forbidden request pattern, or cloud storage cleanup/provider planning after configuration policy is confirmed.

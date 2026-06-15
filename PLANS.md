@@ -9887,3 +9887,29 @@ Prevent empty workflow query-list requests from scanning the full historic proce
 
 - Do not implement workflow approve/reject/start/cancel.
 - Do not add workflow writes, Java delegate side effects, task SSE stream, finance/inventory side effects, provider sends, schema changes, `.env` edits, production data operations, or Git push behavior.
+
+## Completed Plan: test-agent - PowerShell JSON Body Smoke Hardening
+
+Status: completed on 2026-06-15 after aligning business read smoke POST bodies with the temp-file JSON pattern already used by workflow/test-agent smokes.
+
+### 1. Current Goal
+
+Prevent PowerShell/curl argument parsing from corrupting JSON bodies in authenticated HTTP smoke scripts.
+
+### 2. Involved Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Business read smoke sends POST JSON via a temporary file and `curl.exe --data-binary @file`.
+- Temporary JSON files are removed in a `finally` block.
+- Business read smoke and full project preflight pass after the helper change.
+
+### 4. Forbidden Scope
+
+- Do not change business endpoint behavior, controller/service code, Java source, schema, `.env`, production data, or provider/workflow/finance/inventory side effects.
