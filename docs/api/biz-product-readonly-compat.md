@@ -148,3 +148,14 @@ The endpoint validates every active product id and write scope, then updates onl
 - The Java service applies login-user data scope. This slice applies tenant filtering from the bearer token and, when present, filters product `ORG` by token data-scope org ids.
 - If no data-scope org ids are present in the token, the slice does not add the Java fallback `CREATE_USER = loginId` constraint yet, because the current auth token stores a simplified data-scope payload and old imported superadmin data may otherwise become invisible.
 - Lightweight write routes use a stricter scope: admin-compatible roles, scoped organization ids, or matching product `CREATE_USER`.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/product-read-http-smoke.ps1` now verifies authenticated product reads against the local backend:
+
+- `GET /biz/bizproduct/page`
+- `GET /biz/bizproduct/list`
+- `GET /biz/bizproduct/detail` when a visible page row exists
+- `POST /biz/bizproduct/children?idList=...` as a read-only kit-child lookup
+
+The smoke checks Java-style paging keys, the detail wrapper buckets `bizProduct` and `productList`, and stable frontend-visible fields such as `productName`, `productCategory`, `safetyStock`, `purchasePrice`, `salePrice`, `minPrice`, `category`, `specs`, `orgName`, `reconciliationType`, and `status`. It does not call product add, edit, delete, status edit, reconciliation edit, inventory, purchase, sale-project, finance, workflow, provider, file upload, or data-change behavior.
