@@ -77,9 +77,9 @@ These groups should be handled before business writes, because they unlock more 
 
 | Group | Missing Read/Selector/Report Candidates |
 | --- | --- |
-| `biz/saleproject` | Core read routes covered: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; sale-project follow-up `page/detail/add/edit/delete` covered in `biz/saleprojectfollowup`; sale-project state/write routes remain deferred |
+| `biz/saleproject` | Core read routes covered and smoke-verified: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; sale-project follow-up `page/detail/add/edit/delete` covered in `biz/saleprojectfollowup`; sale-project state/write routes remain deferred |
 | `biz/salesprojectfieldchangelog` | `page`, `detail`, `add`, `edit`, and `delete` covered; sale-project change-generation side effects remain deferred |
-| `biz/customer` | `add`, `edit`, `delete`, `detail`, `detail/list`, `page`, and `head/edit` covered |
+| `biz/customer` | `detail`, `detail/list`, and `page` read contracts are smoke-verified; `add`, `edit`, `delete`, and `head/edit` are covered as low-risk writes with broader side effects deferred |
 | `biz/org` | `detail`, `list`, `orgTreeSelector`, `page`, `tree`, `userSelector`, `add`, `edit`, and `delete` |
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector`, `disableUser`, `enableUser`, `export`, and `exportUserInfo` |
 | `biz/position` | `detail`, `list`, `orgTreeSelector`, `page`, `positionSelector`, `add`, `edit`, and `delete` |
@@ -162,8 +162,8 @@ The frontend still references several auth monitoring and third-party routes:
 
 ## Next Execution Order
 
-1. api-agent: add safe read-only `biz/saleproject` and `biz/customer` routes in small slices.
-2. user-agent: keep `biz/org`, `biz/user`, `biz/position`, and `biz/dict` selector/read aliases under smoke coverage where they overlap with existing system data.
+1. user-agent: keep `biz/org`, `biz/user`, `biz/position`, and `biz/dict` selector/read aliases under smoke coverage where they overlap with existing system data.
+2. api-agent: continue remaining safe read-only/detail-consumer checks after sale-project and customer smoke coverage.
 3. workflow-agent: review approve/reject and workflow write actions only after the read-only workflow pages are stable; revisit standalone task SSE only if a real Java route or active frontend caller appears.
 4. test-agent/frontend-agent: browser-smoke copied upload controls now that `/dev/file/upload*` and `/biz/bizfilerelation/add` are both covered.
 5. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.

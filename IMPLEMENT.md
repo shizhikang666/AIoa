@@ -1538,3 +1538,29 @@ Explicit non-goals:
 
 - No application route change, service behavior change, frontend source edit, Java source edit, schema change, `.env` edit, production data operation, real email/SMS/provider behavior, or Git push.
 
+## 2026-06-15 Business Read Smoke Coverage
+
+Agent: merge-agent / api-agent fallback
+
+Execution summary:
+
+1. Reviewed existing customer and sale-project read routes, frontend wrappers, and compatibility docs.
+2. Added `scripts/business-read-http-smoke.ps1` to verify authenticated read payloads using existing active local customer and sale-project rows.
+3. Covered customer page/detail/detail-list and sale-project page/case/operation/public/detail/list-detail/product/cost/cost-details.
+4. Added the business-read smoke to `scripts/project-preflight.ps1` with a `-SkipBizRead` switch.
+5. Updated customer/sale-project docs, API gap map next order, progress dashboard, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\CustomerController.php`: passed.
+- `php -l app\controller\biz\SaleProjectController.php`: passed.
+- `php -l app\service\biz\CustomerService.php`: passed.
+- `php -l app\service\biz\SaleProjectService.php`: passed.
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No customer write call, sale-project state/write call, workflow action, finance effect, stock effect, provider send, frontend source edit, Java source edit, schema change, `.env` edit, production data operation, or Git push.
+

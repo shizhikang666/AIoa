@@ -95,3 +95,23 @@ Date: 2026-06-03
 - Authenticated frontend-shaped `/biz/saleproject/page` smoke returned `code = 200`, `total = 254`, and 10 rows.
 - The page's secondary `/biz/process/query` lookup returned `code = 200` and 10 items.
 - Browser reload of `/biz/saleproject` showed pagination `1-10 共 254 条` instead of `暂无数据`.
+
+## 2026-06-15 Business Read HTTP Smoke
+
+`scripts/business-read-http-smoke.ps1` now verifies the copied frontend sale-project read payloads against the local authenticated backend.
+
+Covered sale-project checks:
+
+- `GET /biz/saleproject/page`
+- `GET /biz/saleproject/case/page`
+- `GET /biz/saleproject/operation/page`
+- `GET /biz/saleproject/public/page`
+- `GET /biz/saleproject/detail`
+- `GET /biz/saleproject/list/detail`
+- `GET /biz/saleproject/product`
+- `POST /biz/saleproject/cost`
+- `POST /biz/saleproject/cost/details`
+
+The smoke loads an existing active sale-project id from the local database, verifies Java-style paging keys, checks display fields such as `projectName`, `projectState`, `playState`, `customerName`, `headName`, `orgName`, and `accountName`, and checks detail aggregate buckets including product items, invoicing, invoices, payment records, follow-ups, change logs, and return orders.
+
+This smoke is read-only. It does not call sale-project add, edit, delete, deal edit, visibility edit, amount edit, repeal/cancel, history/special creation, workflow actions, finance effects, stock effects, or file cleanup.

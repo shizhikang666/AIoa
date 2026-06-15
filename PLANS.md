@@ -9639,3 +9639,37 @@ Verify the previously added user/org/position display aliases used by copied use
 - Do not change user write behavior.
 - Do not edit the copied frontend for this verification-only slice.
 - Do not implement real email/SMS/provider behavior.
+
+## Completed Plan: merge-agent - Business Read Smoke Coverage
+
+Status: completed on 2026-06-15 after adding authenticated HTTP smoke coverage for customer and sale-project read payloads.
+
+### 1. Current Goal
+
+Keep the core customer and sale-project read contracts under local regression coverage before moving to broader write-heavy business modules.
+
+### 2. Involved Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `scripts/project-preflight.ps1`
+- `docs/api/biz-customer-readonly.md`
+- `docs/api/biz-saleproject-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Authenticated HTTP smoke verifies customer page/detail/detail-list reads.
+- Authenticated HTTP smoke verifies sale-project page/case/operation/public/detail/list-detail/product/cost/cost-details reads.
+- The smoke uses existing active local database rows and performs no writes.
+- `scripts/project-preflight.ps1` runs the business-read smoke by default and supports `-SkipBizRead`.
+- No customer writes, sale-project state writes, workflow actions, finance effects, stock effects, provider sends, frontend source edit, Java source edit, schema change, `.env` change, production data operation, or Git push is performed.
+
+### 4. Forbidden Scope
+
+- Do not implement sale-project write/state transitions.
+- Do not implement customer encryption migration or file cleanup.
+- Do not touch real email/SMS/provider behavior.

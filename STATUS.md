@@ -9008,3 +9008,45 @@ Agent: api-agent
 
 - Continue with safe read-only `biz/saleproject` and `biz/customer` compatibility checks in small slices.
 - Keep workflow writes, finance/inventory side effects, job scheduler execution, real provider sends, and final online data sync deferred.
+
+## 2026-06-15 18:00 +08:00 - merge-agent - Business Read Smoke Coverage
+
+### Completed
+
+- Reviewed existing customer and sale-project read routes and copied frontend wrappers.
+- Added `scripts/business-read-http-smoke.ps1` for authenticated read-only checks using existing active local customer and sale-project rows.
+- Covered customer page/detail/detail-list and sale-project page/case/operation/public/detail/list-detail/product/cost/cost-details reads.
+- Added the business-read smoke to `scripts/project-preflight.ps1` with `-SkipBizRead`.
+- Updated customer/sale-project docs, API gap map next order, progress dashboard, plan log, and implementation log.
+
+### Modified Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `scripts/project-preflight.ps1`
+- `docs/api/biz-customer-readonly.md`
+- `docs/api/biz-saleproject-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CustomerController.php`: passed.
+- `php -l app\controller\biz\SaleProjectController.php`: passed.
+- `php -l app\service\biz\CustomerService.php`: passed.
+- `php -l app\service\biz\SaleProjectService.php`: passed.
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- This is read-contract coverage only; no customer writes, sale-project state writes, workflow actions, finance effects, stock effects, or browser click-through were added.
+- Real Email remains deferred until the final provider phase before real SMS.
+
+### Next Plan
+
+- Continue remaining safe read-only/detail-consumer checks or selector coverage before any side-effect-heavy business writes.
+- Keep workflow writes, finance/inventory side effects, job scheduler execution, real provider sends, and final online data sync deferred.

@@ -273,3 +273,17 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git diff --check
 ```
+
+## 2026-06-15 Business Read HTTP Smoke
+
+`scripts/business-read-http-smoke.ps1` now verifies the copied frontend customer read payloads against the local authenticated backend.
+
+Covered customer checks:
+
+- `GET /biz/customer/page`
+- `GET /biz/customer/detail`
+- `POST /biz/customer/detail/list`
+
+The smoke loads an existing active customer id from the local database, verifies Java-style paging keys for page responses, checks detail/list aggregation shape, and confirms visible fields such as `name`, `contacts`, `phone`, `detailsAddress`, `address`, `sourceType`, `customType`, `headName`, `orgName`, `createUserName`, `downloadPath`, and `firstContactTime`.
+
+This smoke is read-only. It does not call customer add, edit, delete, head reassignment, follow-up writes, SM4 crypto migration, notification hooks, or file cleanup.

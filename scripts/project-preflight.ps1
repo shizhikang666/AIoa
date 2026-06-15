@@ -3,6 +3,7 @@ param(
     [switch]$SkipWeb,
     [switch]$SkipRoleSelector,
     [switch]$SkipUserDisplay,
+    [switch]$SkipBizRead,
     [switch]$SkipDiffCheck
 )
 
@@ -48,6 +49,12 @@ if (-not $SkipRoleSelector) {
 if (-not $SkipUserDisplay) {
     Invoke-Step 'User Display HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'user-display-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipBizRead) {
+    Invoke-Step 'Business Read HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'business-read-http-smoke.ps1')
     }
 }
 
