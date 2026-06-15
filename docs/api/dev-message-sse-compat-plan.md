@@ -95,6 +95,8 @@ The response is short-lived by design. A persistent PHP SSE loop could block the
 
 2026-06-12 update: the short-lived ThinkPHP stream now emits both initial refresh notices. `FlushMessageNotice` refreshes the layout message count, and `FlushProcessNotice` refreshes the layout task count. This does not add Redis pub/sub, long-lived push, workflow writes, or database mutation.
 
+2026-06-15 update: `scripts/message-sse-http-smoke.ps1` verifies the authenticated compatibility stream over HTTP, checking `text/event-stream`, the client id echo, `FlushMessageNotice`, and `FlushProcessNotice`. `scripts/project-preflight.ps1` runs this smoke by default unless `-SkipMessageSse` is passed.
+
 ## Deferred Behavior
 
 Do not implement in the first SSE compatibility slice:

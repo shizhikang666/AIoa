@@ -7,6 +7,7 @@ param(
     [switch]$SkipBizRead,
     [switch]$SkipDirectoryAlias,
     [switch]$SkipTenantRead,
+    [switch]$SkipMessageSse,
     [switch]$SkipWorkflowRead,
     [switch]$SkipDiffCheck
 )
@@ -77,6 +78,12 @@ if (-not $SkipDirectoryAlias) {
 if (-not $SkipTenantRead) {
     Invoke-Step 'Tenant Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'tenant-read-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipMessageSse) {
+    Invoke-Step 'Message SSE HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'message-sse-http-smoke.ps1')
     }
 }
 
