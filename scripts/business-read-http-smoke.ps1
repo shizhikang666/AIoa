@@ -126,6 +126,15 @@ function Assert-Paths {
     }
 }
 
+function Has-Path {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Path
+    )
+
+    return $null -ne (Read-JsonPath -Json $Json -Path $Path -Optional)
+}
+
 function Assert-PagedShape {
     param(
         [Parameter(Mandatory = $true)][string]$Json,
@@ -134,6 +143,25 @@ function Assert-PagedShape {
 
     Assert-Ok -Json $Json -Name $Name
     Assert-Paths -Json $Json -Name $Name -Paths @('data.records', 'data.total', 'data.current', 'data.size', 'data.pages')
+}
+
+function Assert-FirstRecordIfPresent {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string[]]$Keys
+    )
+
+    if (-not (Has-Path -Json $Json -Path 'data.records.0')) {
+        return
+    }
+
+    $paths = @()
+    foreach ($key in $Keys) {
+        $paths += "data.records.0.$key"
+    }
+
+    Assert-Paths -Json $Json -Name "$Name first record" -Paths $paths
 }
 
 function Assert-CustomerRow {
@@ -186,6 +214,51 @@ function Assert-SaleProjectRow {
     )
 }
 
+function Assert-CustomerFollowUpRow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    Assert-Paths -Json $Json -Name $Name -Paths @(
+        "$Prefix.id",
+        "$Prefix.customerId",
+        "$Prefix.customerName",
+        "$Prefix.followUpTime",
+        "$Prefix.content",
+        "$Prefix.createUserName",
+        "$Prefix.avatar",
+        "$Prefix.createUserOrgId",
+        "$Prefix.createUserOrgName",
+        "$Prefix.extJson"
+    )
+}
+
+function Assert-SaleProjectFollowUpRow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    Assert-Paths -Json $Json -Name $Name -Paths @(
+        "$Prefix.id",
+        "$Prefix.projectId",
+        "$Prefix.projectName",
+        "$Prefix.projectUser",
+        "$Prefix.projectOrg",
+        "$Prefix.followUpTime",
+        "$Prefix.category",
+        "$Prefix.content",
+        "$Prefix.createUserName",
+        "$Prefix.avatar",
+        "$Prefix.createUserOrgId",
+        "$Prefix.createUserOrgName",
+        "$Prefix.extJson"
+    )
+}
+
 $envMap = Get-EnvMap -Path $EnvPath
 $account = Get-EnvValue -EnvMap $envMap -Key 'LOCAL_SUPER_ADMIN_ACCOUNT'
 if ($account -eq '') {
@@ -216,16 +289,42 @@ require getcwd() . '/vendor/autoload.php';
 `$saleProjectId = think\facade\Db::name('biz_sale_project')->where(`$notDeleted)->value('ID');
 if (!`$customerId) { throw new RuntimeException('sample customer not found'); }
 if (!`$saleProjectId) { throw new RuntimeException('sample sale project not found'); }
-echo json_encode(['customerId' => (string)`$customerId, 'saleProjectId' => (string)`$saleProjectId], JSON_UNESCAPED_UNICODE);
+`$customerFollowUp = think\facade\Db::name('customer_follow_up')
+    ->alias('f')
+    ->join('customer c', 'c.ID = f.CUSTOMER_ID', 'INNER')
+    ->where(function (`$query) { `$query->whereNull('f.DELETE_FLAG')->whereOr('f.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('c.DELETE_FLAG')->whereOr('c.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->field('f.ID AS ID, f.CUSTOMER_ID AS CUSTOMER_ID')
+    ->find();
+`$saleProjectFollowUp = think\facade\Db::name('sale_project_follow_up')
+    ->alias('f')
+    ->join('biz_sale_project p', 'p.ID = f.PROJECT_ID', 'INNER')
+    ->where(function (`$query) { `$query->whereNull('f.DELETE_FLAG')->whereOr('f.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->field('f.ID AS ID, f.PROJECT_ID AS PROJECT_ID')
+    ->find();
+echo json_encode([
+    'customerId' => (string)`$customerId,
+    'saleProjectId' => (string)`$saleProjectId,
+    'customerFollowUpId' => `$customerFollowUp ? (string)`$customerFollowUp['ID'] : '',
+    'customerFollowUpCustomerId' => `$customerFollowUp ? (string)`$customerFollowUp['CUSTOMER_ID'] : '',
+    'saleProjectFollowUpId' => `$saleProjectFollowUp ? (string)`$saleProjectFollowUp['ID'] : '',
+    'saleProjectFollowUpProjectId' => `$saleProjectFollowUp ? (string)`$saleProjectFollowUp['PROJECT_ID'] : '',
+], JSON_UNESCAPED_UNICODE);
 "@
 
 $sampleJson = & php -r $sampleCode
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($sampleJson)) {
     throw 'failed to load sample business ids'
 }
+$sampleJson = ([string]$sampleJson) -replace ([string][char]0xFEFF), ''
 
 $customerId = Read-JsonPath -Json $sampleJson -Path 'customerId'
 $saleProjectId = Read-JsonPath -Json $sampleJson -Path 'saleProjectId'
+$customerFollowUpId = Read-JsonPath -Json $sampleJson -Path 'customerFollowUpId'
+$customerFollowUpCustomerId = Read-JsonPath -Json $sampleJson -Path 'customerFollowUpCustomerId'
+$saleProjectFollowUpId = Read-JsonPath -Json $sampleJson -Path 'saleProjectFollowUpId'
+$saleProjectFollowUpProjectId = Read-JsonPath -Json $sampleJson -Path 'saleProjectFollowUpProjectId'
 $baseUrl = $BackendBaseUrl.TrimEnd('/')
 $encodedCustomerId = [System.Uri]::EscapeDataString($customerId.Trim())
 $encodedSaleProjectId = [System.Uri]::EscapeDataString($saleProjectId.Trim())
@@ -245,6 +344,29 @@ Assert-Paths -Json $customerDetailList -Name 'biz customer detail/list' -Paths @
     'data.0.customerFollowUps'
 )
 Assert-CustomerRow -Json $customerDetailList -Prefix 'data.0.customer' -Name 'biz customer detail/list customer'
+
+$customerFollowUpPageCustomerId = if ($customerFollowUpCustomerId.Trim() -ne '') { $customerFollowUpCustomerId } else { $customerId }
+$encodedCustomerFollowUpCustomerId = [System.Uri]::EscapeDataString($customerFollowUpPageCustomerId.Trim())
+$customerFollowUpPage = Invoke-RawGet -Url "$baseUrl/biz/customerfollowup/page?customerId=$encodedCustomerFollowUpCustomerId&current=1&size=1" -Token $token
+Assert-PagedShape -Json $customerFollowUpPage -Name 'biz customerfollowup page'
+Assert-FirstRecordIfPresent -Json $customerFollowUpPage -Name 'biz customerfollowup page' -Keys @(
+    'id',
+    'customerId',
+    'customerName',
+    'followUpTime',
+    'content',
+    'createUserName',
+    'avatar',
+    'createUserOrgId',
+    'createUserOrgName',
+    'extJson'
+)
+if ($customerFollowUpId.Trim() -ne '') {
+    $encodedCustomerFollowUpId = [System.Uri]::EscapeDataString($customerFollowUpId.Trim())
+    $customerFollowUpDetail = Invoke-RawGet -Url "$baseUrl/biz/customerfollowup/detail?id=$encodedCustomerFollowUpId" -Token $token
+    Assert-Ok -Json $customerFollowUpDetail -Name 'biz customerfollowup detail'
+    Assert-CustomerFollowUpRow -Json $customerFollowUpDetail -Prefix 'data' -Name 'biz customerfollowup detail'
+}
 
 $saleProjectPage = Invoke-RawGet -Url "$baseUrl/biz/saleproject/page?id=$encodedSaleProjectId&current=1&size=1" -Token $token
 Assert-PagedShape -Json $saleProjectPage -Name 'biz saleproject page'
@@ -268,6 +390,32 @@ Assert-Paths -Json $saleProjectDetail -Name 'biz saleproject detail aggregates' 
     'data.changeLogs',
     'data.returnOrders'
 )
+
+$saleProjectFollowUpPageProjectId = if ($saleProjectFollowUpProjectId.Trim() -ne '') { $saleProjectFollowUpProjectId } else { $saleProjectId }
+$encodedSaleProjectFollowUpProjectId = [System.Uri]::EscapeDataString($saleProjectFollowUpPageProjectId.Trim())
+$saleProjectFollowUpPage = Invoke-RawGet -Url "$baseUrl/biz/saleprojectfollowup/page?projectId=$encodedSaleProjectFollowUpProjectId&current=1&size=1" -Token $token
+Assert-PagedShape -Json $saleProjectFollowUpPage -Name 'biz saleprojectfollowup page'
+Assert-FirstRecordIfPresent -Json $saleProjectFollowUpPage -Name 'biz saleprojectfollowup page' -Keys @(
+    'id',
+    'projectId',
+    'projectName',
+    'projectUser',
+    'projectOrg',
+    'followUpTime',
+    'category',
+    'content',
+    'createUserName',
+    'avatar',
+    'createUserOrgId',
+    'createUserOrgName',
+    'extJson'
+)
+if ($saleProjectFollowUpId.Trim() -ne '') {
+    $encodedSaleProjectFollowUpId = [System.Uri]::EscapeDataString($saleProjectFollowUpId.Trim())
+    $saleProjectFollowUpDetail = Invoke-RawGet -Url "$baseUrl/biz/saleprojectfollowup/detail?id=$encodedSaleProjectFollowUpId" -Token $token
+    Assert-Ok -Json $saleProjectFollowUpDetail -Name 'biz saleprojectfollowup detail'
+    Assert-SaleProjectFollowUpRow -Json $saleProjectFollowUpDetail -Prefix 'data' -Name 'biz saleprojectfollowup detail'
+}
 
 $saleProjectListDetail = Invoke-RawGet -Url "$baseUrl/biz/saleproject/list/detail?id=$encodedSaleProjectId" -Token $token
 Assert-Ok -Json $saleProjectListDetail -Name 'biz saleproject list/detail'

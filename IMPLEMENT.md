@@ -1589,3 +1589,29 @@ Explicit non-goals:
 
 - No organization, position, user, or dictionary write call; no workflow write; no finance/inventory side effect; no job execution; no provider send; no cloud storage; no Java source edit; no schema change; no `.env` edit; no production data operation; no Git push.
 
+## 2026-06-15 Follow-Up Read Smoke Coverage
+
+Agent: merge-agent / api-agent fallback
+
+Execution summary:
+
+1. Reviewed customer follow-up and sale-project follow-up controllers, services, routes, frontend wrappers, and existing docs.
+2. Extended `scripts/business-read-http-smoke.ps1` to verify customer follow-up page/detail and sale-project follow-up page/detail payloads using existing active local rows when available.
+3. Kept detail checks conditional so the smoke remains stable when local sample follow-up rows are absent.
+4. Updated `scripts/json-read.js` to strip a leading BOM before strict JSON parsing, after local PHP sample output produced BOM-prefixed JSON.
+5. Updated customer and sale-project follow-up docs, API gap map next order, progress dashboard, problem log, bootstrap docs, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\CustomerFollowUpController.php`: passed.
+- `php -l app\controller\biz\SaleProjectFollowUpController.php`: passed.
+- `php -l app\service\biz\CustomerFollowUpService.php`: passed.
+- `php -l app\service\biz\SaleProjectFollowUpService.php`: passed.
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No follow-up add/edit/delete call, attachment cleanup, notification side effect, sale-project state write, workflow action, finance effect, inventory effect, provider send, frontend source edit, Java source edit, schema change, `.env` edit, production data operation, or Git push.
+

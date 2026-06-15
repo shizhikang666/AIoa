@@ -79,9 +79,9 @@ Work in F:\AI\projects\testJava\OA-ThinkPHP. You are not alone in the codebase; 
 
 ## Current Recommended Queue
 
-1. Add or extend smoke coverage for customer/sale-project follow-up detail consumers.
-2. Add no-write workflow HTTP smoke for table/list/query endpoints only.
-3. Add sale-project billing nested read smoke, explicitly excluding invoicing complete, stock, settlement, and file cleanup.
+1. Add no-write workflow HTTP smoke for table/list/query endpoints only.
+2. Add sale-project billing nested read smoke, explicitly excluding invoicing complete, stock, settlement, and file cleanup.
+3. Add sale-project product/package relation read smoke, excluding product info and relation mark writes.
 4. Run targeted browser smoke only after selecting a concrete visible page and forbidden request pattern.
 
 ## Completion Rule

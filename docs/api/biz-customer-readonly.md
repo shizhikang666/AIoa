@@ -283,7 +283,11 @@ Covered customer checks:
 - `GET /biz/customer/page`
 - `GET /biz/customer/detail`
 - `POST /biz/customer/detail/list`
+- `GET /biz/customerfollowup/page`
+- `GET /biz/customerfollowup/detail` when local follow-up sample data exists
 
-The smoke loads an existing active customer id from the local database, verifies Java-style paging keys for page responses, checks detail/list aggregation shape, and confirms visible fields such as `name`, `contacts`, `phone`, `detailsAddress`, `address`, `sourceType`, `customType`, `headName`, `orgName`, `createUserName`, `downloadPath`, and `firstContactTime`.
+The smoke loads existing active customer and customer-follow-up ids from the local database, verifies Java-style paging keys for page responses, checks detail/list aggregation shape, and confirms visible fields such as `name`, `contacts`, `phone`, `detailsAddress`, `address`, `sourceType`, `customType`, `headName`, `orgName`, `createUserName`, `downloadPath`, and `firstContactTime`.
+
+Customer follow-up rows are checked for `id`, `customerId`, `customerName`, `followUpTime`, `content`, `createUserName`, `avatar`, `createUserOrgId`, `createUserOrgName`, and `extJson`.
 
 This smoke is read-only. It does not call customer add, edit, delete, head reassignment, follow-up writes, SM4 crypto migration, notification hooks, or file cleanup.

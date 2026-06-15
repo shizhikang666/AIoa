@@ -77,9 +77,9 @@ These groups should be handled before business writes, because they unlock more 
 
 | Group | Missing Read/Selector/Report Candidates |
 | --- | --- |
-| `biz/saleproject` | Core read routes covered and smoke-verified: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; sale-project follow-up `page/detail/add/edit/delete` covered in `biz/saleprojectfollowup`; sale-project state/write routes remain deferred |
+| `biz/saleproject` | Core read routes covered and smoke-verified: `case/page`, `detail`, `list/detail`, `operation/page`, `page`, `product`, `public/page`, `cost`, `cost/details`; sale-project follow-up `page/detail` read contracts are smoke-verified, while follow-up add/edit/delete remain covered but broader side effects are deferred; sale-project state/write routes remain deferred |
 | `biz/salesprojectfieldchangelog` | `page`, `detail`, `add`, `edit`, and `delete` covered; sale-project change-generation side effects remain deferred |
-| `biz/customer` | `detail`, `detail/list`, and `page` read contracts are smoke-verified; `add`, `edit`, `delete`, and `head/edit` are covered as low-risk writes with broader side effects deferred |
+| `biz/customer` | `detail`, `detail/list`, `page`, and customer follow-up `page/detail` read contracts are smoke-verified; `add`, `edit`, `delete`, and `head/edit` are covered as low-risk writes with broader side effects deferred |
 | `biz/org` | `detail`, `list`, `orgTreeSelector`, `page`, `tree`, `userSelector`, `add`, `edit`, and `delete` |
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector`, `disableUser`, `enableUser`, `export`, and `exportUserInfo` |
 | `biz/position` | `detail`, `list`, `orgTreeSelector`, `page`, `positionSelector`, `add`, `edit`, and `delete` |
@@ -162,9 +162,9 @@ The frontend still references several auth monitoring and third-party routes:
 
 ## Next Execution Order
 
-1. api-agent: add or extend safe smoke coverage for customer/sale-project follow-up detail consumers.
-2. workflow-agent: add a no-write workflow HTTP smoke for list/query endpoints only; approve/reject/start/cancel/SSE remain deferred.
-3. api-agent: continue sale-project billing nested read smoke, excluding invoicing complete, stock, settlement, and file cleanup.
+1. workflow-agent: add a no-write workflow HTTP smoke for list/query endpoints only; approve/reject/start/cancel/SSE remain deferred.
+2. api-agent: continue sale-project billing nested read smoke, excluding invoicing complete, stock, settlement, and file cleanup.
+3. api-agent: add sale-project product/package relation read smoke, excluding product info and relation mark writes.
 4. test-agent/frontend-agent: browser-smoke copied upload controls or selected read pages only after a concrete forbidden-request pattern is defined.
 5. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
 

@@ -9097,3 +9097,48 @@ Agent: api-agent
 
 - Next candidate slice: customer/sale-project follow-up detail-consumer smoke.
 - Alternative safe slice: no-write workflow HTTP smoke for list/query endpoints only.
+
+## 2026-06-15 19:05 +08:00 - merge-agent - Follow-Up Read Smoke Coverage
+
+### Completed
+
+- Reviewed customer follow-up and sale-project follow-up read controllers, services, routes, frontend wrappers, and docs.
+- Extended `scripts/business-read-http-smoke.ps1` to verify customer follow-up page/detail and sale-project follow-up page/detail payloads with existing active local rows when available.
+- Kept follow-up detail checks conditional so the smoke remains stable if local sample follow-up rows are absent.
+- Updated `scripts/json-read.js` to strip a leading BOM before JSON parsing.
+- Updated customer and sale-project follow-up docs, API gap map next order, progress dashboard, problem log, bootstrap docs, plan log, and implementation log.
+
+### Modified Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `scripts/json-read.js`
+- `docs/api/biz-customer-readonly.md`
+- `docs/api/biz-saleproject-followup-readonly.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CustomerFollowUpController.php`: passed.
+- `php -l app\controller\biz\SaleProjectFollowUpController.php`: passed.
+- `php -l app\service\biz\CustomerFollowUpService.php`: passed.
+- `php -l app\service\biz\SaleProjectFollowUpService.php`: passed.
+- `.\scripts\business-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- This is read-contract coverage only; no follow-up writes, attachment cleanup, notifications, workflow actions, finance effects, inventory effects, or browser click-through were added.
+- Real Email remains deferred until the final provider phase before real SMS.
+
+### Next Plan
+
+- Next candidate slice: no-write workflow HTTP smoke for list/query endpoints only.
+- Alternative safe slice: sale-project billing nested read smoke excluding invoicing complete, stock, settlement, and file cleanup.

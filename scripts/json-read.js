@@ -3,7 +3,7 @@
 const fs = require('fs')
 
 const path = process.argv[2] || ''
-const input = fs.readFileSync(0, 'utf8')
+const input = fs.readFileSync(0, 'utf8').replace(/^\uFEFF/, '')
 
 function fail(message) {
 	process.stderr.write(`${message}\n`)

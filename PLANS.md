@@ -9713,3 +9713,40 @@ Enable safe parallel reconnaissance while keeping implementation, shared files, 
 - Do not let parallel workers edit shared files without coordinator assignment.
 - Do not implement workflow approve/reject/start/cancel.
 - Do not implement real provider sends or cloud storage.
+
+## Completed Plan: merge-agent - Follow-Up Read Smoke Coverage
+
+Status: completed on 2026-06-15 after extending business read smoke coverage for customer and sale-project follow-up detail consumers.
+
+### 1. Current Goal
+
+Keep customer follow-up and sale-project follow-up read payloads under regression coverage without invoking follow-up writes or broader side effects.
+
+### 2. Involved Files
+
+- `scripts/business-read-http-smoke.ps1`
+- `scripts/json-read.js`
+- `docs/api/biz-customer-readonly.md`
+- `docs/api/biz-saleproject-followup-readonly.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Authenticated HTTP smoke verifies customer follow-up page and detail when local sample data exists.
+- Authenticated HTTP smoke verifies sale-project follow-up page and detail when local sample data exists.
+- The smoke remains read-only and calls no follow-up add/edit/delete endpoints.
+- `scripts/json-read.js` handles a leading BOM before strict JSON parsing.
+- No attachment cleanup, notification, workflow, finance, inventory, provider, frontend source, Java source, schema, `.env`, production data, or Git push work is performed.
+
+### 4. Forbidden Scope
+
+- Do not implement follow-up side effects.
+- Do not call sale-project or customer write endpoints.
+- Do not implement workflow or provider behavior.

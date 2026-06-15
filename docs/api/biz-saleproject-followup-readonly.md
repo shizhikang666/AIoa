@@ -163,3 +163,16 @@ Date: 2026-06-03
   - unauthenticated `/biz/saleprojectfollowup/page` `code = 401`.
 - Browser direct route `/biz/saleprojectfollowup` currently returns the copied Vue 404 page because the frontend route/menu entry is not registered. The API itself is ready for components that call it, including the sale-project detail follow-up tab.
 - Browser was restored to `/biz/saleproject` after this smoke.
+
+## 2026-06-15 Business Read HTTP Smoke
+
+`scripts/business-read-http-smoke.ps1` now verifies sale-project follow-up read payloads alongside the core sale-project read contracts.
+
+Covered sale-project follow-up checks:
+
+- `GET /biz/saleprojectfollowup/page`
+- `GET /biz/saleprojectfollowup/detail` when local follow-up sample data exists
+
+The smoke loads an existing active sale-project follow-up id from the local database when available, verifies Java-style paging keys for page responses, and confirms frontend-visible fields: `id`, `projectId`, `projectName`, `projectUser`, `projectOrg`, `followUpTime`, `category`, `content`, `createUserName`, `avatar`, `createUserOrgId`, `createUserOrgName`, and `extJson`.
+
+This smoke is read-only. It does not call sale-project follow-up add, edit, delete, attachment cleanup, notifications, sale-project state writes, workflow, finance, inventory, or provider actions.
