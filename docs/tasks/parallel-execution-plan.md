@@ -80,9 +80,8 @@ Work in F:\AI\projects\testJava\OA-ThinkPHP. You are not alone in the codebase; 
 ## Current Recommended Queue
 
 1. Run targeted browser smoke only after selecting a concrete visible page and forbidden request pattern.
-2. Revisit workflow query-list pagination or filtering only as a dedicated performance/compatibility slice.
-3. Plan cloud storage or physical-file cleanup only after provider config and cleanup policy are confirmed.
-4. Keep real Email before real SMS in the final provider phase.
+2. Plan cloud storage or physical-file cleanup only after provider config and cleanup policy are confirmed.
+3. Keep real Email before real SMS in the final provider phase.
 
 ## Completion Rule
 

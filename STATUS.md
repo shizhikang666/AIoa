@@ -9272,3 +9272,45 @@ Agent: api-agent
 
 - Commit this slice as `test: extend sale project product smoke`.
 - Next candidate: targeted browser smoke after selecting a concrete visible page and forbidden request pattern, or a dedicated workflow `query/list` performance/compatibility slice.
+
+## 2026-06-15 14:53 +08:00 - workflow-agent - Process Query List Guard
+
+### Completed
+
+- Compared PHP workflow `query/list` behavior with Java `BizBaseProcessQueryParam` and confirmed Java requires non-empty `processKeyList` plus `attribute`.
+- Updated `ProcessController` so `query/list`, `variable`, and `fileList` accept JSON body payloads from copied frontend callers while retaining existing query/form fallbacks.
+- Updated `WorkflowQueryService::queryProcessList()` to return controlled `400` responses for missing process keys or attributes instead of scanning all historic processes.
+- Updated `scripts/workflow-read-http-smoke.ps1` to send JSON via a temporary file and assert both filtered `query/list` success and empty-filter guard behavior.
+- Updated workflow docs, problem log, API gap map, parallel plan, progress dashboard, plan log, and implementation log.
+
+### Modified Files
+
+- `app/controller/biz/ProcessController.php`
+- `app/service/workflow/WorkflowQueryService.php`
+- `scripts/workflow-read-http-smoke.ps1`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\ProcessController.php`: passed.
+- `php -l app\service\workflow\WorkflowQueryService.php`: passed.
+- `.\scripts\workflow-read-http-smoke.ps1`: passed, with task runtime detail and CC detail skipped because the local smoke account currently has no pending task or current-user CC sample.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- This only hardens read-query behavior; workflow approve/reject/start/cancel, task SSE, Java delegate side effects, finance/inventory side effects, provider sends, cloud cleanup, and final data sync remain deferred.
+- Real Email remains deferred until the final provider phase before real SMS.
+
+### Next Plan
+
+- Commit this slice as `fix: guard workflow query list`.
+- Next candidate: targeted browser smoke after selecting a concrete visible page and forbidden request pattern, or cloud storage cleanup/provider planning after configuration policy is confirmed.

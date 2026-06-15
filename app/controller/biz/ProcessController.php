@@ -36,8 +36,10 @@ class ProcessController extends BaseWorkflowController
 
     public function variable(Request $request): Response
     {
+        $input = $this->body($request);
+
         return $this->guard(fn () => $this->workflowVariableService->historyByProcessInstance(
-            $this->processInstanceId($request)
+            $this->processInstanceId($request, $input)
         ));
     }
 
@@ -56,12 +58,7 @@ class ProcessController extends BaseWorkflowController
 
     public function queryList(Request $request): Response
     {
-        $filters = $request->post();
-        if ($filters === []) {
-            $filters = $request->param();
-        }
-
-        return $this->guard(fn () => $this->workflowQueryService->queryProcessList($filters));
+        return $this->guard(fn () => $this->workflowQueryService->queryProcessList($this->body($request)));
     }
 
     public function projectRuntimeQueryList(Request $request): Response
@@ -71,13 +68,10 @@ class ProcessController extends BaseWorkflowController
 
     public function fileList(Request $request): Response
     {
-        $filters = $request->post();
-        if ($filters === []) {
-            $filters = $request->param();
-        }
+        $filters = $this->body($request);
 
         return $this->guard(fn () => $this->fileRelationService->list([
-            'objectId' => $this->requiredString($request, 'id'),
+            'objectId' => $this->processInstanceId($request, $filters),
             'category' => $filters['category'] ?? null,
         ], $this->authPayload($request)));
     }
@@ -89,9 +83,38 @@ class ProcessController extends BaseWorkflowController
         return is_array($payload) ? $payload : [];
     }
 
-    private function processInstanceId(Request $request): string
+    private function body(Request $request): array
     {
-        $value = trim((string)$request->param('processInstanceId', ''));
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $request->param();
+    }
+
+    private function processInstanceId(Request $request, array $input = []): string
+    {
+        $value = trim((string)($input['processInstanceId'] ?? $request->param('processInstanceId', '')));
+        if ($value !== '') {
+            return $value;
+        }
+
+        $value = trim((string)($input['id'] ?? ''));
         if ($value !== '') {
             return $value;
         }

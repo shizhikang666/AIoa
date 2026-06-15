@@ -53,9 +53,10 @@ All routes are protected by `AuthMiddleware`.
   - `endTime`
   - `variable`
 - `query` returns Java-compatible entries with `variable`, `processIdList`, and `variableMap`.
-- `query/list` filters historic processes by process keys and variable attributes when provided.
+- `query/list` requires a non-empty `processKeyList` or compatible `processKeys`/`category` filter plus a non-empty `attribute` map, matching Java `BizBaseProcessQueryParam` `@NotEmpty` behavior. Empty filters return `400` instead of scanning all historic process rows.
 - `project/runtime/query/list` returns runtime process rows matching `projectId`.
 - `fileList` reads attachment rows through existing `biz_file_relation` and `dev_file` read logic.
+- `variable`, `fileList`, and `query/list` accept JSON request bodies from copied frontend callers, with query/form parameters retained as compatibility fallbacks.
 - `runtime/activity/detail` returns `category`, `variables`, `taskId`, `processKey`, `processInstanceId`, and `processDefinitionId`.
 - Existing `detail` and `variable` reads now accept either `processInstanceId` or the Java/frontend `id` parameter.
 - `detail` also returns the old frontend detail shape: `userProcess`, `startUser`, `startOrgTree`, `userActivityList`, and `ccUser`.
@@ -66,7 +67,7 @@ All routes are protected by `AuthMiddleware`.
 - Authenticated API shape check covered `/biz/task/page`, `/biz/task/history/page`, `/biz/process/page`, `/biz/process/all/page`, and `/biz/ccrecords/page`; all returned HTTP 200 with `code=200`.
 - Authenticated workflow read HTTP smoke is now available at `scripts/workflow-read-http-smoke.ps1` and is included in `scripts/project-preflight.ps1` by default.
 - The smoke covers `/biz/task/count`, `/biz/task/list`, `/biz/task/page`, `/biz/task/history/page`, `/biz/process/page`, `/biz/process/all/page`, `/biz/process/query`, `/biz/process/query/list`, `/biz/process/project/runtime/query/list` when a local `projectId` variable exists, `/biz/process/detail`, `/biz/process/variable`, `/biz/process/fileList`, `/biz/ccrecords/page`, and `/biz/ccrecords/detail` when a current-user CC record exists.
-- `/biz/process/query/list` is intentionally called with a missing `processKeys` filter so the regression check remains bounded on large local workflow-history datasets.
+- `/biz/process/query/list` is called with Java-style `processKeyList` and `attribute.objectId` filters, and the smoke also asserts that an empty `{}` filter returns `400`.
 - Browser smoke used a temporary local menu cache to load copied workflow routes directly through `createWebHistory` paths:
   - `/biz/biztask`
   - `/biz/biztask/historyTask`

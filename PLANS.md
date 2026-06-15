@@ -9853,3 +9853,37 @@ Keep sale-project product/package info and combo-product child relation read pay
 - Do not implement or call product-info writes.
 - Do not call relation or product-item mark-edit routes in read smoke.
 - Do not implement product-item, inventory, delivery, finance, workflow, or file cleanup side effects.
+
+## Completed Plan: workflow-agent - Process Query List Guard
+
+Status: completed on 2026-06-15 after aligning `/biz/process/query/list` with Java required-filter behavior and adding guard coverage.
+
+### 1. Current Goal
+
+Prevent empty workflow query-list requests from scanning the full historic process dataset while preserving copied frontend callers that send Java-style JSON body filters.
+
+### 2. Involved Files
+
+- `app/controller/biz/ProcessController.php`
+- `app/service/workflow/WorkflowQueryService.php`
+- `scripts/workflow-read-http-smoke.ps1`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/parallel-execution-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `/biz/process/query/list` accepts JSON bodies containing `processKeyList` and `attribute`.
+- Empty query-list filters return a controlled `400` response instead of loading all historic processes.
+- Workflow `variable` and `fileList` retain query compatibility and also accept Java-style JSON body ids.
+- Workflow smoke asserts both filtered success and empty-filter guard behavior.
+
+### 4. Forbidden Scope
+
+- Do not implement workflow approve/reject/start/cancel.
+- Do not add workflow writes, Java delegate side effects, task SSE stream, finance/inventory side effects, provider sends, schema changes, `.env` edits, production data operations, or Git push behavior.

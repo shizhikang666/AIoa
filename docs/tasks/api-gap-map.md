@@ -84,7 +84,7 @@ These groups should be handled before business writes, because they unlock more 
 | `biz/user` | `detail`, `list/detail`, `orgTreeSelector`, `ownRole`, `page`, `positionSelector`, `roleSelector`, `userSelector`, `disableUser`, `enableUser`, `export`, and `exportUserInfo` |
 | `biz/position` | `detail`, `list`, `orgTreeSelector`, `page`, `positionSelector`, `add`, `edit`, and `delete` |
 | `biz/dict` | `page`, `tree`, `treeAll`, and Java-compatible `edit` covered; business add/delete remain intentionally absent like Java |
-| `biz/process` | Read aliases added and smoke-verified for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and bounded `query/list`; write/start/cancel routes remain deferred |
+| `biz/process` | Read aliases added and smoke-verified for `all/page`, `fileList`, `project/runtime/query/list`, `query`, and Java-compatible guarded `query/list`; write/start/cancel routes remain deferred |
 | `biz/task` | `count`, `list`, `page`, `history/page`, and conditional `runtime/activity/detail` are smoke-covered; standalone `sse/stream`, `approve`, and `reject` remain deferred. Java `BizTaskController` does not currently expose `/biz/task/sse/stream`, and no active copied frontend caller was found; layout task refresh is covered through `/dev/message/createSseConnect` `FlushProcessNotice` |
 | `biz/bizuservacation` | `page` and `detail` covered; `add`, `edit`, and `delete` remain deferred |
 | `biz/ccrecords` | `page`, `detail`, and `delete` covered; add/edit and workflow copy-generation remain deferred |
@@ -163,10 +163,9 @@ The frontend still references several auth monitoring and third-party routes:
 ## Next Execution Order
 
 1. test-agent/frontend-agent: browser-smoke copied upload controls or selected read pages only after a concrete forbidden-request pattern is defined.
-2. workflow-agent: revisit workflow `query/list` pagination or filtering only as a dedicated performance/compatibility slice.
-3. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
-4. provider-agent: keep real Email before real SMS in the final provider phase.
-5. merge-agent: select the next low-risk slice from dashboard residual risks before opening any side-effect-heavy writes.
+2. api-agent: plan cloud storage and optional physical-file cleanup separately; keep Aliyun/Tencent/Minio deferred until provider config is confirmed.
+3. provider-agent: keep real Email before real SMS in the final provider phase.
+4. merge-agent: select the next low-risk slice from dashboard residual risks before opening any side-effect-heavy writes.
 
 ## Guardrails
 

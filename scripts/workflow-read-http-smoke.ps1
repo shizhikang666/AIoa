@@ -75,12 +75,20 @@ function Invoke-RawPost {
         [string]$Body = '{}'
     )
 
-    $raw = & curl.exe -sS -X POST $Url -H "Authorization: Bearer $Token" -H 'Content-Type: application/json' --data $Body
-    if ($LASTEXITCODE -ne 0) {
-        throw "HTTP POST failed: $Url"
-    }
+    $bodyPath = Join-Path ([System.IO.Path]::GetTempPath()) ('workflow-read-smoke-' + [Guid]::NewGuid().ToString('N') + '.json')
+    Set-Content -LiteralPath $bodyPath -Value $Body -Encoding ASCII
+    try {
+        $raw = & curl.exe -sS -X POST $Url -H "Authorization: Bearer $Token" -H 'Content-Type: application/json' --data-binary "@$bodyPath"
+        if ($LASTEXITCODE -ne 0) {
+            throw "HTTP POST failed: $Url"
+        }
 
-    return [string]::Join('', [string[]]$raw)
+        return [string]::Join('', [string[]]$raw)
+    } finally {
+        if (Test-Path -LiteralPath $bodyPath) {
+            Remove-Item -LiteralPath $bodyPath -Force
+        }
+    }
 }
 
 function Read-JsonPath {
@@ -119,6 +127,19 @@ function Assert-Ok {
 
     $code = Read-JsonPath -Json $Json -Path 'code'
     if ([int]$code -ne 200) {
+        throw "$Name returned code=$code"
+    }
+}
+
+function Assert-Code {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][int]$ExpectedCode
+    )
+
+    $code = Read-JsonPath -Json $Json -Path 'code'
+    if ([int]$code -ne $ExpectedCode) {
         throw "$Name returned code=$code"
     }
 }
@@ -303,9 +324,12 @@ $processAllPage = Invoke-RawGet -Url "$baseUrl/biz/process/all/page?current=1&si
 Assert-PagedShape -Json $processAllPage -Name 'biz process all page'
 Assert-WorkflowProcessRowIfPresent -Json $processAllPage -Name 'biz process all page'
 
-$queryList = Invoke-RawPost -Url "$baseUrl/biz/process/query/list?processKeys=__codex_missing_process_key__" -Token $token
+$queryList = Invoke-RawPost -Url "$baseUrl/biz/process/query/list" -Token $token -Body '{"processKeyList":["__codex_missing_process_key__"],"attribute":{"objectId":"__codex_missing_object_id__"}}'
 Assert-Ok -Json $queryList -Name 'biz process query/list'
 Assert-Paths -Json $queryList -Name 'biz process query/list' -Paths @('data')
+
+$emptyQueryList = Invoke-RawPost -Url "$baseUrl/biz/process/query/list" -Token $token -Body '{}'
+Assert-Code -Json $emptyQueryList -Name 'biz process query/list empty filter guard' -ExpectedCode 400
 
 $query = Invoke-RawGet -Url "$baseUrl/biz/process/query?variableName=__codex_missing_variable__&variable=__codex_missing_value__" -Token $token
 Assert-Ok -Json $query -Name 'biz process query'

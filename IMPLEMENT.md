@@ -1699,3 +1699,28 @@ Explicit non-goals:
 
 - No product-info add/edit/delete, no relation mark edit, no product-item mark edit, no product-item add/edit/delete, no delivery, no invoice write, no inventory, no finance, no workflow, no sale-project state write, no file cleanup, no provider send, no frontend source edit, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
 
+## 2026-06-15 Workflow Query List Guard
+
+Agent: workflow-agent / merge-agent fallback
+
+Execution summary:
+
+1. Compared ThinkPHP `/biz/process/query/list` with Java `BizBaseProcessQueryParam`, which requires non-empty `processKeyList` and `attribute`.
+2. Updated `ProcessController` to parse JSON request bodies for `query/list`, `variable`, and `fileList`, while retaining form/query fallbacks.
+3. Updated `WorkflowQueryService::queryProcessList()` to reject missing process keys or attributes with controlled `400` responses.
+4. Updated `scripts/workflow-read-http-smoke.ps1` to send JSON bodies via a temporary file, avoiding PowerShell/curl quote loss.
+5. Added smoke coverage for the Java-style filtered query-list success path and the empty-filter guard.
+6. Updated workflow docs, problem log, API gap map, parallel plan, progress dashboard, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\ProcessController.php`: passed.
+- `php -l app\service\workflow\WorkflowQueryService.php`: passed.
+- `.\scripts\workflow-read-http-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No workflow approve/reject/start/cancel, no task SSE stream, no process write, no Java delegate side effect, no finance/inventory side effect, no provider send, no frontend source edit, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
+

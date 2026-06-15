@@ -199,6 +199,18 @@ class WorkflowQueryService
         $processKeys = $this->arrayValue($filters['processKeyList'] ?? $filters['processKeys'] ?? $filters['category'] ?? []);
         $attributes = $filters['attribute'] ?? [];
         $attributes = is_array($attributes) ? $attributes : [];
+        $attributes = array_filter(
+            $attributes,
+            fn (mixed $value, mixed $name): bool => trim((string)$name) !== '' && $value !== null && $value !== '',
+            ARRAY_FILTER_USE_BOTH
+        );
+
+        if ($processKeys === []) {
+            throw new RuntimeException('missing processKeyList', 400);
+        }
+        if ($attributes === []) {
+            throw new RuntimeException('missing attribute', 400);
+        }
 
         $processIds = null;
         foreach ($attributes as $name => $value) {
