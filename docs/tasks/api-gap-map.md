@@ -1,6 +1,6 @@
 # Frontend API Gap Map
 
-Date: 2026-06-09
+Date: 2026-06-15
 
 Agent: frontend-agent / main control agent
 
@@ -19,8 +19,8 @@ The Java source project at `F:\AI\projects\testJava\OA` remains read-only.
 | Frontend API wrapper files | 76 | From `snowy-admin-web/src/api` |
 | Frontend endpoint references | 547 | Raw wrapper calls found by static scan |
 | Unique frontend endpoints | 545 | Normalized path strings |
-| Current ThinkPHP routes | 470 | `php think route:list` concrete route count after public password-recovery captcha, project-rate edit, role grant-save routes, role add/edit/delete, system process-config edit, settlement-account base maintenance, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, sale-project draft save, generator preview, and generator ZIP download |
-| Endpoints already covered by route path | 442 | Includes read adapters, auth/system routes, index schedule/message routes, sys process-config edit, settlement-account add/edit/status, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, sale-project draft save, generator preview and ZIP download, user-center self-service routes, user and role grants, role add/edit/delete, status switches, reset-password/delete compatibility, organization and position write compatibility, system module/menu/button/field write compatibility, mobile module/menu/button write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, team-project base maintenance, and selected low-risk writes |
+| Current ThinkPHP routes | 476 | `php think route:list` concrete route count after public auth phone-code/WebPush deferred stubs, public password-recovery deferred stubs, public password-recovery captcha, project-rate edit, role grant-save routes, role add/edit/delete, system process-config edit, settlement-account base maintenance, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, sale-project draft save, generator preview, and generator ZIP download |
+| Endpoints already covered by route path | 448 | Includes read adapters, auth/system routes, public auth phone-code/WebPush controlled-deferred routes, public password-recovery controlled-deferred routes, index schedule/message routes, sys process-config edit, settlement-account add/edit/status, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, sale-project draft save, generator preview and ZIP download, user-center self-service routes, user and role grants, role add/edit/delete, status switches, reset-password/delete compatibility, organization and position write compatibility, system module/menu/button/field write compatibility, mobile module/menu/button write compatibility, system user import/export download compatibility, LOCAL/dynamic file upload/delete compatibility, dev config `BIZ_DEFINE` maintenance compatibility, dev log category delete compatibility, dev job metadata delete compatibility, gen config edit-batch metadata saves, sale-project invoicing complete, dev email/SMS metadata delete compatibility, business file-relation binding/delete compatibility, cloud upload unsupported stubs, team-project base maintenance, and selected low-risk writes |
 | Missing read/selector/report candidates | 67 | Priority candidates for safe compatibility work |
 | Deferred write/side-effect candidates | 92 | Add/edit/audit/import/export/workflow/finance/stock actions; sys process-config edit, settlement-account add/edit/status, collection-receipt mark-success, debit-note mark-success, payroll edit/batch-edit/delete, payroll import-template download, leave-application edit/delete, sale-project draft save, generator preview and ZIP download, sys role grant saves, sys role add/edit/delete, sys module/menu/button/field write compatibility, mobile module/menu/button write compatibility, dev config `BIZ_DEFINE` add/edit/delete, dev log category delete, dev job metadata delete, gen config editBatch, sale-project invoicing complete, project-rate edit, and team-project base maintenance moved out of deferred scope |
 
@@ -150,6 +150,12 @@ The frontend still references several auth monitoring and third-party routes:
 | `auth/session/c/exit` | Covered as success-compatible C-side no-op until client auth is implemented |
 | `auth/token/b/exit` | Covered by auth-agent token exit compatibility for indexed B-side bearer tokens |
 | `auth/token/c/exit` | Covered as success-compatible C-side no-op until client auth is implemented |
+| `auth/b/getPhoneValidCode` | Covered as a controlled deferred route; SMS sending remains deferred |
+| `auth/b/subscription` | Covered as a controlled deferred route; WebPush subscription persistence remains deferred |
+| `sys/userCenter/findPasswordGetPhoneValidCode` | Covered as a controlled deferred route; SMS sending remains deferred |
+| `sys/userCenter/findPasswordGetEmailValidCode` | Covered as a controlled deferred route; email sending remains deferred |
+| `sys/userCenter/findPasswordByPhone` | Covered as a controlled deferred route; password reset mutation remains deferred |
+| `sys/userCenter/findPasswordByEmail` | Covered as a controlled deferred route; password reset mutation remains deferred |
 | `auth/third/page` | Covered as protected read-only third-party user binding pagination |
 | `auth/third/render`, `auth/third/callback` | Defer third-party login until provider config and security review |
 

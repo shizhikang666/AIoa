@@ -8206,3 +8206,49 @@ Agent: api-agent
 
 - Commit this workflow read-only compatibility and handoff slice after final `git diff --check`.
 - Continue with the next smallest safe slice from the progress dashboard/API gap map, using sub-Agents for scoped reconnaissance and keeping side-effect-heavy workflow writes deferred until a design is approved.
+
+## 2026-06-15 12:00 +08:00 - merge-agent - Public Auth And Password-Recovery Deferred Wrapper Compatibility
+
+### Completed
+
+- Continued in real multi-Agent mode. Explorer Agent Beauvoir was assigned the bounded task of identifying the next safe gap while the main merge/coordinator inspected current wrapper and route coverage.
+- Added controlled-deferred public compatibility routes for copied login/WebPush wrappers:
+  - `GET /auth/b/getPhoneValidCode`
+  - `POST /auth/b/subscription`
+- Added controlled-deferred public compatibility routes for copied password-recovery wrappers:
+  - `GET /sys/userCenter/findPasswordGetPhoneValidCode`
+  - `GET /sys/userCenter/findPasswordGetEmailValidCode`
+  - `POST /sys/userCenter/findPasswordByPhone`
+  - `POST /sys/userCenter/findPasswordByEmail`
+- Kept SMS, email, WebPush persistence, phone-code login, and password reset mutations deferred.
+- Updated auth/user-center API docs, API gap map, progress dashboard, implementation log, plan, and this status log.
+
+### Modified Files
+
+- `app/controller/auth/AuthController.php`
+- `app/controller/sys/UserCenterController.php`
+- `route/app.php`
+- `docs/api/auth-sm2-compatibility.md`
+- `docs/api/user-center-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\auth\AuthController.php`: passed.
+- `php -l app\controller\sys\UserCenterController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists all six new public wrapper routes.
+- Public HTTP smoke against the running local backend without `/api` prefix returned HTTP 200 with `code=400` for all six new routes.
+
+### Current Issues
+
+- Real phone-code login, SMS/email verification, password recovery mutation, and WebPush subscription persistence remain deferred pending security/provider design.
+- Remaining missing copied wrapper paths are still mostly side-effect-heavy workflow, finance, stock, generator execution, tenant mutation, or provider actions.
+
+### Next Plan
+
+- Continue with the next bounded low-risk route only after confirming it is not a provider, workflow transition, finance/stock mutation, generator execution, tenant mutation, or sale-project state write.

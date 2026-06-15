@@ -35,5 +35,18 @@ Do not put this value in tracked docs, `.env.example`, code, logs, or commit mes
 ## Deferred
 
 - Browser login verification with the old Vue frontend against the ThinkPHP backend.
+- Real `/auth/b/getPhoneValidCode` SMS sending and phone-code login.
+- Real `/auth/b/subscription` WebPush subscription persistence.
 - Rotating the legacy Java key pair before production.
 - Deciding whether to keep SM2 transport long-term or replace it with HTTPS-only plaintext submission plus server-side SM3 hashing.
+
+## 2026-06-15 Public Deferred Wrapper Compatibility
+
+The copied Vue login/WebPush wrappers now reach explicit ThinkPHP routes instead of falling through to 404:
+
+| Method | Path | Current Behavior |
+| --- | --- | --- |
+| GET | `/auth/b/getPhoneValidCode` | Returns `code = 400` with a deferred phone verification message |
+| POST | `/auth/b/subscription` | Returns `code = 400` with a deferred WebPush subscription message |
+
+These endpoints intentionally do not send SMS, write WebPush subscription rows, create tokens, or mutate user data. They are compatibility stubs until provider configuration and phone-code auth are designed.

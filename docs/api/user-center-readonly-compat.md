@@ -107,3 +107,18 @@ Compatibility notes:
 - The route is intentionally registered outside `AuthMiddleware`, matching Java's anonymous access list.
 - The response shape reuses the existing auth captcha payload: `validCodeBase64` and `validCodeReqNo`.
 - Verification-code sending and password reset remain deferred because they involve SMS/email provider side effects and password writes.
+
+## 2026-06-15 Public Password-Recovery Deferred Wrapper Compatibility
+
+Agent: merge-agent / user-agent
+
+The remaining copied password-recovery wrapper paths now return controlled deferred API responses instead of 404:
+
+| Method | Path | Current Behavior |
+| --- | --- | --- |
+| GET | `/sys/userCenter/findPasswordGetPhoneValidCode` | Returns `code = 400`; no SMS is sent |
+| GET | `/sys/userCenter/findPasswordGetEmailValidCode` | Returns `code = 400`; no email is sent |
+| POST | `/sys/userCenter/findPasswordByPhone` | Returns `code = 400`; no password is changed |
+| POST | `/sys/userCenter/findPasswordByEmail` | Returns `code = 400`; no password is changed |
+
+These routes remain public like Java's anonymous password-recovery endpoints, but all provider sends and password reset mutations are still deferred until a dedicated security and provider plan exists.

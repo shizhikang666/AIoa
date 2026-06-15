@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\controller\sys;
 
+use app\support\ApiResponse;
 use app\service\auth\AuthService;
 use app\service\user\UserDirectoryService;
 use app\service\user\UserCenterWriteService;
@@ -22,6 +23,26 @@ class UserCenterController extends BaseSysController
     public function getPicCaptcha(): Response
     {
         return $this->guard(fn () => $this->authService->getPicCaptcha());
+    }
+
+    public function findPasswordGetPhoneValidCode(): Response
+    {
+        return ApiResponse::fail('password recovery phone verification is deferred', 400);
+    }
+
+    public function findPasswordGetEmailValidCode(): Response
+    {
+        return ApiResponse::fail('password recovery email verification is deferred', 400);
+    }
+
+    public function findPasswordByPhone(): Response
+    {
+        return ApiResponse::fail('password recovery by phone is deferred', 400);
+    }
+
+    public function findPasswordByEmail(): Response
+    {
+        return ApiResponse::fail('password recovery by email is deferred', 400);
     }
 
     public function loginOrgTree(Request $request): Response

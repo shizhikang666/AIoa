@@ -22,6 +22,11 @@ class AuthController extends BaseController
         return ApiResponse::ok($this->authService->getPicCaptcha());
     }
 
+    public function getPhoneValidCode(): Response
+    {
+        return ApiResponse::fail('phone verification code sending is deferred', 400);
+    }
+
     public function doLogin(Request $request): Response
     {
         return $this->guard(fn () => ApiResponse::ok($this->authService->login($request->post())));
@@ -30,6 +35,11 @@ class AuthController extends BaseController
     public function doLoginByPhone(): Response
     {
         return ApiResponse::fail('phone-code login is deferred in auth-agent phase 2', 400);
+    }
+
+    public function subscription(): Response
+    {
+        return ApiResponse::fail('web push subscription is deferred', 400);
     }
 
     public function doLogout(Request $request): Response

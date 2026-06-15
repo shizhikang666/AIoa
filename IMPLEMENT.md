@@ -1041,3 +1041,38 @@ Explicit non-goals:
 - No vacation deduction or workflow business side effects.
 - No Java source, database schema, Composer, `.env`, or unrelated frontend changes.
 
+## 2026-06-15 Public Auth And Password-Recovery Deferred Wrapper Compatibility
+
+Agent: merge-agent / auth-agent and user-agent fallback
+
+Execution summary:
+
+1. Used real multi-Agent mode for slice selection: explorer Agent Beauvoir reviewed remaining gap-map candidates while the main merge/coordinator inspected the current wrapper/route delta.
+2. Confirmed the remaining copied wrapper gaps are mostly side-effect-heavy workflow, finance, inventory, provider, generator, and tenant actions.
+3. Selected the smallest public frontend-visible compatibility slice: route existing login and password-recovery wrappers to controlled deferred responses instead of 404.
+4. Added public routes and controller methods for:
+   - `GET /auth/b/getPhoneValidCode`
+   - `POST /auth/b/subscription`
+   - `GET /sys/userCenter/findPasswordGetPhoneValidCode`
+   - `GET /sys/userCenter/findPasswordGetEmailValidCode`
+   - `POST /sys/userCenter/findPasswordByPhone`
+   - `POST /sys/userCenter/findPasswordByEmail`
+5. Kept all provider sends and password mutations deferred by returning standard `code = 400` API envelopes.
+6. Updated API notes, gap map, progress dashboard, plan, implementation, and status logs.
+
+Verification summary:
+
+- `php -l app\controller\auth\AuthController.php`: passed.
+- `php -l app\controller\sys\UserCenterController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list`: passed and lists all six new public wrapper routes.
+- Public HTTP smoke against `http://127.0.0.1:82` without `/api` prefix returned HTTP 200 with `code = 400` for all six new routes.
+
+Explicit non-goals:
+
+- No SMS or email provider calls.
+- No WebPush subscription persistence.
+- No phone-code login.
+- No password reset mutation.
+- No Java source, frontend source, database schema, Composer, `.env`, workflow, finance, stock, or generator changes.
+

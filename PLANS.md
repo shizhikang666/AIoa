@@ -8966,3 +8966,35 @@ Make the copied workflow read-only pages load through the Vue frontend without c
 ### 4. Forbidden Scope
 
 - Do not implement workflow approve/reject/start/cancel/edit, task SSE, vacation deductions, business side effects, Java source changes, database schema changes, Composer changes, `.env` changes, or unrelated frontend changes in this slice.
+
+## Completed Plan: merge-agent - Public Auth And Password-Recovery Deferred Wrapper Compatibility
+
+Status: completed on 2026-06-15 after Java/frontend route review, PHP lint, route-list verification, and public HTTP smoke.
+
+### 1. Current Goal
+
+Replace copied frontend 404s for public auth verification, WebPush subscription, and password-recovery wrappers with explicit controlled-deferred API responses.
+
+### 2. Involved Files
+
+- `app/controller/auth/AuthController.php`
+- `app/controller/sys/UserCenterController.php`
+- `route/app.php`
+- `docs/api/auth-sm2-compatibility.md`
+- `docs/api/user-center-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `/auth/b/getPhoneValidCode` and `/auth/b/subscription` are routed.
+- `/sys/userCenter/findPasswordGetPhoneValidCode`, `/findPasswordGetEmailValidCode`, `/findPasswordByPhone`, and `/findPasswordByEmail` are routed.
+- Each new route returns the standard API envelope with `code = 400` and a clear deferred message.
+- No SMS, email, WebPush subscription, token, password, user, database schema, Java source, frontend source, Composer, or `.env` changes are made.
+
+### 4. Forbidden Scope
+
+- Do not implement phone-code login, provider sends, password recovery mutations, WebPush persistence, third-party OAuth, C-side auth, or unrelated route cleanup in this slice.

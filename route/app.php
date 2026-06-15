@@ -19,7 +19,9 @@ Route::get('hello/:name', 'index/hello');
 
 Route::group('auth/b', function () {
     Route::get('getPicCaptcha', 'auth.AuthController/getPicCaptcha');
+    Route::get('getPhoneValidCode', 'auth.AuthController/getPhoneValidCode');
     Route::post('doLogin', 'auth.AuthController/doLogin');
+    Route::post('subscription', 'auth.AuthController/subscription');
     Route::post('doLoginByPhone', 'auth.AuthController/doLoginByPhone');
     Route::get('doLogout', 'auth.AuthController/doLogout');
     Route::get('getLoginUser', 'auth.AuthController/getLoginUser');
@@ -46,6 +48,10 @@ Route::group('auth/third', function () {
 Route::get('dev/config/sysBaseList', 'dev.ConfigController/sysBaseList');
 
 Route::get('sys/userCenter/getPicCaptcha', 'sys.UserCenterController/getPicCaptcha');
+Route::get('sys/userCenter/findPasswordGetPhoneValidCode', 'sys.UserCenterController/findPasswordGetPhoneValidCode');
+Route::get('sys/userCenter/findPasswordGetEmailValidCode', 'sys.UserCenterController/findPasswordGetEmailValidCode');
+Route::post('sys/userCenter/findPasswordByPhone', 'sys.UserCenterController/findPasswordByPhone');
+Route::post('sys/userCenter/findPasswordByEmail', 'sys.UserCenterController/findPasswordByEmail');
 
 Route::group('sys/userCenter', function () {
     Route::get('loginMenu', 'auth.UserCenterAuthController/loginMenu');
