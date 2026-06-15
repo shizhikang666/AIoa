@@ -18,6 +18,7 @@ param(
     [switch]$SkipResourceRead,
     [switch]$SkipDevRead,
     [switch]$SkipGenRead,
+    [switch]$SkipAuthIndexRead,
     [switch]$SkipDirectoryAlias,
     [switch]$SkipTenantRead,
     [switch]$SkipMessageSse,
@@ -157,6 +158,12 @@ if (-not $SkipDevRead) {
 if (-not $SkipGenRead) {
     Invoke-Step 'Gen Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'gen-read-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipAuthIndexRead) {
+    Invoke-Step 'Auth/Index Read HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'auth-index-read-http-smoke.ps1')
     }
 }
 

@@ -47,3 +47,7 @@ Frontend reference:
 
 - `/auth/third/render` and `/auth/third/callback` are routed but intentionally return `code = 400` deferred responses.
 - OAuth provider configuration, third-party login, user binding writes, user creation, token issuance, Java source changes, database schema changes, Composer files, `.env`, and frontend source are unchanged.
+
+## 2026-06-15 Authenticated Read Smoke
+
+`scripts/auth-index-read-http-smoke.ps1` verifies protected `/auth/third/page` pagination and deliberately skips OAuth render/callback behavior.

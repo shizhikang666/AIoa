@@ -82,3 +82,9 @@ Compatibility notes:
 - full realtime/WebPush implementation
 
 These deferred areas require separate validation, audit, and realtime behavior before implementation.
+
+## 2026-06-15 Authenticated Read Smoke
+
+`scripts/auth-index-read-http-smoke.ps1` verifies homepage schedule list, message list/page, visit-log list, and operation-log list.
+
+The smoke deliberately skips schedule add/delete, message detail mark-read, and all-message mark-read.

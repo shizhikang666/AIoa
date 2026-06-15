@@ -97,6 +97,12 @@ Token exit accepts Java-style arrays:
 - No route permission middleware or UI-side permission filtering is added in this slice.
 - No Java source files, database schema, `.env`, Composer files, frontend source, or public config files are changed.
 
+## 2026-06-15 Authenticated Read Smoke
+
+`scripts/auth-index-read-http-smoke.ps1` verifies `/auth/b/getLoginUser`, `/auth/session/analysis`, `/auth/session/b/page`, and `/auth/session/c/page`.
+
+The smoke deliberately skips `/auth/session/*/exit` and `/auth/token/*/exit` so it does not revoke sessions or tokens.
+
 ## Later Work
 
 Full online-session hardening still needs Redis deployment validation, expired-index cleanup under production cache settings, and a later permission-middleware pass for fine-grained auth monitor access.

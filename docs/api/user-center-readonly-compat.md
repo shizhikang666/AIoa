@@ -122,3 +122,9 @@ The remaining copied password-recovery wrapper paths now return controlled defer
 | POST | `/sys/userCenter/findPasswordByEmail` | Returns `code = 400`; no password is changed |
 
 These routes remain public like Java's anonymous password-recovery endpoints, but all provider sends and password reset mutations are still deferred until a dedicated security and provider plan exists.
+
+## 2026-06-15 Authenticated Read Smoke
+
+`scripts/auth-index-read-http-smoke.ps1` verifies login menu, login org tree, login position info, login workbench, process config read, unread-message page, user-list-by-id, and avatar-by-id endpoints.
+
+The smoke deliberately skips password recovery provider sends, password reset, current-user profile writes, process-config edit, and message detail because message detail marks the current receiver relation as read.
