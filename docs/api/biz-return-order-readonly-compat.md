@@ -76,3 +76,13 @@ The Java service filters by login-user data scope when available and falls back 
 - workflow/process mutation
 - Java source changes
 - database schema or field changes
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/business-read-http-smoke.ps1` now verifies authenticated return-order reads against the local backend:
+
+- `GET /biz/returnorder/page` returns Java-style paging keys and frontend-visible row fields when a visible row exists.
+- `GET /biz/returnorder/query?projectId=...` returns an array and preserves `productList` on visible rows.
+- `GET /biz/returnorder/detail?id=...` is checked only with an id returned by the authenticated page result, so the sample follows the same data-scope visibility as the token.
+
+The smoke does not call add, edit, delete, inventory, finance, workflow, delivery, refund, provider, or file-cleanup behavior.

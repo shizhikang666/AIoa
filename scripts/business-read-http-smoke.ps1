@@ -347,6 +347,32 @@ function Assert-ReissueOrderRow {
     )
 }
 
+function Assert-ReturnOrderRow {
+    param(
+        [Parameter(Mandatory = $true)][string]$Json,
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    Assert-Paths -Json $Json -Name $Name -Paths @(
+        "$Prefix.id",
+        "$Prefix.projectId",
+        "$Prefix.projectName",
+        "$Prefix.amount",
+        "$Prefix.state",
+        "$Prefix.processId",
+        "$Prefix.remark",
+        "$Prefix.warehousesId",
+        "$Prefix.warehouseName",
+        "$Prefix.logisticsCategory",
+        "$Prefix.logisticsId",
+        "$Prefix.user",
+        "$Prefix.headName",
+        "$Prefix.org",
+        "$Prefix.orgName"
+    )
+}
+
 function Assert-SaleProjectProductInfoRow {
     param(
         [Parameter(Mandatory = $true)][string]$Json,
@@ -472,6 +498,13 @@ if (!`$saleProjectId) { throw new RuntimeException('sample sale project not foun
     ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
     ->field('o.ID AS ID, o.PROJECT_ID AS PROJECT_ID')
     ->find();
+`$returnOrder = think\facade\Db::name('return_order')
+    ->alias('r')
+    ->join('biz_sale_project p', 'p.ID = r.PROJECT_ID', 'INNER')
+    ->where(function (`$query) { `$query->whereNull('r.DELETE_FLAG')->whereOr('r.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->where(function (`$query) { `$query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', 'NOT_DELETE'); })
+    ->field('r.ID AS ID, r.PROJECT_ID AS PROJECT_ID')
+    ->find();
 `$productInfo = think\facade\Db::name('biz_sale_project_product_info')
     ->where(function (`$query) { `$query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', 'NOT_DELETE'); })
     ->field('ID, PRODUCT_ID, TARGET_ID')
@@ -501,6 +534,8 @@ echo json_encode([
     'saleProjectInvoiceItemInvoiceId' => `$invoiceItem ? (string)`$invoiceItem['INVOICE_ID'] : '',
     'saleProjectReissueOrderId' => `$reissueOrder ? (string)`$reissueOrder['ID'] : '',
     'saleProjectReissueOrderProjectId' => `$reissueOrder ? (string)`$reissueOrder['PROJECT_ID'] : '',
+    'returnOrderId' => `$returnOrder ? (string)`$returnOrder['ID'] : '',
+    'returnOrderProjectId' => `$returnOrder ? (string)`$returnOrder['PROJECT_ID'] : '',
     'saleProjectProductInfoId' => `$productInfo ? (string)`$productInfo['ID'] : '',
     'saleProjectProductInfoTargetId' => `$productInfo ? (string)`$productInfo['TARGET_ID'] : '',
     'saleProjectProductItemRelationId' => `$productItemRelation ? (string)`$productItemRelation['ID'] : '',
@@ -529,6 +564,8 @@ $saleProjectInvoiceItemId = [string](Read-JsonPath -Json $sampleJson -Path 'sale
 $saleProjectInvoiceItemInvoiceId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectInvoiceItemInvoiceId')
 $saleProjectReissueOrderId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectReissueOrderId')
 $saleProjectReissueOrderProjectId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectReissueOrderProjectId')
+$returnOrderId = [string](Read-JsonPath -Json $sampleJson -Path 'returnOrderId')
+$returnOrderProjectId = [string](Read-JsonPath -Json $sampleJson -Path 'returnOrderProjectId')
 $saleProjectProductInfoId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectProductInfoId')
 $saleProjectProductInfoTargetId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectProductInfoTargetId')
 $saleProjectProductItemRelationId = [string](Read-JsonPath -Json $sampleJson -Path 'saleProjectProductItemRelationId')
@@ -729,6 +766,51 @@ Assert-Paths -Json $saleProjectReissueList -Name 'biz saleprojectreissueorder li
 if (Has-Path -Json $saleProjectReissueList -Path 'data.0') {
     Assert-ReissueOrderRow -Json $saleProjectReissueList -Prefix 'data.0.order' -Name 'biz saleprojectreissueorder list/query order'
     Assert-Paths -Json $saleProjectReissueList -Name 'biz saleprojectreissueorder list/query nested items' -Paths @('data.0.productItemList')
+}
+
+$returnOrderPage = Invoke-RawGet -Url "$baseUrl/biz/returnorder/page?current=1&size=1" -Token $token
+Assert-PagedShape -Json $returnOrderPage -Name 'biz returnorder page'
+Assert-FirstRecordIfPresent -Json $returnOrderPage -Name 'biz returnorder page' -Keys @(
+    'id',
+    'projectId',
+    'projectName',
+    'amount',
+    'state',
+    'processId',
+    'remark',
+    'warehousesId',
+    'warehouseName',
+    'logisticsCategory',
+    'logisticsId',
+    'user',
+    'headName',
+    'org',
+    'orgName'
+)
+$returnOrderPageFirstId = [string](Read-JsonPath -Json $returnOrderPage -Path 'data.records.0.id' -Optional)
+$returnOrderPageFirstProjectId = [string](Read-JsonPath -Json $returnOrderPage -Path 'data.records.0.projectId' -Optional)
+
+$returnOrderQueryProjectId = if ($returnOrderPageFirstProjectId.Trim() -ne '') {
+    $returnOrderPageFirstProjectId
+} elseif ($returnOrderProjectId.Trim() -ne '') {
+    $returnOrderProjectId
+} else {
+    $saleProjectId
+}
+$encodedReturnOrderQueryProjectId = [System.Uri]::EscapeDataString($returnOrderQueryProjectId.Trim())
+$returnOrderQuery = Invoke-RawGet -Url "$baseUrl/biz/returnorder/query?projectId=$encodedReturnOrderQueryProjectId" -Token $token
+Assert-Ok -Json $returnOrderQuery -Name 'biz returnorder query'
+Assert-Paths -Json $returnOrderQuery -Name 'biz returnorder query' -Paths @('data')
+if (Has-Path -Json $returnOrderQuery -Path 'data.0') {
+    Assert-ReturnOrderRow -Json $returnOrderQuery -Prefix 'data.0' -Name 'biz returnorder query first row'
+    Assert-Paths -Json $returnOrderQuery -Name 'biz returnorder query product list' -Paths @('data.0.productList')
+}
+if ($returnOrderPageFirstId.Trim() -ne '') {
+    $encodedReturnOrderId = [System.Uri]::EscapeDataString($returnOrderPageFirstId.Trim())
+    $returnOrderDetail = Invoke-RawGet -Url "$baseUrl/biz/returnorder/detail?id=$encodedReturnOrderId" -Token $token
+    Assert-Ok -Json $returnOrderDetail -Name 'biz returnorder detail'
+    Assert-ReturnOrderRow -Json $returnOrderDetail -Prefix 'data' -Name 'biz returnorder detail'
+    Assert-Paths -Json $returnOrderDetail -Name 'biz returnorder detail product list' -Paths @('data.productList')
 }
 
 $saleProjectProductInfoPage = Invoke-RawGet -Url "$baseUrl/biz/saleprojectproductinfo/page?current=1&size=1" -Token $token

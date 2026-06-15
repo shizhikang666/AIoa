@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-15 16:06 +08:00
+Last updated: 2026-06-15 16:10 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -45,7 +45,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 - 2026-06-15 third-party auth wrapper compatibility: `/auth/third/render` and `/auth/third/callback` are routed and return controlled `code=400` deferred responses without OAuth redirects, callback token issuance, user binding writes, provider config reads, or database changes.
 - 2026-06-15 SMS provider wrapper compatibility: `/dev/sms/sendAliyun`, `/dev/sms/sendTencent`, and `/dev/sms/sendXiaonuo` are routed behind auth and return controlled `code=400` deferred responses without provider credential reads, SDK calls, external sends, send-record inserts, or database changes.
 - 2026-06-15 user display HTTP smoke: `scripts/user-display-http-smoke.ps1` verified `/sys/user/page`, `/biz/user/page`, `/sys/user/detail`, `/sys/user/list/detail`, `/sys/user/userSelector`, and `/biz/user/userSelector` expose frontend-visible `orgName`, `positionName`, `genderName`, selector aliases, Java-style paging keys, and no `PASSWORD`.
-- 2026-06-15 business read HTTP smoke: `scripts/business-read-http-smoke.ps1` verified authenticated customer page/detail/detail-list reads and sale-project page/case/operation/public/detail/list-detail/product/cost/cost-details reads without calling customer writes, sale-project state writes, workflow, finance, stock, or provider actions.
+- 2026-06-15 business read HTTP smoke: `scripts/business-read-http-smoke.ps1` verified authenticated customer page/detail/detail-list reads, sale-project page/case/operation/public/detail/list-detail/product/cost/cost-details reads, and return-order page/query/detail reads without calling customer writes, return-order writes, sale-project state writes, workflow, finance, stock, or provider actions.
 - 2026-06-15 follow-up read smoke extension: `scripts/business-read-http-smoke.ps1` now also verifies customer follow-up and sale-project follow-up page/detail read payloads when local sample data exists, without calling follow-up writes, attachment cleanup, notifications, workflow, finance, or inventory.
 - 2026-06-15 sale-project billing nested read smoke extension: `scripts/business-read-http-smoke.ps1` now verifies invoicing page/detail/customer reads, invoice page/list nested `invoiceItems`, invoice-item page filtering, and reissue-order nested `productItemList`, without calling invoicing complete, stock, settlement, finance, workflow, or file cleanup.
 - 2026-06-15 sale-project product/package relation read smoke extension: `scripts/business-read-http-smoke.ps1` now verifies product-info page/list/detail and product-item relation list payloads, without calling product-info writes, relation mark edits, product-item mark edits, inventory, delivery, finance, workflow, or file cleanup.
