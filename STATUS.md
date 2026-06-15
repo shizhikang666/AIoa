@@ -8970,3 +8970,41 @@ Agent: api-agent
 
 - Continue another controlled-deferred provider action or isolated read compatibility slice.
 - Keep email provider sends, job scheduler execution, finance, inventory, workflow, sale-project state transitions, and final online data sync deferred until dedicated plans are approved.
+
+## 2026-06-15 17:35 +08:00 - merge-agent - User Display Smoke Coverage
+
+### Completed
+
+- Reviewed existing sys/biz user display alias behavior for copied frontend user pages.
+- Added `scripts/user-display-http-smoke.ps1` for authenticated read-only checks of user page/detail/list/detail/userSelector payloads.
+- Added the user-display smoke to `scripts/project-preflight.ps1` with `-SkipUserDisplay`.
+- Updated display/selector docs, API gap map next order, progress dashboard, plan log, and implementation log.
+
+### Modified Files
+
+- `scripts/user-display-http-smoke.ps1`
+- `scripts/project-preflight.ps1`
+- `docs/api/sys-user-org-display-compat.md`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\user-display-http-smoke.ps1`: passed.
+- Verified `/sys/user/page`, `/biz/user/page`, `/sys/user/detail`, `/sys/user/list/detail`, `/sys/user/userSelector`, and `/biz/user/userSelector`.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- This is verification coverage only; no frontend browser click-through was added in this slice.
+- Real email and SMS sending remain deferred to the final provider phase, with Email before SMS.
+
+### Next Plan
+
+- Continue with safe read-only `biz/saleproject` and `biz/customer` compatibility checks in small slices.
+- Keep workflow writes, finance/inventory side effects, job scheduler execution, real provider sends, and final online data sync deferred.

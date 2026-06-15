@@ -2,6 +2,7 @@ param(
     [switch]$SkipRuntime,
     [switch]$SkipWeb,
     [switch]$SkipRoleSelector,
+    [switch]$SkipUserDisplay,
     [switch]$SkipDiffCheck
 )
 
@@ -41,6 +42,12 @@ if (-not $SkipWeb) {
 if (-not $SkipRoleSelector) {
     Invoke-Step 'Role Selector HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'role-selector-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipUserDisplay) {
+    Invoke-Step 'User Display HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'user-display-http-smoke.ps1')
     }
 }
 

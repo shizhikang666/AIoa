@@ -132,3 +132,18 @@ Covered read-only checks:
 - required role record aliases: `id`, `value`, `label`, `title`, `name`, `code`, `category`.
 
 This is not a replacement for a true browser click-through smoke of the `/sys/user` and `/biz/user` grant-role dialogs. It is the project-local fallback while no Playwright/Puppeteer dependency is available.
+
+## 2026-06-15 User Display HTTP Smoke
+
+`scripts/user-display-http-smoke.ps1` verifies the authenticated read-only payloads used by copied system and business user pages.
+
+Covered checks:
+
+- `GET /sys/user/page`
+- `GET /biz/user/page`
+- `GET /sys/user/detail`
+- `GET /sys/user/list/detail`
+- `GET /sys/user/userSelector`
+- `GET /biz/user/userSelector`
+
+The script verifies Java-style paging keys, selector aliases, no `PASSWORD` leakage, and frontend-visible `orgName`, `positionName`, and `genderName` fields. `scripts/project-preflight.ps1` now runs this smoke by default unless `-SkipUserDisplay` is passed.

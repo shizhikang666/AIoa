@@ -9606,3 +9606,36 @@ Replace frontend-visible 404s for copied SMS provider-send calls with explicit d
 - Do not implement real SMS sending.
 - Do not read or store provider credentials.
 - Do not call external provider services.
+
+## Completed Plan: merge-agent - User Display Smoke Coverage
+
+Status: completed on 2026-06-15 after adding authenticated HTTP smoke coverage for copied sys/biz user display payloads.
+
+### 1. Current Goal
+
+Verify the previously added user/org/position display aliases used by copied user pages and keep them under local preflight coverage.
+
+### 2. Involved Files
+
+- `scripts/user-display-http-smoke.ps1`
+- `scripts/project-preflight.ps1`
+- `docs/api/sys-user-org-display-compat.md`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Authenticated HTTP smoke verifies `/sys/user/page`, `/biz/user/page`, `/sys/user/detail`, `/sys/user/list/detail`, `/sys/user/userSelector`, and `/biz/user/userSelector`.
+- The smoke checks Java-style paging keys, visible `orgName`, `positionName`, and `genderName`, selector aliases, and no `PASSWORD` leakage.
+- `scripts/project-preflight.ps1` runs the user-display smoke by default and supports `-SkipUserDisplay`.
+- No application route, service behavior, frontend source, Java source, schema, `.env`, production data, or provider/send functionality is changed.
+
+### 4. Forbidden Scope
+
+- Do not change user write behavior.
+- Do not edit the copied frontend for this verification-only slice.
+- Do not implement real email/SMS/provider behavior.

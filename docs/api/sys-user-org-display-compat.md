@@ -75,3 +75,20 @@ User read rows now include:
 - Uppercase SQL fields remain in the payload for existing backend consumers.
 - User and organization writes remain deferred.
 - Dictionary loading is still handled by the copied frontend login flow through `/dev/dict/tree`.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/user-display-http-smoke.ps1` verifies the frontend-visible user display aliases against the local authenticated backend without requiring browser automation.
+
+Covered read-only checks:
+
+- `GET /sys/user/page`
+- `GET /biz/user/page`
+- `GET /sys/user/detail`
+- `GET /sys/user/list/detail`
+- `GET /sys/user/userSelector`
+- `GET /biz/user/userSelector`
+
+The smoke checks that paged responses keep Java-style `records`, `total`, `current`, `size`, and `pages`, user rows do not expose `PASSWORD`, and visible frontend fields include `id`, `account`, `name`, `avatar`, `gender`, `genderName`, `phone`, `orgId`, `orgName`, `positionId`, `positionName`, `userStatus`, and `sortCode`.
+
+Because these responses intentionally preserve both uppercase SQL keys and camelCase aliases, the smoke reads values through `scripts/json-read.js` instead of Windows PowerShell `ConvertFrom-Json`, which cannot handle case-only duplicate keys such as `ID` and `id`.

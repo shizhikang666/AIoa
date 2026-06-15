@@ -1515,3 +1515,26 @@ Explicit non-goals:
 
 - No real SMS sending, provider credential read, SMS SDK integration, external provider call, send-record write, database schema change, Java source change, frontend source edit, Composer change, `.env` edit, production data operation, or Git commit command.
 
+## 2026-06-15 User Display Smoke Coverage
+
+Agent: merge-agent / frontend-agent fallback
+
+Execution summary:
+
+1. Reviewed the existing sys/biz user display alias implementation and compatibility docs.
+2. Added `scripts/user-display-http-smoke.ps1` to verify authenticated user page, detail, list-detail, and selector payloads used by copied frontend pages.
+3. Used `scripts/json-read.js` for JSON path checks because Windows PowerShell 5.1 cannot parse payloads that intentionally include case-only duplicate keys such as `ID` and `id`.
+4. Added the user-display smoke to `scripts/project-preflight.ps1` with a `-SkipUserDisplay` switch.
+5. Updated selector/display docs, API gap map next order, progress dashboard, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `.\scripts\user-display-http-smoke.ps1`: passed.
+- The smoke verified `/sys/user/page`, `/biz/user/page`, `/sys/user/detail`, `/sys/user/list/detail`, `/sys/user/userSelector`, and `/biz/user/userSelector`.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No application route change, service behavior change, frontend source edit, Java source edit, schema change, `.env` edit, production data operation, real email/SMS/provider behavior, or Git push.
+
