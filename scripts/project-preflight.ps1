@@ -12,6 +12,7 @@ param(
     [switch]$SkipSettlementAccountRead,
     [switch]$SkipSupplierWarehouseRead,
     [switch]$SkipProductRead,
+    [switch]$SkipHrRead,
     [switch]$SkipDirectoryAlias,
     [switch]$SkipTenantRead,
     [switch]$SkipMessageSse,
@@ -115,6 +116,12 @@ if (-not $SkipSupplierWarehouseRead) {
 if (-not $SkipProductRead) {
     Invoke-Step 'Product Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'product-read-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipHrRead) {
+    Invoke-Step 'HR Read HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'hr-read-http-smoke.ps1')
     }
 }
 

@@ -128,3 +128,13 @@ Focused template download smoke on 2026-06-12 verified:
 - service returns filename `工资条导入模板.xlsx`, xlsx content type, 13427 bytes, SHA256 `4A98E66E74E8D310D6226A5F6DD60602652FC25FD6D0FB272281BBF19CD861B8`, and `PK` file header.
 - authenticated HTTP GET returns `200`, xlsx content type, `.xlsx` content disposition, 13427 bytes, matching SHA256, and `PK` file header.
 - `biz_payroll` row count remains unchanged by template download.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/hr-read-http-smoke.ps1` now covers authenticated payroll reads for:
+
+- `GET /biz/bizpayroll/page`
+- `GET /biz/bizpayroll/mypage`
+- `GET /biz/bizpayroll/detail` when the visible page has a sample row
+
+The smoke asserts Java-style paging keys and frontend-visible identity/display/salary fields. It intentionally does not call payroll edit, batch edit, delete, import, export, generate, add, or template download routes.

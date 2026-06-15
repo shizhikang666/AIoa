@@ -107,3 +107,13 @@ Focused DB smoke on 2026-06-12 inserted temporary leave rows and verified:
 - logical delete set `DELETE_FLAG = DELETED` and hid the row from `detail`.
 - payroll and vacation table counts stayed unchanged.
 - temporary smoke rows were physically cleaned up.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/hr-read-http-smoke.ps1` now covers authenticated leave-application reads for:
+
+- `GET /biz/bizleaveapplication/page`
+- `GET /biz/bizleaveapplication/my/page`
+- `GET /biz/bizleaveapplication/detail` when the visible page has a sample row
+
+The smoke asserts Java-style paging keys and frontend-visible applicant, organization, process, category, amount, time, object, and tenant fields. It intentionally does not call edit, delete, workflow, annual-leave, payroll recalculation, notification, or data-change behavior.

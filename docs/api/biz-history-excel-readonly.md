@@ -71,3 +71,12 @@ Expected:
 - `biz/bizhistoryexcel/delete`
 
 Requests without a bearer token should return `code = 401`.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/hr-read-http-smoke.ps1` now covers authenticated history-Excel reads for:
+
+- `GET /biz/bizhistoryexcel/page`
+- `GET /biz/bizhistoryexcel/detail` when the visible page has a sample row
+
+The smoke asserts Java-style paging keys and both uppercase database keys plus camelCase aliases used by frontend consumers. It intentionally does not call add, edit, delete, import/export parsing, spreadsheet storage, or `biz_history_excel_row` writes.

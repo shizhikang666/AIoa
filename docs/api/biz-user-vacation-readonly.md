@@ -42,3 +42,12 @@ The following remain intentionally deferred:
 - workflow write side effects
 - Java source changes
 - database schema changes
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/hr-read-http-smoke.ps1` now covers authenticated vacation-balance reads for:
+
+- `GET /biz/bizuservacation/page`
+- `GET /biz/bizuservacation/detail`
+
+The smoke asserts Java-style paging keys for page reads and verifies that detail returns the current user's annual-leave object or the compatible zero-balance fallback. It intentionally does not call vacation generation, reduction, add, edit, delete, leave approval deduction, workflow, or payroll side effects.
