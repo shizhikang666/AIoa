@@ -104,3 +104,13 @@ Rows return frontend-friendly camelCase fields:
 - The Java controller comments out add, edit, delete, and detail mappings. The old frontend still has a `detail` wrapper, so ThinkPHP exposes only a protected read-only detail endpoint.
 - Java's batch-expenditure flow creates expenditure data and account-side settlement records. It still requires a later transaction design before implementation.
 - This slice does not modify Java source, database schema, Composer files, `.env`, or any account/statement/expenditure side-effect endpoint.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/finance-read-http-smoke.ps1` now verifies authenticated collection-receipt read payloads against the local backend:
+
+- `GET /biz/bizcollectionreceipt/page`
+- `GET /biz/bizcollectionreceipt/list`
+- `GET /biz/bizcollectionreceipt/detail` when a visible page row exists
+
+The smoke checks Java-style paging keys and stable frontend-visible fields such as `paymentRecordId`, `playStatus`, `amount`, `settlementAmount`, `version`, `accountName`, `accountNumber`, `settlementCategory`, and `orgName`. It does not call mark-success, batch-expenditure, add, edit, delete, settlement-account, statement, payment, expenditure, workflow, provider, or finance mutation behavior.

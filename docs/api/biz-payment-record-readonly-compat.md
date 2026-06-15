@@ -66,3 +66,14 @@ This slice adds protected read-only ThinkPHP routes compatible with the Java pay
 - `php think route:list`
 - PHP syntax lint
 - Token smoke tests for page, listdetails, list, detail, and no-token 401.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/finance-read-http-smoke.ps1` now verifies authenticated payment-record read payloads against the local backend:
+
+- `GET /biz/bizpaymentrecord/page`
+- `GET /biz/bizpaymentrecord/listdetails`
+- `GET /biz/bizpaymentrecord/list`
+- `GET /biz/bizpaymentrecord/detail` when a visible page row exists
+
+The smoke checks Java-style paging keys and stable frontend-visible finance fields such as `objectId`, `targetId`, `accountName`, `accountNumber`, `serialId`, `processId`, `settlementCategory`, `payerTime`, `amount`, and `orgName`. It does not call payment edit/account routes, settlement-account transfers, statements, provider actions, workflow, or any finance mutation.

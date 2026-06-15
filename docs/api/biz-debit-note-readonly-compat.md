@@ -111,3 +111,13 @@ Rows return frontend-friendly camelCase fields:
 - Java page/list conditionally joins expenditure records for account/category filters. This ThinkPHP read query always uses left joins for display enrichment.
 - Java history-add and batch-repayment flows can change payment records, settlement-account data, and debit-note settlement amounts. They still need a later transactional write design before implementation.
 - This slice does not modify Java source, database schema, Composer files, `.env`, or any account/statement/payment side-effect endpoint.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/finance-read-http-smoke.ps1` now verifies authenticated debit-note read payloads against the local backend:
+
+- `GET /biz/bizdebitnote/page`
+- `GET /biz/bizdebitnote/list`
+- `GET /biz/bizdebitnote/detail` when a visible page row exists
+
+The smoke checks Java-style paging keys and stable frontend-visible fields such as `expenditureRecordId`, `playStatus`, `amount`, `settlementAmount`, `historyAmount`, `version`, `accountName`, `accountNumber`, `settlementCategory`, `category`, and `orgName`. It does not call mark-success, history-add, batch-repayment, add, edit, delete, settlement-account, statement, payment, expenditure, workflow, provider, or finance mutation behavior.

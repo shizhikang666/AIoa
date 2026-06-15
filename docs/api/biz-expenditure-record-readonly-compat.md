@@ -72,3 +72,14 @@ This slice adds protected read-only ThinkPHP routes compatible with the Java exp
 - `php think route:list`
 - PHP syntax lint
 - Token smoke tests for page, listDetails, list, detail, and no-token 401.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/finance-read-http-smoke.ps1` now verifies authenticated expenditure-record read payloads against the local backend:
+
+- `GET /biz/bizexpenditurerecord/page`
+- `GET /biz/bizexpenditurerecord/listDetails`
+- `GET /biz/bizexpenditurerecord/list`
+- `GET /biz/bizexpenditurerecord/detail` when a visible page row exists
+
+The smoke checks Java-style paging keys and stable frontend-visible finance fields such as `objectId`, `targetId`, `accountName`, `accountNumber`, `serialId`, `processId`, `settlementCategory`, `payerTime`, `amount`, and `orgName`. It does not call add/edit/delete, account edit routes, settlement-account transfers, statements, provider actions, workflow, or any finance mutation.
