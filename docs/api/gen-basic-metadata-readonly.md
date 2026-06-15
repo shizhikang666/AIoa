@@ -59,6 +59,7 @@ Both routes are protected by `AuthMiddleware`.
 - Column names and SQL type names are upper-cased to match the Java JDBC metadata mapping.
 - Empty table or column comments fall back to the table or column name.
 - `/gen/basic/tableColumns` requires `tableName`; missing values return a 400-style API failure through the shared controller guard.
+- `scripts/gen-read-http-smoke.ps1` now covers these metadata reads through authenticated HTTP without invoking generator writes or ZIP download.
 
 ## Deferred
 

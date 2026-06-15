@@ -146,6 +146,12 @@ Focused smoke on 2026-06-12 verified:
 - No-token HTTP access returns business `code=401`.
 - `gen_basic` and `gen_config` row counts stay unchanged.
 
+Focused read HTTP smoke on 2026-06-15 verifies:
+
+- `GET /gen/basic/page`, `/detail`, `/tables`, `/tableColumns`, `/mobileModuleSelector`, and `/previewGen`.
+- `GET /gen/config/list` and `/detail` when a saved `gen_basic` sample has config rows.
+- The smoke deliberately skips `/gen/basic/execGenZip`, `/gen/config/editBatch`, generator writes, downloads, direct project generation, and source/schema mutations.
+
 ## Supported Filters
 
 `/gen/basic/page` supports:
