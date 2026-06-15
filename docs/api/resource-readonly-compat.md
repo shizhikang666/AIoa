@@ -56,3 +56,23 @@ Button add/edit/delete is now covered by `docs/api/sys-button-write-compat.md`.
 Field add/edit/delete is now covered by `docs/api/sys-field-write-compat.md`.
 
 No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/resource-read-http-smoke.ps1` now covers authenticated system resource reads for:
+
+- `GET /sys/module/page`
+- `GET /sys/module/detail` when a module row exists
+- `GET /sys/menu/page`
+- `GET /sys/menu/tree`
+- `GET /sys/menu/detail` when a menu row exists
+- `GET /sys/menu/moduleSelector`
+- `GET /sys/menu/menuTreeSelector`
+- `GET /sys/button/page`
+- `GET /sys/button/detail` when a button row exists
+- `GET /sys/field/page`
+- `GET /sys/field/tree`
+- `GET /sys/field/detail` when a field row exists
+- `GET /sys/field/MenuTreeSelector`
+
+The smoke asserts Java-style paging keys, resource row aliases, and selector `label`/`value` fields. It intentionally does not call module/menu/button/field add, edit, delete, change-module, role grant, cache invalidation, or data-change behavior.

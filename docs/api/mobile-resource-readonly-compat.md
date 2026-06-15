@@ -53,3 +53,18 @@ Mobile menu add/edit/changeModule/delete are now covered separately in `docs/api
 Mobile button add/edit/delete are now covered separately in `docs/api/mobile-button-write-compat.md`.
 
 No Java source, database schema, seed data, Composer files, `.env`, or public config files were changed.
+
+## 2026-06-15 HTTP Smoke Coverage
+
+`scripts/resource-read-http-smoke.ps1` now covers authenticated mobile resource reads for:
+
+- `GET /mobile/module/page`
+- `GET /mobile/module/detail` when a module row exists
+- `GET /mobile/menu/tree`
+- `GET /mobile/menu/detail` when a menu row exists
+- `GET /mobile/menu/moduleSelector`
+- `GET /mobile/menu/menuTreeSelector`
+- `GET /mobile/button/page`
+- `GET /mobile/button/detail` when a button row exists
+
+The smoke asserts Java-style paging keys, mobile resource row aliases, selector `label`/`value`, and copied-frontend `name` aliases. It intentionally does not call mobile module/menu/button add, edit, delete, change-module, mobile role grants, cache invalidation, or data-change behavior.

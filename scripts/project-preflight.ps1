@@ -15,6 +15,7 @@ param(
     [switch]$SkipHrRead,
     [switch]$SkipTeamProjectRead,
     [switch]$SkipDatareportRead,
+    [switch]$SkipResourceRead,
     [switch]$SkipDirectoryAlias,
     [switch]$SkipTenantRead,
     [switch]$SkipMessageSse,
@@ -136,6 +137,12 @@ if (-not $SkipTeamProjectRead) {
 if (-not $SkipDatareportRead) {
     Invoke-Step 'Datareport Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'datareport-read-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipResourceRead) {
+    Invoke-Step 'Resource Read HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'resource-read-http-smoke.ps1')
     }
 }
 
