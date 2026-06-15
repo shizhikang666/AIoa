@@ -77,10 +77,58 @@ The following existing routes now return that paged shape while preserving each 
 - `GET /sys/org/userSelector`
 - `GET /biz/org/userSelector`
 
+## 2026-06-15 Role Selector Pagination Shape Compatibility
+
+The copied `roleSelectorPlus` component expects the same Java-style paged payload:
+
+```json
+{
+  "records": [],
+  "total": 0,
+  "current": 1,
+  "size": 20
+}
+```
+
+The following existing routes now return that paged shape:
+
+- `GET /sys/user/roleSelector`
+- `GET /biz/user/roleSelector`
+- `GET /sys/role/roleSelector`
+
+Role selector records keep the existing fields and add selector aliases where needed:
+
+- `id`
+- `value`
+- `label`
+- `title`
+- `name`
+- `code`
+- `category`
+- `orgId`
+- `sortCode`
+
 Compatibility notes:
 
 - The endpoints remain read-only.
 - The selector services now accept copied frontend `size` pagination in addition to existing `limit` and `pageSize`.
 - User selector records still remove password data and keep the richer display fields used by table selectors, including `name`, `account`, `avatar`, `orgId`, `orgName`, `positionId`, and `positionName`.
 - Position selector records still include full position row aliases such as `id`, `name`, `orgId`, `category`, and `sortCode`, plus `value`, `label`, and `title`.
+- Role selector records still include full role row aliases such as `id`, `name`, `code`, `orgId`, `category`, and `sortCode`, plus `value`, `label`, and `title`.
 - Current ThinkPHP business selector aliases reuse the system controllers; Java business selectors apply additional data scope and child-organization behavior that remains a future hardening task.
+
+## 2026-06-15 Role Selector HTTP Smoke
+
+`scripts/role-selector-http-smoke.ps1` verifies the backend payloads used by copied `roleSelectorPlus` without requiring browser automation dependencies.
+
+Covered read-only checks:
+
+- short-lived local auth token from ignored `.env` account, without printing credentials or token;
+- `GET /sys/user/ownRole`;
+- `GET /sys/user/roleSelector?current=1&size=2`;
+- `GET /biz/user/roleSelector?current=1&size=2&category=ORG`;
+- `GET /sys/role/roleSelector?current=1&size=2`;
+- required paged keys: `records`, `total`, `current`, `size`, `pages`;
+- required role record aliases: `id`, `value`, `label`, `title`, `name`, `code`, `category`.
+
+This is not a replacement for a true browser click-through smoke of the `/sys/user` and `/biz/user` grant-role dialogs. It is the project-local fallback while no Playwright/Puppeteer dependency is available.

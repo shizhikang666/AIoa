@@ -8289,3 +8289,684 @@ Agent: api-agent
 ### Next Plan
 
 - Continue with browser-side selector smoke or another bounded read-only response-shape cleanup before any side-effect-heavy workflow, finance, stock, generator, tenant, or sale-project state write.
+
+## 2026-06-15 14:00 +08:00 - merge-agent - Project Progress Acceleration Helper
+
+### Completed
+
+- Audited the workspace and confirmed `OA-ThinkPHP` on `refactor/thinkphp-main` is the active integration center.
+- Confirmed old module worktrees are mostly behind `refactor/thinkphp-main`, so future work should start from the lean bootstrap and targeted searches rather than full old module logs.
+- Added `scripts/project-progress.ps1` to print a compact read-only progress snapshot.
+- Updated the new-conversation bootstrap and lean continuation workflow to prefer the helper script.
+
+### Modified Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail`: passed.
+- `.\scripts\project-progress.ps1 -DashboardLines 20 -StatusTail 20 -IncludeWorktreeSummary`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- This is a workflow acceleration helper only; it does not improve business feature coverage by itself.
+- The integration branch is still locally ahead of `origin/refactor/thinkphp-main`; push remains a separate user decision.
+
+### Next Plan
+
+- Use `.\scripts\project-progress.ps1` at the start of future continuation turns.
+- Continue with browser-side selector smoke or another bounded low-risk slice before side-effect-heavy workflow, finance, stock, generator, tenant, or sale-project state writes.
+
+## 2026-06-15 14:20 +08:00 - merge-agent - Problem Optimization Log
+
+### Completed
+
+- Added `docs/tasks/problem-optimization-log.md` as the living project problem table.
+- Seeded the table with current recurring workflow problems and mitigations.
+- Updated `scripts/project-progress.ps1` to print the problem table in the fast startup snapshot.
+- Updated bootstrap and lean workflow docs so future slices review and update the problem table.
+
+### Modified Files
+
+- `docs/tasks/problem-optimization-log.md`
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail -ProblemLines 50`: passed and printed the problem table.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- The table is useful only if future slices update it when recurring problems or better mitigations appear.
+- Existing local process changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- During every future slice, update `docs/tasks/problem-optimization-log.md` for repeated problems, blockers, confusing workflow, slow commands, avoidable mistakes, or test gaps.
+- Continue with browser-side selector smoke or another bounded low-risk slice before side-effect-heavy workflow, finance, stock, generator, tenant, or sale-project state writes.
+
+## 2026-06-15 14:35 +08:00 - merge-agent - Context Handoff Flow
+
+### Completed
+
+- Added `docs/tasks/context-handoff.md` to define when to ask the user for a new conversation.
+- Added a persistent new conversation starter prompt that begins from `.\scripts\project-progress.ps1`.
+- Updated the progress helper, bootstrap doc, and lean workflow doc with context handoff guidance.
+- Added problem-log row `P-006` for context overload risk.
+
+### Modified Files
+
+- `docs/tasks/context-handoff.md`
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail -ProblemLines 60`: passed and printed the context handoff pointer plus problem table.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Handoff quality still depends on keeping `STATUS.md` and the problem table current before asking for a new conversation.
+- Existing local process changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- If this conversation becomes too large before the next broad/risky slice, ask the user to open a new conversation using `docs/tasks/context-handoff.md`.
+- Continue with browser-side selector smoke or another bounded low-risk slice before side-effect-heavy workflow, finance, stock, generator, tenant, or sale-project state writes.
+
+## 2026-06-15 15:05 +08:00 - merge-agent - Role Selector Pagination Shape Compatibility
+
+### Completed
+
+- Reviewed copied `roleSelectorPlus` and Java role selector behavior.
+- Updated `/sys/user/roleSelector` and `/biz/user/roleSelector` to return Java-style paged payloads.
+- Updated `/sys/role/roleSelector` to include the same pagination aliases and selector aliases.
+- Added copied frontend `size` pagination support in `RoleService`.
+- Updated selector API notes, dashboard, implementation log, plan, and problem table.
+
+### Modified Files
+
+- `app/service/user/UserDirectoryService.php`
+- `app/service/auth/RoleService.php`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l app\service\auth\RoleService.php`: passed.
+- `php think route:list | Select-String "roleSelector"`: passed and listed all three role selector routes.
+- Initial DB-backed role selector smoke was blocked because MySQL was not running; recorded as `P-008`.
+- Started the documented local runtime bundle and confirmed MySQL, Redis, and PHP FastCGI listening.
+- DB-backed role selector shape smoke passed for system user role selector, business user role selector, and system role selector.
+
+### Current Issues
+
+- Browser smoke for opening the role grant modal in `/sys/user` and `/biz/user` was not run in this slice.
+- Business role selector still reuses system controller behavior; Java's stricter business data-scope remains future hardening.
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- Run browser-side selector smoke for user/role grant dialogs when the frontend server is active, or continue with another bounded low-risk frontend-visible cleanup.
+- Keep side-effect-heavy workflow, finance, stock, generator, tenant, and sale-project state writes deferred until a dedicated plan is written.
+
+## 2026-06-15 15:25 +08:00 - merge-agent - Runtime Readiness Check
+
+### Completed
+
+- Added `scripts/runtime-ready.ps1` to check local MySQL, Redis, and PHP FastCGI ports before DB/HTTP smokes.
+- Added `-CheckRuntime` to `scripts/project-progress.ps1`.
+- Updated runtime docs, bootstrap docs, implementation log, plan, status, and problem table.
+
+### Modified Files
+
+- `scripts/runtime-ready.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/local-runtime-services.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\runtime-ready.ps1`: passed after local runtime services were started.
+- `.\scripts\project-progress.ps1 -CheckRuntime -SkipStatusTail -ProblemLines 20`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- The readiness helper checks ports only; it does not authenticate MySQL or Redis.
+- Browser smoke for selector dialogs remains pending.
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- Use `.\scripts\runtime-ready.ps1` before DB-backed or HTTP smoke tests.
+- Continue with browser-side selector smoke or another bounded low-risk frontend-visible cleanup.
+
+## 2026-06-15 15:45 +08:00 - merge-agent - Web Readiness Check
+
+### Completed
+
+- Added `scripts/web-ready.ps1` to check local ThinkPHP backend and Vue frontend readiness before browser or authenticated HTTP smoke tests.
+- Added `-CheckWeb` to `scripts/project-progress.ps1`.
+- Updated frontend joint-test workflow, runtime docs, bootstrap docs, lean workflow, context handoff, dashboard, and problem table.
+- Added problem-log row `P-009` for the gap between base runtime readiness and application-server readiness.
+
+### Modified Files
+
+- `scripts/web-ready.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/frontend-joint-test-workflow.md`
+- `docs/tasks/local-runtime-services.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\web-ready.ps1`: passed after local ThinkPHP and Vite dev servers were started.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -SkipStatusTail -ProblemLines 35`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Backend port `82` and frontend port `83` were not listening at the start of this slice; they are now running locally for follow-up browser smoke.
+- Vite took longer than a short 3-second HTTP check during cold startup, so `scripts/web-ready.ps1` now uses a longer default HTTP timeout.
+- The copied frontend project does not include Playwright; recorded as problem-log row `P-010` before deferring selector-dialog browser automation to a dedicated browser-smoke slice.
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -SkipStatusTail` before browser smoke.
+- Start ThinkPHP backend on `82` and Vue frontend on `83` when selector-dialog browser smoke is needed.
+
+## 2026-06-15 16:10 +08:00 - merge-agent - Role Selector HTTP Smoke
+
+### Completed
+
+- Confirmed copied `/sys/user` and `/biz/user` grant-role dialogs use `roleSelectorPlus`.
+- Confirmed local frontend dependencies do not include Playwright, `@playwright/test`, or Puppeteer.
+- Added `scripts/role-selector-http-smoke.ps1` to verify the authenticated read-only HTTP payloads used by the role selector dialog.
+- Added the script to `scripts/project-progress.ps1` fast commands and the new-conversation bootstrap.
+- Updated selector API docs, dashboard, plan, implementation log, status, and problem table.
+- Updated problem-log row `P-010` with the no-browser-dependency fallback and added `P-011` for PowerShell JSON duplicate-key parsing.
+
+### Modified Files
+
+- `scripts/role-selector-http-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\web-ready.ps1`: passed.
+- `.\scripts\role-selector-http-smoke.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- This is an authenticated HTTP fallback, not a true browser click-through smoke of the role-grant modal.
+- True browser automation still needs an external browser tool or a separate approved plan before adding Playwright/Puppeteer.
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- Use `.\scripts\role-selector-http-smoke.ps1` after selector-shape changes.
+- Keep true `/sys/user` and `/biz/user` grant-dialog browser smoke as a separate browser-automation slice.
+
+## 2026-06-15 16:25 +08:00 - merge-agent - Case-Safe JSON Smoke Helper
+
+### Completed
+
+- Confirmed local PowerShell is 5.1 and lacks `ConvertFrom-Json -AsHashtable`.
+- Added `scripts/json-read.js` to read JSON paths through Node with case-sensitive key handling.
+- Added the helper to `scripts/project-progress.ps1` fast commands.
+- Updated bootstrap docs and problem row `P-011` with the concrete mitigation.
+
+### Modified Files
+
+- `scripts/json-read.js`
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- Case-sensitive sample read for `data.records.0.id`: passed and returned `lower`.
+- Case-sensitive sample read for `data.records.0.ID`: passed and returned `upper`.
+- `.\scripts\role-selector-http-smoke.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Existing larger HTTP smoke scripts still use `ConvertFrom-Json`; they are fine for current endpoints but should use `json-read.js` when mixed-case duplicate aliases are possible.
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- Use `node .\scripts\json-read.js <path>` in new HTTP smoke scripts when parsing endpoints that may include legacy uppercase plus frontend lowercase aliases.
+- Keep true role-selector browser click-through smoke as a separate browser-automation slice.
+
+## 2026-06-15 16:40 +08:00 - merge-agent - Project Preflight Bundle
+
+### Completed
+
+- Added `scripts/project-preflight.ps1` as a one-command local preflight bundle.
+- Default preflight runs Git status, runtime readiness, web readiness, role-selector HTTP smoke, and `git diff --check`.
+- Added skip switches for unavailable layers: `-SkipRuntime`, `-SkipWeb`, `-SkipRoleSelector`, and `-SkipDiffCheck`.
+- Updated project progress fast commands, bootstrap docs, lean workflow, runtime docs, dashboard, implementation log, plan, and problem table.
+- Added problem-log row `P-012` for fragmented verification commands.
+
+### Modified Files
+
+- `scripts/project-preflight.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/local-runtime-services.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-preflight.ps1`: passed.
+- `.\scripts\project-preflight.ps1 -SkipWeb -SkipRoleSelector -SkipDiffCheck`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Preflight is a local readiness and focused-smoke bundle, not a replacement for module-specific regression tests.
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- Use `.\scripts\project-preflight.ps1` before and after small frontend-visible/API slices when local services are available.
+- Use skip switches for backend-only work or when the frontend server is intentionally offline.
+
+## 2026-06-15 12:51 +08:00 - merge-agent - New Conversation Fast Handoff
+
+### Completed
+
+- Updated the long-context handoff starter to begin from `F:\AI\projects\testJava\OA-ThinkPHP`.
+- Made `.\scripts\project-progress.ps1 -SkipStatusTail` the first lightweight context command for new conversations.
+- Made `.\scripts\project-preflight.ps1` the default next command when local runtime, backend, and frontend services are expected.
+- Synchronized the same startup sequence across context handoff, new-conversation bootstrap, and lean continuation workflow docs.
+
+### Modified Files
+
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+- This was a documentation/process slice only; it does not replace module-specific regression tests.
+
+### Next Plan
+
+- For the next code slice, start with `.\scripts\project-progress.ps1 -SkipStatusTail`, then use `.\scripts\project-preflight.ps1` when local services are available.
+- If the next slice is broad, side-effect-heavy, or cross-module, ask the user to open a new conversation using `docs/tasks/context-handoff.md` before starting it.
+
+## 2026-06-15 12:51 +08:00 - merge-agent - Explicit Commit Guardrail
+
+### Completed
+
+- Updated active startup and handoff docs so future Agents do not commit unless the user explicitly asks or the main merge/coordinator explicitly approves the completed slice.
+- Removed automatic per-slice commit wording from the active multi-Agent and implementation-loop guidance.
+- Added problem-log row `P-013` for commit-workflow ambiguity.
+
+### Modified Files
+
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Historical `STATUS.md` entries still mention older commit plans; they are left as history and should not be copied into active continuation prompts.
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- Continue using `docs/tasks/context-handoff.md` for new conversations.
+- Keep commit commands out of future slices unless the user explicitly asks for one.
+
+## 2026-06-15 12:51 +08:00 - merge-agent - Progress Snapshot Commit Guardrail
+
+### Completed
+
+- Added a `Commit Guardrail` section to `scripts/project-progress.ps1`.
+- Updated problem row `P-013` so the mitigation includes the startup snapshot, not only docs.
+- Updated the problem-log review checklist to use the lighter `.\scripts\project-progress.ps1 -SkipStatusTail` command.
+
+### Modified Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail -ProblemLines 20`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+- This was a process/script visibility slice only; it does not replace module-specific tests.
+
+### Next Plan
+
+- Use the progress snapshot as the first command in future continuations so the commit guardrail is visible immediately.
+- For any broader business/API/frontend work, consider starting a new conversation from `docs/tasks/context-handoff.md` first.
+
+## 2026-06-15 12:51 +08:00 - merge-agent - Recent Problem Row Visibility
+
+### Completed
+
+- Updated `scripts/project-progress.ps1` to print a `Recent Problem Rows` section after the problem-log head.
+- Added problem row `P-014` for the issue where shortened startup output can hide the newest mitigations.
+
+### Modified Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail -ProblemLines 20`: passed and printed recent problem rows including `P-014`.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+- This was a process/script visibility slice only; it does not replace module-specific tests.
+
+### Next Plan
+
+- Use the recent problem rows in the startup snapshot to catch the newest mitigations before editing.
+- If continuing into broader business/API/frontend work, start a new conversation from `docs/tasks/context-handoff.md`.
+
+## 2026-06-15 12:51 +08:00 - merge-agent - Lean Progress Snapshot Mode
+
+### Completed
+
+- Added `-Lean` to `scripts/project-progress.ps1`.
+- Lean mode shortens dashboard/problem-log head output and skips the `STATUS.md` tail.
+- Lean mode keeps recent problem rows, context handoff, commit guardrail, and fast commands visible.
+- Updated fast command examples to prefer `-Lean` for runtime and web readiness snapshots.
+- Updated context handoff, new conversation bootstrap, and lean continuation docs to use `.\scripts\project-progress.ps1 -Lean` as the first startup command.
+- Added problem row `P-015` for startup context size.
+
+### Modified Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+- This was a process/script slice only; it does not replace module-specific tests.
+
+### Next Plan
+
+- Use `.\scripts\project-progress.ps1 -Lean` as the default first command in any new continuation.
+- Use longer line-count options only when the lean snapshot does not contain enough detail.
+
+## 2026-06-15 12:51 +08:00 - merge-agent - Lean Dashboard Summary
+
+### Completed
+
+- Added `Show-DashboardLean` to `scripts/project-progress.ps1`.
+- Lean mode now prints `Progress Dashboard Summary` instead of the raw dashboard head.
+- The summary keeps update time, completion estimates, compact key frontend route metrics, current branch, and truncated recent verification notes.
+- Added problem row `P-016` for wide dashboard rows consuming startup context.
+
+### Modified Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -Lean`: passed and printed compact `Progress Dashboard Summary` metrics without raw wide dashboard table notes.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+- This was a process/script slice only; it does not replace module-specific tests.
+
+### Next Plan
+
+- Keep `.\scripts\project-progress.ps1 -Lean` as the default first command.
+- Add targeted dashboard summary patterns only when future slices repeatedly need a metric that is absent from the lean summary.
+
+## 2026-06-15 12:51 +08:00 - merge-agent - Lean Problem Summary
+
+### Completed
+
+- Added `Convert-ProblemLine` and `Show-ProblemsLean` to `scripts/project-progress.ps1`.
+- Lean mode now prints the problem-log path, open problem count, and compact recent `ID | Area | Status | Problem` rows.
+- Non-lean mode still supports the full problem-log head and full recent problem rows.
+- Added problem row `P-017` for noisy full problem-table rows in startup output.
+
+### Modified Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -Lean`: passed and printed compact problem summaries including `P-017`.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+- This was a process/script slice only; it does not replace module-specific tests.
+
+### Next Plan
+
+- Keep `.\scripts\project-progress.ps1 -Lean` as the default first command for new conversations.
+- Use full problem-log output only when investigating a specific row in detail.
+
+## 2026-06-15 12:51 +08:00 - merge-agent - Problem Table Pipe Guard
+
+### Completed
+
+- Fixed problem row `P-017` so it no longer contains raw vertical bars inside a Markdown table cell.
+- Hardened `Convert-ProblemLine` to trim non-empty columns and read status from the final column.
+- Added problem row `P-018` for raw vertical bars breaking table/script parsing.
+
+### Modified Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -Lean`: passed and showed `P-017` and `P-018` with `Mitigated` status.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+- This was a process/script slice only; it does not replace module-specific tests.
+
+### Next Plan
+
+- Avoid raw vertical bars in future problem-log table cells.
+- Keep `.\scripts\project-progress.ps1 -Lean` as the first command for future continuation.
+
+## 2026-06-15 16:55 +08:00 - merge-agent - Third-Party Auth Deferred Wrappers
+
+### Completed
+
+- Reviewed the copied `auth/third` frontend wrappers and Java `AuthThirdController` public render/callback routes.
+- Added public controlled-deferred `GET /auth/third/render` and `GET /auth/third/callback` wrappers.
+- Kept `GET /auth/third/page` protected by `AuthMiddleware`.
+- Updated auth-third docs, API gap map route counts, progress dashboard, public route-change notes, plan log, and implementation log.
+
+### Modified Files
+
+- `app/controller/auth/ThirdController.php`
+- `route/app.php`
+- `docs/api/auth-third-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\auth\ThirdController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String "auth/third"`: passed.
+- Public HTTP smoke for `/auth/third/render` and `/auth/third/callback`: passed with business `code = 400`.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- The routes intentionally do not implement OAuth redirects, callback exchange, token issuance, user binding, or provider configuration.
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- Continue another low-risk frontend-visible gap, preferably a controlled-deferred provider action or isolated read compatibility slice.
+- Keep workflow, finance, inventory, sale-project state transitions, provider credentials, and final online data sync deferred until dedicated plans are approved.
+
+## 2026-06-15 17:10 +08:00 - merge-agent - SMS Provider Deferred Wrappers
+
+### Completed
+
+- Reviewed copied frontend SMS provider-send wrappers and Java `DevSmsController` protected send routes.
+- Added protected controlled-deferred wrappers for `POST /dev/sms/sendAliyun`, `/dev/sms/sendTencent`, and `/dev/sms/sendXiaonuo`.
+- Kept the routes behind `AuthMiddleware` and returned explicit deferred business responses for authenticated calls.
+- Updated dev email/SMS docs, API gap map route counts, progress dashboard, public route-change notes, plan log, and implementation log.
+
+### Modified Files
+
+- `app/controller/dev/SmsController.php`
+- `route/app.php`
+- `docs/api/dev-email-sms-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\dev\SmsController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String "dev/sms"`: passed.
+- Authenticated HTTP smoke for `/dev/sms/sendAliyun`, `/dev/sms/sendTencent`, and `/dev/sms/sendXiaonuo`: passed with business `code = 400`.
+- No-token HTTP smoke for the same three routes: passed with business `code = 401`.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+### Current Issues
+
+- Real SMS provider sends remain deferred; this slice does not read provider credentials, load SDKs, call external SMS services, or write send records.
+- Existing local changes remain uncommitted and the branch is still ahead of `origin/refactor/thinkphp-main`.
+
+### Next Plan
+
+- Continue another controlled-deferred provider action or isolated read compatibility slice.
+- Keep email provider sends, job scheduler execution, finance, inventory, workflow, sale-project state transitions, and final online data sync deferred until dedicated plans are approved.

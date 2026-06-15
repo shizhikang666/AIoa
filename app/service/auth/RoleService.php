@@ -52,12 +52,7 @@ class RoleService
             ->select()
             ->toArray();
 
-        return [
-            'records' => $records,
-            'total' => $total,
-            'page' => $page,
-            'limit' => $limit,
-        ];
+        return $this->pageResult($records, $total, $page, $limit);
     }
 
     public function detail(string $id): ?array
@@ -337,6 +332,9 @@ class RoleService
         $page['records'] = array_map(static function (array $row): array {
             return [
                 'id' => $row['ID'] ?? null,
+                'value' => $row['ID'] ?? null,
+                'label' => $row['NAME'] ?? $row['CODE'] ?? null,
+                'title' => $row['NAME'] ?? $row['CODE'] ?? null,
                 'orgId' => $row['ORG_ID'] ?? null,
                 'name' => $row['NAME'] ?? null,
                 'code' => $row['CODE'] ?? null,
@@ -909,9 +907,26 @@ class RoleService
     private function pagination(array $filters): array
     {
         $page = max(1, (int)($filters['page'] ?? $filters['current'] ?? 1));
-        $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? 20)));
+        $limit = max(1, min(200, (int)($filters['limit'] ?? $filters['pageSize'] ?? $filters['size'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $records
+     * @return array<string, mixed>
+     */
+    private function pageResult(array $records, int $total, int $page, int $limit): array
+    {
+        return [
+            'records' => $records,
+            'total' => $total,
+            'page' => $page,
+            'current' => $page,
+            'limit' => $limit,
+            'size' => $limit,
+            'pages' => (int)ceil($total / $limit),
+        ];
     }
 
     private function payloadUserId(array $payload): string

@@ -1493,18 +1493,19 @@ class UserDirectoryService
     }
 
     /**
-     * @return array<int, array<string, mixed>>
+     * @return array<string, mixed>
      */
     public function roleSelector(array $filters = []): array
     {
         [$page, $limit] = $this->pagination($filters);
+        $total = $this->roleQuery($filters)->count();
         $rows = $this->roleQuery($filters)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->page($page, $limit)
             ->select()
             ->toArray();
 
-        return array_map(static function (array $row): array {
+        $records = array_map(static function (array $row): array {
             return [
                 'id' => $row['ID'] ?? null,
                 'value' => $row['ID'] ?? null,
@@ -1514,8 +1515,11 @@ class UserDirectoryService
                 'code' => $row['CODE'] ?? null,
                 'category' => $row['CATEGORY'] ?? null,
                 'orgId' => $row['ORG_ID'] ?? null,
+                'sortCode' => $row['SORT_CODE'] ?? null,
             ];
         }, $rows);
+
+        return $this->pageResult($records, $total, $page, $limit);
     }
 
     public function getAvatarById(string $id): array

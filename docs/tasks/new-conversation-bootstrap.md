@@ -7,14 +7,23 @@ Use this note when starting a future Codex conversation for the ThinkPHP OA refa
 Paste this into a new Codex conversation when the current thread is too long:
 
 ```text
-Continue the ThinkPHP OA refactor in F:\AI\projects\testJava\OA-ThinkPHP. Do not rely on prior chat history. Use real multi-Agent mode by default: the main conversation coordinates, assigns bounded sub-Agent work when available, reviews, verifies, updates docs, and commits coherent slices. If sub-Agent tools or quota are unavailable, use the documented single-conversation fallback.
+Continue the ThinkPHP OA refactor in F:\AI\projects\testJava\OA-ThinkPHP. Do not rely on prior chat history. Use real multi-Agent mode by default: the main conversation coordinates, assigns bounded sub-Agent work when available, reviews, verifies, and updates docs. Do not commit unless the current user explicitly asks for a commit or the main merge/coordinator explicitly approves committing the completed slice. If sub-Agent tools or quota are unavailable, use the documented single-conversation fallback.
 
-First read the lean startup packet from docs\tasks\new-conversation-bootstrap.md and docs\tasks\lean-continuation-workflow.md, then check git status. Treat F:\AI\projects\testJava\OA as read-only Java reference only. Do not print or commit secrets; read local database, Redis, and login smoke values only from the ignored .env. Continue with the next smallest safe slice from docs\tasks\refactor-progress-dashboard.md and STATUS.md.
+First run Set-Location F:\AI\projects\testJava\OA-ThinkPHP and .\scripts\project-progress.ps1 -Lean. If local MySQL, Redis, PHP FastCGI, ThinkPHP backend, and Vue frontend are expected to be running, run .\scripts\project-preflight.ps1 next; otherwise use the relevant skip switches. Treat F:\AI\projects\testJava\OA as read-only Java reference only. Do not print or commit secrets; read local database, Redis, and login smoke values only from the ignored .env. Continue with the next smallest safe slice from docs\tasks\refactor-progress-dashboard.md and STATUS.md. Record recurring problems and mitigations in docs\tasks\problem-optimization-log.md. If the current context is too large for precise work, ask the user to open a new conversation using docs\tasks\context-handoff.md.
 ```
 
 ## Required Startup Reads
 
 Before continuing a normal task, use the lean startup packet instead of loading every long log file end to end:
+
+```powershell
+Set-Location F:\AI\projects\testJava\OA-ThinkPHP
+.\scripts\project-progress.ps1 -Lean
+```
+
+Run `.\scripts\project-preflight.ps1` immediately after the startup packet when local services are expected to be available. Use skip switches such as `-SkipWeb` or `-SkipRoleSelector` when a layer is intentionally offline.
+
+Use the manual packet below only when the script is unavailable or a tool cannot run PowerShell:
 
 ```powershell
 git status --short --branch
@@ -35,13 +44,21 @@ Detailed low-token continuation rules are in:
 
 `docs/tasks/lean-continuation-workflow.md`
 
+Recurring problems and workflow optimizations are tracked in:
+
+`docs/tasks/problem-optimization-log.md`
+
+Long-context handoff rules and the new conversation starter are tracked in:
+
+`docs/tasks/context-handoff.md`
+
 ## Default Agent Mode
 
 Default to real multi-Agent mode for this project.
 
 - The main conversation is the merge/coordinator session.
 - Worker Agents such as `frontend-agent`, `api-agent`, `test-agent`, `docs-agent`, and other scoped module Agents execute explicitly assigned slices.
-- The main merge/coordinator assigns scope, reviews worker output, performs final acceptance, integrates changes, and commits only after review.
+- The main merge/coordinator assigns scope, reviews worker output, performs final acceptance, integrates changes, and commits only when the user explicitly asks or the coordinator explicitly approves it.
 - Worker Agents do not broaden scope, take over merge coordination, or edit unrelated modules.
 - Multiple worktrees are temporary parallel workspaces. The final deliverable remains one merged ThinkPHP project at `F:\AI\projects\testJava\OA-ThinkPHP`.
 
@@ -51,7 +68,7 @@ For speed and token control, use sub-Agents only for bounded, non-overlapping wo
 
 - explorer Agents answer Java/frontend/current-PHP behavior questions and do not edit files.
 - worker Agents edit only assigned files or modules.
-- the main merge/coordinator reviews, runs acceptance checks, updates docs, and commits.
+- the main merge/coordinator reviews, runs acceptance checks, updates docs, and commits only when explicitly approved.
 - if sub-Agent quota is unavailable, continue with the same explorer/implementation/test/docs passes inside the main conversation.
 
 ## Runtime Services
@@ -82,12 +99,26 @@ Do not write plaintext login accounts, passwords, tokens, database passwords, Re
 Use the focused smoke scripts when relevant:
 
 ```powershell
+.\scripts\project-progress.ps1
+.\scripts\project-progress.ps1 -Lean
+.\scripts\project-preflight.ps1
+.\scripts\runtime-ready.ps1
+.\scripts\web-ready.ps1
+.\scripts\role-selector-http-smoke.ps1
 .\scripts\test-agent-smoke.ps1
 .\scripts\test-agent-smoke.ps1 -SkipComposer
 .\scripts\test-agent-db-smoke.ps1
 ```
 
-`scripts/test-agent-smoke.ps1` covers the repeatable ThinkPHP baseline checks. `scripts/test-agent-db-smoke.ps1` expects the local runtime and ignored `.env` credentials, then checks MySQL, Redis, and current DB-backed export smoke coverage without printing secrets.
+`scripts/project-progress.ps1` prints the current branch/status, dashboard head, next execution order, recent problem rows, context handoff pointer, and commit guardrail without reading secrets; use `-Lean` for the shortest normal startup snapshot. `scripts/project-preflight.ps1` runs the repeatable local preflight bundle: Git status, runtime readiness, web readiness, role-selector HTTP smoke, and `git diff --check`, with skip switches for unavailable layers. `scripts/runtime-ready.ps1` checks local MySQL, Redis, and PHP FastCGI ports without credentials. `scripts\web-ready.ps1` checks the local ThinkPHP backend on port `82` and Vue frontend on port `83` before browser or authenticated HTTP smoke tests. `scripts\role-selector-http-smoke.ps1` creates a short-lived local token from the ignored `.env` account and verifies the role-selector payloads used by copied user grant dialogs without printing credentials or tokens. `scripts/test-agent-smoke.ps1` covers the repeatable ThinkPHP baseline checks. `scripts/test-agent-db-smoke.ps1` expects the local runtime and ignored `.env` credentials, then checks MySQL, Redis, and current DB-backed export smoke coverage without printing secrets.
+
+When a JSON response may contain case-variant duplicate aliases such as `ID` and `id`, avoid PowerShell 5.1 `ConvertFrom-Json`. Use the case-sensitive Node helper instead:
+
+```powershell
+curl.exe -sS <url> | node .\scripts\json-read.js data.records.0.id
+```
+
+The helper exits with code `2` when the requested path is not present, so smoke scripts can distinguish missing fields from empty string values.
 
 Current focused DB-backed coverage also includes sys process-config detail/edit behavior with admin-compatible write rejection checks, settlement-account base add/edit/status behavior without balance or statement side effects, collection-receipt mark-success behavior with version increment and no account/statement/payment/expenditure side effects, debit-note mark-success behavior with version increment and no account/statement/payment/expenditure side effects, payroll edit/batch-edit/delete behavior with non-edit field preservation and missing-id rollback, payroll import-template service/HTTP download with original Java template SHA verification, leave-application edit/delete behavior with Java edit-field-only updates, nested delete payload support, missing-id rollback, non-admin rejection, deleted-detail hiding, and no payroll/vacation side effects, sale-project draft save behavior with create/update by `TARGET_ID`, raw `EXT_JSON` preservation, validation failure, and no `biz_sale_project` side effects, gen-basic preview behavior with Java-compatible buckets, missing-id 404, no DB writes, and no runtime file creation, gen-basic ZIP download behavior that reuses preview buckets and writes no project files, dev-file local upload/delete behavior, dev email/SMS metadata logical delete behavior, dev-log category delete behavior, dev-job logical delete behavior, gen-config `editBatch` metadata saves, sale-project invoicing complete, business file-relation maintenance, sys module add/edit/delete maintenance with child-resource and role-resource cleanup, sys menu add/edit/changeModule/delete maintenance with menu/button-tree relation cleanup, sys button add/edit/delete maintenance with role-resource `buttonInfo` cleanup, sys field add/edit/delete maintenance with menu-parent validation and direct relation cleanup, mobile module add/edit/delete maintenance with role mobile-menu relation cleanup, mobile menu add/edit/changeModule/delete maintenance with menu-tree relation cleanup and button preservation, mobile button add/edit/delete maintenance with role mobile-menu `buttonInfo` cleanup, team-project base add/edit/delete maintenance, Java-compatible team-project member edit audit refresh, and `DevConfigService` `BIZ_DEFINE` add/edit/delete with sensitive-value preservation and logical delete checks.
 
@@ -126,7 +157,8 @@ Each continuation should report:
 - active Agent role and scope
 - files changed
 - tests or smoke scripts run
+- new or updated problem-log rows, when applicable
 - current blockers or missing tools
 - next recommended slice
 
-Do not commit unless the current user request explicitly asks for a commit or the main merge/coordinator has accepted the completed slice.
+Do not commit unless the current user request explicitly asks for a commit or the main merge/coordinator explicitly approves committing the completed slice.

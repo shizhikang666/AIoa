@@ -67,6 +67,35 @@ Do not write plaintext login accounts, passwords, tokens, database credentials, 
 
 ## Verification Commands
 
+Fast readiness check without printing secrets:
+
+```powershell
+Set-Location F:\AI\projects\testJava\OA-ThinkPHP
+.\scripts\runtime-ready.ps1
+```
+
+Web readiness check for local backend/frontend smoke tests:
+
+```powershell
+Set-Location F:\AI\projects\testJava\OA-ThinkPHP
+.\scripts\web-ready.ps1
+```
+
+`runtime-ready.ps1` checks the service bundle ports `3306`, `6379`, and `9000`. `web-ready.ps1` checks the application HTTP targets `http://127.0.0.1:82/think` and `http://127.0.0.1:83/` after the ThinkPHP and Vue dev servers have been started.
+
+Combined local preflight:
+
+```powershell
+Set-Location F:\AI\projects\testJava\OA-ThinkPHP
+.\scripts\project-preflight.ps1
+```
+
+Use skip switches when a layer is intentionally unavailable, for example:
+
+```powershell
+.\scripts\project-preflight.ps1 -SkipWeb -SkipRoleSelector
+```
+
 Check listening ports:
 
 ```powershell

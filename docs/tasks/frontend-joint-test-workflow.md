@@ -57,6 +57,11 @@ Start-Process -FilePath "F:\project\socket\AI\testPhp\files\startServer1.bat" -W
 
 Then verify services before running application tests.
 
+```powershell
+cd F:\AI\projects\testJava\OA-ThinkPHP
+.\scripts\runtime-ready.ps1
+```
+
 ### 2. Start ThinkPHP Backend
 
 ```powershell
@@ -79,6 +84,21 @@ npm run dev
 Expected browser URL:
 
 `http://127.0.0.1:83`
+
+### 4. Verify Web Readiness
+
+Before browser smoke tests or authenticated HTTP smokes, verify both application servers are reachable:
+
+```powershell
+cd F:\AI\projects\testJava\OA-ThinkPHP
+.\scripts\web-ready.ps1
+```
+
+For a combined continuation snapshot:
+
+```powershell
+.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -SkipStatusTail
+```
 
 ## Frontend Adaptation Items
 

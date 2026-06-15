@@ -1104,3 +1104,414 @@ Explicit non-goals:
 - No role grant, import, export, password, workflow, finance, stock, Java source, database schema, Composer, or `.env` changes.
 - No business data-scope redesign or child-organization selector rewrite.
 
+## 2026-06-15 Project Progress Acceleration Helper
+
+Agent: merge-agent / process optimization
+
+Execution summary:
+
+1. Audited the repository layout and confirmed the active integration work is centered in `F:\AI\projects\testJava\OA-ThinkPHP` on `refactor/thinkphp-main`.
+2. Confirmed sibling module worktrees are mostly stale relative to `refactor/thinkphp-main`, so future continuations should not start by reading every old module `STATUS.md`.
+3. Added `scripts/project-progress.ps1` as a read-only fast progress snapshot command.
+4. The helper prints Git status, the progress dashboard head, the API gap map next execution order, the latest `STATUS.md` tail, optional sibling worktree summary, and the most useful follow-up commands.
+5. Updated the new-conversation bootstrap and lean continuation workflow to prefer the helper before manual status/log reads.
+
+Verification summary:
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail`: passed.
+- `.\scripts\project-progress.ps1 -DashboardLines 20 -StatusTail 20 -IncludeWorktreeSummary`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No business logic, route, frontend behavior, Java source, database schema, Composer, `.env`, runtime service, production data, merge, push, or worktree cleanup changes.
+
+## 2026-06-15 Problem Optimization Log
+
+Agent: merge-agent / process optimization
+
+Execution summary:
+
+1. Added `docs/tasks/problem-optimization-log.md` as the living table for recurring project problems and mitigations.
+2. Seeded the table with problems already encountered during the project-speed audit: parent workspace not being a Git repo, broad recursive scans, stale module worktrees, long continuation logs, and parent-relative patch path confusion.
+3. Updated `scripts/project-progress.ps1` so future startup snapshots include the problem table.
+4. Updated the new-conversation bootstrap and lean continuation workflow to require problem-log review and updates when recurring issues or better mitigations appear.
+5. Added plan, implementation, and status entries for the process change.
+
+Verification summary:
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail -ProblemLines 50`: passed and printed the problem table.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No business logic, route, frontend behavior, Java source, database schema, Composer, `.env`, runtime service, production data, merge, push, or worktree cleanup changes.
+
+## 2026-06-15 Context Handoff Flow
+
+Agent: merge-agent / process optimization
+
+Execution summary:
+
+1. Added `docs/tasks/context-handoff.md` with criteria for when to ask the user to open a new conversation.
+2. Added a new conversation starter prompt that continues from repository docs and `scripts/project-progress.ps1` instead of old chat history.
+3. Updated `scripts/project-progress.ps1` to point to the context handoff doc.
+4. Updated bootstrap and lean workflow docs with long-context handoff rules.
+5. Added problem-log row `P-006` for context overload risk and mitigation.
+
+Verification summary:
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail -ProblemLines 60`: passed and printed the context handoff pointer plus problem table.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No business logic, route, frontend behavior, Java source, database schema, Composer, `.env`, runtime service, production data, merge, push, or worktree cleanup changes.
+
+## 2026-06-15 Role Selector Pagination Shape Compatibility
+
+Agent: merge-agent / user-agent sidecar
+
+Execution summary:
+
+1. Reviewed copied `roleSelectorPlus` and confirmed it reads `data.current`, `data.total`, and `data.records`.
+2. Reviewed Java `SysUserServiceImpl::roleSelector` and `SysRoleServiceImpl::roleSelector`; both return Java `Page` payloads.
+3. Updated `UserDirectoryService::roleSelector` so `/sys/user/roleSelector` and `/biz/user/roleSelector` return paged selector payloads.
+4. Updated `RoleService::page` and `RoleService::roleSelector` so `/sys/role/page` keeps existing records while `/sys/role/roleSelector` exposes the same Java-style pagination aliases and selector aliases.
+5. Added copied frontend `size` support to `RoleService` pagination.
+6. Updated selector API docs and the progress dashboard.
+7. Updated problem row `P-008` after starting the local runtime and rerunning the DB-backed smoke successfully.
+
+Verification summary:
+
+- `php -l app\service\user\UserDirectoryService.php`: passed.
+- `php -l app\service\auth\RoleService.php`: passed.
+- `php think route:list | Select-String "roleSelector"`: passed and listed `/sys/user/roleSelector`, `/sys/role/roleSelector`, and `/biz/user/roleSelector`.
+- DB-backed service smoke passed for `UserDirectoryService::roleSelector` with system and business filters plus `RoleService::roleSelector`, verifying `records`, `total`, `current`, `size`, and `pages`.
+
+Explicit non-goals:
+
+- No route changes.
+- No frontend source changes.
+- No role grant writes or role CRUD behavior changes.
+- No Java source, database schema, Composer, `.env`, workflow, finance, stock, or production data changes.
+
+## 2026-06-15 Runtime Readiness Check
+
+Agent: merge-agent / test-agent support
+
+Execution summary:
+
+1. Added `scripts/runtime-ready.ps1` to check `127.0.0.1:3306`, `127.0.0.1:6379`, and `127.0.0.1:9000` with short TCP timeouts.
+2. Wired the readiness check into `scripts/project-progress.ps1` through `-CheckRuntime`.
+3. Updated local runtime and bootstrap docs to point future DB/HTTP smoke tests at the readiness helper.
+4. Updated problem row `P-008` with the reusable mitigation.
+
+Verification summary:
+
+- `.\scripts\runtime-ready.ps1`: passed after local runtime services were started.
+- `.\scripts\project-progress.ps1 -CheckRuntime -SkipStatusTail -ProblemLines 20`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No application behavior, service startup script, database config, Redis config, Java source, frontend source, Composer, `.env`, or production data changes.
+
+## 2026-06-15 Web Readiness Check
+
+Agent: merge-agent / test-agent support
+
+Execution summary:
+
+1. Added `scripts/web-ready.ps1` to check the local ThinkPHP backend and Vue frontend HTTP targets before browser or authenticated HTTP smoke tests.
+2. Wired the readiness check into `scripts/project-progress.ps1` through `-CheckWeb`.
+3. Updated the frontend joint-test workflow, runtime docs, bootstrap docs, lean workflow, context handoff doc, dashboard, and problem table.
+4. Added problem row `P-009` for the repeated browser-smoke precondition where base runtime ports are ready but application ports `82` and `83` are not listening.
+
+Verification summary:
+
+- `.\scripts\web-ready.ps1`: passed after local ThinkPHP and Vite dev servers were started, verifying backend `82` and frontend `83` TCP plus HTTP readiness.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -SkipStatusTail -ProblemLines 35`: passed and printed both base runtime readiness and web readiness.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No application behavior, route registration, service startup script, frontend source, Java source, database config, Composer, `.env`, or production data changes.
+
+## 2026-06-15 Role Selector HTTP Smoke
+
+Agent: merge-agent / test-agent support
+
+Execution summary:
+
+1. Confirmed copied `/sys/user` and `/biz/user` grant-role dialogs use `roleSelectorPlus` and depend on `ownRole` plus role selector paged payloads.
+2. Confirmed the copied frontend dependency set does not include Playwright, `@playwright/test`, or Puppeteer.
+3. Added `scripts/role-selector-http-smoke.ps1` as a project-local authenticated HTTP fallback for the selector dialog APIs.
+4. Wired the script into `scripts/project-progress.ps1` fast commands and the new-conversation bootstrap.
+5. Updated selector API docs, dashboard, plan, status, and problem rows `P-010` and `P-011`.
+
+Verification summary:
+
+- `.\scripts\role-selector-http-smoke.ps1`: passed.
+- `.\scripts\web-ready.ps1`: passed before the HTTP smoke.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No browser UI automation, frontend source edits, role grant writes, route changes, schema changes, dependency additions, Java source changes, `.env` edits, or production data operations.
+
+## 2026-06-15 Case-Safe JSON Smoke Helper
+
+Agent: merge-agent / test-agent support
+
+Execution summary:
+
+1. Confirmed the local shell is Windows PowerShell 5.1 and does not support `ConvertFrom-Json -AsHashtable`.
+2. Added `scripts/json-read.js`, a dependency-free Node helper that reads JSON from stdin and returns a requested dot-path value.
+3. Updated `scripts/project-progress.ps1` fast commands and bootstrap docs with the helper usage.
+4. Updated problem row `P-011` so future HTTP smoke scripts have a concrete case-sensitive parsing option.
+
+Verification summary:
+
+- `'{\"data\":{\"records\":[{\"ID\":\"upper\",\"id\":\"lower\"}]}}' | node .\scripts\json-read.js data.records.0.id`: returned `lower`.
+- `'{\"data\":{\"records\":[{\"ID\":\"upper\",\"id\":\"lower\"}]}}' | node .\scripts\json-read.js data.records.0.ID`: returned `upper`.
+- `.\scripts\role-selector-http-smoke.ps1`: passed after adding the helper.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No broad smoke-script rewrite, npm dependency change, frontend source edit, application behavior change, route change, Java source change, `.env` edit, or production data operation.
+
+## 2026-06-15 Project Preflight Bundle
+
+Agent: merge-agent / test-agent support
+
+Execution summary:
+
+1. Added `scripts/project-preflight.ps1` to run the common local preflight sequence.
+2. The default sequence runs Git status, runtime readiness, web readiness, role-selector HTTP smoke, and `git diff --check`.
+3. Added skip switches for unavailable layers: `-SkipRuntime`, `-SkipWeb`, `-SkipRoleSelector`, and `-SkipDiffCheck`.
+4. Wired the command into `scripts/project-progress.ps1`, bootstrap docs, lean continuation workflow, runtime docs, dashboard, plan, status, and problem row `P-012`.
+
+Verification summary:
+
+- `.\scripts\project-preflight.ps1`: passed.
+- `.\scripts\project-preflight.ps1 -SkipWeb -SkipRoleSelector -SkipDiffCheck`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No full regression-suite expansion, application behavior change, frontend source edit, route change, schema change, dependency change, Java source change, `.env` edit, or production data operation.
+
+## 2026-06-15 New Conversation Fast Handoff
+
+Agent: merge-agent / process support
+
+Execution summary:
+
+1. Updated `docs/tasks/context-handoff.md` so the exact new-conversation starter begins from `F:\AI\projects\testJava\OA-ThinkPHP`, runs `.\scripts\project-progress.ps1 -SkipStatusTail`, and then runs `.\scripts\project-preflight.ps1` when local services are expected.
+2. Updated `docs/tasks/new-conversation-bootstrap.md` so future conversations start from script-produced context instead of manually reading long docs first.
+3. Updated `docs/tasks/lean-continuation-workflow.md` so its fast startup and handoff rules match the new preflight workflow.
+
+Verification summary:
+
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No application behavior, frontend source, route, schema, dependency, Java source, `.env`, or production data changes.
+
+## 2026-06-15 Explicit Commit Guardrail
+
+Agent: merge-agent / process support
+
+Execution summary:
+
+1. Updated `docs/tasks/context-handoff.md` so the exact new-conversation starter says not to commit unless the user explicitly asks or the main merge/coordinator explicitly approves committing the completed slice.
+2. Updated `docs/tasks/new-conversation-bootstrap.md` so multi-Agent coordination focuses on review, verification, and doc updates, with commits gated by explicit approval.
+3. Updated `docs/tasks/lean-continuation-workflow.md` so the implementation loop no longer implies automatic per-slice commits.
+4. Added problem-log row `P-013` for the recurring commit-workflow ambiguity.
+
+Verification summary:
+
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No Git commit command, application behavior change, frontend source edit, route change, schema change, dependency change, Java source change, `.env` edit, or production data operation.
+
+## 2026-06-15 Progress Snapshot Commit Guardrail
+
+Agent: merge-agent / process support
+
+Execution summary:
+
+1. Added a `Commit Guardrail` section to `scripts/project-progress.ps1`.
+2. The fast startup snapshot now states that commits require an explicit user request or explicit main merge/coordinator approval.
+3. Updated problem row `P-013` so the mitigation includes both active docs and the startup snapshot.
+4. Updated the problem-log review checklist to use `.\scripts\project-progress.ps1 -SkipStatusTail`.
+
+Verification summary:
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail -ProblemLines 20`: passed and printed the new commit guardrail.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No application behavior, frontend source, route, schema, dependency, Java source, `.env`, production data, or Git commit changes.
+
+## 2026-06-15 Recent Problem Row Visibility
+
+Agent: merge-agent / process support
+
+Execution summary:
+
+1. Updated `scripts/project-progress.ps1` so it still prints the problem-log head, then also prints a `Recent Problem Rows` section.
+2. The recent section extracts the latest appended `P-###` rows from `docs/tasks/problem-optimization-log.md`.
+3. Added problem-log row `P-014` for the risk that short startup output can hide the newest mitigations.
+
+Verification summary:
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail -ProblemLines 20`: passed and printed `Recent Problem Rows` including `P-014`.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No problem-table schema redesign, dependency change, application behavior change, frontend source edit, route change, Java source change, `.env` edit, production data operation, or Git commit command.
+
+## 2026-06-15 Lean Progress Snapshot Mode
+
+Agent: merge-agent / process support
+
+Execution summary:
+
+1. Added `-Lean` to `scripts/project-progress.ps1`.
+2. Lean mode defaults `DashboardLines` to `35`, `ProblemLines` to `20`, and skips the `STATUS.md` tail.
+3. Lean mode still prints recent problem rows, context handoff, commit guardrail, and fast commands.
+4. Updated fast command examples to prefer `-Lean` for runtime and web readiness snapshots.
+5. Updated context handoff, new conversation bootstrap, and lean continuation docs to use `.\scripts\project-progress.ps1 -Lean` as the first startup command.
+6. Added problem-log row `P-015` for startup context size.
+
+Verification summary:
+
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No preflight behavior change, dependency change, application behavior change, frontend source edit, route change, Java source change, `.env` edit, production data operation, or Git commit command.
+
+## 2026-06-15 Lean Dashboard Summary
+
+Agent: merge-agent / process support
+
+Execution summary:
+
+1. Added `Show-DashboardLean` to `scripts/project-progress.ps1`.
+2. Lean mode now prints `Progress Dashboard Summary` instead of raw dashboard head lines.
+3. The summary extracts selected stable facts from `docs/tasks/refactor-progress-dashboard.md`: update time, completion estimates, compact key frontend route metrics, current branch, and truncated recent verification notes.
+4. Added problem-log row `P-016` for wide dashboard rows consuming startup context.
+
+Verification summary:
+
+- `.\scripts\project-progress.ps1 -Lean`: passed and printed compact `Progress Dashboard Summary` metrics without raw wide dashboard table notes.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No dashboard source rewrite, preflight behavior change, dependency change, application behavior change, frontend source edit, route change, Java source change, `.env` edit, production data operation, or Git commit command.
+
+## 2026-06-15 Lean Problem Summary
+
+Agent: merge-agent / process support
+
+Execution summary:
+
+1. Added `Convert-ProblemLine` and `Show-ProblemsLean` to `scripts/project-progress.ps1`.
+2. Lean mode now prints the problem-log path, open problem count, and compact recent rows in `ID | Area | Status | Problem` format.
+3. Non-lean mode still prints the configured problem-log head plus full recent problem rows.
+4. Added problem-log row `P-017` for noisy full problem rows in startup output.
+
+Verification summary:
+
+- `.\scripts\project-progress.ps1 -Lean`: passed and printed compact problem summaries including `P-017`.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No problem-log schema change, preflight behavior change, dependency change, application behavior change, frontend source edit, route change, Java source change, `.env` edit, production data operation, or Git commit command.
+
+## 2026-06-15 Problem Table Pipe Guard
+
+Agent: merge-agent / process support
+
+Execution summary:
+
+1. Fixed problem row `P-017` so it no longer contains raw vertical bars inside a Markdown table cell.
+2. Updated `Convert-ProblemLine` to trim non-empty columns and read status from the final column.
+3. Added problem-log row `P-018` for raw vertical bars breaking table/script parsing.
+
+Verification summary:
+
+- `.\scripts\project-progress.ps1 -Lean`: passed and showed `P-017` and `P-018` with `Mitigated` status.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No problem-log table schema change, Markdown parser dependency, preflight behavior change, application behavior change, frontend source edit, route change, Java source change, `.env` edit, production data operation, or Git commit command.
+
+## 2026-06-15 Third-Party Auth Deferred Wrappers
+
+Agent: merge-agent / auth-agent fallback
+
+Execution summary:
+
+1. Reviewed copied frontend `auth/third` wrappers and Java `AuthThirdController` render/callback routes.
+2. Added `ThirdController::render` and `ThirdController::callback` as controlled deferred public wrappers.
+3. Registered `GET /auth/third/render` and `GET /auth/third/callback` without changing the protected `/auth/third/page` route.
+4. Updated auth-third compatibility docs, API gap map, progress dashboard, public route-change notes, active plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\auth\ThirdController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String "auth/third"`: passed and listed `render`, `callback`, and protected `page`.
+- Public HTTP smoke for `/auth/third/render` and `/auth/third/callback`: passed; both returned business `code = 400`.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No real OAuth redirect, provider credential read, callback code exchange, token issuance, user binding write, database schema change, Java source change, frontend source edit, Composer change, `.env` edit, production data operation, or Git commit command.
+
+## 2026-06-15 SMS Provider Deferred Wrappers
+
+Agent: merge-agent / dev-sms-agent fallback
+
+Execution summary:
+
+1. Reviewed copied frontend SMS provider-send wrappers and Java `DevSmsController` send routes.
+2. Added `SmsController::sendAliyun`, `SmsController::sendTencent`, and `SmsController::sendXiaonuo` as controlled deferred protected wrappers.
+3. Registered `POST /dev/sms/sendAliyun`, `/dev/sms/sendTencent`, and `/dev/sms/sendXiaonuo` inside the existing protected `dev/sms` route group.
+4. Updated dev email/SMS compatibility docs, API gap map, progress dashboard, public route-change notes, active plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\dev\SmsController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String "dev/sms"`: passed and listed `sendAliyun`, `sendTencent`, and `sendXiaonuo`.
+- Authenticated HTTP smoke for all three provider-send routes: passed; each returned business `code = 400`.
+- No-token HTTP smoke for all three provider-send routes: passed; each returned business `code = 401`.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing line-ending warnings only.
+
+Explicit non-goals:
+
+- No real SMS sending, provider credential read, SMS SDK integration, external provider call, send-record write, database schema change, Java source change, frontend source edit, Composer change, `.env` edit, production data operation, or Git commit command.
+

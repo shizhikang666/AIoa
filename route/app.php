@@ -42,6 +42,11 @@ Route::group('auth/token', function () {
 })->middleware(AuthMiddleware::class);
 
 Route::group('auth/third', function () {
+    Route::get('render', 'auth.ThirdController/render');
+    Route::get('callback', 'auth.ThirdController/callback');
+});
+
+Route::group('auth/third', function () {
     Route::get('page', 'auth.ThirdController/page');
 })->middleware(AuthMiddleware::class);
 
@@ -279,6 +284,9 @@ Route::group('dev/email', function () {
 Route::group('dev/sms', function () {
     Route::get('page', 'dev.SmsController/page');
     Route::get('detail', 'dev.SmsController/detail');
+    Route::post('sendAliyun', 'dev.SmsController/sendAliyun');
+    Route::post('sendTencent', 'dev.SmsController/sendTencent');
+    Route::post('sendXiaonuo', 'dev.SmsController/sendXiaonuo');
     Route::post('delete', 'dev.SmsController/delete');
 })->middleware(AuthMiddleware::class);
 

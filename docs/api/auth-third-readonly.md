@@ -23,8 +23,10 @@ Frontend reference:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/auth/third/page` | List third-party user bindings. |
+| GET | `/auth/third/render` | Controlled deferred third-party auth render wrapper. |
+| GET | `/auth/third/callback` | Controlled deferred third-party auth callback wrapper. |
 
-The route is protected by `AuthMiddleware`.
+`/auth/third/page` is protected by `AuthMiddleware`. The render and callback wrappers stay public like the Java login entry points, but return a controlled deferred response instead of starting OAuth provider behavior.
 
 ## Supported Filters
 
@@ -43,6 +45,5 @@ The route is protected by `AuthMiddleware`.
 
 ## Deferred
 
-- `/auth/third/render` remains deferred.
-- `/auth/third/callback` remains deferred.
+- `/auth/third/render` and `/auth/third/callback` are routed but intentionally return `code = 400` deferred responses.
 - OAuth provider configuration, third-party login, user binding writes, user creation, token issuance, Java source changes, database schema changes, Composer files, `.env`, and frontend source are unchanged.

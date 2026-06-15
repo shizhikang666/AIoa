@@ -20,6 +20,21 @@ It is a process rule only. It must not be used as permission to change completed
 For a normal continuation, do not read every large status file end to end. Start with this packet:
 
 ```powershell
+Set-Location F:\AI\projects\testJava\OA-ThinkPHP
+.\scripts\project-progress.ps1 -Lean
+```
+
+If local services are expected to be running, follow with:
+
+```powershell
+.\scripts\project-preflight.ps1
+```
+
+Use preflight skip switches only for intentionally unavailable layers, for example `-SkipWeb`, `-SkipRoleSelector`, or `-SkipDiffCheck`.
+
+Use this manual equivalent only when the helper script is unavailable:
+
+```powershell
 git status --short --branch
 Get-Content -Raw AGENTS.md
 Get-Content -Raw docs\tasks\new-conversation-bootstrap.md
@@ -39,6 +54,19 @@ Read full `PLANS.md`, `IMPLEMENT.md`, or `STATUS.md` only when:
 - targeted search does not answer the current scope question;
 - the task touches cross-module behavior;
 - a merge, audit, release, or user-requested full status report requires it.
+
+Check `docs/tasks/problem-optimization-log.md` before starting the slice. If the current work repeats an existing problem, update that row instead of adding a duplicate.
+
+Use `docs/tasks/context-handoff.md` when the current conversation becomes too large for precise work. Ask the user to open a new conversation before starting broad, risky, or cross-module work if the current context is already overloaded.
+
+For DB-backed, authenticated HTTP, or browser smoke work, run the relevant readiness helper first:
+
+```powershell
+.\scripts\project-preflight.ps1
+.\scripts\runtime-ready.ps1
+.\scripts\web-ready.ps1
+.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean
+```
 
 ## Slice Triage
 
@@ -61,7 +89,7 @@ Default to multi-Agent mode when the tools and quota are available:
 - The main conversation is the merge/coordinator.
 - Explorers answer bounded codebase questions and do not edit files.
 - Workers edit only their assigned file/module ownership and must report changed files.
-- The coordinator reviews, integrates, runs acceptance checks, and commits.
+- The coordinator reviews, integrates, runs acceptance checks, and commits only when the user explicitly asks or the coordinator explicitly approves it.
 
 If sub-Agent tools or quota are unavailable, continue in single-conversation fallback:
 
@@ -86,9 +114,10 @@ Use this loop for each slice:
 3. Write a short local plan with scope, touched files, non-goals, and acceptance checks.
 4. Edit only the scoped files.
 5. Update the narrow docs that future conversations need.
-6. Run risk-appropriate checks.
-7. Commit a small coherent changeset.
-8. Report changed files, checks, residual risks, and next slice.
+6. Record new recurring problems or mitigations in `docs/tasks/problem-optimization-log.md`.
+7. Run risk-appropriate checks.
+8. Commit only when the user explicitly asks or the main merge/coordinator explicitly approves committing this completed slice.
+9. Report changed files, checks, problem-log updates, residual risks, and next slice.
 
 Avoid re-reading stable decisions. Link to existing docs instead of restating them.
 
@@ -99,10 +128,31 @@ Each slice should update only the docs it actually changes:
 - API behavior: one `docs/api/*` file or the existing module doc.
 - Route/gap count: `docs/tasks/api-gap-map.md` when route coverage changes.
 - Project progress: `docs/tasks/refactor-progress-dashboard.md` when capability or counts change.
+- Recurring problems and workflow improvements: `docs/tasks/problem-optimization-log.md`.
 - Future startup facts: `docs/tasks/new-conversation-bootstrap.md` only for reusable runtime, credential, smoke, or workflow facts.
 - Long-running record: append concise entries to `PLANS.md`, `IMPLEMENT.md`, and `STATUS.md` for completed implementation slices.
 
 Do not paste long command output into docs. Record pass/fail and the few facts needed for future verification.
+
+## Problem Log Rules
+
+Use `docs/tasks/problem-optimization-log.md` as the living problem table.
+
+- Add a row when a problem is likely to recur, slows future work, creates ambiguity, blocks verification, or reveals a missing guardrail.
+- Update an existing row when the same problem repeats or when a better mitigation is found.
+- Keep entries practical: problem, impact, root cause, current mitigation, next optimization, and status.
+- Do not store secrets, raw credentials, tokens, local login values, or production data in the problem log.
+- Mention important problem-log changes in the completed slice's `STATUS.md` entry.
+
+## Context Handoff Rules
+
+Use `docs/tasks/context-handoff.md` as the handoff contract for long conversations.
+
+- Keep working in the current conversation while the current slice is small and precise.
+- Finish and verify the active coherent slice before asking for a new conversation when practical.
+- Ask for a new conversation before broad Java/frontend/backend inspections, side-effect-heavy work, or cross-module work if this thread is already long.
+- Before handing off, update `STATUS.md` and `docs/tasks/problem-optimization-log.md`; update the dashboard, gap map, `PLANS.md`, or `IMPLEMENT.md` only when their facts changed.
+- In the new conversation, start with `.\scripts\project-progress.ps1 -Lean`, then run `.\scripts\project-preflight.ps1` when local services are expected to be available.
 
 ## Quality Gates
 
@@ -137,11 +187,13 @@ For isolated writes, verify:
 For side-effect-heavy writes, do not start implementation until a separate side-effect map and transaction smoke plan are written.
 
 For frontend-visible changes, run browser smoke when the backend/frontend servers are active. If not run, say so and record why.
+Use `.\scripts\web-ready.ps1` first so a missing backend port `82` or frontend port `83` is recorded as an environment precondition instead of a frontend regression.
 
 ## Faster Check Selection
 
 Use targeted checks first:
 
+- `.\scripts\project-preflight.ps1` when local runtime, web, selector, and whitespace checks are all relevant.
 - `php -l` only touched PHP files plus `route/app.php`.
 - `php think route:list | Select-String "<route group>"` when only routes changed.
 - Focused service smoke through ThinkPHP bootstrap for DB behavior.

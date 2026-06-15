@@ -4442,3 +4442,69 @@ The copied frontend already contains `snowy-admin-web/src/views/sys/resource/fie
 - Frontend production build must pass.
 - Browser smoke should load `/sys/menu`, expand a catalog row, open a `MENU` row's `更多`, confirm `按钮权限` and `字段权限`, click `字段权限`, and verify `GET /api/sys/field/page`.
 - If the current local admin menu lacks `/sys/menu`, temporary marked `sys_relation` authorization rows may be inserted only for the browser smoke and must be deleted before final verification.
+
+---
+
+# Public File Change Request: Third-Party Auth Deferred Wrappers
+
+## Request
+
+Register public controlled-deferred third-party auth wrapper routes in `route/app.php`.
+
+## Reason
+
+The copied frontend auth wrappers call `/auth/third/render` and `/auth/third/callback`. Java exposes these as public OAuth entry points, but the ThinkPHP refactor does not yet have a confirmed provider configuration, redirect security plan, callback token issuance plan, or user-binding write plan.
+
+## Applied Change
+
+`merge-agent` registers:
+
+- `GET /auth/third/render`
+- `GET /auth/third/callback`
+
+## Guardrails
+
+- The routes return controlled `code = 400` deferred responses instead of 404.
+- The routes do not start OAuth redirects, exchange callback codes, issue tokens, create or bind users, read provider secrets, write database rows, modify frontend source, modify Java source, change schema, change Composer files, or touch `.env`.
+- `GET /auth/third/page` remains protected by `AuthMiddleware`.
+
+## Verification
+
+- `php -l app\controller\auth\ThirdController.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String "auth/third"`
+- Public HTTP smoke for both routes should return business `code = 400`.
+
+---
+
+# Public File Change Request: Dev SMS Deferred Send Wrappers
+
+## Request
+
+Register protected controlled-deferred SMS provider send wrapper routes in `route/app.php`.
+
+## Reason
+
+The copied frontend calls `/dev/sms/sendAliyun`, `/dev/sms/sendTencent`, and `/dev/sms/sendXiaonuo`. Java exposes these protected provider-send entry points, but the ThinkPHP refactor does not yet have a confirmed provider credential model, SDK integration, external-send guardrail, send-record write plan, or production-data synchronization plan.
+
+## Applied Change
+
+`merge-agent` registers:
+
+- `POST /dev/sms/sendAliyun`
+- `POST /dev/sms/sendTencent`
+- `POST /dev/sms/sendXiaonuo`
+
+## Guardrails
+
+- The routes remain behind `AuthMiddleware`.
+- The routes return controlled `code = 400` deferred responses instead of 404.
+- The routes do not read provider credentials, load SMS SDKs, call external SMS services, write send records, modify frontend source, modify Java source, change schema, change Composer files, touch `.env`, or sync production data.
+
+## Verification
+
+- `php -l app\controller\dev\SmsController.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String "dev/sms"`
+- Authenticated HTTP smoke for the three provider-send routes should return business `code = 400`.
+- No-token HTTP smoke for the three provider-send routes should return business `code = 401`.

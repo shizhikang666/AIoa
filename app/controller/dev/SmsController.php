@@ -6,6 +6,7 @@ namespace app\controller\dev;
 
 use app\controller\sys\BaseSysController;
 use app\service\dev\SmsService;
+use app\support\ApiResponse;
 use RuntimeException;
 use think\Request;
 use think\Response;
@@ -29,6 +30,28 @@ class SmsController extends BaseSysController
     public function delete(Request $request): Response
     {
         return $this->guard(fn () => $this->smsService->delete($this->deleteIds($this->bodyInput($request)), $this->payload($request)));
+    }
+
+    public function sendAliyun(): Response
+    {
+        return $this->deferredSend('ALIYUN');
+    }
+
+    public function sendTencent(): Response
+    {
+        return $this->deferredSend('TENCENT');
+    }
+
+    public function sendXiaonuo(): Response
+    {
+        return $this->deferredSend('XIAONUO');
+    }
+
+    private function deferredSend(string $engine): Response
+    {
+        return ApiResponse::fail('sms sending is deferred', 400, [
+            'engine' => $engine,
+        ]);
     }
 
     private function tenantId(Request $request): ?string

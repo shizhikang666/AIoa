@@ -9028,3 +9028,581 @@ Make existing user and position selector routes return Java-style paged payloads
 ### 4. Forbidden Scope
 
 - Do not change frontend files, user/org/position write behavior, imports, exports, grants, password behavior, workflow, finance, stock, Java source, database schema, Composer, or `.env`.
+
+## Completed Plan: merge-agent - Project Progress Acceleration Helper
+
+Status: completed on 2026-06-15 after a repository/worktree audit and helper-script verification.
+
+### 1. Current Goal
+
+Make future continuations faster by replacing repeated long status/dashboard reads with one safe progress snapshot command.
+
+### 2. Involved Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- A single command prints the current Git status, dashboard head, next execution order, and latest status tail.
+- The helper is read-only and does not read or print `.env`, database credentials, Redis credentials, login values, tokens, or API keys.
+- Startup documentation points future conversations to the helper before manual long-log reads.
+- No business code, route, Java source, database schema, Composer dependency, frontend behavior, or runtime configuration is changed.
+
+### 4. Forbidden Scope
+
+- Do not change application behavior, start production data work, merge old module worktrees, push commits, or clean up stale worktrees in this process-only slice.
+
+## Completed Plan: merge-agent - Problem Optimization Log
+
+Status: completed on 2026-06-15 after adding the problem table and wiring it into the fast continuation flow.
+
+### 1. Current Goal
+
+Record every recurring problem encountered during project work and continuously improve the mitigation table.
+
+### 2. Involved Files
+
+- `docs/tasks/problem-optimization-log.md`
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- A problem table exists with problem, impact, root cause, mitigation, next optimization, and status.
+- Known current workflow problems are seeded into the table.
+- The fast progress script shows the problem table during startup.
+- Future continuation docs require updating the table when recurring problems or better mitigations appear.
+- No business code, route, Java source, database schema, Composer dependency, frontend behavior, secrets, or runtime config is changed.
+
+### 4. Forbidden Scope
+
+- Do not turn the problem table into a dumping ground for long logs, raw command output, credentials, or one-off noise.
+
+## Completed Plan: merge-agent - Context Handoff Flow
+
+Status: completed on 2026-06-15 after adding a persistent handoff contract for long conversations.
+
+### 1. Current Goal
+
+Define when to ask the user to open a new conversation and how the next conversation should continue without relying on chat history.
+
+### 2. Involved Files
+
+- `docs/tasks/context-handoff.md`
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- The project has explicit criteria for when to request a new conversation.
+- The old conversation handoff checklist is documented.
+- The new conversation starter prompt is stored in the repo.
+- The progress helper points future users to the context handoff doc.
+- The problem table records context overload as a mitigated workflow risk.
+- No business behavior, route, Java source, database schema, Composer dependency, frontend behavior, secrets, or runtime config is changed.
+
+### 4. Forbidden Scope
+
+- Do not split the conversation while a coherent edit is half-finished unless blocked.
+- Do not rely on chat-only state for the next conversation.
+
+## Completed Plan: merge-agent - Role Selector Pagination Shape Compatibility
+
+Status: completed on 2026-06-15 after Java/frontend expectation review, service patch, PHP lint, route verification, and DB-backed service smoke.
+
+### 1. Current Goal
+
+Make existing role selector routes return the Java-style paged payload expected by copied `roleSelectorPlus`.
+
+### 2. Involved Files
+
+- `app/service/user/UserDirectoryService.php`
+- `app/service/auth/RoleService.php`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `/sys/user/roleSelector`, `/biz/user/roleSelector`, and `/sys/role/roleSelector` return `records`, `total`, `current`, `page`, `limit`, `size`, and `pages`.
+- Role selector records preserve `id`, `name`, `code`, `category`, `orgId`, and `sortCode`, and expose `value`, `label`, and `title`.
+- Copied frontend `size` pagination is accepted.
+- No role grant save logic, role writes, route registration, frontend source, Java source, schema, Composer, or `.env` changes are made.
+
+### 4. Forbidden Scope
+
+- Do not change role authorization writes, data-scope behavior, frontend components, route files, workflow, finance, stock, production data, or runtime configuration in this slice.
+
+## Completed Plan: merge-agent - Runtime Readiness Check
+
+Status: completed on 2026-06-15 after adding a lightweight port readiness helper and wiring it into startup docs.
+
+### 1. Current Goal
+
+Avoid wasting DB-backed smoke attempts when the local runtime services are not listening.
+
+### 2. Involved Files
+
+- `scripts/runtime-ready.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/local-runtime-services.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- A single command checks local MySQL, Redis, and PHP FastCGI ports without reading or printing secrets.
+- The progress helper can run the readiness check with `-CheckRuntime`.
+- Runtime docs and bootstrap docs point to the helper.
+- Existing runtime credentials and `.env` remain untouched and unprinted.
+
+### 4. Forbidden Scope
+
+- Do not change database config, Redis config, service startup scripts, application code behavior, Java source, frontend source, Composer, or production data.
+
+## Completed Plan: merge-agent - Web Readiness Check
+
+Status: completed on 2026-06-15 after adding a lightweight local backend/frontend readiness helper and wiring it into continuation docs.
+
+### 1. Current Goal
+
+Avoid starting browser or authenticated HTTP smoke work before the local ThinkPHP and Vue application servers are reachable.
+
+### 2. Involved Files
+
+- `scripts/web-ready.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/frontend-joint-test-workflow.md`
+- `docs/tasks/local-runtime-services.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- A single command checks local ThinkPHP backend port `82` and Vue frontend port `83` without reading or printing secrets.
+- The progress helper can run the web readiness check with `-CheckWeb`.
+- Future browser-smoke docs point to the helper.
+- The problem table records the distinction between base runtime readiness and application-server readiness.
+
+### 4. Forbidden Scope
+
+- Do not change application behavior, route registration, service startup scripts, frontend source, Java source, database config, Composer dependencies, `.env`, or production data.
+
+## Completed Plan: merge-agent - Role Selector HTTP Smoke
+
+Status: completed on 2026-06-15 after adding a dependency-free authenticated HTTP fallback for role-selector dialog APIs.
+
+### 1. Current Goal
+
+Verify the read-only backend payloads used by copied `/sys/user` and `/biz/user` grant-role dialogs without adding browser-test dependencies.
+
+### 2. Involved Files
+
+- `scripts/role-selector-http-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/api/frontend-readonly-selector-compat.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- The script creates a short-lived local token from the ignored `.env` account without printing credentials or tokens.
+- The script verifies `ownRole` plus `/sys/user/roleSelector`, `/biz/user/roleSelector`, and `/sys/role/roleSelector` through local HTTP.
+- The script checks the Java-style paged shape expected by copied `roleSelectorPlus`.
+- No `grantRole`, role writes, frontend source changes, schema changes, dependency additions, Java source changes, or production data operations are made.
+
+### 4. Forbidden Scope
+
+- Do not add Playwright/Puppeteer or any browser-test dependency in this slice.
+- Do not perform role grant writes or browser UI automation in this slice.
+
+## Completed Plan: merge-agent - Case-Safe JSON Smoke Helper
+
+Status: completed on 2026-06-15 after adding a small Node helper for PowerShell 5.1 HTTP smoke parsing.
+
+### 1. Current Goal
+
+Avoid future HTTP smoke failures caused by PowerShell 5.1 treating JSON keys such as `ID` and `id` as duplicates.
+
+### 2. Involved Files
+
+- `scripts/json-read.js`
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- The helper reads JSON from stdin and returns a requested dot-path value.
+- The helper preserves case-sensitive key access for aliases such as `ID` and `id`.
+- Startup docs and problem table explain when to use the helper.
+- No business behavior, HTTP endpoints, frontend source, dependencies, Java source, schema, `.env`, or production data are changed.
+
+### 4. Forbidden Scope
+
+- Do not rewrite existing broad smoke scripts in this slice.
+- Do not add npm packages or change project dependency manifests.
+
+## Completed Plan: merge-agent - Project Preflight Bundle
+
+Status: completed on 2026-06-15 after adding a single local preflight command with skip switches.
+
+### 1. Current Goal
+
+Reduce repeated manual verification overhead by bundling the common continuation checks into one command.
+
+### 2. Involved Files
+
+- `scripts/project-preflight.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/local-runtime-services.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- The preflight command runs Git status, runtime readiness, web readiness, role-selector HTTP smoke, and `git diff --check`.
+- The command supports skip switches for intentionally unavailable runtime, web, role-selector, or diff-check layers.
+- Startup and continuation docs point to the preflight command.
+- No application behavior, frontend source, route, schema, Java source, dependency manifest, `.env`, or production data is changed.
+
+### 4. Forbidden Scope
+
+- Do not turn preflight into a full regression suite.
+- Do not require web/frontend services for backend-only work when skip switches are appropriate.
+
+## Completed Plan: merge-agent - New Conversation Fast Handoff
+
+Status: completed on 2026-06-15 after aligning long-context handoff docs with the preflight workflow.
+
+### 1. Current Goal
+
+Make future continuations faster by starting from the compressed project-progress packet and the repeatable local preflight bundle instead of manual long-document reads.
+
+### 2. Involved Files
+
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- New conversation starter text begins from `F:\AI\projects\testJava\OA-ThinkPHP`.
+- The first command is `.\scripts\project-progress.ps1 -SkipStatusTail`.
+- `.\scripts\project-preflight.ps1` is the default next command when local services are expected to be running.
+- Skip switches are documented for intentionally unavailable service layers.
+- No application behavior, frontend source, route, schema, Java source, dependency manifest, `.env`, or production data is changed.
+
+### 4. Forbidden Scope
+
+- Do not add new smoke coverage or dependencies in this documentation-only slice.
+- Do not ask for a new conversation until the current small slice is verified.
+
+## Completed Plan: merge-agent - Explicit Commit Guardrail
+
+Status: completed on 2026-06-15 after aligning active continuation docs with the no-implicit-commit rule.
+
+### 1. Current Goal
+
+Prevent future continuation prompts from causing an Agent to commit local changes before the user explicitly asks or the merge/coordinator explicitly approves the completed slice.
+
+### 2. Involved Files
+
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- The new conversation starter includes the no-implicit-commit rule.
+- Multi-Agent and implementation-loop docs no longer imply automatic per-slice commits.
+- Problem row `P-013` records the risk and mitigation.
+- No business behavior, frontend source, route, schema, Java source, dependency manifest, `.env`, or production data is changed.
+
+### 4. Forbidden Scope
+
+- Do not rewrite historical status entries that mention old commit plans.
+- Do not run any Git commit command in this slice.
+
+## Completed Plan: merge-agent - Progress Snapshot Commit Guardrail
+
+Status: completed on 2026-06-15 after adding the commit rule to the fast startup snapshot.
+
+### 1. Current Goal
+
+Make the no-implicit-commit rule visible in the first `project-progress` output, so future continuations see it without opening full workflow docs.
+
+### 2. Involved Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail` prints a commit guardrail section.
+- Problem row `P-013` records the script-level mitigation.
+- The problem table review checklist uses the lightweight startup command.
+- No business behavior, frontend source, route, schema, Java source, dependency manifest, `.env`, production data, or Git commit is changed.
+
+### 4. Forbidden Scope
+
+- Do not add new runtime checks or broaden preflight behavior in this slice.
+- Do not rewrite historical commit-plan notes.
+
+## Completed Plan: merge-agent - Recent Problem Row Visibility
+
+Status: completed on 2026-06-15 after making recent problem rows visible in the fast startup snapshot.
+
+### 1. Current Goal
+
+Keep the living problem table useful as it grows by showing the newest problem rows even when startup output is shortened.
+
+### 2. Involved Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `.\scripts\project-progress.ps1 -SkipStatusTail -ProblemLines 20` still shows recent problem rows such as `P-014`.
+- Problem row `P-014` records the visibility problem and mitigation.
+- No business behavior, frontend source, route, schema, Java source, dependency manifest, `.env`, production data, or Git commit is changed.
+
+### 4. Forbidden Scope
+
+- Do not redesign the problem table format in this slice.
+- Do not add external dependencies.
+
+## Completed Plan: merge-agent - Lean Progress Snapshot Mode
+
+Status: completed on 2026-06-15 after adding a first-command startup mode for low-context continuations.
+
+### 1. Current Goal
+
+Reduce new conversation startup output further while keeping the important guardrails visible.
+
+### 2. Involved Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/context-handoff.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `.\scripts\project-progress.ps1 -Lean` shortens the dashboard and problem-log heads and skips the status tail.
+- The lean output still includes recent problem rows, context handoff, commit guardrail, and fast commands.
+- New conversation and lean workflow docs use `-Lean` as the first startup command.
+- Problem row `P-015` records the context-size issue and mitigation.
+- No business behavior, frontend source, route, schema, Java source, dependency manifest, `.env`, production data, or Git commit is changed.
+
+### 4. Forbidden Scope
+
+- Do not remove the longer startup modes; keep them available for deeper inspection.
+- Do not change preflight runtime behavior in this slice.
+
+## Completed Plan: merge-agent - Lean Dashboard Summary
+
+Status: completed on 2026-06-15 after replacing raw dashboard head output in lean mode with selected summary lines.
+
+### 1. Current Goal
+
+Prevent `.\scripts\project-progress.ps1 -Lean` from printing very wide dashboard table rows while keeping the key progress facts visible.
+
+### 2. Involved Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Lean mode prints `Progress Dashboard Summary` instead of the raw dashboard head.
+- The summary includes last updated, completion estimates, key frontend route metrics, current branch, and recent verification notes.
+- Recent problem rows still include the newest problem row.
+- Problem row `P-016` records the wide-dashboard-row issue and mitigation.
+- Non-lean mode still supports the original dashboard head output.
+
+### 4. Forbidden Scope
+
+- Do not change dashboard source content in this slice.
+- Do not remove deeper inspection options such as `-DashboardLines`.
+
+## Completed Plan: merge-agent - Lean Problem Summary
+
+Status: completed on 2026-06-15 after replacing full problem-table rows in lean mode with compact problem summaries.
+
+### 1. Current Goal
+
+Keep the newest problem mitigations visible in the first startup command without printing long Markdown table rows.
+
+### 2. Involved Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `.\scripts\project-progress.ps1 -Lean` prints the problem-log path, open problem count, and compact recent problem rows.
+- Non-lean output still supports the full problem-log head and recent full rows.
+- Problem row `P-017` records the noisy problem-row output and mitigation.
+- No business behavior, frontend source, route, schema, Java source, dependency manifest, `.env`, production data, or Git commit is changed.
+
+### 4. Forbidden Scope
+
+- Do not change the problem-log Markdown table schema.
+- Do not remove deeper problem-log inspection commands.
+
+## Completed Plan: merge-agent - Problem Table Pipe Guard
+
+Status: completed on 2026-06-15 after fixing raw vertical-bar text in a problem row and hardening lean problem parsing.
+
+### 1. Current Goal
+
+Prevent problem-log table cells from breaking the lean startup parser when they contain raw Markdown table separators.
+
+### 2. Involved Files
+
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Problem row `P-017` no longer contains raw vertical bars inside a table cell.
+- `Convert-ProblemLine` reads status from the final non-empty column.
+- `.\scripts\project-progress.ps1 -Lean` shows recent rows `P-017` and `P-018` with `Mitigated` status.
+- Problem row `P-018` records the Markdown table separator issue.
+
+### 4. Forbidden Scope
+
+- Do not change the problem-log table schema.
+- Do not add a dependency or full Markdown parser.
+
+## Completed Plan: merge-agent - Third-Party Auth Deferred Wrappers
+
+Status: completed on 2026-06-15 after adding controlled deferred public auth-third wrapper routes.
+
+### 1. Current Goal
+
+Replace frontend-visible 404s for copied third-party auth wrapper calls with explicit deferred API responses, without implementing OAuth provider behavior.
+
+### 2. Involved Files
+
+- `app/controller/auth/ThirdController.php`
+- `route/app.php`
+- `docs/api/auth-third-readonly.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `GET /auth/third/render` and `GET /auth/third/callback` are registered.
+- Both routes return controlled `code = 400` deferred responses without auth token requirements.
+- `GET /auth/third/page` remains protected by `AuthMiddleware`.
+- No OAuth redirect, callback exchange, token issuance, user binding, database write, frontend source edit, Java source edit, schema change, Composer change, `.env` change, production data operation, or Git commit is performed.
+
+### 4. Forbidden Scope
+
+- Do not implement real third-party login.
+- Do not read or store provider credentials.
+- Do not create or bind users.
+
+## Completed Plan: merge-agent - SMS Provider Deferred Wrappers
+
+Status: completed on 2026-06-15 after adding protected controlled-deferred SMS provider-send wrapper routes.
+
+### 1. Current Goal
+
+Replace frontend-visible 404s for copied SMS provider-send calls with explicit deferred API responses, without implementing provider SDK or external-send behavior.
+
+### 2. Involved Files
+
+- `app/controller/dev/SmsController.php`
+- `route/app.php`
+- `docs/api/dev-email-sms-readonly-compat.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- `POST /dev/sms/sendAliyun`, `/dev/sms/sendTencent`, and `/dev/sms/sendXiaonuo` are registered behind `AuthMiddleware`.
+- Authenticated calls return controlled `code = 400` deferred responses.
+- Unauthenticated calls return business `code = 401`.
+- No provider credential read, SDK integration, external SMS call, send-record write, frontend source edit, Java source edit, schema change, Composer change, `.env` change, production data operation, or Git commit is performed.
+
+### 4. Forbidden Scope
+
+- Do not implement real SMS sending.
+- Do not read or store provider credentials.
+- Do not call external provider services.
