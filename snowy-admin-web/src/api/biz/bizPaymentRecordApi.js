@@ -27,6 +27,12 @@ export default {
 		return request('list', data, 'get')
 	},
 
+	bizPaymentRecordSubmitForm(data, edit = false) {
+		return request(edit ? 'edit' : 'add', data)
+	},
+	bizPaymentRecordDelete(data) {
+		return request('delete', data)
+	},
 	bizPaymentRecordEdit(data) {
 		return request('edit', data, 'post')
 	},

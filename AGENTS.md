@@ -281,13 +281,14 @@ Unified JSON response:
 ```json
 {
   "code": 200,
-  "message": "ok",
+  "message": "成功",
   "data": {}
 }
 ```
 
 Status code convention:
 
+- API 响应的 `message`/`msg` 必须使用中文；不得向前端返回英文异常、校验、未实现、鉴权或服务器错误文案。技术细节写入服务端日志或文档，不写入接口返回消息。
 - `200`: success
 - `400`: bad request or validation error
 - `401`: unauthenticated or invalid Token

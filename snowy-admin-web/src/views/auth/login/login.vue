@@ -125,7 +125,14 @@
 	import { useUrlSearchParams } from '@vueuse/core'
 
 	const params = useUrlSearchParams('history')
-	let localTenantId = localStorage.getItem('tenantId') ? parseInt(localStorage.getItem('tenantId')) : ''
+	const normalizeTenantId = (value) => {
+		if (Array.isArray(value)) {
+			value = value[0]
+		}
+
+		return value === undefined || value === null ? '' : String(value).trim()
+	}
+	const localTenantId = normalizeTenantId(localStorage.getItem('tenantId'))
 
 	import { globalStore, iframeStore, keepAliveStore, viewTagsStore } from '@/store'
 
@@ -134,12 +141,12 @@
 	const captchaOpen = ref(configData.SYS_BASE_CONFIG.SNOWY_SYS_DEFAULT_CAPTCHA_OPEN)
 	const validCodeBase64 = ref('')
 	const loading = ref(false)
-	let zhId = parseInt(params.tenantId ? params.tenantId : localTenantId)
+	const tenantId = normalizeTenantId(params.tenantId || localTenantId)
 
 	const ruleForm = reactive({
 		account: '',
 		password: '',
-		tenantId: isNaN(zhId) ? '' : zhId, //租户id
+		tenantId,
 		validCode: '',
 		validCodeReqNo: '',
 		autologin: false
@@ -228,6 +235,13 @@
 
 	// 获取验证码
 	const loginCaptcha = () => {
+		if (captchaOpen.value !== 'true') {
+			validCodeBase64.value = ''
+			ruleForm.validCode = ''
+			ruleForm.validCodeReqNo = ''
+			return
+		}
+
 		loginApi.getPicCaptcha().then((data) => {
 			validCodeBase64.value = data.validCodeBase64
 			ruleForm.validCodeReqNo = data.validCodeReqNo
@@ -244,9 +258,11 @@
 					account: ruleForm.account,
 					// 密码进行SM2加密，传输过程中看到的只有密文，后端存储使用hash
 					password: smCrypto.doSm2Encrypt(ruleForm.password),
-					validCode: ruleForm.validCode,
-					validCodeReqNo: ruleForm.validCodeReqNo,
 					tenantId: ruleForm.tenantId
+				}
+				if (captchaOpen.value === 'true') {
+					loginData.validCode = ruleForm.validCode
+					loginData.validCodeReqNo = ruleForm.validCodeReqNo
 				}
 				const tenantId = ruleForm.tenantId
 				// 获取token
@@ -256,7 +272,9 @@
 					localStorage.setItem('tenantId', loginData.tenantId)
 				} catch (err) {
 					loading.value = false
-					loginCaptcha()
+					if (captchaOpen.value === 'true') {
+						loginCaptcha()
+					}
 					console.error(err)
 				}
 			})

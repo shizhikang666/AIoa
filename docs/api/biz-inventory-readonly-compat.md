@@ -31,13 +31,11 @@ ThinkPHP outputs:
 - Rows include top-level inventory fields plus product display fields used by the old frontend: `productName`, `productCategory`, `safetyStock`, `purchasePrice`, `salePrice`, `minPrice`, `category`, and `specs`.
 - Rows also include an `inventory` object containing the inventory-only fields for compatibility with Java `ProductInventory`.
 
-## Deferred
+## Controlled Deferred Writes
 
-- No `/biz/inventory/add` route.
-- No `/biz/inventory/delete` route.
-- No stock in/out, batch stock movement, or inventory adjustment route.
-- No data-change event behavior.
-- No Java source changes.
+- `POST /biz/inventory/add` returns a controlled `code = 400` deferred response.
+- `POST /biz/inventory/delete` returns a controlled `code = 400` deferred response.
+- No stock in/out, batch stock movement, inventory adjustment, data-change event behavior, schema change, or Java source change is executed by these wrappers.
 
 ## Notes
 

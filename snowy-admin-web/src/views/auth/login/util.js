@@ -19,7 +19,15 @@ export const afterLogin = async (loginToken, tenantId) => {
 	tool.data.set('USER_INFO', loginUser)
 	// 获取用户的菜单
 	const menu = await userCenterApi.userLoginMenu()
-	let indexMenu = routerUtil.getIndexMenu(menu).path
+	const indexRoute = routerUtil.getIndexMenu(menu)
+	if (!indexRoute?.path) {
+		tool.data.remove('TOKEN')
+		tool.data.remove('tenantId')
+		tool.data.remove('USER_INFO')
+		message.error('当前账号未分配菜单权限，请联系管理员授权')
+		return Promise.reject(new Error('missing login menu'))
+	}
+	let indexMenu = indexRoute.path
 	let SYS_CONFIG = await sysConfigApi.sysConfigDetail()
 	let SYS_USER_PROCESS_CONFIG = await userCenterApi.userCenterGetProcessConfig()
 	tool.data.set('MENU', menu)
@@ -45,7 +53,7 @@ export const afterLogin = async (loginToken, tenantId) => {
 		})
 		if (routerTag === 0) {
 			// 取首页
-			indexMenu = routerUtil.getIndexMenu(menu).path
+			indexMenu = routerUtil.getIndexMenu(menu)?.path || indexMenu
 		}
 	}
 	dictApi.dictTree().then((data) => {

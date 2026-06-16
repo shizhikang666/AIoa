@@ -6,6 +6,7 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\DeliveryRecordService;
+use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -28,6 +29,18 @@ class DeliveryRecordController extends BaseSysController
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->deliveryRecordService->detail($this->requiredString($request, 'id'), $this->authPayload($request)));
+    }
+
+    public function add(): Response
+    {
+        return $this->deferredWrite('delivery record add');
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     private function authPayload(Request $request): array

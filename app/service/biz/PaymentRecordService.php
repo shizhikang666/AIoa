@@ -8,7 +8,7 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only payment-record queries compatible with Java BizPaymentRecordController.
+ * Payment-record queries and narrow payer-time correction compatible with Java BizPaymentRecordController.
  */
 class PaymentRecordService
 {
@@ -118,6 +118,44 @@ SQL;
         return $this->recordRows([$row])[0];
     }
 
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $payerTime = $this->requiredTime($input, 'payerTime');
+
+        return Db::transaction(function () use ($id, $payerTime, $payload): array {
+            $record = $this->assertRecordWritable($id, $payload, 'edit this payment record');
+            $statementId = trim((string)($record['SERIAL_ID'] ?? ''));
+            if ($statementId === '') {
+                throw new RuntimeException('payment record statement missing', 404);
+            }
+
+            $statement = $this->activeStatement($statementId, $payload);
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $audit = [
+                'PAYER_TIME' => $payerTime,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+            ];
+
+            $updated = Db::name('biz_payment_record')
+                ->where('ID', $id)
+                ->update($audit);
+
+            $statementUpdated = Db::name('settlement_account_statement')
+                ->where('ID', (string)$statement['ID'])
+                ->update($audit);
+
+            return [
+                'id' => $id,
+                'statementId' => (string)$statement['ID'],
+                'count' => $updated,
+                'statementCount' => $statementUpdated,
+            ];
+        });
+    }
+
     private function recordQuery(array $filters, array $payload, bool $prefixSettlementCategory)
     {
         $query = Db::name('biz_payment_record')
@@ -198,6 +236,73 @@ SQL;
         return $query;
     }
 
+    private function assertRecordWritable(string $id, array $payload, string $action): array
+    {
+        $row = $this->activeRecord($id, $payload);
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $recordOrg = trim((string)($row['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $recordOrg !== '' && in_array($recordOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $recordUser = trim((string)($row['USER_ID'] ?? ''));
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && ($recordUser === $currentUserId || $createUser === $currentUserId)) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    private function activeRecord(string $id, array $payload): array
+    {
+        $query = Db::name('biz_payment_record')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query
+            ->field('ID,OBJECT_ID,TARGET_ID,SERIAL_ID,PROCESS_ID,SETTLEMENT_CATEGORY,PAYER_TIME,AMOUNT,TENANT_ID,ORG,CREATE_USER,`USER` AS USER_ID')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('payment record not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function activeStatement(string $id, array $payload): array
+    {
+        $query = Db::name('settlement_account_statement')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->field('ID,TENANT_ID')->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('payment record statement not found', 404);
+        }
+
+        return $row;
+    }
+
     private function applyTimeRange($query, array $filters, string $column, string $startKey, string $endKey): void
     {
         $start = trim((string)($filters[$startKey] ?? ''));
@@ -218,6 +323,27 @@ SQL;
         }
 
         return $query->order('r.ID', 'asc');
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function requiredTime(array $input, string $key): string
+    {
+        $value = $this->requiredInput($input, $key);
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
     }
 
     /**
@@ -320,6 +446,63 @@ SQL;
         $limit = max(1, min(200, (int)($filters['size'] ?? $filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function scopeOrgIds(array $payload): array
+    {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            $ids = array_merge($ids, array_map(static function (mixed $scope): string {
+                if (!is_array($scope)) {
+                    return '';
+                }
+
+                return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            }, $scopes));
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? $payload['roleCodeList'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function decimal(mixed $value): int|float|null

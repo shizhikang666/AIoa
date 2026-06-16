@@ -23,7 +23,7 @@ abstract class BaseWorkflowController extends BaseController
 
             return ApiResponse::fail($exception->getMessage(), $status);
         } catch (Throwable) {
-            return ApiResponse::fail('server error', 500);
+            return ApiResponse::fail('服务器错误', 500);
         }
     }
 

@@ -8,12 +8,15 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only scheduled job queries compatible with Java DevJobController.
+ * Scheduled job metadata compatibility for Java DevJobController.
  */
 class JobService
 {
     private const NOT_DELETE = 'NOT_DELETE';
     private const DELETED = 'DELETED';
+    private const STATUS_STOPPED = 'STOPPED';
+    private const STATUS_RUNNING = 'RUNNING';
+    private const CATEGORIES = ['FRM', 'BIZ'];
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
         'name' => 'NAME',
@@ -68,6 +71,80 @@ class JobService
         }
 
         return $this->jobRow(is_array($row) ? $row : $row->toArray());
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     */
+    public function add(array $input, array $payload = []): array
+    {
+        $data = $this->jobPayload($input);
+
+        return Db::transaction(function () use ($data, $payload): array {
+            $this->assertActionClassAllowed($data['actionClass']);
+            $this->assertNoDuplicate($data['actionClass'], $data['cronExpression']);
+
+            $id = $this->newId();
+
+            Db::name('dev_job')->insert([
+                'ID' => $id,
+                'NAME' => $data['name'],
+                'CODE' => $this->randomCode(),
+                'CATEGORY' => $data['category'],
+                'ACTION_CLASS' => $data['actionClass'],
+                'CRON_EXPRESSION' => $data['cronExpression'],
+                'JOB_STATUS' => self::STATUS_STOPPED,
+                'SORT_CODE' => $data['sortCode'],
+                'EXT_JSON' => $data['extJson'],
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => date('Y-m-d H:i:s'),
+                'CREATE_USER' => $this->payloadUserId($payload),
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+            ]);
+
+            return ['id' => $id];
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     */
+    public function edit(array $input, array $payload = []): ?array
+    {
+        $id = $this->requiredString($input, ['id', 'ID'], 'id');
+        $this->assertMaxLength($id, 'id', 20);
+        $data = $this->jobPayload($input);
+
+        return Db::transaction(function () use ($id, $data, $payload): ?array {
+            $existing = $this->activeJobRow($id);
+            if ((string)($existing['JOB_STATUS'] ?? '') === self::STATUS_RUNNING) {
+                throw new RuntimeException('running job cannot be edited', 400);
+            }
+
+            $this->assertActionClassAllowed($data['actionClass']);
+            $this->assertNoDuplicate($data['actionClass'], $data['cronExpression'], $id);
+
+            Db::name('dev_job')
+                ->where('ID', $id)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'NAME' => $data['name'],
+                    'CATEGORY' => $data['category'],
+                    'ACTION_CLASS' => $data['actionClass'],
+                    'CRON_EXPRESSION' => $data['cronExpression'],
+                    'SORT_CODE' => $data['sortCode'],
+                    'EXT_JSON' => $data['extJson'],
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $this->payloadUserId($payload),
+                ]);
+
+            return null;
+        });
     }
 
     /**
@@ -186,6 +263,181 @@ class JobService
         $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
 
         return $userId === '' ? null : $userId;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @return array{name: string, category: string, actionClass: string, cronExpression: string, sortCode: int, extJson: ?string}
+     */
+    private function jobPayload(array $input): array
+    {
+        $name = $this->requiredString($input, ['name', 'NAME'], 'name');
+        $category = strtoupper($this->requiredString($input, ['category', 'CATEGORY'], 'category'));
+        $actionClass = $this->requiredString($input, ['actionClass', 'ACTION_CLASS'], 'actionClass');
+        $cronExpression = $this->requiredString($input, ['cronExpression', 'CRON_EXPRESSION'], 'cronExpression');
+        $sortCode = $this->requiredInt($input, ['sortCode', 'SORT_CODE'], 'sortCode');
+        $extJson = $this->nullableString($input, ['extJson', 'EXT_JSON']);
+
+        $this->assertMaxLength($name, 'name', 255);
+        $this->assertMaxLength($category, 'category', 255);
+        $this->assertMaxLength($actionClass, 'actionClass', 255);
+        $this->assertMaxLength($cronExpression, 'cronExpression', 255);
+        $this->assertCategory($category);
+        $this->assertCronExpression($cronExpression);
+
+        return [
+            'name' => $name,
+            'category' => $category,
+            'actionClass' => $actionClass,
+            'cronExpression' => $cronExpression,
+            'sortCode' => $sortCode,
+            'extJson' => $extJson,
+        ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<int, string> $keys
+     */
+    private function requiredString(array $input, array $keys, string $label): string
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $input)) {
+                $value = trim((string)$input[$key]);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        throw new RuntimeException("missing {$label}", 400);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<int, string> $keys
+     */
+    private function requiredInt(array $input, array $keys, string $label): int
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $input)) {
+                $value = trim((string)$input[$key]);
+                if ($value !== '' && preg_match('/^-?\d+$/', $value) === 1) {
+                    return (int)$value;
+                }
+            }
+        }
+
+        throw new RuntimeException("missing {$label}", 400);
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<int, string> $keys
+     */
+    private function nullableString(array $input, array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $input)) {
+                $value = $input[$key];
+                if ($value === null) {
+                    return null;
+                }
+
+                return (string)$value;
+            }
+        }
+
+        return null;
+    }
+
+    private function assertMaxLength(string $value, string $label, int $maxLength): void
+    {
+        if (strlen($value) > $maxLength) {
+            throw new RuntimeException("{$label} is too long", 400);
+        }
+    }
+
+    private function assertCategory(string $category): void
+    {
+        if (!in_array($category, self::CATEGORIES, true)) {
+            throw new RuntimeException('unsupported job category', 400);
+        }
+    }
+
+    private function assertCronExpression(string $cronExpression): void
+    {
+        $parts = preg_split('/\s+/', trim($cronExpression));
+        if (!is_array($parts) || !in_array(count($parts), [6, 7], true)) {
+            throw new RuntimeException('invalid cronExpression', 400);
+        }
+
+        foreach ($parts as $part) {
+            if ($part === '' || preg_match('/^[0-9A-Za-z*,?\/#LW\-]+$/', $part) !== 1) {
+                throw new RuntimeException('invalid cronExpression', 400);
+            }
+        }
+
+        if (count($parts) === 6 && $parts[3] !== '?' && $parts[5] !== '?') {
+            throw new RuntimeException('invalid cronExpression', 400);
+        }
+    }
+
+    private function assertActionClassAllowed(string $actionClass): void
+    {
+        if (!in_array($actionClass, $this->actionClasses(), true)) {
+            throw new RuntimeException('unsupported actionClass', 400);
+        }
+    }
+
+    private function assertNoDuplicate(string $actionClass, string $cronExpression, ?string $excludeId = null): void
+    {
+        $query = Db::name('dev_job')
+            ->where('ACTION_CLASS', $actionClass)
+            ->where('CRON_EXPRESSION', $cronExpression)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        if ($excludeId !== null && $excludeId !== '') {
+            $query->where('ID', '<>', $excludeId);
+        }
+
+        if ($query->count() > 0) {
+            throw new RuntimeException('duplicate job actionClass and cronExpression', 400);
+        }
+    }
+
+    private function activeJobRow(string $id): array
+    {
+        $row = Db::name('dev_job')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('job not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
+    }
+
+    private function randomCode(): string
+    {
+        $alphabet = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $code = '';
+        for ($i = 0; $i < 10; $i++) {
+            $code .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+
+        return $code;
     }
 
     private function pagination(array $filters): array

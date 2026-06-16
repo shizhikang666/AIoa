@@ -1266,7 +1266,7 @@ class UserDirectoryService
         $user = $this->activeUserRow($id);
 
         if (!$this->isAdminCompatible($payload) && !$this->hasGrantResourcePermission($payload)) {
-            throw new RuntimeException('permission denied', 403);
+            throw new RuntimeException('当前账号没有用户资源授权权限', 403);
         }
 
         $this->ensureTenantCompatible($payload, $user);
@@ -2986,7 +2986,7 @@ class UserDirectoryService
         }
 
         if (!$this->targetHasSuperAdminRole($userId)) {
-            throw new RuntimeException('non-super-admin user cannot be granted system module resources', 403);
+            throw new RuntimeException('只有超管角色用户可以授权系统模块资源', 403);
         }
     }
 

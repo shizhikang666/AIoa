@@ -18,6 +18,9 @@ export default {
 		return request(edit ? 'edit' : 'add', data)
 	},
 	// 删除开票信息表
+	bizSaleProjectInvoicingDelete(data) {
+		return request('delete', data)
+	},
 
 	bizSaleProjectInvoicingComplete(data) {
 		return request('complete', data, 'post')

@@ -49,7 +49,7 @@ class SmsController extends BaseSysController
 
     private function deferredSend(string $engine): Response
     {
-        return ApiResponse::fail('sms sending is deferred', 400, [
+        return ApiResponse::fail('短信发送功能暂未开放', 400, [
             'engine' => $engine,
         ]);
     }

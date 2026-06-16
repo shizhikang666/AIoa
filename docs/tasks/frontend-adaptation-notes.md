@@ -274,6 +274,36 @@ This fixes only the copied Vue cost tab display for completed sale projects with
 - Realtime message disconnect console noise still appears from the layout message panel.
 - Vite `docx-templates` browser compatibility warnings still appear.
 
+## 2026-06-16 Payment Record Payer-Time Edit
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/bizpaymentrecord/edit` is now active as a narrow payer-time correction endpoint. It accepts `id` and `payerTime`, updates only the payment record timestamp plus the linked settlement-account statement timestamp, and ignores copied-form fields such as amount, account, object, process, category, user, and org.
+
+### Frontend Notes
+
+- Payment-record form save can now use `/biz/bizpaymentrecord/edit` only for payer-time correction.
+- `/biz/bizpaymentrecord/add`, `/biz/bizpaymentrecord/edit/account`, and `/biz/bizpaymentrecord/delete` remain controlled-deferred and should not be treated as implemented business writes.
+- `scripts/biz-payment-record-edit-http-smoke.ps1` covers no-token rejection, missing-field rejection, detail readback, linked-statement sync, ignored client-spoofed fields, missing-statement rollback, and unchanged related-table counts.
+
+## 2026-06-16 Expenditure Record Correction
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/bizexpenditurerecord/edit` is now active as a narrow correction endpoint. It accepts `id` with optional `payerTime` and optional `settlementCategory`, updates the expenditure row, and syncs the linked settlement-account statement timestamp only when `payerTime` is supplied.
+
+### Frontend Notes
+
+- The settlement-account detail expenditure tab can save payer-time corrections through the existing expenditure-record API wrapper.
+- The expenditure-record list/category form can save allowed `settlementCategory` corrections through the same route.
+- Object-linked expenditure records and protected category transitions are rejected by the backend.
+- `/biz/bizexpenditurerecord/add`, `/biz/bizexpenditurerecord/edit/account`, and `/biz/bizexpenditurerecord/delete` remain controlled-deferred and should not be treated as implemented business writes.
+- `scripts/biz-expenditure-record-edit-http-smoke.ps1` covers no-token and missing-id rejection, detail readback, linked-statement sync, category guard rejection, object guard rejection, missing-statement rollback, ignored client-spoofed fields, and unchanged related-table counts.
+
 ## 2026-06-03 Sale Project Detail Remaining Tab API Smoke
 
 Agent: test-agent / frontend-agent
@@ -362,6 +392,8 @@ This slice supports the copied workflow copy-task page at `snowy-admin-web/src/v
 
 - `/biz/ccrecords/delete` remains deferred because it mutates copy/CC records.
 - Workflow copy delegate writes and approval actions remain deferred.
+
+Subsequent state on 2026-06-16: `/biz/ccrecords/delete` is covered as current-user logical delete, and `/biz/ccrecords/add` plus `/edit` are covered as narrow current-user row maintenance. Workflow copy delegate writes, notifications, and approval actions remain deferred.
 
 ## 2026-06-04 Biz Draft Detail Read-Only Compatibility
 
@@ -813,6 +845,8 @@ This slice supports the copied workflow copy-task page delete action:
 
 - `/biz/ccrecords/add` and `/edit` remain deferred.
 - Workflow copy-user delegate writes, approval/reject/start/cancel side effects, and notification behavior remain out of scope.
+
+Subsequent state on 2026-06-16: `/biz/ccrecords/add` and `/edit` are covered as narrow current-user row maintenance. Workflow copy-user delegate writes, approval/reject/start/cancel side effects, and notification behavior remain out of scope.
 
 ## 2026-06-05 Team Project Comment Add Compatibility
 
@@ -1775,3 +1809,25 @@ This browser smoke covers the copied mobile resource maintenance pages:
 - Temporary marked `mobile_resource` module/menu/button rows were inserted for deterministic browser targets and deleted after verification.
 - Cleanup verification showed zero remaining temporary `sys_relation`, `sys_resource`, and `mobile_resource` rows.
 - No credentials, tokens, database passwords, or Redis passwords are stored in tracked files.
+
+## 2026-06-16 Dev Config EditBatch Maintenance
+
+The copied Vue configuration forms post Java-style arrays to `/dev/config/editBatch`. This route is now covered as narrow existing-row `dev_config.CONFIG_VALUE` maintenance with full-batch validation, sensitive-mask preservation for `******`, and rollback on mixed missing keys.
+
+### Deferred
+
+- Provider send/test actions, external service calls, Redis/cache invalidation hooks, and unmasking sensitive values remain out of scope.
+
+## 2026-06-16 Payroll Export Download
+
+The copied payroll list page calls `/biz/bizpayroll/export` with `responseType: 'blob'` from its batch export button. This route is now covered as an authenticated CSV download that reuses the existing payroll filter and data-scope behavior.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing `downloadUtil.resultDownload(res)` path handles the blob response.
+- The CSV filename uses the salary month when supplied and remains Excel-readable through UTF-8 BOM output.
+
+### Deferred
+
+- Payroll import parsing, salary generation, payroll add, EasyExcel-style xlsx rendering/styling, workflow hooks, leave recalculation, and business side effects remain out of scope.

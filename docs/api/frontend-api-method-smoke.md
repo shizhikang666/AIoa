@@ -19,3 +19,7 @@ Use `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred` to print those defer
 `scripts/project-preflight.ps1` runs this static smoke by default unless `-SkipFrontendApiMethod` is passed.
 
 `scripts/test-agent-smoke.ps1` also runs this static smoke by default unless `-SkipFrontendApiMethod` is passed.
+
+## 2026-06-16 Comment Handling
+
+The smoke strips Vue/HTML comments plus JavaScript line and block comments before scanning imports and API method calls. Commented legacy calls should not appear in the missing or deferred method lists.

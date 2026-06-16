@@ -6,6 +6,7 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\PurchaseOrderService;
+use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -33,6 +34,48 @@ class PurchaseOrderController extends BaseSysController
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->purchaseOrderService->detail($this->requiredString($request, 'id'), $this->authPayload($request)));
+    }
+
+    public function add(): Response
+    {
+        return $this->deferredWrite('purchase order add');
+    }
+
+    public function edit(): Response
+    {
+        return $this->deferredWrite('purchase order edit');
+    }
+
+    public function auditEdit(): Response
+    {
+        return $this->deferredWrite('purchase order audit edit');
+    }
+
+    public function warehouseAdd(): Response
+    {
+        return $this->deferredWrite('purchase order warehouse add');
+    }
+
+    public function warehouseOneAdd(): Response
+    {
+        return $this->deferredWrite('purchase order one-click warehouse add');
+    }
+
+    public function cancel(): Response
+    {
+        return $this->deferredWrite('purchase order cancel');
+    }
+
+    public function delete(): Response
+    {
+        return $this->deferredWrite('purchase order delete');
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     private function authPayload(Request $request): array

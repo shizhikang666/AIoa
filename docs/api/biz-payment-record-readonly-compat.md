@@ -1,8 +1,8 @@
-# Biz Payment Record Read-Only Compatibility
+# Biz Payment Record Compatibility
 
 ## Scope
 
-This slice adds protected read-only ThinkPHP routes compatible with the Java payment-record controller and the existing Vue API module.
+This slice covers protected payment-record read routes plus the narrow Java-compatible payer-time correction route.
 
 ## Routes
 
@@ -10,6 +10,7 @@ This slice adds protected read-only ThinkPHP routes compatible with the Java pay
 - `GET /biz/bizpaymentrecord/listdetails`
 - `GET /biz/bizpaymentrecord/list`
 - `GET /biz/bizpaymentrecord/detail`
+- `POST /biz/bizpaymentrecord/edit`
 
 ## Java References
 
@@ -18,10 +19,12 @@ This slice adds protected read-only ThinkPHP routes compatible with the Java pay
 - `vip.xiaonuo.biz.modular.bizpaymentrecord.entity.BizPaymentRecord`
 - `vip.xiaonuo.biz.modular.bizpaymentrecord.param.BizPaymentRecordPageParam`
 - `vip.xiaonuo.biz.modular.bizpaymentrecord.param.BizPaymentRecordQueryParam`
+- `vip.xiaonuo.biz.modular.bizpaymentrecord.param.BizPaymentRecordEditParam`
 
 ## Tables
 
 - `biz_payment_record`
+- `settlement_account_statement`
 - `settlement_account`
 - `sys_org`
 
@@ -53,11 +56,21 @@ This slice adds protected read-only ThinkPHP routes compatible with the Java pay
 - `detail` is added for old frontend compatibility; the analyzed Java controller does not expose a detail route, but the Java service has a `detail` method and the Vue wrapper calls it.
 - Rows include settlement-account display fields `accountName` and `accountNumber`, plus `orgName` from `sys_org`.
 
+## Payer-Time Correction
+
+`POST /biz/bizpaymentrecord/edit` accepts Java-style `id` and `payerTime`.
+
+- Updates only `biz_payment_record.PAYER_TIME`, `UPDATE_TIME`, and `UPDATE_USER`.
+- Syncs the linked `settlement_account_statement.PAYER_TIME`, `UPDATE_TIME`, and `UPDATE_USER` by the payment record `SERIAL_ID`.
+- Runs in a transaction and rejects missing payment records, missing `payerTime`, invalid time text, missing statements, tenant mismatch, or write-scope mismatch.
+- Ignores client-submitted amount, account, object, process, category, user, organization, audit, and delete fields.
+- Does not update settlement account balances or create income/payment records.
+
 ## Explicit Exclusions
 
-- No `/biz/bizpaymentrecord/edit` route was added.
 - No `/biz/bizpaymentrecord/edit/account` route was added.
-- No payment-record mutation, settlement-account transfer, statement edit, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+- No `/biz/bizpaymentrecord/add` or `/biz/bizpaymentrecord/delete` behavior was added.
+- No payment-record creation/deletion, account switch, settlement-account transfer, balance update, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
 
 ## Verification
 
@@ -66,6 +79,7 @@ This slice adds protected read-only ThinkPHP routes compatible with the Java pay
 - `php think route:list`
 - PHP syntax lint
 - Token smoke tests for page, listdetails, list, detail, and no-token 401.
+- `scripts/biz-payment-record-edit-http-smoke.ps1`
 
 ## 2026-06-15 HTTP Smoke Coverage
 
@@ -77,3 +91,16 @@ This slice adds protected read-only ThinkPHP routes compatible with the Java pay
 - `GET /biz/bizpaymentrecord/detail` when a visible page row exists
 
 The smoke checks Java-style paging keys and stable frontend-visible finance fields such as `objectId`, `targetId`, `accountName`, `accountNumber`, `serialId`, `processId`, `settlementCategory`, `payerTime`, `amount`, and `orgName`. It does not call payment edit/account routes, settlement-account transfers, statements, provider actions, workflow, or any finance mutation.
+
+## 2026-06-16 Payer-Time Edit Smoke Coverage
+
+`scripts/biz-payment-record-edit-http-smoke.ps1` inserts temporary payment-record and account-statement rows, then verifies:
+
+- no-token edit returns `code=401`;
+- missing `payerTime` returns `code=400`;
+- valid edit returns `code=200`;
+- detail readback exposes the new `payerTime`;
+- the linked statement `PAYER_TIME` is updated in the same transaction;
+- client-spoofed amount/account/object/process/category/user/org fields are ignored;
+- a missing linked statement returns `code=404` and leaves the payment row unchanged;
+- payment, statement, account, expenditure, receipt, and debit-note row counts stay unchanged after setup.

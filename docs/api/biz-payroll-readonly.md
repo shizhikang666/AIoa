@@ -1,12 +1,12 @@
 # Biz Payroll API Compatibility
 
-Date: 2026-06-12
+Date: 2026-06-16
 
 Agent: api-agent / merge-agent
 
 ## Scope
 
-This document tracks ThinkPHP compatibility for the Java payroll module. The original slice added read-only page/detail APIs. The 2026-06-12 slices add the low-risk Java-compatible base writes for edit, batch edit, logical delete, and import-template download.
+This document tracks ThinkPHP compatibility for the Java payroll module. The original slice added read-only page/detail APIs. The 2026-06-12 slices add the low-risk Java-compatible base writes for edit, batch edit, logical delete, and import-template download. The 2026-06-16 slice opens payroll export as an authenticated CSV download without salary generation, import parsing, or side effects.
 
 Java reference inputs:
 
@@ -22,6 +22,10 @@ Java reference inputs:
 | GET | `/biz/bizpayroll/mypage` | `biz.BizPayrollController/myPage` | `BizPayrollController.mypage` |
 | GET | `/biz/bizpayroll/detail` | `biz.BizPayrollController/detail` | `BizPayrollController.detail` |
 | GET | `/biz/bizpayroll/downloadImportTemplate` | `biz.BizPayrollController/downloadImportTemplate` | `BizPayrollController.download` |
+| GET | `/biz/bizpayroll/export` | `biz.BizPayrollController/export` | `BizPayrollController.export` |
+| POST | `/biz/bizpayroll/add` | `biz.BizPayrollController/add` | Controlled deferred wrapper |
+| POST | `/biz/bizpayroll/import` | `biz.BizPayrollController/importExcel` | Controlled deferred wrapper |
+| POST | `/biz/bizpayroll/generate/add` | `biz.BizPayrollController/generateAdd` | Controlled deferred wrapper |
 | POST | `/biz/bizpayroll/edit` | `biz.BizPayrollController/edit` | `BizPayrollController.edit` |
 | POST | `/biz/bizpayroll/bath/edit` | `biz.BizPayrollController/bathEdit` | `BizPayrollController.bathEdit` |
 | POST | `/biz/bizpayroll/delete` | `biz.BizPayrollController/delete` | `BizPayrollController.delete` |
@@ -91,16 +95,33 @@ The template bytes match the Java source resource:
 
 The route is intentionally a download response, not a JSON `ApiResponse::ok` wrapper.
 
-## Explicit Exclusions
+## Export Download
 
-The following Java/frontend routes remain deferred:
+`GET /biz/bizpayroll/export` returns an authenticated CSV blob response for the copied payroll page's `responseType: 'blob'` export call.
+
+The Java route uses EasyExcel to write multi-level `.xlsx` headers and merged organization groups. The current ThinkPHP project does not include a spreadsheet writer dependency, and this slice intentionally does not add one. Instead, the route emits UTF-8 BOM CSV with Excel-readable columns matching the Java export-visible fields:
+
+- organization group and employee name;
+- salary cost fields;
+- commission fields;
+- leave/year-end/payable/deduction/actual amount fields;
+- public/private account fields and remark.
+
+The export reuses the existing payroll query filters and data-scope behavior. When no sort field is supplied, it sorts by organization to match the Java export's organization grouping intent. Empty result sets return a JSON failure envelope with `code = 400` and message `无数据可导出`.
+
+## Controlled Deferred Writes
+
+The following frontend routes now return controlled `code = 400` deferred responses:
 
 - `/biz/bizpayroll/import`
-- `/biz/bizpayroll/export`
 - `/biz/bizpayroll/generate/add`
 - `/biz/bizpayroll/add`
 
-No Java source, database schema, frontend files, Composer files, `.env`, salary import/export logic, salary generation logic, payroll add logic, or workflow/business side effects were changed.
+They do not parse salary files, create payroll rows, generate salary records, recalculate leave/salary data, start workflow, write provider output, change database schema, modify Java source, edit `.env`, or touch Composer files.
+
+## Explicit Exclusions
+
+Real salary import logic, salary generation logic, payroll add logic, EasyExcel-style xlsx rendering, merged-cell styling, and workflow/business side effects remain deferred.
 
 ## Verification
 
@@ -137,4 +158,8 @@ Focused template download smoke on 2026-06-12 verified:
 - `GET /biz/bizpayroll/mypage`
 - `GET /biz/bizpayroll/detail` when the visible page has a sample row
 
-The smoke asserts Java-style paging keys and frontend-visible identity/display/salary fields. It intentionally does not call payroll edit, batch edit, delete, import, export, generate, add, or template download routes.
+The smoke asserts Java-style paging keys and frontend-visible identity/display/salary fields. It intentionally does not call payroll edit, batch edit, delete, import, generate, add, export, or template download routes.
+
+## 2026-06-16 Export HTTP Smoke Coverage
+
+`scripts/biz-payroll-export-http-smoke.ps1` covers authenticated payroll export by inserting one temporary `biz_payroll` row, downloading `/biz/bizpayroll/export` with salary-month and `searchKey` filters, asserting CSV headers and row markers, verifying representative related table counts remain unchanged, checking no-token `code = 401`, and cleaning the temporary row.

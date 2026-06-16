@@ -9944,3 +9944,88 @@ Verify a concrete workflow detail path in the copied Vue frontend without trigge
 ### 4. Forbidden Scope
 
 - Do not implement or call workflow approve/reject/start/cancel, task SSE stream, CC delete, uploads, file deletes, sale-project writes, finance/inventory side effects, provider sends, Java source edits, schema changes, `.env` edits, production data operations, or Git push behavior.
+
+## Completed Plan: api-agent - Payment Record Payer-Time Edit
+
+Status: completed on 2026-06-16 after replacing `/biz/bizpaymentrecord/edit` controlled-deferred behavior with a narrow Java-compatible payer-time correction and DB-backed HTTP smoke coverage.
+
+### 1. Current Goal
+
+Implement only the Java `BizPaymentRecordEditParam` behavior: update payment-record `payerTime` and sync the linked settlement-account statement timestamp.
+
+### 2. Involved Files
+
+- `app/controller/biz/PaymentRecordController.php`
+- `app/service/biz/PaymentRecordService.php`
+- `route/app.php`
+- `scripts/biz-payment-record-edit-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/biz-payment-record-readonly-compat.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/biz-payment-record-edit-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `scripts/project-progress.ps1`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Valid authenticated edit returns `code=200`.
+- No-token edit returns `code=401`.
+- Missing `payerTime` returns `code=400`.
+- Missing linked statement returns `code=404` and leaves the payment row unchanged.
+- Payment and linked statement `PAYER_TIME` values update together.
+- Client-submitted amount, account, object, process, category, user, org, audit, and delete fields are ignored.
+
+### 4. Forbidden Scope
+
+- Do not implement payment-record add/delete, account switch, settlement-account balance changes, workflow/data-change events, Java source edits, schema changes, `.env`, Composer changes, production data operations, or Git push behavior.
+
+## Completed Plan: api-agent - Expenditure Record Payer-Time Category Edit
+
+Status: completed on 2026-06-16 after replacing `/biz/bizexpenditurerecord/edit` controlled-deferred behavior with narrow Java-compatible payer-time/category correction and DB-backed HTTP smoke coverage.
+
+### 1. Current Goal
+
+Implement only the Java `BizExpenditureRecordEditParam` behavior: update optional expenditure-record `payerTime` and/or `settlementCategory`, and sync the linked settlement-account statement timestamp when payer time is supplied.
+
+### 2. Involved Files
+
+- `app/controller/biz/ExpenditureRecordController.php`
+- `app/service/biz/ExpenditureRecordService.php`
+- `route/app.php`
+- `scripts/biz-expenditure-record-edit-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/biz-expenditure-record-readonly-compat.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/biz-expenditure-record-edit-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `scripts/project-progress.ps1`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### 3. Acceptance Criteria
+
+- Valid authenticated edit returns `code=200`.
+- No-token edit returns `code=401`.
+- Missing `id` returns `code=400`.
+- Protected target categories return `code=400`.
+- Object-linked expenditure records return `code=400`.
+- Missing linked statement returns `code=404` and leaves the expenditure row unchanged.
+- Expenditure `PAYER_TIME` and `SETTLEMENT_CATEGORY` update when supplied.
+- Linked statement `PAYER_TIME` updates when payer time is supplied.
+- Client-submitted object, target, serial, process, amount, account, tenant, delete, user, org, audit, and statement category fields are ignored.
+
+### 4. Forbidden Scope
+
+- Do not implement expenditure-record add/delete, account switch, settlement-account balance changes, statement category/account changes, purchase/inventory/return/workflow/data-change side effects, Java source edits, schema changes, `.env`, Composer changes, production data operations, or Git push behavior.

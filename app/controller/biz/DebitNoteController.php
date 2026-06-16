@@ -6,6 +6,7 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\DebitNoteService;
+use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -33,6 +34,38 @@ class DebitNoteController extends BaseSysController
     public function markSuccess(Request $request): Response
     {
         return $this->guard(fn () => $this->debitNoteService->markSuccess($this->body($request), $this->authPayload($request)));
+    }
+
+    public function add(): Response
+    {
+        return $this->deferredWrite('debit note add');
+    }
+
+    public function edit(): Response
+    {
+        return $this->deferredWrite('debit note edit');
+    }
+
+    public function batchRepayment(): Response
+    {
+        return $this->deferredWrite('debit note batch repayment');
+    }
+
+    public function historyAdd(): Response
+    {
+        return $this->deferredWrite('debit note repayment history add');
+    }
+
+    public function delete(): Response
+    {
+        return $this->deferredWrite('debit note delete');
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     private function authPayload(Request $request): array

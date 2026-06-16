@@ -78,6 +78,92 @@ SQL;
         return $this->recordRow($row);
     }
 
+    public function add(array $input, array $payload = []): ?array
+    {
+        $currentUserId = $this->requiredCurrentUserId($payload);
+        $tenantId = $this->writeTenantId($input, $payload);
+        $title = $this->requiredInput($input, ['title', 'TITLE'], 'title', 255);
+        $processId = $this->requiredInput($input, ['processId', 'PROCESS_ID'], 'processId', 255);
+        $instanceId = $this->requiredInput($input, ['instanceId', 'INSTANCE_ID'], 'instanceId', 255);
+        $category = $this->requiredInput($input, ['category', 'CATEGORY'], 'category', 100);
+        $promoterId = $this->optionalInput($input, ['promoterId', 'PROMOTER_ID'], 20);
+        if ($promoterId === null || $promoterId === '') {
+            $promoterId = $currentUserId;
+        }
+        $extJson = $this->optionalInput($input, ['extJson', 'EXT_JSON'], 65535);
+
+        $this->assertActiveUser($currentUserId, $tenantId);
+        $this->assertActiveUser($promoterId, $tenantId);
+
+        Db::transaction(function () use ($currentUserId, $tenantId, $title, $processId, $instanceId, $category, $promoterId, $extJson): void {
+            $now = date('Y-m-d H:i:s');
+            Db::name('biz_cc_records')->insert([
+                'ID' => $this->newId(),
+                'TITLE' => $title,
+                'PROCESS_ID' => $processId,
+                'PROMOTER_ID' => $promoterId,
+                'INSTANCE_ID' => $instanceId,
+                'CATEGORY' => $category,
+                'EXT_JSON' => $extJson,
+                'USER' => $currentUserId,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $currentUserId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId,
+            ]);
+        });
+
+        return null;
+    }
+
+    public function edit(array $input, array $payload = []): ?array
+    {
+        $currentUserId = $this->requiredCurrentUserId($payload);
+        $tenantId = $this->writeTenantId($input, $payload);
+        $id = $this->requiredInput($input, ['id', 'ID'], 'id', 20);
+        $title = $this->requiredInput($input, ['title', 'TITLE'], 'title', 255);
+        $processId = $this->requiredInput($input, ['processId', 'PROCESS_ID'], 'processId', 255);
+        $instanceId = $this->requiredInput($input, ['instanceId', 'INSTANCE_ID'], 'instanceId', 255);
+        $category = $this->requiredInput($input, ['category', 'CATEGORY'], 'category', 100);
+        $promoterId = $this->optionalInput($input, ['promoterId', 'PROMOTER_ID'], 20);
+        if ($promoterId === null || $promoterId === '') {
+            $promoterId = $currentUserId;
+        }
+        $extJson = $this->optionalInput($input, ['extJson', 'EXT_JSON'], 65535);
+
+        $this->activeRecord($id, $payload);
+        $this->assertActiveUser($promoterId, $tenantId);
+
+        Db::transaction(function () use ($id, $currentUserId, $tenantId, $title, $processId, $instanceId, $category, $promoterId, $extJson): void {
+            $update = Db::name('biz_cc_records')
+                ->where('ID', $id)
+                ->where('USER', $currentUserId)
+                ->where('DELETE_FLAG', self::NOT_DELETE);
+            if ($tenantId !== '') {
+                $update->where('TENANT_ID', $tenantId);
+            }
+
+            $updated = $update->update([
+                'TITLE' => $title,
+                'PROCESS_ID' => $processId,
+                'PROMOTER_ID' => $promoterId,
+                'INSTANCE_ID' => $instanceId,
+                'CATEGORY' => $category,
+                'EXT_JSON' => $extJson,
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $currentUserId,
+            ]);
+
+            if ($updated < 1) {
+                throw new RuntimeException('cc record not found', 404);
+            }
+        });
+
+        return null;
+    }
+
     /**
      * @param array<int, mixed> $ids
      */
@@ -224,9 +310,104 @@ SQL;
         return (string)($payload['userId'] ?? $payload['user_id'] ?? $payload['id'] ?? '');
     }
 
+    private function requiredCurrentUserId(array $payload): string
+    {
+        $currentUserId = $this->currentUserId($payload);
+        if ($currentUserId === '') {
+            throw new RuntimeException('missing current user', 400);
+        }
+
+        return $currentUserId;
+    }
+
     private function tenantId(array $payload): string
     {
         return (string)($payload['tenantId'] ?? $payload['tenant_id'] ?? '');
+    }
+
+    private function writeTenantId(array $input, array $payload): string
+    {
+        $tenantId = $this->tenantId($payload);
+        $inputTenantId = trim((string)($input['tenantId'] ?? $input['TENANT_ID'] ?? ''));
+        if ($tenantId !== '' && $inputTenantId !== '' && $tenantId !== $inputTenantId) {
+            throw new RuntimeException('tenant mismatch', 400);
+        }
+        if ($tenantId === '') {
+            $tenantId = $inputTenantId;
+        }
+        if ($tenantId === '') {
+            throw new RuntimeException('missing tenantId', 400);
+        }
+
+        return $tenantId;
+    }
+
+    private function activeRecord(string $id, array $payload): array
+    {
+        $currentUserId = $this->requiredCurrentUserId($payload);
+        $query = Db::name('biz_cc_records')
+            ->where('ID', $id)
+            ->where('USER', $currentUserId)
+            ->where('DELETE_FLAG', self::NOT_DELETE);
+
+        $tenantId = $this->tenantId($payload);
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('cc record not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertActiveUser(string $userId, string $tenantId): void
+    {
+        $query = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        if ($query->count() < 1) {
+            throw new RuntimeException('user not found', 400);
+        }
+    }
+
+    private function requiredInput(array $input, array $keys, string $label, int $maxLength): string
+    {
+        $value = $this->optionalInput($input, $keys, $maxLength);
+        if ($value === null || trim($value) === '') {
+            throw new RuntimeException('missing ' . $label, 400);
+        }
+
+        return trim($value);
+    }
+
+    private function optionalInput(array $input, array $keys, int $maxLength): ?string
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $input)) {
+                $value = $input[$key];
+                if (is_array($value)) {
+                    $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    $value = $encoded === false ? '' : $encoded;
+                }
+                $value = trim((string)$value);
+                if (strlen($value) > $maxLength) {
+                    throw new RuntimeException($keys[0] . ' is too long', 400);
+                }
+
+                return $value === '' ? null : $value;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -257,5 +438,10 @@ SQL;
         $limit = max(1, min(200, (int)($filters['size'] ?? $filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 }

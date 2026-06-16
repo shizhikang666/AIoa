@@ -65,13 +65,14 @@ Behavior:
 - Writes use tenant, audit, and data-scope guards consistent with the existing ThinkPHP master-data write slices.
 - No account balance statement, income record, expenditure record, transfer, or archive behavior is triggered by these three base maintenance routes.
 
-## Explicit Exclusions
+## Controlled Deferred Side-Effect Actions
 
-- No `/biz/settlementaccount/delete` route was added.
-- No `/biz/settlementaccount/expenses/add` route was added.
-- No `/biz/settlementaccount/payment/add` route was added.
-- No `/biz/settlementaccount/transfer/add` route was added.
-- No settlement amount mutation, statement write, income/expense record creation, transfer behavior, delete route, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+- `POST /biz/settlementaccount/delete`
+- `POST /biz/settlementaccount/expenses/add`
+- `POST /biz/settlementaccount/payment/add`
+- `POST /biz/settlementaccount/transfer/add`
+
+These routes return controlled `code = 400` deferred responses. They do not delete settlement accounts, mutate settlement amounts, write statements, create income/expense/payment records, transfer balances, change database schema, modify Java source, edit `.env`, touch Composer files, or change public config.
 
 ## Verification
 

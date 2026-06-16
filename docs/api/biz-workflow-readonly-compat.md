@@ -29,6 +29,11 @@ The Java project remains read-only. This slice does not implement approval, reje
 | GET | `/biz/process/project/runtime/query/list` | `biz.ProcessController/projectRuntimeQueryList` |
 | POST | `/biz/process/fileList` | `biz.ProcessController/fileList` |
 | GET | `/biz/task/runtime/activity/detail` | `biz.TaskController/runtimeActivityDetail` |
+| POST | `/biz/task/approve` | `biz.TaskController::approve`, controlled deferred |
+| POST | `/biz/task/reject` | `biz.TaskController::reject`, controlled deferred |
+| GET | `/biz/task/sse/stream` | `biz.TaskController::sseStream`, controlled deferred |
+| POST | `/biz/process/cancel` | `biz.ProcessController::cancel`, controlled deferred |
+| POST | `/biz/process/*/start` and `/leave/edit` | `biz.ProcessController` controlled-deferred wrappers |
 
 All routes are protected by `AuthMiddleware`.
 
@@ -86,13 +91,22 @@ Additional workflow detail browser smoke on 2026-06-15:
 - The detail flow called `GET /api/biz/process/detail`, `POST /api/biz/process/fileList`, `POST /api/biz/process/variable`, `GET /api/biz/saleproject/detail`, and `GET /api/biz/warehouses/list`.
 - Browser console had no errors, no API requests failed, and no forbidden workflow write, CC delete, upload, delete, sale-project write, or business write request was observed.
 
-## Deferred
+## Controlled Deferred Writes
+
+The following routes now return controlled `code = 400` deferred responses:
 
 - `POST /biz/task/approve`
 - `POST /biz/task/reject`
 - `GET /biz/task/sse/stream`
 - `POST /biz/process/cancel`
-- All process start/edit routes
+- all copied process start/edit routes under `/biz/process`
+
+They do not start or cancel workflow instances, complete tasks, reject tasks, mutate business tables, emit workflow-copy notifications, push long-lived SSE data, change schema, or modify Java source.
+
+## Deferred
+
+- Real workflow task approve/reject behavior
+- Real process start/edit/cancel behavior
 - Java delegate side effects
 - Long-lived task SSE or Redis workflow push
 

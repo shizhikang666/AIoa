@@ -6,6 +6,7 @@ namespace app\controller\gen;
 
 use app\controller\sys\BaseSysController;
 use app\service\gen\ConfigService;
+use app\support\ApiResponse;
 use RuntimeException;
 use think\Request;
 use think\Response;
@@ -31,6 +32,28 @@ class ConfigController extends BaseSysController
         return $this->guard(fn () => $this->configService->editBatch($this->bodyInput($request), $this->authPayload($request)));
     }
 
+    public function add(): Response
+    {
+        return $this->deferredWrite('generator config add');
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->configService->edit($this->bodyInput($request), $this->authPayload($request)));
+    }
+
+    public function delete(Request $request): Response
+    {
+        return $this->guard(fn () => $this->configService->delete($this->bodyInput($request), $this->authPayload($request)));
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
+    }
+
     /**
      * @return array<string|int, mixed>
      */
@@ -49,6 +72,7 @@ class ConfigController extends BaseSysController
             $raw = trim((string)$request->getInput());
         }
         if ($raw !== '') {
+            $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
             $decoded = json_decode($raw, true);
             if (is_array($decoded)) {
                 return $decoded;

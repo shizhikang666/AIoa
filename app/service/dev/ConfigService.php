@@ -161,6 +161,70 @@ class ConfigService
         return null;
     }
 
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     */
+    public function editBatch(array $input, array $payload = []): ?array
+    {
+        $items = $this->batchItems($input);
+        $normalized = [];
+        $seen = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('invalid config batch item', 400);
+            }
+
+            $configKey = $this->requiredInput($item, ['configKey', 'CONFIG_KEY'], 'configKey');
+            if (isset($seen[$configKey])) {
+                throw new RuntimeException('duplicate configKey', 400);
+            }
+
+            $seen[$configKey] = true;
+            $normalized[] = [
+                'configKey' => $configKey,
+                'configValue' => $this->requiredInput($item, ['configValue', 'CONFIG_VALUE'], 'configValue'),
+            ];
+        }
+
+        $keys = array_column($normalized, 'configKey');
+        $rows = $this->activeConfigRowsByKeys($keys);
+        if (count($rows) !== count($keys)) {
+            throw new RuntimeException('config not found', 404);
+        }
+        foreach ($keys as $key) {
+            if (!isset($rows[$key])) {
+                throw new RuntimeException('config not found', 404);
+            }
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $userId = $this->payloadUserId($payload);
+        Db::transaction(function () use ($normalized, $rows, $now, $userId): void {
+            foreach ($normalized as $item) {
+                $configKey = (string)$item['configKey'];
+                $row = $rows[$configKey];
+                $configValue = (string)$item['configValue'];
+                if ($this->isSensitiveKey($configKey) && $configValue === self::MASK) {
+                    $configValue = (string)($row['CONFIG_VALUE'] ?? '');
+                }
+
+                Db::name('dev_config')
+                    ->where('ID', (string)$row['ID'])
+                    ->where(function ($query): void {
+                        $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                    })
+                    ->update([
+                        'CONFIG_VALUE' => $configValue,
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $userId,
+                    ]);
+            }
+        });
+
+        return null;
+    }
+
     private function configQuery(array $filters)
     {
         $query = Db::name('dev_config')
@@ -344,6 +408,57 @@ class ConfigService
         }
 
         return $byId;
+    }
+
+    /**
+     * @param array<int, string> $keys
+     * @return array<string, array<string, mixed>>
+     */
+    private function activeConfigRowsByKeys(array $keys): array
+    {
+        $rows = Db::name('dev_config')
+            ->whereIn('CONFIG_KEY', $keys)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->select()
+            ->toArray();
+
+        $byKey = [];
+        foreach ($rows as $row) {
+            $key = (string)($row['CONFIG_KEY'] ?? '');
+            if ($key === '' || isset($byKey[$key])) {
+                throw new RuntimeException('duplicate configKey', 400);
+            }
+
+            $byKey[$key] = $row;
+        }
+
+        return $byKey;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @return array<int, mixed>
+     */
+    private function batchItems(array $input): array
+    {
+        if (isset($input[0])) {
+            return array_values($input);
+        }
+
+        foreach (['list', 'items', 'configs', 'configList'] as $key) {
+            if (array_key_exists($key, $input)) {
+                $value = $input[$key];
+                if (!is_array($value) || $value === []) {
+                    throw new RuntimeException('missing config batch', 400);
+                }
+
+                return array_values($value);
+            }
+        }
+
+        throw new RuntimeException('missing config batch', 400);
     }
 
     private function isSensitiveKey(string $key): bool

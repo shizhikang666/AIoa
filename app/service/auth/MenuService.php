@@ -38,6 +38,10 @@ class MenuService
             }
         }
 
+        if ($resultById === []) {
+            return [];
+        }
+
         $moduleIds = array_values(array_unique(array_filter(array_map(
             static fn (array $row): ?string => isset($row['MODULE']) ? (string)$row['MODULE'] : null,
             $resultById

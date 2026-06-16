@@ -6,6 +6,7 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\CcRecordsService;
+use RuntimeException;
 use think\Request;
 use think\Response;
 
@@ -29,6 +30,16 @@ class CcRecordsController extends BaseSysController
             $this->requiredString($request, 'id'),
             $this->authPayload($request)
         ));
+    }
+
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->ccRecordsService->add($this->body($request), $this->authPayload($request)));
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->ccRecordsService->edit($this->body($request), $this->authPayload($request)));
     }
 
     public function delete(Request $request): Response
@@ -62,10 +73,13 @@ class CcRecordsController extends BaseSysController
             $raw = trim((string)$request->getInput());
         }
         if ($raw !== '') {
+            $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
             $decoded = json_decode($raw, true);
             if (is_array($decoded)) {
                 return $decoded;
             }
+
+            throw new RuntimeException('invalid json body', 400);
         }
 
         return $request->param();

@@ -112,6 +112,36 @@ SQL;
         'createTime' => 'p.CREATE_TIME',
         'updateTime' => 'p.UPDATE_TIME',
     ];
+    private const EXPORT_COLUMNS = [
+        ['groupName', '机构分组'],
+        ['headName', '姓名'],
+        ['basicSalary', '底薪工资'],
+        ['postWage', '岗位工资'],
+        ['workSalary', '加班工资'],
+        ['senioritySalary', '工龄工资'],
+        ['performanceSalary', '绩效工资'],
+        ['rentSubsidies', '房租补贴'],
+        ['mealAllowance', '餐补补贴'],
+        ['dormitoryRent', '宿舍租金'],
+        ['baseAmount', '基本工资(合计)'],
+        ['transactionVolume', '当月成交额'],
+        ['receivedAmount', '当月到账额'],
+        ['taxFreight', '税运费'],
+        ['monthlyCommission', '当月提成'],
+        ['beforeReceivedAmount', '以往到账额'],
+        ['beforeCommission', '以往提成'],
+        ['totalCommission', '提成总计'],
+        ['meritBonuses', '业绩奖金'],
+        ['vacationSubAmount', '事假扣款'],
+        ['yearEndBonus', '年终奖'],
+        ['payableAmount', '应发金额'],
+        ['personalIncomeTax', '个税'],
+        ['socialSecurity', '社保'],
+        ['actualAmount', '实发金额'],
+        ['publicAccount', '公账打款'],
+        ['privateAccount', '现金/私账'],
+        ['remark', '备注'],
+    ];
 
     public function page(array $filters = [], array $payload = []): array
     {
@@ -154,6 +184,39 @@ SQL;
             'filename' => '工资条导入模板.xlsx',
             'contentType' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'content' => $content,
+        ];
+    }
+
+    /**
+     * @return array{filename:string, contentType:string, content:string}
+     */
+    public function export(array $filters = [], array $payload = []): array
+    {
+        if (trim((string)($filters['sortField'] ?? '')) === '') {
+            $filters['sortField'] = 'org';
+        }
+
+        $rows = $this->applySort($this->payrollQuery($filters, $payload, false), $filters)
+            ->field(self::FIELDS)
+            ->select()
+            ->toArray();
+        $records = $this->payrollRows($rows);
+        if ($records === []) {
+            throw new RuntimeException('无数据可导出', 400);
+        }
+
+        $csvRows = [array_map(static fn (array $column): string => $column[1], self::EXPORT_COLUMNS)];
+        foreach ($records as $record) {
+            $record['groupName'] = trim((string)($record['orgName'] ?? '')) !== ''
+                ? (string)$record['orgName']
+                : '无组织';
+            $csvRows[] = array_map(static fn (array $column): mixed => $record[$column[0]] ?? '', self::EXPORT_COLUMNS);
+        }
+
+        return [
+            'filename' => $this->exportFilename($filters),
+            'contentType' => 'text/csv; charset=UTF-8',
+            'content' => $this->csvContent($csvRows),
         ];
     }
 
@@ -557,6 +620,44 @@ SQL;
             'updateUserName' => $this->value($row, 'UPDATE_USER_NAME', 'updateUserName'),
             'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
         ];
+    }
+
+    private function exportFilename(array $filters): string
+    {
+        $time = trim((string)($filters['startSalaryTime'] ?? $filters['salaryTime'] ?? ''));
+        $timestamp = $time !== '' ? strtotime($time) : false;
+        $month = $timestamp === false ? date('Y-m') : date('Y-m', $timestamp);
+
+        return $month . '系统人员工资清单.csv';
+    }
+
+    /**
+     * @param array<int, array<int, mixed>> $rows
+     */
+    private function csvContent(array $rows): string
+    {
+        $handle = fopen('php://temp', 'r+');
+        if ($handle === false) {
+            throw new RuntimeException('文件下载失败', 500);
+        }
+
+        foreach ($rows as $row) {
+            fputcsv($handle, array_map(static function (mixed $value): string {
+                if (is_array($value)) {
+                    $json = json_encode($value, JSON_UNESCAPED_UNICODE);
+
+                    return $json === false ? '' : $json;
+                }
+
+                return (string)$value;
+            }, $row));
+        }
+
+        rewind($handle);
+        $content = stream_get_contents($handle);
+        fclose($handle);
+
+        return "\xEF\xBB\xBF" . ($content === false ? '' : $content);
     }
 
     private function pagination(array $filters): array

@@ -8,11 +8,13 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only expenditure-record queries compatible with Java BizExpenditureRecordController.
+ * Expenditure-record queries and narrow correction compatible with Java BizExpenditureRecordController.
  */
 class ExpenditureRecordService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const CURRENT_CATEGORY_LOCKED = ['ReturnAndRefund', 'GOODS_EXPENDITURE', 'repayment'];
+    private const TARGET_CATEGORY_LOCKED = ['CUSTOMER_REBATE', 'ReturnAndRefund', 'repayment', 'TravelExpenses'];
     private const RECORD_FIELDS = <<<SQL
 e.ID AS ID,
 e.OBJECT_ID AS OBJECT_ID,
@@ -118,6 +120,60 @@ SQL;
         return $this->recordRows([$row])[0];
     }
 
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $payerTime = $this->optionalTime($input, 'payerTime');
+        $settlementCategory = $this->optionalString($input, 'settlementCategory');
+
+        return Db::transaction(function () use ($id, $payerTime, $settlementCategory, $payload): array {
+            $record = $this->assertRecordWritable($id, $payload, 'edit this expenditure record');
+            $this->assertEditableCorrection($record, $settlementCategory);
+
+            $statementId = trim((string)($record['SERIAL_ID'] ?? ''));
+            if ($statementId === '') {
+                throw new RuntimeException('expenditure record statement missing', 404);
+            }
+            $statement = $this->activeStatement($statementId, $payload);
+
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $recordUpdate = [
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+            ];
+            if ($payerTime !== null) {
+                $recordUpdate['PAYER_TIME'] = $payerTime;
+            }
+            if ($settlementCategory !== null) {
+                $recordUpdate['SETTLEMENT_CATEGORY'] = $settlementCategory;
+            }
+
+            $updated = Db::name('biz_expenditure_record')
+                ->where('ID', $id)
+                ->update($recordUpdate);
+
+            $statementUpdate = [
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+            ];
+            if ($payerTime !== null) {
+                $statementUpdate['PAYER_TIME'] = $payerTime;
+            }
+
+            $statementUpdated = Db::name('settlement_account_statement')
+                ->where('ID', (string)$statement['ID'])
+                ->update($statementUpdate);
+
+            return [
+                'id' => $id,
+                'statementId' => (string)$statement['ID'],
+                'count' => $updated,
+                'statementCount' => $statementUpdated,
+            ];
+        });
+    }
+
     private function recordQuery(array $filters, array $payload)
     {
         $query = Db::name('biz_expenditure_record')
@@ -203,6 +259,94 @@ SQL;
         return $query;
     }
 
+    private function assertRecordWritable(string $id, array $payload, string $action): array
+    {
+        $row = $this->activeRecord($id, $payload);
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $recordOrg = trim((string)($row['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $recordOrg !== '' && in_array($recordOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $recordUser = trim((string)($row['USER_ID'] ?? ''));
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && ($recordUser === $currentUserId || $createUser === $currentUserId)) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    private function assertEditableCorrection(array $record, ?string $targetCategory): void
+    {
+        $objectId = trim((string)($record['OBJECT_ID'] ?? ''));
+        if ($objectId !== '') {
+            throw new RuntimeException('linked expenditure records cannot be edited', 400);
+        }
+
+        $currentCategory = trim((string)($record['SETTLEMENT_CATEGORY'] ?? ''));
+        if ($targetCategory === null || $targetCategory === $currentCategory) {
+            return;
+        }
+
+        if (in_array($currentCategory, self::CURRENT_CATEGORY_LOCKED, true)) {
+            throw new RuntimeException('current expenditure category cannot be changed', 400);
+        }
+
+        if (in_array($targetCategory, self::TARGET_CATEGORY_LOCKED, true)) {
+            throw new RuntimeException('target expenditure category cannot be used', 400);
+        }
+    }
+
+    private function activeRecord(string $id, array $payload): array
+    {
+        $query = Db::name('biz_expenditure_record')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query
+            ->field('ID,OBJECT_ID,TARGET_ID,SERIAL_ID,PROCESS_ID,SETTLEMENT_CATEGORY,PAYER_TIME,AMOUNT,TENANT_ID,ORG,CREATE_USER,`USER` AS USER_ID')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('expenditure record not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function activeStatement(string $id, array $payload): array
+    {
+        $query = Db::name('settlement_account_statement')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->field('ID,TENANT_ID')->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('expenditure record statement not found', 404);
+        }
+
+        return $row;
+    }
+
     private function applyTimeRange($query, array $filters, string $column, string $startKey, string $endKey): void
     {
         $start = trim((string)($filters[$startKey] ?? ''));
@@ -223,6 +367,46 @@ SQL;
         }
 
         return $query->order('e.ID', 'asc');
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function optionalTime(array $input, string $key): ?string
+    {
+        if (!array_key_exists($key, $input) || $input[$key] === null) {
+            return null;
+        }
+
+        $value = trim((string)$input[$key]);
+        if ($value === '') {
+            return null;
+        }
+
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function optionalString(array $input, string $key): ?string
+    {
+        if (!array_key_exists($key, $input) || $input[$key] === null) {
+            return null;
+        }
+
+        $value = trim((string)$input[$key]);
+
+        return $value === '' ? null : $value;
     }
 
     /**
@@ -325,6 +509,63 @@ SQL;
         $limit = max(1, min(200, (int)($filters['size'] ?? $filters['limit'] ?? $filters['pageSize'] ?? 20)));
 
         return [$page, $limit];
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function scopeOrgIds(array $payload): array
+    {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            $ids = array_merge($ids, array_map(static function (mixed $scope): string {
+                if (!is_array($scope)) {
+                    return '';
+                }
+
+                return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            }, $scopes));
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? $payload['roleCodeList'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function decimal(mixed $value): int|float|null

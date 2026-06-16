@@ -13,6 +13,7 @@ use think\facade\Db;
 class ConfigService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const REQUIRED_EDIT_FIELDS = [
         'basicId',
         'isTableKey',
@@ -94,6 +95,60 @@ class ConfigService
     }
 
     /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     */
+    public function edit(array $input, array $payload = []): ?array
+    {
+        $update = $this->editPayload($input);
+        $this->assertActiveConfigIds([$update['id']]);
+
+        Db::transaction(function () use ($update, $payload): void {
+            $id = $update['id'];
+            unset($update['id']);
+            $update['UPDATE_TIME'] = date('Y-m-d H:i:s');
+            $update['UPDATE_USER'] = $this->payloadUserId($payload);
+
+            Db::name('gen_config')
+                ->where('ID', $id)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update($update);
+        });
+
+        return null;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     */
+    public function delete(array $input, array $payload = []): ?array
+    {
+        $ids = $this->deleteIds($input);
+        if ($ids === []) {
+            throw new RuntimeException('missing id', 400);
+        }
+        $this->assertActiveConfigIds($ids);
+
+        Db::transaction(function () use ($ids, $payload): void {
+            Db::name('gen_config')
+                ->whereIn('ID', $ids)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $this->payloadUserId($payload),
+                ]);
+        });
+
+        return null;
+    }
+
+    /**
      * @param array<string|int, mixed> $items
      * @param array<string, mixed> $payload
      */
@@ -113,18 +168,7 @@ class ConfigService
         }
 
         $ids = array_values(array_unique(array_map(static fn (array $update): string => $update['id'], $updates)));
-        $existingIds = Db::name('gen_config')
-            ->whereIn('ID', $ids)
-            ->where(function ($query): void {
-                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
-            })
-            ->column('ID');
-        $existingIds = array_map('strval', $existingIds);
-        foreach ($ids as $id) {
-            if (!in_array($id, $existingIds, true)) {
-                throw new RuntimeException('config not found', 404);
-            }
-        }
+        $this->assertActiveConfigIds($ids);
 
         Db::transaction(function () use ($updates, $payload): void {
             $now = date('Y-m-d H:i:s');
@@ -189,6 +233,7 @@ class ConfigService
     private function editPayload(array $item): array
     {
         $payload = ['id' => $this->requiredValue($item, 'id')];
+        $this->assertMaxLength($payload['id'], 'id', 20);
 
         foreach (self::REQUIRED_EDIT_FIELDS as $field) {
             $payload[self::EDIT_FIELD_MAP[$field]] = $this->requiredValue($item, $field);
@@ -199,6 +244,67 @@ class ConfigService
         $payload['SORT_CODE'] = $this->optionalInt($item, 'sortCode');
 
         return $payload;
+    }
+
+    /**
+     * @param array<int, string> $ids
+     */
+    private function assertActiveConfigIds(array $ids): void
+    {
+        if ($ids === []) {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        $existingIds = Db::name('gen_config')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->column('ID');
+        $existingIds = array_map('strval', $existingIds);
+        foreach ($ids as $id) {
+            if (!in_array($id, $existingIds, true)) {
+                throw new RuntimeException('config not found', 404);
+            }
+        }
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @return array<int, string>
+     */
+    private function deleteIds(array $input): array
+    {
+        $source = null;
+        if ($this->isList($input)) {
+            $source = $input;
+        } elseif (array_key_exists('idList', $input)) {
+            $source = $input['idList'];
+        } elseif (array_key_exists('ids', $input)) {
+            $source = $input['ids'];
+        } elseif (array_key_exists('id', $input)) {
+            $source = [$input['id']];
+        }
+
+        if (is_string($source)) {
+            $source = explode(',', $source);
+        }
+        if (!is_array($source)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($source as $item) {
+            $id = is_array($item) ? (string)($item['id'] ?? $item['ID'] ?? '') : (string)$item;
+            $id = trim($id);
+            if ($id === '') {
+                continue;
+            }
+            $this->assertMaxLength($id, 'id', 20);
+            $ids[] = $id;
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**
@@ -217,6 +323,13 @@ class ConfigService
         }
 
         return $value;
+    }
+
+    private function assertMaxLength(string $value, string $label, int $maxLength): void
+    {
+        if (strlen($value) > $maxLength) {
+            throw new RuntimeException($label . ' is too long', 400);
+        }
     }
 
     /**

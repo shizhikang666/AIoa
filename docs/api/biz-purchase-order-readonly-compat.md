@@ -57,16 +57,19 @@ This slice adds protected read-only ThinkPHP routes compatible with the Java pur
 - Supplier display data is decoded from `EXT_JSON.supplier`, matching the imported SQL data shape.
 - Product display fields are joined from `biz_product`.
 
-## Explicit Exclusions
+## Controlled Deferred Writes
 
-- No `/biz/bizpurchaseorder/add` route was added.
-- No `/biz/bizpurchaseorder/edit` route was added.
-- No `/biz/bizpurchaseorder/audit/edit` route was added.
-- No `/biz/bizpurchaseorder/delete` route was added.
-- No `/biz/bizpurchaseorder/cancel` route was added.
-- No `/biz/bizpurchaseorder/warehouse/add` route was added.
-- No `/biz/bizpurchaseorder/warehouse/one/add` route was added.
-- No inventory stock movement, workflow mutation, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+These protected copied-frontend write paths now return Java-style `code = 400` deferred responses:
+
+- `POST /biz/bizpurchaseorder/add`
+- `POST /biz/bizpurchaseorder/edit`
+- `POST /biz/bizpurchaseorder/audit/edit`
+- `POST /biz/bizpurchaseorder/delete`
+- `POST /biz/bizpurchaseorder/cancel`
+- `POST /biz/bizpurchaseorder/warehouse/add`
+- `POST /biz/bizpurchaseorder/warehouse/one/add`
+
+They do not create purchase orders, edit purchase order rows, audit records, cancel records, generate warehouse stock-in records, move inventory, create expenditure records, start workflow, mutate data-change events, change database schema, modify Java source, edit `.env`, or change Composer/public config files.
 
 ## Verification
 

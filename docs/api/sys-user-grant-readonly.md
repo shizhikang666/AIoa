@@ -50,6 +50,7 @@ All routes are protected by `AuthMiddleware`.
 - `EXT_JSON` preserves Java-compatible `{ menuId, buttonInfo }` payloads.
 - Invalid menu or button resource ids fail before existing relations are changed.
 - System-module resources are rejected when the target user does not have the super-admin-compatible role.
+- Grant-resource failures return specific Chinese messages, including `当前账号没有用户资源授权权限` for an operator without grant permission and `只有超管角色用户可以授权系统模块资源` when the target user cannot receive system-module resources.
 - `grantPermission` accepts `{ id, grantInfoList: [{ apiUrl, scopeCategory, scopeDefineOrgIdList }] }`.
 - Permission save writes only `sys_relation` rows where `CATEGORY = SYS_USER_HAS_PERMISSION`.
 - `EXT_JSON` preserves Java-compatible `{ apiUrl, scopeCategory, scopeDefineOrgIdList }` payloads.

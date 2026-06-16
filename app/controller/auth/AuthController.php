@@ -24,7 +24,7 @@ class AuthController extends BaseController
 
     public function getPhoneValidCode(): Response
     {
-        return ApiResponse::fail('phone verification code sending is deferred', 400);
+        return ApiResponse::fail('手机验证码发送功能暂未开放', 400);
     }
 
     public function doLogin(Request $request): Response
@@ -34,12 +34,12 @@ class AuthController extends BaseController
 
     public function doLoginByPhone(): Response
     {
-        return ApiResponse::fail('phone-code login is deferred in auth-agent phase 2', 400);
+        return ApiResponse::fail('手机号验证码登录功能暂未开放', 400);
     }
 
     public function subscription(): Response
     {
-        return ApiResponse::fail('web push subscription is deferred', 400);
+        return ApiResponse::fail('网页推送订阅功能暂未开放', 400);
     }
 
     public function doLogout(Request $request): Response
@@ -69,7 +69,7 @@ class AuthController extends BaseController
 
             return ApiResponse::fail($exception->getMessage(), $status);
         } catch (Throwable) {
-            return ApiResponse::fail('server error', 500);
+            return ApiResponse::fail('服务器错误', 500);
         }
     }
 }

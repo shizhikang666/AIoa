@@ -1773,3 +1773,72 @@ Explicit non-goals:
 
 - No workflow approve/reject/start/cancel, no task SSE stream, no CC delete, no upload/delete, no sale-project write, no finance/inventory side effect, no provider send, no Java source edit, no schema change, no `.env` edit, no production data operation, and no Git push.
 
+## 2026-06-16 Payment Record Payer-Time Edit
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java payment-record edit behavior and kept the slice limited to `id` plus `payerTime`.
+2. Updated `PaymentRecordController::edit()` to parse JSON/form bodies and call `PaymentRecordService::edit()`.
+3. Added a transactional service edit method that checks tenant/write scope, updates only `biz_payment_record.PAYER_TIME` plus audit fields, and syncs the linked `settlement_account_statement.PAYER_TIME` plus audit fields by `SERIAL_ID`.
+4. Reordered the payment-record route group so `edit/account` remains matched before the now-active `edit` route.
+5. Kept add, delete, and account-switch routes controlled-deferred.
+6. Added `scripts/biz-payment-record-edit-http-smoke.ps1` with temporary data setup, no-token/missing-field checks, success readback, linked-statement sync, client-spoofed field preservation checks, missing-statement rollback, count stability checks, and cleanup.
+7. Removed `/biz/bizpaymentrecord/edit` from the generic deferred-wrapper smoke list.
+8. Updated payment-record docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\PaymentRecordController.php`: passed.
+- `php -l app\service\biz\PaymentRecordService.php`: passed.
+- `php -l route\app.php`: passed.
+- PowerShell syntax checks for the new and edited smoke scripts: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizpaymentrecord/(edit|edit/account|add|delete|page|detail)'`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\biz-payment-record-edit-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 77 authenticated deferred wrappers and 17 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No payment-record add/delete, no account switch, no settlement-account balance mutation, no workflow or data-change event, no Java source edit, no schema change, no `.env` edit, no Composer change, no production data operation, and no Git push.
+
+## 2026-06-16 Expenditure Record Payer-Time Category Edit
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java expenditure-record edit behavior and kept the slice limited to `id`, optional `payerTime`, and optional `settlementCategory`.
+2. Updated `ExpenditureRecordController::edit()` to parse JSON/form bodies and call `ExpenditureRecordService::edit()`.
+3. Added a transactional service edit method that checks tenant/write scope, rejects object-linked rows, enforces Java category guards, updates only expenditure payer time/category plus audit fields, and syncs the linked `settlement_account_statement.PAYER_TIME` plus audit fields when payer time is supplied.
+4. Reordered the expenditure-record route group so `edit/account` remains matched before the now-active `edit` route.
+5. Kept add, delete, and account-switch routes controlled-deferred.
+6. Added `scripts/biz-expenditure-record-edit-http-smoke.ps1` with temporary data setup, no-token/missing-field checks, success readback, linked-statement sync, category guard checks, object guard checks, client-spoofed field preservation checks, missing-statement rollback, count stability checks, and cleanup.
+7. Removed `/biz/bizexpenditurerecord/edit` from the generic deferred-wrapper smoke list.
+8. Updated expenditure-record docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\ExpenditureRecordController.php`: passed.
+- `php -l app\service\biz\ExpenditureRecordService.php`: passed.
+- `php -l route\app.php`: passed.
+- PowerShell syntax checks for the new and edited smoke scripts: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizexpenditurerecord/(edit|edit/account|add|delete|page|detail)'`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\biz-expenditure-record-edit-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 76 authenticated deferred wrappers and 17 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No expenditure-record add/delete, no account switch, no settlement-account balance mutation, no statement category/account edit, no purchase/inventory/return/workflow or data-change event, no Java source edit, no schema change, no `.env` edit, no Composer change, no production data operation, and no Git push.
+

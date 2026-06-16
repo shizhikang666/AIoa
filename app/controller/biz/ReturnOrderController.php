@@ -6,6 +6,7 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\ReturnOrderService;
+use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -28,6 +29,28 @@ class ReturnOrderController extends BaseSysController
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->returnOrderService->detail($this->requiredString($request, 'id'), $this->authPayload($request)));
+    }
+
+    public function add(): Response
+    {
+        return $this->deferredWrite('return order add');
+    }
+
+    public function edit(): Response
+    {
+        return $this->deferredWrite('return order edit');
+    }
+
+    public function delete(): Response
+    {
+        return $this->deferredWrite('return order delete');
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     private function authPayload(Request $request): array

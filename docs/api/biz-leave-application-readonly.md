@@ -11,6 +11,7 @@ This document maps the Java `BizLeaveApplicationController` endpoints used by th
 - `GET /biz/bizleaveapplication/page`
 - `GET /biz/bizleaveapplication/my/page`
 - `GET /biz/bizleaveapplication/detail`
+- `POST /biz/bizleaveapplication/add`
 - `POST /biz/bizleaveapplication/edit`
 - `POST /biz/bizleaveapplication/delete`
 
@@ -37,6 +38,7 @@ Java `BizLeaveApplicationServiceImpl`:
 | GET | `/biz/bizleaveapplication/page` | `BizLeaveApplicationController::page` | Paged list with data-scope fallback. |
 | GET | `/biz/bizleaveapplication/my/page` | `BizLeaveApplicationController::myPage` | Paged list restricted to current user. |
 | GET | `/biz/bizleaveapplication/detail` | `BizLeaveApplicationController::detail` | Detail by `id`. |
+| POST | `/biz/bizleaveapplication/add` | `BizLeaveApplicationController::add` | Controlled deferred wrapper; leave creation remains workflow-owned. |
 | POST | `/biz/bizleaveapplication/edit` | `BizLeaveApplicationController::edit` | Updates only Java edit-param fields plus update audit fields. |
 | POST | `/biz/bizleaveapplication/delete` | `BizLeaveApplicationController::delete` | Logical delete with full-batch validation before update. |
 
@@ -73,11 +75,15 @@ Rows include:
 - Non-admin writes are guarded by data-scope organization, current applicant, or creator ownership.
 - The slice does not run workflow, annual-leave, payroll, notification, or data-change side effects.
 
+## Controlled Deferred Write
+
+`POST /biz/bizleaveapplication/add` returns a controlled `code = 400` deferred response. It does not create leave records, start workflow, deduct annual leave, recalculate payroll-facing data, emit notifications, change database schema, or modify Java source.
+
 ## Deferred
 
 The following remain intentionally deferred:
 
-- `POST /biz/bizleaveapplication/add`
+- real `POST /biz/bizleaveapplication/add` behavior
 - workflow start, approve, reject, or cancel side effects
 - annual-leave/vacation deductions or generation
 - payroll-facing leave recalculation

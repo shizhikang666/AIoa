@@ -766,7 +766,7 @@ class RoleService
             ->whereIn('ID', $moduleIds)
             ->column('CODE'))));
         if (in_array('system', $moduleCodes, true)) {
-            throw new RuntimeException('non-super roles cannot be granted system module resources', 400);
+            throw new RuntimeException('只有超管角色可以授权系统模块资源', 400);
         }
     }
 

@@ -248,6 +248,7 @@ Route::group('dev/config', function () {
     Route::get('detail', 'dev.ConfigController/detail');
     Route::post('add', 'dev.ConfigController/add');
     Route::post('edit', 'dev.ConfigController/edit');
+    Route::post('editBatch', 'dev.ConfigController/editBatch');
     Route::post('delete', 'dev.ConfigController/delete');
 })->middleware(AuthMiddleware::class);
 
@@ -278,6 +279,14 @@ Route::group('dev/file', function () {
 Route::group('dev/email', function () {
     Route::get('page', 'dev.EmailController/page');
     Route::get('detail', 'dev.EmailController/detail');
+    Route::post('sendLocalTxt', 'dev.EmailController/sendLocalTxt');
+    Route::post('sendLocalHtml', 'dev.EmailController/sendLocalHtml');
+    Route::post('sendAliyunTxt', 'dev.EmailController/sendAliyunTxt');
+    Route::post('sendAliyunHtml', 'dev.EmailController/sendAliyunHtml');
+    Route::post('sendAliyunTmp', 'dev.EmailController/sendAliyunTmp');
+    Route::post('sendTencentTxt', 'dev.EmailController/sendTencentTxt');
+    Route::post('sendTencentHtml', 'dev.EmailController/sendTencentHtml');
+    Route::post('sendTencentTmp', 'dev.EmailController/sendTencentTmp');
     Route::post('delete', 'dev.EmailController/delete');
 })->middleware(AuthMiddleware::class);
 
@@ -295,6 +304,11 @@ Route::group('dev/job', function () {
     Route::get('list', 'dev.JobController/list');
     Route::get('detail', 'dev.JobController/detail');
     Route::get('getActionClass', 'dev.JobController/getActionClass');
+    Route::post('add', 'dev.JobController/add');
+    Route::post('edit', 'dev.JobController/edit');
+    Route::post('stopJob', 'dev.JobController/stopJob');
+    Route::post('runJob', 'dev.JobController/runJob');
+    Route::post('runJobNow', 'dev.JobController/runJobNow');
     Route::post('delete', 'dev.JobController/delete');
 })->middleware(AuthMiddleware::class);
 
@@ -329,17 +343,27 @@ Route::group('gen/basic', function () {
     Route::get('tables', 'gen.BasicController/tables');
     Route::get('tableColumns', 'gen.BasicController/tableColumns');
     Route::get('mobileModuleSelector', 'gen.BasicController/mobileModuleSelector');
+    Route::post('add', 'gen.BasicController/add');
+    Route::post('edit', 'gen.BasicController/edit');
+    Route::post('delete', 'gen.BasicController/delete');
+    Route::post('execGenPro', 'gen.BasicController/execGenPro');
 })->middleware(AuthMiddleware::class);
 
 Route::group('gen/config', function () {
     Route::get('list', 'gen.ConfigController/list');
     Route::get('detail', 'gen.ConfigController/detail');
+    Route::post('add', 'gen.ConfigController/add');
+    Route::post('edit', 'gen.ConfigController/edit');
+    Route::post('delete', 'gen.ConfigController/delete');
     Route::post('editBatch', 'gen.ConfigController/editBatch');
 })->middleware(AuthMiddleware::class);
 
 Route::group('tenants/tenant', function () {
     Route::get('page', 'tenant.TenantsController/page');
     Route::get('detail', 'tenant.TenantsController/detail');
+    Route::post('add', 'tenant.TenantsController/add');
+    Route::post('edit', 'tenant.TenantsController/edit');
+    Route::post('delete', 'tenant.TenantsController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizproduct', function () {
@@ -370,6 +394,10 @@ Route::group('biz/settlementaccount', function () {
     Route::post('add', 'biz.SettlementAccountController/add');
     Route::post('edit', 'biz.SettlementAccountController/edit');
     Route::post('edit/status', 'biz.SettlementAccountController/editStatus');
+    Route::post('delete', 'biz.SettlementAccountController/delete');
+    Route::post('expenses/add', 'biz.SettlementAccountController/expensesAdd');
+    Route::post('payment/add', 'biz.SettlementAccountController/paymentAdd');
+    Route::post('transfer/add', 'biz.SettlementAccountController/transferAdd');
     Route::get('detail', 'biz.SettlementAccountController/detail');
     Route::get('queryName', 'biz.SettlementAccountController/queryName');
 })->middleware(AuthMiddleware::class);
@@ -379,6 +407,10 @@ Route::group('biz/bizpaymentrecord', function () {
     Route::get('listdetails', 'biz.PaymentRecordController/listDetails');
     Route::get('list', 'biz.PaymentRecordController/list');
     Route::get('detail', 'biz.PaymentRecordController/detail');
+    Route::post('add', 'biz.PaymentRecordController/add');
+    Route::post('edit/account', 'biz.PaymentRecordController/editAccount');
+    Route::post('edit', 'biz.PaymentRecordController/edit');
+    Route::post('delete', 'biz.PaymentRecordController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizexpenditurerecord', function () {
@@ -386,20 +418,33 @@ Route::group('biz/bizexpenditurerecord', function () {
     Route::get('listDetails', 'biz.ExpenditureRecordController/listDetails');
     Route::get('list', 'biz.ExpenditureRecordController/list');
     Route::get('detail', 'biz.ExpenditureRecordController/detail');
+    Route::post('add', 'biz.ExpenditureRecordController/add');
+    Route::post('edit/account', 'biz.ExpenditureRecordController/editAccount');
+    Route::post('edit', 'biz.ExpenditureRecordController/edit');
+    Route::post('delete', 'biz.ExpenditureRecordController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizcollectionreceipt', function () {
     Route::get('page', 'biz.CollectionReceiptController/page');
     Route::get('list', 'biz.CollectionReceiptController/list');
     Route::get('detail', 'biz.CollectionReceiptController/detail');
+    Route::post('add', 'biz.CollectionReceiptController/add');
+    Route::post('edit', 'biz.CollectionReceiptController/edit');
+    Route::post('batchExpenditure/edit', 'biz.CollectionReceiptController/batchExpenditure');
     Route::post('mark/success/edit', 'biz.CollectionReceiptController/markSuccess');
+    Route::post('delete', 'biz.CollectionReceiptController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizdebitnote', function () {
     Route::get('page', 'biz.DebitNoteController/page');
     Route::get('list', 'biz.DebitNoteController/list');
     Route::get('detail', 'biz.DebitNoteController/detail');
+    Route::post('add', 'biz.DebitNoteController/add');
+    Route::post('edit', 'biz.DebitNoteController/edit');
+    Route::post('batchRepayment/edit', 'biz.DebitNoteController/batchRepayment');
+    Route::post('history/add', 'biz.DebitNoteController/historyAdd');
     Route::post('mark/success/edit', 'biz.DebitNoteController/markSuccess');
+    Route::post('delete', 'biz.DebitNoteController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizfilerelation', function () {
@@ -500,12 +545,15 @@ Route::group('biz/warehouses', function () {
 Route::group('biz/inventory', function () {
     Route::get('page', 'biz.InventoryController/page');
     Route::get('list', 'biz.InventoryController/list');
+    Route::post('add', 'biz.InventoryController/add');
+    Route::post('delete', 'biz.InventoryController/delete');
     Route::get('detail', 'biz.InventoryController/detail');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/warehouses/delivery', function () {
     Route::get('page', 'biz.DeliveryRecordController/page');
     Route::get('exportOtherCompanyRecordsList', 'biz.DeliveryRecordController/exportOtherCompanyRecordsList');
+    Route::post('add', 'biz.DeliveryRecordController/add');
     Route::get('detail', 'biz.DeliveryRecordController/detail');
 })->middleware(AuthMiddleware::class);
 
@@ -514,6 +562,13 @@ Route::group('biz/bizpurchaseorder', function () {
     Route::get('detail/list', 'biz.PurchaseOrderController/detailList');
     Route::get('list', 'biz.PurchaseOrderController/list');
     Route::get('detail', 'biz.PurchaseOrderController/detail');
+    Route::post('add', 'biz.PurchaseOrderController/add');
+    Route::post('edit', 'biz.PurchaseOrderController/edit');
+    Route::post('audit/edit', 'biz.PurchaseOrderController/auditEdit');
+    Route::post('warehouse/add', 'biz.PurchaseOrderController/warehouseAdd');
+    Route::post('warehouse/one/add', 'biz.PurchaseOrderController/warehouseOneAdd');
+    Route::post('cancel', 'biz.PurchaseOrderController/cancel');
+    Route::post('delete', 'biz.PurchaseOrderController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/saleproject', function () {
@@ -522,6 +577,16 @@ Route::group('biz/saleproject', function () {
     Route::get('product', 'biz.SaleProjectController/product');
     Route::post('cost/details', 'biz.SaleProjectController/costDetails');
     Route::post('cost', 'biz.SaleProjectController/cost');
+    Route::post('add', 'biz.SaleProjectController/add');
+    Route::post('edit', 'biz.SaleProjectController/edit');
+    Route::post('delete', 'biz.SaleProjectController/delete');
+    Route::post('amount/edit', 'biz.SaleProjectController/amountEdit');
+    Route::post('deal/edit', 'biz.SaleProjectController/dealEdit');
+    Route::post('cancel', 'biz.SaleProjectController/cancel');
+    Route::post('history/add', 'biz.SaleProjectController/historyAdd');
+    Route::post('repeal', 'biz.SaleProjectController/repeal');
+    Route::post('special/add', 'biz.SaleProjectController/specialAdd');
+    Route::post('visibility/edit', 'biz.SaleProjectController/visibilityEdit');
 })->middleware(AuthMiddleware::class);
 Route::get('biz/saleproject/case/page', 'biz.SaleProjectController/casePage')->middleware(AuthMiddleware::class);
 Route::get('biz/saleproject/operation/page', 'biz.SaleProjectController/operationPage')->middleware(AuthMiddleware::class);
@@ -567,6 +632,9 @@ Route::group('biz/saleprojectinvoicing', function () {
     Route::get('customer', 'biz.SaleProjectInvoicingController/customer');
     Route::get('detail', 'biz.SaleProjectInvoicingController/detail');
     Route::post('complete', 'biz.SaleProjectInvoicingController/complete');
+    Route::post('add', 'biz.SaleProjectInvoicingController/add');
+    Route::post('edit', 'biz.SaleProjectInvoicingController/edit');
+    Route::post('delete', 'biz.SaleProjectInvoicingController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/saleprojectinvoice', function () {
@@ -616,6 +684,7 @@ Route::group('biz/bizleaveapplication', function () {
     Route::get('page', 'biz.BizLeaveApplicationController/page');
     Route::get('my/page', 'biz.BizLeaveApplicationController/myPage');
     Route::get('detail', 'biz.BizLeaveApplicationController/detail');
+    Route::post('add', 'biz.BizLeaveApplicationController/add');
     Route::post('edit', 'biz.BizLeaveApplicationController/edit');
     Route::post('delete', 'biz.BizLeaveApplicationController/delete');
 })->middleware(AuthMiddleware::class);
@@ -623,6 +692,9 @@ Route::group('biz/bizleaveapplication', function () {
 Route::group('biz/bizuservacation', function () {
     Route::get('page', 'biz.BizUserVacationController/page');
     Route::get('detail', 'biz.BizUserVacationController/detail');
+    Route::post('add', 'biz.BizUserVacationController/add');
+    Route::post('edit', 'biz.BizUserVacationController/edit');
+    Route::post('delete', 'biz.BizUserVacationController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/bizdraft', function () {
@@ -640,6 +712,10 @@ Route::group('biz/bizpayroll', function () {
     Route::get('mypage', 'biz.BizPayrollController/myPage');
     Route::get('detail', 'biz.BizPayrollController/detail');
     Route::get('downloadImportTemplate', 'biz.BizPayrollController/downloadImportTemplate');
+    Route::get('export', 'biz.BizPayrollController/export');
+    Route::post('add', 'biz.BizPayrollController/add');
+    Route::post('import', 'biz.BizPayrollController/importExcel');
+    Route::post('generate/add', 'biz.BizPayrollController/generateAdd');
     Route::post('edit', 'biz.BizPayrollController/edit');
     Route::post('bath/edit', 'biz.BizPayrollController/bathEdit');
     Route::post('delete', 'biz.BizPayrollController/delete');
@@ -647,6 +723,8 @@ Route::group('biz/bizpayroll', function () {
 
 Route::group('biz/ccrecords', function () {
     Route::get('page', 'biz.CcRecordsController/page');
+    Route::post('add', 'biz.CcRecordsController/add');
+    Route::post('edit', 'biz.CcRecordsController/edit');
     Route::post('delete', 'biz.CcRecordsController/delete');
     Route::get('detail', 'biz.CcRecordsController/detail');
 })->middleware(AuthMiddleware::class);
@@ -715,6 +793,9 @@ Route::group('biz/returnorder', function () {
     Route::get('page', 'biz.ReturnOrderController/page');
     Route::get('query', 'biz.ReturnOrderController/query');
     Route::get('detail', 'biz.ReturnOrderController/detail');
+    Route::post('add', 'biz.ReturnOrderController/add');
+    Route::post('edit', 'biz.ReturnOrderController/edit');
+    Route::post('delete', 'biz.ReturnOrderController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/task', function () {
@@ -723,6 +804,9 @@ Route::group('biz/task', function () {
     Route::get('page', 'biz.TaskController/page');
     Route::get('history/page', 'biz.TaskController/historyPage');
     Route::get('runtime/activity/detail', 'biz.TaskController/runtimeActivityDetail');
+    Route::post('approve', 'biz.TaskController/approve');
+    Route::post('reject', 'biz.TaskController/reject');
+    Route::get('sse/stream', 'biz.TaskController/sseStream');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/process', function () {
@@ -734,4 +818,17 @@ Route::group('biz/process', function () {
     Route::post('fileList', 'biz.ProcessController/fileList');
     Route::get('detail', 'biz.ProcessController/detail');
     Route::post('variable', 'biz.ProcessController/variable');
+    Route::post('cancel', 'biz.ProcessController/cancel');
+    Route::post('leave/edit', 'biz.ProcessController/leaveEdit');
+    Route::post('leave/start', 'biz.ProcessController/leaveStart');
+    Route::post('makePayment/start', 'biz.ProcessController/makePaymentStart');
+    Route::post('payment/start', 'biz.ProcessController/paymentStart');
+    Route::post('procure/start', 'biz.ProcessController/procureStart');
+    Route::post('procure/warehouse/start', 'biz.ProcessController/procureWarehouseStart');
+    Route::post('project/delivery/start', 'biz.ProcessController/projectDeliveryStart');
+    Route::post('project/init/start', 'biz.ProcessController/projectInitStart');
+    Route::post('project/play/start', 'biz.ProcessController/projectPlayStart');
+    Route::post('project/reissue/start', 'biz.ProcessController/projectReissueStart');
+    Route::post('project/return/start', 'biz.ProcessController/projectReturnStart');
+    Route::post('reimbursement/start', 'biz.ProcessController/reimbursementStart');
 })->middleware(AuthMiddleware::class);

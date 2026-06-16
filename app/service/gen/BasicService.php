@@ -9,11 +9,47 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Read-only generator basic metadata queries compatible with Java GenBasicController.
+ * Generator basic metadata queries and safe writes compatible with Java GenBasicController.
  */
 class BasicService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
+    private const REQUIRED_FIELDS = [
+        'dbTable',
+        'dbTableKey',
+        'pluginName',
+        'moduleName',
+        'tablePrefix',
+        'generateType',
+        'module',
+        'menuPid',
+        'functionName',
+        'busName',
+        'className',
+        'formLayout',
+        'gridWhether',
+        'sortCode',
+    ];
+    private const BASIC_FIELD_MAP = [
+        'dbTable' => 'DB_TABLE',
+        'dbTableKey' => 'DB_TABLE_KEY',
+        'pluginName' => 'PLUGIN_NAME',
+        'moduleName' => 'MODULE_NAME',
+        'tablePrefix' => 'TABLE_PREFIX',
+        'generateType' => 'GENERATE_TYPE',
+        'module' => 'MODULE',
+        'menuPid' => 'MENU_PID',
+        'mobileModule' => 'MOBILE_MODULE',
+        'functionName' => 'FUNCTION_NAME',
+        'busName' => 'BUS_NAME',
+        'className' => 'CLASS_NAME',
+        'formLayout' => 'FORM_LAYOUT',
+        'gridWhether' => 'GRID_WHETHER',
+        'packageName' => 'PACKAGE_NAME',
+        'authorName' => 'AUTHOR_NAME',
+        'sortCode' => 'SORT_CODE',
+    ];
     private const SORT_FIELD_MAP = [
         'id' => 'ID',
         'dbTable' => 'DB_TABLE',
@@ -65,6 +101,117 @@ class BasicService
         }
 
         return $this->basicRow(is_array($row) ? $row : $row->toArray());
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     */
+    public function add(array $input, array $payload = []): array
+    {
+        $data = $this->basicPayload($input, false);
+        $columns = $this->validatedTableColumns($data['dbTable'], $data['dbTableKey']);
+
+        return Db::transaction(function () use ($data, $columns, $payload): array {
+            $id = $this->newId();
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->payloadUserId($payload);
+
+            Db::name('gen_basic')->insert(array_merge($this->basicInsertColumns($data), [
+                'ID' => $id,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+            ]));
+
+            $this->insertDefaultConfigs($id, $data['dbTableKey'], $columns, $now, $userId);
+
+            return $this->activeBasicRow($id);
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     */
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredString($input, 'id');
+        $this->assertMaxLength($id, 'id', 20);
+        $data = $this->basicPayload($input, true);
+        $columns = $this->validatedTableColumns($data['dbTable'], $data['dbTableKey']);
+
+        return Db::transaction(function () use ($id, $data, $columns, $payload): array {
+            $existing = $this->activeBasicRow($id);
+            $tableChanged = strcasecmp((string)($existing['dbTable'] ?? ''), $data['dbTable']) !== 0;
+            $keyChanged = strcasecmp((string)($existing['dbTableKey'] ?? ''), $data['dbTableKey']) !== 0;
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->payloadUserId($payload);
+
+            Db::name('gen_basic')
+                ->where('ID', $id)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update(array_merge($this->basicInsertColumns($data), [
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId,
+                ]));
+
+            if ($tableChanged) {
+                $this->softDeleteConfigs([$id], $now, $userId);
+                $this->insertDefaultConfigs($id, $data['dbTableKey'], $columns, $now, $userId);
+            } elseif ($keyChanged) {
+                $this->refreshConfigPrimaryKey($id, $data['dbTableKey'], $now, $userId);
+            }
+
+            return $this->activeBasicRow($id);
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     */
+    public function delete(array $input, array $payload = []): ?array
+    {
+        $ids = $this->deleteIds($input);
+        if ($ids === []) {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        return Db::transaction(function () use ($ids, $payload): ?array {
+            $existingIds = Db::name('gen_basic')
+                ->whereIn('ID', $ids)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->column('ID');
+            $existingIds = array_map('strval', $existingIds);
+            foreach ($ids as $id) {
+                if (!in_array($id, $existingIds, true)) {
+                    throw new RuntimeException('gen basic not found', 404);
+                }
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->payloadUserId($payload);
+            Db::name('gen_basic')
+                ->whereIn('ID', $ids)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId,
+                ]);
+            $this->softDeleteConfigs($ids, $now, $userId);
+
+            return null;
+        });
     }
 
     public function previewGen(string $id): array
@@ -521,6 +668,350 @@ SQL, [$tableName, $tableName]);
             'updateTime' => $row['UPDATE_TIME'] ?? null,
             'updateUser' => $row['UPDATE_USER'] ?? null,
         ];
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @return array<string, mixed>
+     */
+    private function basicPayload(array $input, bool $isEdit): array
+    {
+        $payload = [];
+        foreach (self::REQUIRED_FIELDS as $field) {
+            $payload[$field] = $field === 'sortCode'
+                ? $this->requiredInt($input, $field)
+                : $this->requiredString($input, $field);
+        }
+
+        $payload['mobileModule'] = $this->optionalString($input, 'mobileModule');
+        $payload['packageName'] = $this->optionalString($input, 'packageName');
+        $payload['authorName'] = $isEdit
+            ? $this->requiredString($input, 'authorName')
+            : $this->optionalString($input, 'authorName');
+
+        foreach (['dbTable', 'dbTableKey', 'pluginName', 'moduleName', 'tablePrefix', 'generateType', 'module', 'menuPid', 'mobileModule', 'functionName', 'busName', 'className', 'formLayout', 'gridWhether', 'packageName', 'authorName'] as $field) {
+            if ($payload[$field] !== null) {
+                $this->assertMaxLength((string)$payload[$field], $field, 255);
+            }
+        }
+
+        $payload['tablePrefix'] = strtoupper((string)$payload['tablePrefix']);
+        $payload['generateType'] = strtoupper((string)$payload['generateType']);
+        $payload['gridWhether'] = strtoupper((string)$payload['gridWhether']);
+        $payload['formLayout'] = strtolower((string)$payload['formLayout']);
+        $this->assertEnum((string)$payload['tablePrefix'], ['Y', 'N'], 'tablePrefix');
+        $this->assertEnum((string)$payload['generateType'], ['ZIP', 'PRO'], 'generateType');
+        $this->assertEnum((string)$payload['gridWhether'], ['Y', 'N'], 'gridWhether');
+        $this->assertEnum((string)$payload['formLayout'], ['vertical', 'horizontal'], 'formLayout');
+
+        return $payload;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function basicInsertColumns(array $data): array
+    {
+        $columns = [];
+        foreach (self::BASIC_FIELD_MAP as $field => $column) {
+            $columns[$column] = $data[$field] ?? null;
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @return array<int, array{columnName: string, typeName: string, columnRemark: string}>
+     */
+    private function validatedTableColumns(string $tableName, string $dbTableKey): array
+    {
+        $this->assertTableName($tableName);
+        $columns = $this->tableColumns($tableName);
+        if ($columns === []) {
+            throw new RuntimeException('table not found', 404);
+        }
+
+        $key = strtoupper($dbTableKey);
+        foreach ($columns as $column) {
+            if (strtoupper((string)$column['columnName']) === $key) {
+                return $columns;
+            }
+        }
+
+        throw new RuntimeException('dbTableKey not found', 400);
+    }
+
+    private function assertTableName(string $tableName): void
+    {
+        if (preg_match('/^[A-Za-z0-9_]+$/', $tableName) !== 1) {
+            throw new RuntimeException('invalid dbTable', 400);
+        }
+        if (str_starts_with(strtoupper($tableName), 'ACT_')) {
+            throw new RuntimeException('workflow tables cannot be generated', 400);
+        }
+    }
+
+    /**
+     * @param array<int, array{columnName: string, typeName: string, columnRemark: string}> $columns
+     */
+    private function insertDefaultConfigs(string $basicId, string $dbTableKey, array $columns, string $now, ?string $userId): void
+    {
+        $rows = [];
+        $key = strtoupper($dbTableKey);
+        foreach ($columns as $index => $column) {
+            $fieldName = strtoupper((string)$column['columnName']);
+            $isTableKey = $fieldName === $key ? 'Y' : 'N';
+            $editable = $isTableKey === 'Y' || in_array($fieldName, ['DELETE_FLAG', 'CREATE_USER', 'CREATE_TIME', 'UPDATE_USER', 'UPDATE_TIME'], true)
+                ? 'N'
+                : 'Y';
+
+            $rows[] = [
+                'ID' => $this->newId(),
+                'BASIC_ID' => $basicId,
+                'IS_TABLE_KEY' => $isTableKey,
+                'FIELD_NAME' => $fieldName,
+                'FIELD_REMARK' => (string)$column['columnRemark'],
+                'FIELD_TYPE' => strtoupper((string)$column['typeName']),
+                'FIELD_JAVA_TYPE' => $this->javaTypeForSqlType((string)$column['typeName']),
+                'EFFECT_TYPE' => 'input',
+                'DICT_TYPE_CODE' => null,
+                'WHETHER_TABLE' => $editable,
+                'WHETHER_RETRACT' => 'N',
+                'WHETHER_ADD_UPDATE' => $editable,
+                'WHETHER_REQUIRED' => 'N',
+                'QUERY_WHETHER' => 'N',
+                'QUERY_TYPE' => null,
+                'SORT_CODE' => $index,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+            ];
+        }
+
+        if ($rows !== []) {
+            Db::name('gen_config')->insertAll($rows);
+        }
+    }
+
+    /**
+     * @param array<int, string> $basicIds
+     */
+    private function softDeleteConfigs(array $basicIds, string $now, ?string $userId): void
+    {
+        Db::name('gen_config')
+            ->whereIn('BASIC_ID', $basicIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update([
+                'DELETE_FLAG' => self::DELETED,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId,
+            ]);
+    }
+
+    private function refreshConfigPrimaryKey(string $basicId, string $dbTableKey, string $now, ?string $userId): void
+    {
+        $rows = $this->configRows($basicId);
+        $key = strtoupper($dbTableKey);
+        foreach ($rows as $row) {
+            $fieldName = strtoupper((string)($row['FIELD_NAME'] ?? ''));
+            Db::name('gen_config')
+                ->where('ID', (string)($row['ID'] ?? ''))
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'IS_TABLE_KEY' => $fieldName === $key ? 'Y' : 'N',
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId,
+                ]);
+        }
+    }
+
+    private function javaTypeForSqlType(string $sqlType): string
+    {
+        $type = strtolower($sqlType);
+        if (str_contains($type, 'bigint')) {
+            return 'Long';
+        }
+        if (str_contains($type, 'int')) {
+            return 'Integer';
+        }
+        if (str_contains($type, 'decimal') || str_contains($type, 'numeric')) {
+            return 'BigDecimal';
+        }
+        if (str_contains($type, 'float')) {
+            return 'Float';
+        }
+        if (str_contains($type, 'double')) {
+            return 'Double';
+        }
+        if (str_contains($type, 'date') || str_contains($type, 'time') || str_contains($type, 'year')) {
+            return 'Date';
+        }
+        if (str_contains($type, 'bit') || str_contains($type, 'bool')) {
+            return 'Boolean';
+        }
+
+        return 'String';
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @return array<int, string>
+     */
+    private function deleteIds(array $input): array
+    {
+        $source = null;
+        if ($this->isList($input)) {
+            $source = $input;
+        } elseif (array_key_exists('idList', $input)) {
+            $source = $input['idList'];
+        } elseif (array_key_exists('ids', $input)) {
+            $source = $input['ids'];
+        } elseif (array_key_exists('id', $input)) {
+            $source = [$input['id']];
+        }
+
+        if (is_string($source)) {
+            $source = explode(',', $source);
+        }
+        if (!is_array($source)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($source as $item) {
+            $id = is_array($item) ? (string)($item['id'] ?? $item['ID'] ?? '') : (string)$item;
+            $id = trim($id);
+            if ($id === '') {
+                continue;
+            }
+            $this->assertMaxLength($id, 'id', 20);
+            $ids[] = $id;
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     */
+    private function requiredString(array $input, string $field): string
+    {
+        $value = $this->fieldValue($input, $field);
+        $value = trim((string)$value);
+        if ($value === '') {
+            throw new RuntimeException('missing ' . $field, 400);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     */
+    private function optionalString(array $input, string $field): ?string
+    {
+        $value = $this->fieldValue($input, $field);
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string)$value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     */
+    private function requiredInt(array $input, string $field): int
+    {
+        $value = $this->fieldValue($input, $field);
+        $value = trim((string)$value);
+        if ($value === '' || preg_match('/^-?\d+$/', $value) !== 1) {
+            throw new RuntimeException('missing ' . $field, 400);
+        }
+
+        return (int)$value;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     */
+    private function fieldValue(array $input, string $field): mixed
+    {
+        if (array_key_exists($field, $input)) {
+            return $input[$field];
+        }
+
+        $column = self::BASIC_FIELD_MAP[$field] ?? strtoupper((string)preg_replace('/(?<!^)[A-Z]/', '_$0', $field));
+        if (array_key_exists($column, $input)) {
+            return $input[$column];
+        }
+
+        return null;
+    }
+
+    private function assertMaxLength(string $value, string $label, int $maxLength): void
+    {
+        if (strlen($value) > $maxLength) {
+            throw new RuntimeException($label . ' is too long', 400);
+        }
+    }
+
+    /**
+     * @param array<int, string> $allowed
+     */
+    private function assertEnum(string $value, array $allowed, string $label): void
+    {
+        if (!in_array($value, $allowed, true)) {
+            throw new RuntimeException('invalid ' . $label, 400);
+        }
+    }
+
+    /**
+     * @param array<string|int, mixed> $items
+     */
+    private function isList(array $items): bool
+    {
+        if ($items === []) {
+            return true;
+        }
+
+        return array_keys($items) === range(0, count($items) - 1);
+    }
+
+    private function activeBasicRow(string $id): array
+    {
+        $row = Db::name('gen_basic')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+        if (!$row) {
+            throw new RuntimeException('gen basic not found', 404);
+        }
+
+        return $this->basicRow(is_array($row) ? $row : $row->toArray());
+    }
+
+    private function payloadUserId(array $payload): ?string
+    {
+        $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+
+        return $userId === '' ? null : $userId;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     /**

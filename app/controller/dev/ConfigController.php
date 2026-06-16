@@ -59,6 +59,15 @@ class ConfigController extends BaseSysController
         return $this->guard(fn () => $this->configService->delete($this->deleteIds($this->bodyInput($request)), $this->authPayload($request)));
     }
 
+    public function editBatch(Request $request): Response
+    {
+        return $this->guard(function () use ($request): ?array {
+            $this->configService->editBatch($this->bodyInput($request), $this->authPayload($request));
+
+            return null;
+        });
+    }
+
     /**
      * @return array<string|int, mixed>
      */
@@ -71,16 +80,20 @@ class ConfigController extends BaseSysController
 
         $raw = '';
         if (method_exists($request, 'getContent')) {
-            $raw = trim((string)$request->getContent());
+            $raw = (string)$request->getContent();
         }
         if ($raw === '' && method_exists($request, 'getInput')) {
-            $raw = trim((string)$request->getInput());
+            $raw = (string)$request->getInput();
         }
+        $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
+        $raw = trim($raw);
         if ($raw !== '') {
             $decoded = json_decode($raw, true);
-            if (is_array($decoded)) {
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
                 return $decoded;
             }
+
+            throw new RuntimeException('invalid json body', 400);
         }
 
         return $request->param();

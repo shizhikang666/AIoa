@@ -12,13 +12,17 @@ import userRoutes from '@/config/route'
 
 // 获取第一个界面
 const getIndexMenu = (menu) => {
-	if (menu[0] && menu[0].children) {
+	if (menu[0] && Array.isArray(menu[0].children) && menu[0].children.length > 0) {
 		let indexMenu = menu[0].children[0]
 		// 如果第一个菜单为目录，接着往下找
-		if (indexMenu.meta.type === 'catalog') {
+		if (indexMenu.meta?.type === 'catalog') {
 			indexMenu = traverseChild(menu)
 		}
 		return indexMenu
+	} else if (!Array.isArray(menu) || menu.length === 0) {
+		return null
+	} else if (menu[0]?.path) {
+		return menu[0]
 	} else {
 		return userRoutes.menu[0]
 	}

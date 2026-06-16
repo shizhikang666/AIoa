@@ -7,6 +7,7 @@ namespace app\controller\biz;
 use app\service\workflow\WorkflowQueryService;
 use app\service\workflow\WorkflowVariableService;
 use app\service\biz\FileRelationService;
+use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -92,6 +93,78 @@ class ProcessController extends BaseWorkflowController
             'objectId' => $this->processInstanceId($request, $filters),
             'category' => $filters['category'] ?? null,
         ], $this->authPayload($request)));
+    }
+
+    public function cancel(): Response
+    {
+        return $this->deferredWrite('process cancel');
+    }
+
+    public function leaveEdit(): Response
+    {
+        return $this->deferredWrite('leave process edit');
+    }
+
+    public function leaveStart(): Response
+    {
+        return $this->deferredWrite('leave process start');
+    }
+
+    public function makePaymentStart(): Response
+    {
+        return $this->deferredWrite('make payment process start');
+    }
+
+    public function paymentStart(): Response
+    {
+        return $this->deferredWrite('payment process start');
+    }
+
+    public function procureStart(): Response
+    {
+        return $this->deferredWrite('procure process start');
+    }
+
+    public function procureWarehouseStart(): Response
+    {
+        return $this->deferredWrite('procure warehouse process start');
+    }
+
+    public function projectDeliveryStart(): Response
+    {
+        return $this->deferredWrite('project delivery process start');
+    }
+
+    public function projectInitStart(): Response
+    {
+        return $this->deferredWrite('project init process start');
+    }
+
+    public function projectPlayStart(): Response
+    {
+        return $this->deferredWrite('project play process start');
+    }
+
+    public function projectReissueStart(): Response
+    {
+        return $this->deferredWrite('project reissue process start');
+    }
+
+    public function projectReturnStart(): Response
+    {
+        return $this->deferredWrite('project return process start');
+    }
+
+    public function reimbursementStart(): Response
+    {
+        return $this->deferredWrite('reimbursement process start');
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     private function authPayload(Request $request): array

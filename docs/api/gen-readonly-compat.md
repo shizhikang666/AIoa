@@ -25,8 +25,15 @@ Protected routes:
 - `GET /gen/basic/tables`
 - `GET /gen/basic/tableColumns`
 - `GET /gen/basic/mobileModuleSelector`
+- `POST /gen/basic/add`
+- `POST /gen/basic/edit`
+- `POST /gen/basic/delete`
+- `POST /gen/basic/execGenPro`
 - `GET /gen/config/list`
 - `GET /gen/config/detail`
+- `POST /gen/config/add`
+- `POST /gen/config/edit`
+- `POST /gen/config/delete`
 - `POST /gen/config/editBatch`
 
 ## Response Shape
@@ -82,6 +89,12 @@ Protected routes:
 - `sortCode`
 
 ## Write Compatibility
+
+`POST /gen/basic/add`, `/edit`, and `/delete` now implement narrow generator basic metadata maintenance.
+
+Basic add validates the copied generator form fields, verifies the target database table and primary-key column through `information_schema`, inserts one `gen_basic` row, and creates default `gen_config` rows for the selected table. Basic edit updates only generator basic metadata; when the target table changes it rebuilds active config rows, and when only the key changes it refreshes `IS_TABLE_KEY` flags. Basic delete validates the full id batch, then logically deletes the selected basic rows and their active config rows in one transaction.
+
+`POST /gen/config/edit` and `/delete` implement narrow generator field-config metadata maintenance. Edit requires an active `gen_config` id and the Java `GenConfigEditParam` fields, updates only the same whitelisted metadata columns as editBatch, ignores client-supplied audit/delete fields, and returns `data = null`. Delete accepts Java-style `[{ id }]`, `idList`, `ids`, or a single `id`, validates the whole batch before writing, logically marks active config rows as `DELETED`, does not mutate the parent `gen_basic` row, and returns `data = null`.
 
 `POST /gen/config/editBatch` accepts the copied frontend's Java-style JSON array body and updates active `gen_config` rows.
 
@@ -152,6 +165,27 @@ Focused read HTTP smoke on 2026-06-15 verifies:
 - `GET /gen/config/list` and `/detail` when a saved `gen_basic` sample has config rows.
 - The smoke deliberately skips `/gen/basic/execGenZip`, `/gen/config/editBatch`, generator writes, downloads, direct project generation, and source/schema mutations.
 
+Focused write HTTP smoke on 2026-06-16 verifies:
+
+- no-token rejection for `/gen/basic/add`;
+- add/detail/config-list readback with default generated `gen_config` rows;
+- missing table and missing primary-key rejection;
+- same-table primary-key edit refreshing config key flags;
+- table-change edit rebuilding active config rows;
+- failed mixed delete rollback;
+- logical delete hiding the basic row and active config rows;
+- physical cleanup of temporary `CODEX_GEN_*` smoke rows.
+
+Focused config write HTTP smoke on 2026-06-16 verifies:
+
+- no-token rejection for `/gen/config/edit`;
+- `/gen/config/add` remains controlled-deferred because Java `GenConfigController` has no add route;
+- missing required edit field and missing-id rejection;
+- edit readback for field metadata, boolean normalization, sort order, and ignored audit/delete fields;
+- failed mixed delete rollback;
+- logical delete hiding through detail/list reads while preserving the parent `gen_basic` row;
+- physical cleanup of temporary `CODEX_GENCFG_*` smoke rows.
+
 ## Supported Filters
 
 `/gen/basic/page` supports:
@@ -176,13 +210,9 @@ Focused read HTTP smoke on 2026-06-15 verifies:
 
 ## Deliberate Exclusions
 
-- No `/gen/basic/add` route is implemented.
-- No `/gen/basic/edit` route is implemented.
-- No `/gen/basic/delete` route is implemented.
-- No `/gen/config/edit` route is implemented.
-- No `/gen/config/delete` route is implemented.
-- No `/gen/basic/execGenPro` route is implemented.
-- No direct project generation or Java source modification is performed.
+- `/gen/basic/execGenPro` and `/gen/config/add` return controlled `code = 400` deferred responses.
+- Direct generator project writes and generator config add remain deferred.
+- No direct project generation, menu/role generation, Java source modification, ThinkPHP source modification, database schema change, Composer change, or `.env` mutation is performed.
 
 ## Later Work
 

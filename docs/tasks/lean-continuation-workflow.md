@@ -194,7 +194,7 @@ Use `.\scripts\web-ready.ps1` first so a missing backend port `82` or frontend p
 
 Use targeted checks first:
 
-- `.\scripts\project-preflight.ps1` when local runtime, web, selector, and whitespace checks are all relevant.
+- `.\scripts\project-preflight.ps1` when local runtime, web, frontend route/deferred-wrapper, selector, and whitespace checks are all relevant.
 - `php -l` only touched PHP files plus `route/app.php`.
 - `php think route:list | Select-String "<route group>"` when only routes changed.
 - Focused service smoke through ThinkPHP bootstrap for DB behavior.

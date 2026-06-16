@@ -6,6 +6,7 @@ namespace app\controller\dev;
 
 use app\controller\sys\BaseSysController;
 use app\service\dev\JobService;
+use app\support\ApiResponse;
 use RuntimeException;
 use think\Request;
 use think\Response;
@@ -36,9 +37,41 @@ class JobController extends BaseSysController
         return $this->guard(fn () => $this->jobService->delete($this->deleteIds($this->bodyInput($request)), $this->authPayload($request)));
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->jobService->add($this->bodyInput($request), $this->authPayload($request)));
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->jobService->edit($this->bodyInput($request), $this->authPayload($request)));
+    }
+
+    public function stopJob(): Response
+    {
+        return $this->deferredWrite('job stop');
+    }
+
+    public function runJob(): Response
+    {
+        return $this->deferredWrite('job run');
+    }
+
+    public function runJobNow(): Response
+    {
+        return $this->deferredWrite('job run now');
+    }
+
     public function getActionClass(): Response
     {
         return $this->guard(fn () => $this->jobService->actionClasses());
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     /**
@@ -59,6 +92,7 @@ class JobController extends BaseSysController
             $raw = trim((string)$request->getInput());
         }
         if ($raw !== '') {
+            $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
             $decoded = json_decode($raw, true);
             if (is_array($decoded)) {
                 return $decoded;

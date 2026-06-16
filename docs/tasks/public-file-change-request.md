@@ -922,6 +922,10 @@ The existing Vue tenant management page calls `/tenants/tenant/page` and `/tenan
 - No default user, role, resource, or permission generation was added.
 - No tenant cache/event mutation, database schema changes, Java source changes, `.env`, Composer files, or public config files were changed.
 
+## Subsequent State
+
+As of 2026-06-16, `/tenants/tenant/add`, `/tenants/tenant/edit`, and `/tenants/tenant/delete` are now protected routes with narrow `tenants` row metadata maintenance. Default user, role, resource, permission bootstrap, tenant cache mutation, and data-change events remain deferred.
+
 ## Verification
 
 - `php think route:list` must list the added routes.
@@ -1260,7 +1264,7 @@ Register protected read-only scheduled-job routes in `route/app.php`.
 
 ## Reason
 
-The existing Vue scheduled-job management page calls `/dev/job/page`, `/dev/job/list`, `/dev/job/detail`, and `/dev/job/getActionClass` after login to load job records and action-class selector data. These routes are needed for compatibility while scheduler mutations and execution remain disabled.
+The existing Vue scheduled-job management page calls `/dev/job/page`, `/dev/job/list`, `/dev/job/detail`, and `/dev/job/getActionClass` after login to load job records and action-class selector data. These routes are needed for compatibility while scheduler mutations and execution remain disabled. Subsequent 2026-06-16 work covers narrow `/dev/job/add` and `/edit` metadata maintenance; scheduler run/stop/run-now remains disabled.
 
 ## Applied Change
 
@@ -1384,6 +1388,9 @@ The existing Vue generator pages call `/gen/basic/page`, `/gen/basic/detail`, `/
 - No `/gen/config/edit`, `/gen/config/delete`, or `/gen/config/editBatch` route was added.
 - No `/gen/basic/tables` or `/gen/basic/tableColumns` route was added.
 - At this stage, `/gen/basic/execGenZip`, `/gen/basic/execGenPro`, and `/gen/basic/previewGen` were excluded; `/gen/basic/previewGen` was later covered by the 2026-06-12 safe preview slice.
+
+Subsequent state on 2026-06-16: `/gen/basic/add`, `/edit`, and `/delete` now provide narrow generator metadata maintenance; `/gen/config/editBatch` was already covered, and `/gen/config/edit` plus `/delete` now provide narrow field-config metadata maintenance. `/gen/basic/execGenPro` and `/gen/config/add` remain controlled-deferred.
+
 - No database schema scanning, code generation, file writing, ZIP generation, Java source changes, `.env`, Composer files, or public config files were changed.
 
 ## Verification
@@ -1623,11 +1630,51 @@ The existing Vue payment-record pages call `/biz/bizpaymentrecord/page`, `/biz/b
 - No `/biz/bizpaymentrecord/edit/account` route was added.
 - No payment-record mutation, settlement-account transfer, statement edit, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
 
+## Subsequent State
+
+On 2026-06-16, `/biz/bizpaymentrecord/edit` was replaced with a narrow payer-time correction implementation. The read-only route request above remains the historical record for the original read slice; the later change is documented separately below.
+
 ## Verification
 
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Payment Record Payer-Time Edit
+
+## Request
+
+Keep the existing protected `POST /biz/bizpaymentrecord/edit` route active and replace its controlled-deferred behavior with a narrow payer-time correction.
+
+## Reason
+
+The Java payment-record edit contract accepts only `id` and `payerTime`. It updates the payment record timestamp and the linked settlement-account statement timestamp by `SERIAL_ID`; it does not perform account switching, amount edits, payment creation, payment deletion, workflow actions, or settlement balance changes.
+
+## Applied Change
+
+`merge-agent` changed `biz.PaymentRecordController/edit` to call `PaymentRecordService::edit`, and kept `edit/account` ordered before `edit` in the payment-record route group so the account-switch wrapper still reaches its controlled-deferred handler.
+
+The service now:
+
+- validates `id` and `payerTime`;
+- checks tenant and write scope;
+- updates only `biz_payment_record.PAYER_TIME`, `UPDATE_TIME`, and `UPDATE_USER`;
+- updates the linked `settlement_account_statement.PAYER_TIME`, `UPDATE_TIME`, and `UPDATE_USER`;
+- rolls back if the linked statement is missing.
+
+## Explicit Exclusions
+
+- No `/biz/bizpaymentrecord/add`, `/biz/bizpaymentrecord/edit/account`, or `/biz/bizpaymentrecord/delete` behavior was added.
+- No amount, account, object, process, settlement category, user, org, settlement-account balance, workflow, data-change event, database schema, Java source, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php -l app\controller\biz\PaymentRecordController.php`
+- `php -l app\service\biz\PaymentRecordService.php`
+- `php think route:list | Select-String -Pattern 'biz/bizpaymentrecord/(edit|edit/account|add|delete|page|detail)'`
+- `.\scripts\biz-payment-record-edit-http-smoke.ps1`
 
 ---
 
@@ -1658,11 +1705,54 @@ The existing Vue expenditure-record pages call `/biz/bizexpenditurerecord/page`,
 - No `/biz/bizexpenditurerecord/delete` route was added.
 - No expenditure-record mutation, settlement-account transfer, statement edit, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
 
+## Subsequent State
+
+On 2026-06-16, `/biz/bizexpenditurerecord/edit` was replaced with a narrow payer-time/category correction implementation. The read-only route request above remains the historical record for the original read slice; the later change is documented separately below.
+
 ## Verification
 
 - `php think route:list` must list the added routes.
 - Token requests should return `code=200` for representative routes.
 - Requests without token should return `code=401`.
+
+---
+
+# Public File Change Request: Biz Expenditure Record Correction
+
+## Request
+
+Keep the existing protected `POST /biz/bizexpenditurerecord/edit` route active and replace its controlled-deferred behavior with a narrow payer-time/category correction.
+
+## Reason
+
+The Java expenditure-record edit contract accepts `id`, optional `payerTime`, and optional `settlementCategory`. It updates the expenditure row, syncs the linked statement timestamp when payer time is supplied, and blocks object-linked records plus protected category transitions. It does not perform account switching, balance changes, expenditure creation/deletion, purchase/inventory mutations, workflow actions, or data-change events.
+
+## Applied Change
+
+`merge-agent` changed `biz.ExpenditureRecordController/edit` to call `ExpenditureRecordService::edit`, and kept `edit/account` ordered before `edit` in the expenditure-record route group so the account-switch wrapper still reaches its controlled-deferred handler.
+
+The service now:
+
+- validates `id`, optional `payerTime`, and optional `settlementCategory`;
+- checks tenant and write scope;
+- rejects object-linked records;
+- rejects category changes from `ReturnAndRefund`, `GOODS_EXPENDITURE`, and `repayment`;
+- rejects target categories `CUSTOMER_REBATE`, `ReturnAndRefund`, `repayment`, and `TravelExpenses`;
+- updates only `biz_expenditure_record.PAYER_TIME`, `SETTLEMENT_CATEGORY`, `UPDATE_TIME`, and `UPDATE_USER`;
+- updates only the linked `settlement_account_statement.PAYER_TIME`, `UPDATE_TIME`, and `UPDATE_USER`;
+- rolls back if the linked statement is missing.
+
+## Explicit Exclusions
+
+- No `/biz/bizexpenditurerecord/add`, `/edit/account`, or `/delete` behavior was implemented.
+- No settlement-account transfer, account balance mutation, statement category/account edit, purchase/inventory side effect, workflow/data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+## Verification
+
+- `php -l app\controller\biz\ExpenditureRecordController.php`
+- `php -l app\service\biz\ExpenditureRecordService.php`
+- `php think route:list | Select-String -Pattern 'biz/bizexpenditurerecord/(edit|edit/account|add|delete|page|detail)'`
+- `.\scripts\biz-expenditure-record-edit-http-smoke.ps1`
 
 ---
 
@@ -2039,6 +2129,8 @@ The copied Vue payroll pages call Java-compatible payroll page, personal page, a
 - No payroll generate route was added.
 - No payroll add, edit, batch edit, or delete route was added.
 - No Java source, database schema, frontend, Composer, `.env`, workflow, finance, or business write code was changed.
+
+Subsequent state on 2026-06-16: `/biz/bizpayroll/export` is now covered as an authenticated CSV download; payroll import/generate/add and EasyExcel-style xlsx rendering remain deferred.
 
 ## Verification
 
@@ -2504,7 +2596,7 @@ Register a protected read-only vacation-balance page route in `route/app.php`.
 
 ## Reason
 
-The copied frontend wrapper calls `/biz/bizuservacation/page` for vacation-balance management pages. Java service code exposes a read-only `page` method, while vacation writes and leave approval deductions remain separate high-risk flows.
+The copied frontend wrapper calls `/biz/bizuservacation/page` for vacation-balance management pages. Java service code exposes a read-only `page` method. Subsequent 2026-06-16 work covers narrow manual add/edit/delete maintenance; vacation generation/reduction and leave approval deductions remain separate high-risk flows.
 
 ## Applied Change
 
@@ -2724,6 +2816,8 @@ Java exposes `/gen/basic/tables` and `/gen/basic/tableColumns` from `GenBasicCon
 ## Explicit Exclusions
 
 - At this stage, `/gen/basic/add`, `/edit`, `/delete`, `/previewGen`, `/execGenZip`, and `/execGenPro` were excluded; `/previewGen` was later covered by the 2026-06-12 safe preview slice.
+
+Subsequent state on 2026-06-16: `/gen/basic/add`, `/edit`, and `/delete` now provide narrow generator metadata maintenance; `/execGenPro` remains controlled-deferred.
 - No generated code output, generator template, Java source, database schema, Composer, `.env`, frontend source, or deployment configuration was changed.
 
 ## Verification
@@ -2971,6 +3065,10 @@ Java exposes `/biz/ccrecords/delete`, and the copied Vue `biz/biztask/copytask.v
 
 - No `/biz/ccrecords/add`, `/biz/ccrecords/edit`, workflow copy-user delegate write, approval/reject/start/cancel route, Java source, database schema, Composer, `.env`, or frontend source was changed.
 - Delete requires the row `USER` to match the current token user id and uses logical deletion through `DELETE_FLAG = DELETED`.
+
+## Subsequent State
+
+As of 2026-06-16, `/biz/ccrecords/add` and `/biz/ccrecords/edit` are now protected routes with narrow current-user `biz_cc_records` row maintenance. Workflow copy-user delegate generation, approval/reject/start/cancel side effects, notification behavior, Java source, database schema, Composer, `.env`, and frontend source remain out of scope.
 
 ## Verification
 
@@ -4508,3 +4606,82 @@ The copied frontend calls `/dev/sms/sendAliyun`, `/dev/sms/sendTencent`, and `/d
 - `php think route:list | Select-String "dev/sms"`
 - Authenticated HTTP smoke for the three provider-send routes should return business `code = 400`.
 - No-token HTTP smoke for the three provider-send routes should return business `code = 401`.
+
+---
+
+# Public File Change Request: Dev Config EditBatch Maintenance
+
+## Request
+
+Replace the protected `/dev/config/editBatch` controlled-deferred wrapper with narrow Java-compatible configuration value maintenance.
+
+## Reason
+
+The copied Vue configuration forms submit arrays of `{ configKey, configValue }` to `/dev/config/editBatch`. Java updates existing `dev_config` rows by `configKey`; the ThinkPHP slice now needs this form-save path without opening provider sends, external service calls, or cache side effects.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /dev/config/editBatch`
+
+The route updates only existing active `dev_config.CONFIG_VALUE` rows in a validated transaction and returns `data = null`.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- The payload must be a non-empty array or accepted list wrapper.
+- Missing, blank, duplicate, deleted, or unknown `configKey` values are rejected before writes.
+- Blank `configValue` is rejected.
+- Sensitive keys preserve the existing raw value when the submitted value is `******`.
+- No rows are created or deleted.
+- No provider send/test behavior, external service call, Redis/cache mutation, Java source change, database schema change, Composer/npm change, `.env` change, frontend source change, or production data sync is performed.
+
+## Verification
+
+- `php -l app\controller\dev\ConfigController.php`
+- `php -l app\service\dev\ConfigService.php`
+- `php think route:list | Select-String -Pattern 'dev/config/(editBatch|page|list|detail)'`
+- `.\scripts\dev-config-edit-batch-http-smoke.ps1`
+- `.\scripts\dev-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Biz Payroll Export Download
+
+## Request
+
+Replace the protected `/biz/bizpayroll/export` controlled-deferred wrapper with a narrow authenticated payroll export download.
+
+## Reason
+
+The copied Vue payroll page calls `/biz/bizpayroll/export` with `responseType: 'blob'` from the visible batch export button. Java exposes this as a protected GET download route. The current ThinkPHP project has no spreadsheet writer dependency, so this slice opens an Excel-readable CSV download without adding Composer packages or enabling payroll generation/import side effects.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `GET /biz/bizpayroll/export`
+
+The route reuses existing payroll filters, data-scope guards, organization sorting, and blob download response handling.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- The route emits UTF-8 BOM CSV, not fake xlsx bytes.
+- The route reads active payroll rows only and does not insert, update, delete, generate, import, or recalculate payroll data.
+- No leave balance, workflow, finance, file, provider, schema, Java source, Composer, `.env`, frontend source, or production data sync behavior is changed.
+- EasyExcel-style xlsx rendering, merged headers, and styling remain deferred until a spreadsheet dependency/strategy is approved.
+
+## Verification
+
+- `php -l app\controller\biz\BizPayrollController.php`
+- `php -l app\service\biz\BizPayrollService.php`
+- `php think route:list | Select-String -Pattern 'biz/bizpayroll/(export|page|detail|downloadImportTemplate)'`
+- `.\scripts\biz-payroll-export-http-smoke.ps1`
+- `.\scripts\hr-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`

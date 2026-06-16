@@ -1,5 +1,380 @@
 ﻿锘块敇鍧楁晣閸ф鏅ｉ柛褎顨嗛弲? STATUS.md
 
+## 2026-06-16 16:06 +08:00 - api-agent/test-agent - Dev Config EditBatch Value Maintenance
+
+### Completed
+
+- Selected `/dev/config/editBatch` from the remaining controlled-deferred wrapper list.
+- Wrote `docs/tasks/dev-config-edit-batch-plan.md` before replacing behavior.
+- Replaced the deferred response with narrow existing-row `dev_config.CONFIG_VALUE` batch maintenance.
+- `editBatch` now requires a non-empty batch of `{ configKey, configValue }`, rejects missing/blank/duplicate/unknown/deleted keys before writes, rejects blank values, updates only existing active rows, writes update audit fields, preserves sensitive raw values when the submitted value is `******`, and returns `data = null`.
+- Hardened `ConfigController::bodyInput()` to strip UTF-8 BOM from raw JSON request bodies and return `400` for invalid JSON.
+- Added `scripts/dev-config-edit-batch-http-smoke.ps1`.
+- Removed `/dev/config/editBatch` from the deferred-wrapper smoke list and no-token representative list.
+- Did not implement provider send/test behavior, external service calls, Redis/cache invalidation, unmasking secrets, Java source changes, database schema changes, Composer/npm changes, frontend source changes, or commits.
+
+### Modified Files
+
+- `app/controller/dev/ConfigController.php`
+- `app/service/dev/ConfigService.php`
+- `scripts/dev-config-edit-batch-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/dev-config-edit-batch-plan.md`
+- `docs/api/dev-config-readonly-compat.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\dev\ConfigController.php`: passed.
+- `php -l app\service\dev\ConfigService.php`: passed.
+- `php think route:list | Select-String -Pattern 'dev/config/(editBatch|page|list|detail)'`: listed the expected dev config routes.
+- `.\scripts\dev-config-edit-batch-http-smoke.ps1`: passed after fixing raw JSON BOM parsing.
+- `.\scripts\dev-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 79 authenticated deferred wrappers and 18 representative no-token checks after dev-config editBatch moved out of the deferred list.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+
+### Current Issues
+
+- Java removes a `dev-config:{key}` cache entry after editBatch. Current ThinkPHP config readers query `dev_config` directly, so this slice does not add cache mutation.
+- Provider sends/tests, external service calls, secret unmasking, and runtime config cache behavior remain deferred.
+
+### Next Plan
+
+- Continue choosing remaining controlled-deferred wrapper groups only after a module-specific transaction, permission, rollback, side-effect, and smoke-test plan.
+- Prefer lower-risk metadata or isolated maintenance before workflow, finance, inventory, provider-send, scheduler lifecycle, or sale-project state behavior.
+- Do not commit unless the user explicitly asks for a commit.
+
+## 2026-06-16 15:39 +08:00 - api-agent/test-agent - Biz CC Records Current-User Maintenance
+
+### Completed
+
+- Selected `/biz/ccrecords/add` and `/biz/ccrecords/edit` from the remaining controlled-deferred wrapper list.
+- Wrote `docs/tasks/biz-cc-records-write-plan.md` before replacing behavior.
+- Replaced CC-record add/edit controlled-deferred responses with narrow current-user `biz_cc_records` row maintenance.
+- Add now requires the current authenticated user, tenant id, `title`, `processId`, `instanceId`, and `category`, forces `USER` to the current token user, defaults `promoterId` to the token user when omitted, writes audit fields, ignores client-spoofed `user`/`deleteFlag`, and returns `data = null`.
+- Edit now requires the current authenticated user and `id`, only updates the current user's active row in the current tenant, whitelists `title`, `processId`, `promoterId`, `instanceId`, `category`, and `extJson`, preserves user/create/tenant/delete fields, and returns `data = null`.
+- Added `scripts/biz-cc-records-write-http-smoke.ps1`.
+- Removed `/biz/ccrecords/add` and `/edit` from the deferred-wrapper smoke list.
+- Updated the deferred-wrapper smoke assertion to accept the stable `data.operation` marker because the current `ApiResponse` normalizes unmapped English failure messages to the generic request-failed text.
+- Did not implement workflow copy-user delegate generation, file-relation binding, workflow transitions, notifications, data-change events, Java source changes, database schema changes, Composer/npm changes, frontend source changes, or commits.
+
+### Modified Files
+
+- `app/controller/biz/CcRecordsController.php`
+- `app/service/biz/CcRecordsService.php`
+- `scripts/biz-cc-records-write-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/biz-cc-records-write-plan.md`
+- `docs/api/biz-cc-records-readonly.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CcRecordsController.php`: passed.
+- `php -l app\service\biz\CcRecordsService.php`: passed.
+- `php think route:list | Select-String -Pattern 'biz/ccrecords/(add|edit|delete|page|detail)'`: listed the expected CC-record routes.
+- `.\scripts\biz-cc-records-write-http-smoke.ps1`: passed.
+- `.\scripts\workflow-read-http-smoke.ps1`: passed after restarting the local runtime and web services; skipped only missing local pending-task and current-user CC-detail samples.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 80 authenticated deferred wrappers and 19 representative no-token checks after CC add/edit moved out of the deferred list.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560 of 560 frontend endpoints covered by route path and 0 missing read-like routes.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed after restarting the local runtime bundle plus ThinkPHP/Vue dev servers.
+- `git diff --check`: passed with only normal LF/CRLF conversion warnings.
+
+### Current Issues
+
+- Java `BizCcRecordsController` exposes page/delete/detail, while add/edit live in the service and workflow delegate path. The ThinkPHP add/edit endpoints are therefore limited to current-user row maintenance for copied frontend wrapper compatibility.
+- Workflow copy-user delegate generation, file-relation binding, workflow transitions, notifications, and data-change events remain deferred.
+
+### Next Plan
+
+- Prefer low-risk metadata or narrow CRUD groups before scheduler lifecycle, provider sends, tenant bootstrap/default-data, workflow transitions, finance state changes, inventory movements, or sale-project state changes.
+- Do not commit unless the user explicitly asks for a commit.
+
+## 2026-06-16 15:28 +08:00 - api-agent/test-agent - Tenant Metadata Maintenance
+
+### Completed
+
+- Selected `/tenants/tenant/add`, `/tenants/tenant/edit`, and `/tenants/tenant/delete` from the remaining controlled-deferred wrapper list.
+- Wrote `docs/tasks/tenant-metadata-write-plan.md` before replacing behavior.
+- Replaced tenant add/edit/delete controlled-deferred responses with narrow `tenants` row metadata maintenance.
+- Add now validates `tenantName`, rejects duplicate active names, creates one active tenant row with a generated 10-digit numeric code, fills create audit fields from the bearer token when available, and returns `data = null`.
+- Edit now validates `tenantId` and `tenantName`, rejects missing/deleted/system tenants, rejects duplicate active names, updates only `Tenant_Name` plus update audit fields, and returns `data = null`.
+- Delete now requires the copied frontend safe-password marker for `mark = tenants`, validates the full id batch before writing, rejects system and referenced tenants, logically deletes active rows, and returns `data = null`.
+- Fixed the tenant delete reference scan to query `information_schema.COLUMNS` with parameterized SQL instead of ThinkPHP table-name quoting.
+- Removed tenant add/edit/delete from the deferred-wrapper smoke list and added a focused tenant write HTTP smoke.
+- Did not implement tenant default user/role/resource/permission bootstrap, cache invalidation, data-change events, physical tenant deletion, Java source changes, database schema changes, Composer/npm changes, or commits.
+
+### Modified Files
+
+- `app/controller/tenant/TenantsController.php`
+- `app/service/tenant/TenantsService.php`
+- `scripts/tenant-write-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/tenant-metadata-write-plan.md`
+- `docs/api/tenant-readonly-compat.md`
+- `docs/api/tenants-readonly-compat.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\tenant\TenantsController.php`: passed.
+- `php -l app\service\tenant\TenantsService.php`: passed.
+- `php think route:list | Select-String -Pattern 'tenants/tenant/(add|edit|delete|page|detail)'`: listed the expected tenant routes.
+- `.\scripts\tenant-write-http-smoke.ps1`: passed.
+- `.\scripts\tenant-read-http-smoke.ps1`: passed, with the existing sample-detail skip when the local database has no active tenant detail sample.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed after tenant add/edit/delete moved out of the deferred list.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560 of 560 frontend endpoints covered by route path and 0 missing read-like routes.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed; MySQL, Redis, PHP FastCGI, ThinkPHP HTTP, and Vue HTTP were ready.
+- `git diff --check`: passed with only normal LF/CRLF conversion warnings.
+
+### Current Issues
+
+- Tenant default user, role, resource, relation, permission generation, cache invalidation, and data-change events remain deferred.
+- The delete guard blocks tenant deletion when any other table still has active `TENANT_ID` references; this is intentionally conservative until full tenant lifecycle behavior is implemented.
+
+### Next Plan
+
+- Choose the next controlled-deferred wrapper group only after a dedicated transaction, permission, rollback, side-effect, and smoke-test plan is written.
+- Prefer low-risk metadata or narrow CRUD groups before scheduler lifecycle, provider sends, tenant bootstrap/default-data, workflow transitions, finance state changes, inventory movements, or sale-project state changes.
+- Do not commit unless the user explicitly asks for a commit.
+
+## 2026-06-16 15:09 +08:00 - api-agent/test-agent - Gen Config Edit/Delete Metadata Maintenance
+
+### Completed
+
+- Selected Java-compatible `/gen/config/edit` and `/gen/config/delete` from the remaining generator controlled-deferred wrapper list.
+- Wrote `docs/tasks/gen-config-edit-delete-plan.md` before replacing behavior.
+- Kept `/gen/config/add` controlled-deferred because Java `GenConfigController` exposes `list`, `detail`, `edit`, `delete`, and `editBatch`, but no add route.
+- Replaced gen-config edit/delete controlled-deferred responses with narrow `gen_config` row metadata maintenance.
+- Edit now requires an active config id, uses the same Java edit-parameter whitelist as editBatch, ignores client-supplied audit/delete fields, writes update audit metadata from the bearer token when available, and returns `data = null`.
+- Delete now accepts Java-style `[{ id }]`, `idList`, `ids`, or a single `id`, validates the full batch before writing, logically deletes selected active config rows, preserves the parent `gen_basic` row, and returns `data = null`.
+- Removed `/gen/config/edit` and `/delete` from the deferred-wrapper smoke list and added a dedicated write smoke.
+- Did not implement `/gen/config/add`, direct project generation, Java/ThinkPHP/frontend source generation, menu/role/resource generation, database schema changes, Composer/npm changes, Java source changes, or commits.
+
+### Modified Files
+
+- `app/controller/gen/ConfigController.php`
+- `app/service/gen/ConfigService.php`
+- `scripts/gen-config-write-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/gen-config-edit-delete-plan.md`
+- `docs/api/gen-readonly-compat.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\gen\ConfigController.php`: passed.
+- `php -l app\service\gen\ConfigService.php`: passed.
+- `php think route:list | Select-String -Pattern 'gen/config/(add|edit|delete|editBatch|list|detail)'`: listed the expected gen config routes.
+- `.\scripts\gen-config-write-http-smoke.ps1`: passed.
+- `.\scripts\gen-read-http-smoke.ps1`: passed, with the existing documented skip for a missing saved config-detail sample row.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 85 authenticated deferred wrappers and 21 representative no-token checks after gen-config edit/delete moved out of the deferred list.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560 of 560 frontend endpoints covered by route path and 0 missing read-like routes.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed; MySQL, Redis, PHP FastCGI, ThinkPHP HTTP, and Vue HTTP were ready.
+- `git diff --check`: passed with only normal LF/CRLF conversion warnings.
+- Git relation check: local `HEAD` and upstream both resolved to `f700c24`, with `HEAD...@{u}` ahead/behind `0 0`.
+
+### Current Issues
+
+- `/gen/basic/execGenPro` remains controlled-deferred because direct generator project output can write files and create menu/role/resource side effects.
+- `/gen/config/add` remains controlled-deferred because the Java reference has no add route and copied active configuration saves are covered by edit/delete/editBatch.
+
+### Next Plan
+
+- Choose the next controlled-deferred wrapper group only after a dedicated transaction, permission, rollback, side-effect, and smoke-test plan is written.
+- Prefer low-risk metadata or narrow CRUD groups before scheduler lifecycle, provider sends, tenant bootstrap/default-data, workflow transitions, finance state changes, inventory movements, or sale-project state changes.
+- Do not commit unless the user explicitly asks for a commit.
+
+## 2026-06-16 14:59 +08:00 - api-agent/test-agent - Gen Basic Metadata Maintenance
+
+### Completed
+
+- Selected the low-risk `/gen/basic/add`, `/gen/basic/edit`, and `/gen/basic/delete` group from the remaining controlled-deferred wrapper list.
+- Wrote `docs/tasks/gen-basic-metadata-write-plan.md` before replacing behavior.
+- Replaced gen-basic controlled-deferred add/edit/delete responses with narrow `gen_basic` metadata maintenance.
+- Add now validates the copied generator form fields, rejects missing target tables, rejects `ACT_` workflow tables, rejects missing primary-key columns, inserts one `gen_basic` row, and creates default `gen_config` rows from current database columns.
+- Edit now updates only generator basic metadata fields, preserves create audit fields, refreshes config primary-key flags when the selected key changes, and rebuilds active config rows only when the selected table changes.
+- Delete now validates the full id batch before writing and logically deletes both selected `gen_basic` rows and their active `gen_config` rows in one transaction.
+- Kept `/gen/basic/execGenPro` and `/gen/config/add`, `/edit`, `/delete` controlled-deferred.
+- Removed `/gen/basic/add`, `/edit`, and `/delete` from the deferred-wrapper smoke list and added a dedicated write smoke.
+- Did not implement direct project generation, Java/ThinkPHP/frontend source generation, menu/role/resource generation, database schema changes, Composer/npm changes, Java source changes, or commits.
+
+### Modified Files
+
+- `app/controller/gen/BasicController.php`
+- `app/service/gen/BasicService.php`
+- `scripts/gen-basic-write-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/gen-basic-metadata-write-plan.md`
+- `docs/api/gen-readonly-compat.md`
+- `docs/api/gen-basic-metadata-readonly.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/public-file-change-request.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\gen\BasicController.php`: passed.
+- `php -l app\service\gen\BasicService.php`: passed.
+- `php think route:list | Select-String -Pattern 'gen/basic/(add|edit|delete|execGenPro|page|detail|tables|tableColumns)|gen/config/(add|edit|delete|editBatch)'`: listed the expected gen routes.
+- `.\scripts\gen-basic-write-http-smoke.ps1`: passed.
+- `.\scripts\gen-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 89 authenticated deferred wrappers and 21 representative no-token checks after gen-basic add/edit/delete moved out of the deferred list.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560 of 560 frontend endpoints covered by route path and 0 missing read-like routes.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed; MySQL, Redis, PHP FastCGI, ThinkPHP HTTP, and Vue HTTP were ready.
+- `git diff --check`: passed with only normal LF/CRLF conversion warnings.
+- Git relation check: local `HEAD` and upstream both resolved to `f700c24`, with `HEAD...@{u}` ahead/behind `0 0`.
+
+### Current Issues
+
+- Java direct project generation writes generated files and can create menu/role/resource side effects. ThinkPHP still keeps `/gen/basic/execGenPro` disabled.
+- `gen/config/add`, `/edit`, and `/delete` remain controlled-deferred because the copied active configuration grid saves through `/gen/config/editBatch`; single-row config form behavior needs a separate plan if opened later.
+
+### Next Plan
+
+- Choose the next controlled-deferred wrapper group only after a dedicated transaction, permission, rollback, side-effect, and smoke-test plan is written.
+- Prefer low-risk metadata or narrow CRUD groups before scheduler lifecycle, provider sends, tenant bootstrap/default-data, workflow transitions, finance state changes, inventory movements, or sale-project state changes.
+- Do not commit unless the user explicitly asks for a commit.
+
+## 2026-06-16 14:45 +08:00 - api-agent/test-agent - Dev Job Metadata Maintenance
+
+### Completed
+
+- Selected the lower-risk `/dev/job/add` and `/dev/job/edit` group from the remaining controlled-deferred wrapper list.
+- Wrote `docs/tasks/dev-job-metadata-write-plan.md` before replacing behavior.
+- Replaced add/edit controlled-deferred responses with narrow `dev_job` metadata maintenance.
+- Added Java-style field validation for `name`, `category`, `actionClass`, `cronExpression`, and `sortCode`.
+- Added `FRM`/`BIZ` category validation, Java-style cron text shape validation, action-class allow-listing from the existing compatibility action-class list, duplicate active `ACTION_CLASS + CRON_EXPRESSION` guard, and running-job edit rejection.
+- New jobs are created as `JOB_STATUS = STOPPED`; edit preserves `CODE`, `JOB_STATUS`, delete state, and create audit fields.
+- Kept `/dev/job/stopJob`, `/runJob`, and `/runJobNow` controlled-deferred.
+- Removed `/dev/job/add` and `/dev/job/edit` from the deferred-wrapper smoke list and added a dedicated write smoke.
+- Did not implement scheduler registration/removal, task execution, Java bean execution, provider calls, notifications, cache invalidation, data-change events, schema changes, Java source changes, or commits.
+
+### Modified Files
+
+- `app/controller/dev/JobController.php`
+- `app/service/dev/JobService.php`
+- `scripts/dev-job-write-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/dev-job-metadata-write-plan.md`
+- `docs/api/dev-job-readonly-compat.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\dev\JobController.php`: passed.
+- `php -l app\service\dev\JobService.php`: passed.
+- `php think route:list | Select-String -Pattern 'dev/job/(add|edit|stopJob|runJob|runJobNow|delete|page|detail|getActionClass)'`: listed all dev-job routes.
+- `.\scripts\dev-job-write-http-smoke.ps1`: passed.
+- `.\scripts\dev-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560 of 560 frontend endpoints covered by route path and 0 missing read-like routes.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 92 authenticated deferred wrappers and 21 representative no-token checks, with `/dev/job/stopJob`, `/runJob`, and `/runJobNow` still returning `code = 400`.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed; MySQL, Redis, PHP FastCGI, ThinkPHP HTTP, and Vue HTTP were ready.
+- `git diff --check`: passed with only normal LF/CRLF conversion warnings.
+- Git relation check: local `HEAD` and upstream both resolved to `f700c24`, with `HEAD...@{u}` ahead/behind `0 0`.
+
+### Current Issues
+
+- Java `DevJobServiceImpl` validates actual Java classes and scheduler task interfaces. ThinkPHP cannot execute those Java beans, so this slice uses the current compatibility action-class list as an allow-list and keeps task execution deferred.
+- Real scheduler lifecycle, run/stop/run-now, class execution, provider behavior, notification hooks, cache invalidation hooks, data-change events, production data sync, and Java source changes remain deferred.
+
+### Next Plan
+
+- Choose the next controlled-deferred wrapper group only after a dedicated transaction, permission, rollback, side-effect, and smoke-test plan is written.
+- Prefer low-risk metadata or narrow CRUD groups before scheduler lifecycle, provider sends, tenant bootstrap/default-data, workflow transitions, finance state changes, inventory movements, or sale-project state changes.
+- Do not commit unless the user explicitly asks for a commit.
+
+## 2026-06-16 14:31 +08:00 - api-agent/test-agent - Biz User Vacation Manual Maintenance
+
+### Completed
+
+- Selected the low-risk `biz_user_vacation` group from the controlled-deferred wrapper set and wrote the module-specific implementation plan.
+- Replaced `/biz/bizuservacation/add`, `/edit`, and `/delete` controlled-deferred responses with narrow manual maintenance behavior.
+- Added transactional validation for required Java-style fields, target user existence, token tenant match when available, category/id/userId length, duplicate current-year rows, nonnegative amounts, and `usedAmount <= amount`.
+- Kept delete as logical delete with full-batch validation before any update and `VERSION` increments on edit/delete.
+- Removed the three vacation routes from the deferred-wrapper smoke list and added a dedicated authenticated write smoke.
+- Updated API compatibility docs, gap map, progress dashboard, and problem log.
+- Did not implement vacation generation/reduction helpers, leave approval deductions, workflow writes, payroll-facing recalculation, notifications, data-change events, schema changes, Java source changes, or commits.
+
+### Modified Files
+
+- `app/controller/biz/BizUserVacationController.php`
+- `app/service/biz/BizUserVacationService.php`
+- `scripts/biz-user-vacation-write-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/biz-user-vacation-write-plan.md`
+- `docs/api/biz-user-vacation-readonly.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizUserVacationController.php`: passed.
+- `php -l app\service\biz\BizUserVacationService.php`: passed.
+- `php think route:list | Select-String -Pattern 'bizuservacation'`: listed page/detail/add/edit/delete routes.
+- `.\scripts\biz-user-vacation-write-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 94 authenticated deferred wrappers and 21 representative no-token checks after vacation add/edit/delete moved out of the deferred list.
+- `.\scripts\hr-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560 of 560 frontend endpoints covered by route path and 0 missing read-like routes.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `git diff --check`: passed with only normal LF/CRLF conversion warnings.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed; MySQL, Redis, PHP FastCGI, ThinkPHP HTTP, and Vue HTTP were ready.
+- Git relation check: local `HEAD` and upstream both resolved to `f700c24`, with `HEAD...@{u}` ahead/behind `0 0`.
+
+### Current Issues
+
+- Java `BizUserVacationController` currently exposes only `detail`; ThinkPHP write endpoints are frontend/service compatibility manual maintenance around the existing service shapes, not Java controller parity.
+- Vacation generation/reduction, leave approval deductions, workflow side effects, payroll recalculation, provider/scheduler behavior, notifications, data-change events, production data sync, and Java source changes remain deferred.
+
+### Next Plan
+
+- Choose the next controlled-deferred wrapper group only after a dedicated transaction, permission, rollback, side-effect, and smoke-test plan is written.
+- Prefer low-risk CRUD groups before finance, inventory, workflow, sale-project state, provider, scheduler, or tenant bootstrap side effects.
+- Do not commit unless the user explicitly asks for a commit.
+
 ## 2026-05-28 15:36 +08:00
 
 Agent: db-agent
@@ -24,6 +399,566 @@ Agent: auth-agent
 - Analyzed Java auth controller/service/config and system login user provider at a high level.
 - Identified that Java-compatible auth routes require modifying locked file `route/app.php`.
 - Created public file change request before any route or auth business implementation.
+## 2026-06-16 13:58 +08:00 - test-agent/frontend-agent - Guarded Browser Smoke Refresh
+
+### Completed
+
+- Reran the upload/provider guard browser smoke batches after the preflight coverage hardening slice.
+- Verified 53 guarded render/detail targets across:
+  - default upload/provider pages;
+  - management pages;
+  - finance, purchase, inventory, warehouse, supplier, and invoicing pages;
+  - sales, operations, proxy-payment, security-deposit, and report pages;
+  - workflow, home, HR, history, team-project list, and member-visible team-project detail pages.
+- Kept the slice render/detail-only under the guarded forbidden-request pattern; no upload, import, export, delete, send, provider, scheduler, workflow-transition, grant, reset, status, or save requests were triggered.
+- Updated the progress dashboard and API gap map so the next execution order now points to selecting one controlled-deferred wrapper group with an explicit transaction, permission, rollback, side-effect, and smoke-test plan.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/api-gap-map.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\web-ready.ps1`: passed; backend `127.0.0.1:82` and frontend `127.0.0.1:83` were listening and returned HTTP OK.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1`: passed for the five default targets with zero forbidden requests, zero bad API statuses, zero failed loads, and zero console/page errors.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath <management targets>`: passed for 10 targets with zero forbidden requests and zero bad API statuses.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath <finance/purchase/inventory targets>`: passed for 12 targets with zero forbidden requests and zero bad API statuses.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath <sales/operations/report targets>`: passed for 15 targets with zero forbidden requests and zero bad API statuses.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath <workflow/home/HR/team targets>`: passed for 10 list/render targets plus one member-visible team-project detail target with zero forbidden requests and zero bad API statuses.
+
+### Current Issues
+
+- This is browser smoke only; it does not implement cloud storage, provider sends, physical file cleanup, scheduler execution, workflow transitions, or side-effect-heavy business writes.
+
+### Next Plan
+
+- Continue only with an explicit module-specific write plan for a selected controlled-deferred wrapper group, or keep using guarded browser smokes for read/render-only frontend checks.
+- Do not commit unless the user explicitly asks for a commit.
+
+## 2026-06-16 13:35 +08:00 - test-agent/frontend-agent - Preflight Coverage Hardening
+
+### Completed
+
+- Added frontend route-gap and controlled-deferred wrapper checks to `scripts/project-preflight.ps1`.
+- Added skip switches:
+  - `-SkipFrontendApiRouteGap`
+  - `-SkipFrontendDeferredWrites`
+- Added `scripts/frontend-deferred-write-wrapper-smoke.ps1` to `scripts/project-progress.ps1` fast commands.
+- Updated docs so future sessions know default preflight now guards static frontend route coverage and deferred-write behavior.
+- Added problem-log row `P-035` for this preflight coverage gap.
+
+### Modified Files
+
+- `scripts/project-preflight.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/lean-continuation-workflow.md`
+- `docs/api/frontend-api-route-gap-smoke.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-preflight.ps1`: reached the later `Dev Read HTTP Smoke` phase after passing Git status, runtime readiness, web readiness, frontend API method smoke, frontend API route-gap smoke, frontend deferred write wrapper smoke, role-selector, user-display, business-read, inventory/delivery-read, finance-read, purchase-order-read, settlement-account-payment-read, settlement-account-read, supplier/warehouse-read, product-read, HR-read, team-project-read, datareport-read, and resource-read smokes; the command then hit the tool-level 300s timeout before finishing.
+- `.\scripts\dev-read-http-smoke.ps1`: passed.
+- `.\scripts\gen-read-http-smoke.ps1`: passed, with documented sample skip for missing gen config detail sample.
+- `.\scripts\auth-index-read-http-smoke.ps1`: passed.
+- `.\scripts\directory-alias-http-smoke.ps1`: passed.
+- `.\scripts\tenant-read-http-smoke.ps1`: passed, with documented sample skip for missing tenant detail sample.
+- `.\scripts\message-sse-http-smoke.ps1`: passed.
+- `.\scripts\workflow-read-http-smoke.ps1`: passed, with documented sample skips for missing pending task/runtime and current-user CC detail samples.
+- `git diff --check`: passed with only normal LF/CRLF warnings.
+
+### Current Issues
+
+- The full default project preflight can exceed a 300s command timeout after adding the coverage-critical frontend checks. Use a longer command timeout for one-shot full preflight, or run the later HTTP smoke groups separately when working inside a shorter tool timeout.
+
+### Next Plan
+
+- Keep frontend route coverage and deferred-wrapper behavior in the default preflight path.
+- Replace selected controlled-deferred wrappers only after a module-specific transaction, permission, rollback, and browser-smoke plan is written.
+
+## 2026-06-16 13:25 +08:00 - test-agent/frontend-agent - Workflow Task Sale Project Controlled Deferred Wrappers
+
+### Completed
+
+- Added protected controlled-deferred wrappers for the final copied frontend workflow/task/sale-project side-effect paths:
+  - `POST /biz/process/cancel`
+  - `POST /biz/process/leave/edit`
+  - `POST /biz/process/leave/start`
+  - `POST /biz/process/makePayment/start`
+  - `POST /biz/process/payment/start`
+  - `POST /biz/process/procure/start`
+  - `POST /biz/process/procure/warehouse/start`
+  - `POST /biz/process/project/delivery/start`
+  - `POST /biz/process/project/init/start`
+  - `POST /biz/process/project/play/start`
+  - `POST /biz/process/project/reissue/start`
+  - `POST /biz/process/project/return/start`
+  - `POST /biz/process/reimbursement/start`
+  - `POST /biz/task/approve`
+  - `POST /biz/task/reject`
+  - `GET /biz/task/sse/stream`
+  - `POST /biz/saleproject/add`
+  - `POST /biz/saleproject/edit`
+  - `POST /biz/saleproject/delete`
+  - `POST /biz/saleproject/amount/edit`
+  - `POST /biz/saleproject/deal/edit`
+  - `POST /biz/saleproject/cancel`
+  - `POST /biz/saleproject/history/add`
+  - `POST /biz/saleproject/repeal`
+  - `POST /biz/saleproject/special/add`
+  - `POST /biz/saleproject/visibility/edit`
+- The wrappers return authenticated `code=400` deferred responses and do not start/cancel workflow, approve/reject tasks, open a long-lived task SSE stream, create/edit/delete/cancel/repeal sale projects, mutate project amount/deal/visibility/history, write finance/inventory/project state, emit notifications/data-change events, change schema, or touch Java source.
+- Extended `scripts/frontend-deferred-write-wrapper-smoke.ps1`, `docs/api/frontend-controlled-deferred-write-wrappers.md`, `docs/api/biz-workflow-readonly-compat.md`, and `docs/api/biz-saleproject-cost-readonly.md`.
+- Updated the API gap map, route-gap smoke doc, and dashboard route-gap counts to 578 ThinkPHP routes, 560 frontend endpoints covered by route path, and 0 missing frontend wrapper paths.
+
+### Modified Files
+
+- `app/controller/biz/ProcessController.php`
+- `app/controller/biz/TaskController.php`
+- `app/controller/biz/SaleProjectController.php`
+- `route/app.php`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/api/biz-saleproject-cost-readonly.md`
+- `docs/api/frontend-api-route-gap-smoke.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\ProcessController.php`: passed.
+- `php -l app\controller\biz\TaskController.php`: passed.
+- `php -l app\controller\biz\SaleProjectController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String -Pattern 'biz/process/(cancel|leave|makePayment|payment|procure|project|reimbursement)|biz/saleproject/(add|edit|delete|amount|deal|cancel|history|repeal|special|visibility)|biz/task/(approve|reject|sse)'`: listed the new wrappers.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 97 authenticated deferred wrappers and 21 no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560 route-path-covered frontend endpoints and 0 missing frontend wrapper paths.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+
+### Current Issues
+
+- Static frontend wrapper route-path coverage is complete, but many write/action routes intentionally return controlled deferred responses. Real workflow transitions, sale-project state changes, finance/inventory side effects, provider sends, scheduler actions, generator writes, tenant bootstrap, and production data sync still require module-specific transaction, permission, rollback, and browser-smoke plans.
+
+### Next Plan
+
+- Run final readiness/Git hygiene checks after documentation updates.
+- Keep future work focused on replacing selected controlled-deferred wrappers with real implementations only after each module has an explicit transaction and side-effect plan.
+
+## 2026-06-16 13:21 +08:00 - test-agent/frontend-agent - Dev Gen Tenant Controlled Deferred Wrappers
+
+### Completed
+
+- Added protected controlled-deferred wrappers for dev/config, dev/email, dev/job, gen/basic, gen/config, and tenant copied side-effect controls:
+  - `POST /dev/config/editBatch`
+  - `POST /dev/email/sendLocalTxt`
+  - `POST /dev/email/sendLocalHtml`
+  - `POST /dev/email/sendAliyunTxt`
+  - `POST /dev/email/sendAliyunHtml`
+  - `POST /dev/email/sendAliyunTmp`
+  - `POST /dev/email/sendTencentTxt`
+  - `POST /dev/email/sendTencentHtml`
+  - `POST /dev/email/sendTencentTmp`
+  - `POST /dev/job/add`
+  - `POST /dev/job/edit`
+  - `POST /dev/job/stopJob`
+  - `POST /dev/job/runJob`
+  - `POST /dev/job/runJobNow`
+  - `POST /gen/basic/add`
+  - `POST /gen/basic/edit`
+  - `POST /gen/basic/delete`
+  - `POST /gen/basic/execGenPro`
+  - `POST /gen/config/add`
+  - `POST /gen/config/edit`
+  - `POST /gen/config/delete`
+  - `POST /tenants/tenant/add`
+  - `POST /tenants/tenant/edit`
+  - `POST /tenants/tenant/delete`
+- The wrappers return authenticated `code=400` deferred responses and do not mutate provider/system config, read provider credentials, send email, run scheduler jobs, execute task classes, write generator metadata, generate project files, create tenant bootstrap data, mutate tenant cache/events, change schema, or touch Java source.
+- Extended `scripts/frontend-deferred-write-wrapper-smoke.ps1`, `docs/api/frontend-controlled-deferred-write-wrappers.md`, and dev/config, dev/email/SMS, dev/job, gen, and tenant compatibility docs.
+- Updated the API gap map, route-gap smoke doc, and dashboard route-gap counts to 552 ThinkPHP routes, 534 frontend endpoints covered by route path, 0 read-like gaps, and 26 side-effect-like deferred gaps.
+
+### Modified Files
+
+- `app/controller/dev/ConfigController.php`
+- `app/controller/dev/EmailController.php`
+- `app/controller/dev/JobController.php`
+- `app/controller/gen/BasicController.php`
+- `app/controller/gen/ConfigController.php`
+- `app/controller/tenant/TenantsController.php`
+- `route/app.php`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/api/dev-config-readonly-compat.md`
+- `docs/api/dev-email-sms-readonly-compat.md`
+- `docs/api/dev-job-readonly-compat.md`
+- `docs/api/gen-readonly-compat.md`
+- `docs/api/gen-basic-metadata-readonly.md`
+- `docs/api/tenant-readonly-compat.md`
+- `docs/api/tenants-readonly-compat.md`
+- `docs/api/frontend-api-route-gap-smoke.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\dev\ConfigController.php`: passed.
+- `php -l app\controller\dev\EmailController.php`: passed.
+- `php -l app\controller\dev\JobController.php`: passed.
+- `php -l app\controller\gen\BasicController.php`: passed.
+- `php -l app\controller\gen\ConfigController.php`: passed.
+- `php -l app\controller\tenant\TenantsController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String -Pattern 'dev/config/editBatch|dev/email/send(Local|Aliyun|Tencent)|dev/job/(add|edit|stopJob|runJob|runJobNow)|gen/basic/(add|edit|delete|execGenPro)|gen/config/(add|edit|delete)|tenants/tenant/(add|edit|delete)'`: listed the new wrappers.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 71 authenticated deferred wrappers and 17 no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 534 route-path-covered frontend endpoints, 0 read-like missing endpoints, and 26 side-effect-like missing endpoints.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+
+### Current Issues
+
+- Real provider config batch edits, email sends, scheduler lifecycle, job execution, generator writes, direct project code generation, tenant add/edit/delete, and tenant bootstrap/cache/event side effects remain deferred because they need provider, scheduler, output-path, permission, transaction, and rollback plans.
+
+### Next Plan
+
+- Run final readiness/Git hygiene checks after documentation updates.
+- Remaining frontend route-gap paths are workflow/task transitions and sale-project state/write actions; keep them behind controlled-deferred wrappers or module-specific transaction plans.
+
+## 2026-06-16 13:16 +08:00 - test-agent/frontend-agent - HR And CC Controlled Deferred Wrappers
+
+### Completed
+
+- Added protected controlled-deferred wrappers for HR and workflow-copy copied side-effect controls:
+  - `POST /biz/bizleaveapplication/add`
+  - `POST /biz/bizpayroll/add`
+  - `POST /biz/bizpayroll/import`
+  - `GET /biz/bizpayroll/export`
+  - `POST /biz/bizpayroll/generate/add`
+  - `POST /biz/bizuservacation/add`
+  - `POST /biz/bizuservacation/edit`
+  - `POST /biz/bizuservacation/delete`
+  - `POST /biz/ccrecords/add`
+  - `POST /biz/ccrecords/edit`
+- The wrappers return authenticated `code=400` deferred responses and do not create leave records, parse/import/export payroll files, generate payroll rows, mutate vacation balances, create or edit CC records, start workflow, send notifications, emit data-change events, change schema, or touch Java source.
+- Extended `scripts/frontend-deferred-write-wrapper-smoke.ps1`, `docs/api/frontend-controlled-deferred-write-wrappers.md`, and the leave/payroll/vacation/CC compatibility docs.
+- Updated the API gap map, route-gap smoke doc, and dashboard route-gap counts to 528 ThinkPHP routes, 510 frontend endpoints covered by route path, 0 read-like gaps, and 50 side-effect-like deferred gaps.
+
+### Modified Files
+
+- `app/controller/biz/BizLeaveApplicationController.php`
+- `app/controller/biz/BizPayrollController.php`
+- `app/controller/biz/BizUserVacationController.php`
+- `app/controller/biz/CcRecordsController.php`
+- `route/app.php`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/api/biz-leave-application-readonly.md`
+- `docs/api/biz-payroll-readonly.md`
+- `docs/api/biz-user-vacation-readonly.md`
+- `docs/api/biz-cc-records-readonly.md`
+- `docs/api/frontend-api-route-gap-smoke.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizLeaveApplicationController.php`: passed.
+- `php -l app\controller\biz\BizPayrollController.php`: passed.
+- `php -l app\controller\biz\BizUserVacationController.php`: passed.
+- `php -l app\controller\biz\CcRecordsController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String -Pattern 'bizleaveapplication/add|bizpayroll/(add|import|export|generate)|bizuservacation/(add|edit|delete)|ccrecords/(add|edit)'`: listed all ten wrappers.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 47 authenticated deferred wrappers and 12 no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 510 route-path-covered frontend endpoints, 0 read-like missing endpoints, and 50 side-effect-like missing endpoints.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+
+### Current Issues
+
+- Real leave creation, payroll add/import/export/generate, vacation-balance writes, CC add/edit, workflow-copy generation, and related workflow/payroll side effects remain deferred because they require transaction, rollback, file, and workflow plans.
+
+Subsequent state on 2026-06-16: vacation add/edit/delete, CC add/edit/delete, and payroll CSV export are now covered by narrow slices; payroll add/import/generate remain deferred.
+
+### Next Plan
+
+- Run final readiness/Git hygiene checks after documentation updates.
+- Use `.\scripts\frontend-api-route-gap-smoke.ps1 -ShowMissing` before selecting the next controlled-deferred or module-planned write slice.
+- Do not implement real payroll, vacation, workflow-copy, or workflow transition side effects without a transaction and rollback plan.
+
+## 2026-06-16 13:12 +08:00 - test-agent/frontend-agent - Inventory Delivery Settlement Controlled Deferred Wrappers
+
+### Completed
+
+- Added protected controlled-deferred wrappers for inventory, delivery-record, and settlement-account copied side-effect controls:
+  - `POST /biz/inventory/add`
+  - `POST /biz/inventory/delete`
+  - `POST /biz/warehouses/delivery/add`
+  - `POST /biz/settlementaccount/delete`
+  - `POST /biz/settlementaccount/expenses/add`
+  - `POST /biz/settlementaccount/payment/add`
+  - `POST /biz/settlementaccount/transfer/add`
+- The wrappers return authenticated `code=400` deferred responses and do not create inventory rows, delete inventory, create delivery records, delete settlement accounts, mutate balances, write statements, create payment/expenditure rows, transfer funds, trigger workflow, emit data-change events, change schema, or touch Java source.
+- Extended `scripts/frontend-deferred-write-wrapper-smoke.ps1`, `docs/api/frontend-controlled-deferred-write-wrappers.md`, and the inventory/delivery/settlement-account compatibility docs.
+- Updated the API gap map, route-gap smoke doc, and dashboard route-gap counts to 518 ThinkPHP routes, 500 frontend endpoints covered by route path, 0 read-like gaps, and 60 side-effect-like deferred gaps.
+
+### Modified Files
+
+- `app/controller/biz/InventoryController.php`
+- `app/controller/biz/DeliveryRecordController.php`
+- `app/controller/biz/SettlementAccountController.php`
+- `route/app.php`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/api/biz-inventory-readonly-compat.md`
+- `docs/api/biz-delivery-record-readonly-compat.md`
+- `docs/api/biz-settlement-account-readonly-compat.md`
+- `docs/api/frontend-api-route-gap-smoke.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\InventoryController.php`: passed.
+- `php -l app\controller\biz\DeliveryRecordController.php`: passed.
+- `php -l app\controller\biz\SettlementAccountController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String -Pattern 'inventory/(add|delete)|warehouses/delivery/add|settlementaccount/(delete|expenses|payment|transfer)'`: listed all seven wrappers.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 37 authenticated deferred wrappers and 9 no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 500 route-path-covered frontend endpoints, 0 read-like missing endpoints, and 60 side-effect-like missing endpoints.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+
+### Current Issues
+
+- Real inventory add/delete, delivery stock movement, settlement-account delete, quick income/expense/payment, and transfer behavior remains deferred because it can mutate warehouse stock, settlement balances, statements, finance rows, workflow state, and rollback boundaries.
+
+### Next Plan
+
+- Run the final smoke/readiness/Git hygiene checks for this slice.
+- Use `.\scripts\frontend-api-route-gap-smoke.ps1 -ShowMissing` before selecting the next controlled-deferred or module-planned write slice.
+- Do not implement real stock, finance, settlement, or workflow side effects without a transaction and rollback plan.
+
+## 2026-06-16 12:58 +08:00 - test-agent/frontend-agent - Purchase Order Controlled Deferred Wrappers
+
+### Completed
+
+- Added protected controlled-deferred wrappers for purchase-order copied write controls:
+  - `POST /biz/bizpurchaseorder/add`
+  - `POST /biz/bizpurchaseorder/edit`
+  - `POST /biz/bizpurchaseorder/audit/edit`
+  - `POST /biz/bizpurchaseorder/warehouse/add`
+  - `POST /biz/bizpurchaseorder/warehouse/one/add`
+  - `POST /biz/bizpurchaseorder/cancel`
+  - `POST /biz/bizpurchaseorder/delete`
+- The wrappers return authenticated `code=400` deferred responses and do not create or edit purchase orders, audit records, stock-in records, inventory movements, expenditure records, workflow actions, data-change events, schema changes, or Java source changes.
+- Extended `scripts/frontend-deferred-write-wrapper-smoke.ps1`, `docs/api/frontend-controlled-deferred-write-wrappers.md`, and `docs/api/biz-purchase-order-readonly-compat.md`.
+- Updated the API gap map and dashboard route-gap counts.
+
+### Modified Files
+
+- `app/controller/biz/PurchaseOrderController.php`
+- `route/app.php`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/api/biz-purchase-order-readonly-compat.md`
+- `docs/api/frontend-api-route-gap-smoke.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\PurchaseOrderController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String -Pattern 'bizpurchaseorder/(add|edit|audit|warehouse|cancel|delete)'`: listed all seven wrappers.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 30 authenticated deferred wrappers and 7 no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 493 route-path-covered frontend endpoints, 0 read-like missing endpoints, and 67 side-effect-like missing endpoints.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+
+### Current Issues
+
+- Real purchase-order add/edit/audit/cancel/delete and warehouse stock-in behavior remains deferred because it can mutate inventory, procurement state, finance records, workflow state, and rollback boundaries.
+
+### Next Plan
+
+- Use `.\scripts\frontend-api-route-gap-smoke.ps1 -ShowMissing` to choose the next controlled-deferred or module-planned write slice.
+- Do not implement real purchase, inventory, finance, or workflow side effects without a transaction plan.
+
+## 2026-06-16 12:55 +08:00 - test-agent/frontend-agent - Collection Receipt And Debit Note Controlled Deferred Wrappers
+
+### Completed
+
+- Added protected controlled-deferred wrappers for collection-receipt copied write controls:
+  - `POST /biz/bizcollectionreceipt/add`
+  - `POST /biz/bizcollectionreceipt/edit`
+  - `POST /biz/bizcollectionreceipt/batchExpenditure/edit`
+  - `POST /biz/bizcollectionreceipt/delete`
+- Added protected controlled-deferred wrappers for debit-note copied write controls:
+  - `POST /biz/bizdebitnote/add`
+  - `POST /biz/bizdebitnote/edit`
+  - `POST /biz/bizdebitnote/batchRepayment/edit`
+  - `POST /biz/bizdebitnote/history/add`
+  - `POST /biz/bizdebitnote/delete`
+- The wrappers return authenticated `code=400` deferred responses and do not create expenditures, repayments, history rows, finance records, workflow actions, data-change events, schema changes, or Java source changes.
+- Extended `scripts/frontend-deferred-write-wrapper-smoke.ps1` and `docs/api/frontend-controlled-deferred-write-wrappers.md`.
+- Updated the API gap map and dashboard route-gap counts.
+
+### Modified Files
+
+- `app/controller/biz/CollectionReceiptController.php`
+- `app/controller/biz/DebitNoteController.php`
+- `route/app.php`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/api/frontend-api-route-gap-smoke.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\CollectionReceiptController.php`: passed.
+- `php -l app\controller\biz\DebitNoteController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String -Pattern 'bizcollectionreceipt/(add|edit|batchExpenditure|delete)|bizdebitnote/(add|edit|batchRepayment|history|delete)'`: listed all nine wrappers.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 23 authenticated deferred wrappers and 6 no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 486 route-path-covered frontend endpoints, 0 read-like missing endpoints, and 74 side-effect-like missing endpoints.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+
+### Current Issues
+
+- Real collection-receipt batch expenditure and debit-note repayment/history behavior remains deferred because it can create finance records, mutate settlement state, and require rollback semantics.
+
+### Next Plan
+
+- Use `.\scripts\frontend-api-route-gap-smoke.ps1 -ShowMissing` to choose the next controlled-deferred or module-planned write slice.
+- Do not implement real receipt, repayment, payment, stock, or workflow side effects without a transaction plan.
+
+## 2026-06-16 12:53 +08:00 - test-agent/frontend-agent - Expenditure Record Controlled Deferred Wrappers
+
+### Completed
+
+- Added protected controlled-deferred wrappers for copied expenditure-record write controls:
+  - `POST /biz/bizexpenditurerecord/add`
+  - `POST /biz/bizexpenditurerecord/edit`
+  - `POST /biz/bizexpenditurerecord/edit/account`
+  - `POST /biz/bizexpenditurerecord/delete`
+- The wrappers return authenticated `code=400` deferred responses and do not call expenditure write services, mutate balances, write rows, start workflow, change schema, or touch Java source.
+- Extended `scripts/frontend-deferred-write-wrapper-smoke.ps1` and `docs/api/frontend-controlled-deferred-write-wrappers.md`.
+- Updated the API gap map and dashboard route-gap counts.
+
+### Modified Files
+
+- `app/controller/biz/ExpenditureRecordController.php`
+- `route/app.php`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/api/frontend-api-route-gap-smoke.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\ExpenditureRecordController.php`: passed.
+- `php -l route\app.php`: passed.
+- `php think route:list | Select-String -Pattern 'bizexpenditurerecord/(add|edit|delete)'`: listed all four wrappers.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed for 14 authenticated deferred wrappers and 4 no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 477 route-path-covered frontend endpoints, 0 read-like missing endpoints, and 83 side-effect-like missing endpoints.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+
+### Current Issues
+
+- Real expenditure-record add/edit/delete/account-switch behavior remains deferred because it can affect settlement accounts, statements, payments, finance state, workflow, and rollback behavior.
+
+### Next Plan
+
+- Use `.\scripts\frontend-api-route-gap-smoke.ps1 -ShowMissing` to choose the next controlled-deferred or module-planned write slice.
+- Do not implement real finance writes without a transaction and side-effect plan.
+
+## 2026-06-16 12:51 +08:00 - test-agent/frontend-agent - Frontend API Route Gap Scanner
+
+### Completed
+
+- Added `scripts/frontend-api-route-gap-smoke.ps1` to compare copied frontend API wrapper request paths against `php think route:list`.
+- The scanner handles `baseRequest` prefixes, `moduleRequest` prefixes, ternary request branches, query-only template fragments, and comment stripping.
+- Added summary, `-ShowMissing`, `-Json`, and `-FailOnReadMissing` modes.
+- Added `docs/api/frontend-api-route-gap-smoke.md`.
+- Updated the API gap map and dashboard with the current scan: 560 unique frontend endpoints, 473 route-path-covered endpoints, 0 missing read-like endpoints, and 87 missing side-effect-like endpoints.
+- Added problem-log row `P-034` and included the scanner in `scripts/project-progress.ps1` fast commands.
+
+### Modified Files
+
+- `scripts/frontend-api-route-gap-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/api/frontend-api-route-gap-smoke.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\frontend-api-route-gap-smoke.ps1`: passed.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -ShowMissing`: passed and listed only side-effect-like missing paths.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed.
+
+### Current Issues
+
+- The scanner proves route-path coverage only; it does not prove business semantics, transaction safety, permission parity, or frontend click safety.
+- The remaining 87 gaps are side-effect-like and should stay behind module-specific plans or controlled-deferred wrappers.
+
+### Next Plan
+
+- Use `.\scripts\frontend-api-route-gap-smoke.ps1 -ShowMissing` before choosing the next route slice.
+- Continue only with a focused side-effect group that has a module-specific plan, or add controlled-deferred wrappers when the intended behavior must remain intentionally unavailable.
+
+## 2026-06-16 12:23 +08:00 - test-agent/frontend-agent - Workflow Home Team Guard Browser Smoke Refresh
+
+### Completed
+
+- Confirmed runtime, backend, and frontend readiness before browser smoke.
+- Ran the upload/provider guard helper against workflow task/process pages: `/biz/biztask`, `/biz/historytask`, `/biz/biztask/mystarttask`, `/biz/biztask/allprocess`, `/biz/copytask`, and `/biz/biztask/processList`.
+- Ran the same guard helper against `/index`, `/biz/bizleaveapplication`, `/biz/bizhistoryexcel`, and `/biz/bizteamproject`.
+- Improved `scripts/browser-page-smoke.ps1` so object-shaped console errors are expanded before failing.
+- Used that diagnostic improvement to distinguish an inaccessible arbitrary team-project id from a page defect, then reran `/biz/bizteamprojectdetails?id=<member-visible local sample>` successfully.
+- Updated the upload/provider deferred plan, dashboard, and problem log with the commands and sample-id rule.
+
+### Modified Files
+
+- `scripts/browser-page-smoke.ps1`
+- `docs/tasks/upload-provider-deferred-plan.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/biz/biztask','/biz/historytask','/biz/biztask/mystarttask','/biz/biztask/allprocess','/biz/copytask','/biz/biztask/processList'`: passed.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/index','/biz/bizleaveapplication','/biz/bizhistoryexcel','/biz/bizteamproject'`: passed.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/biz/bizteamprojectdetails?id=<member-visible local sample>'`: passed.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed.
+- `.\scripts\project-preflight.ps1`: passed, including runtime/web readiness, frontend API method smoke, role/user/business/inventory/finance/purchase/settlement/supplier/product/HR/team-project/datareport/resource/dev/gen/auth/directory/tenant/message-SSE/workflow HTTP smokes, and Git whitespace checks.
+- `git diff --check`: passed with only normal LF/CRLF Git warnings.
+
+### Current Issues
+
+- This is browser smoke and diagnostic tooling only; no workflow, HR, team-project, provider, upload, schema, Java source, `.env`, production data, or Git history was changed.
+- Team-project detail smoke must use a project visible to the current smoke account; arbitrary local project rows can correctly return `team project not found`.
+
+### Next Plan
+
+- Keep future browser expansion tied to login-menu-backed paths and the upload/provider guard plan, or move to a deliberate provider/file-cleanup/write-flow plan before touching side-effect behavior.
+
 # STATUS.md
 
 ## 2026-05-28 17:35 +08:00
@@ -7906,6 +8841,8 @@ Agent: api-agent
 - `POST /biz/bizpayroll/generate/add` remains deferred because it aggregates users, sale projects, payment records, and leave records before writing payroll rows.
 - `/biz/bizpayroll/add` remains intentionally absent because the Java controller does not expose that endpoint.
 
+Subsequent state on 2026-06-16: `/biz/bizpayroll/export` is now covered as an authenticated CSV download; EasyExcel-style xlsx rendering and styling remain deferred.
+
 ### Next Plan
 
 - Commit this payroll template download compatibility slice.
@@ -9438,3 +10375,993 @@ Agent: api-agent
 ### Next Plan
 
 - Continue with cloud storage cleanup/provider planning after configuration policy is confirmed, or pick another concrete browser-visible page with an explicit forbidden request pattern before opening side-effect-heavy sale-project, workflow, finance, stock, or provider writes.
+
+## 2026-06-16 09:07 +08:00 - test-agent/frontend-agent - Reusable Browser Page Smoke Helper
+
+### Completed
+
+- Promoted the one-off Chrome CDP browser-smoke flow into `scripts/browser-page-smoke.ps1`.
+- Kept the helper ASCII-only to avoid Windows PowerShell corrupting non-ASCII JavaScript regex/text while still allowing runtime page text in output.
+- The helper creates a temporary local auth token, injects the copied frontend cache shape, starts temporary headless Chrome, tracks backend `/api` requests, filters the known Ant Design Vue Descriptions warning, and fails on forbidden write/upload/delete/approval/complete/provider requests.
+- Reran `/biz/saleproject/dealProjectList` through the helper with first-link click enabled.
+- Verified the page rendered 5 table rows and clicking the first project link opened the detail drawer.
+- Updated the progress dashboard and closed problem-log row `P-023`.
+
+### Modified Files
+
+- `scripts/browser-page-smoke.ps1`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleproject/dealProjectList" -ClickFirstTableLink -MinRows 1`: passed.
+- Browser smoke observed only read/SSE backend requests and no failed backend API statuses, uncanceled failed loads, console errors, page errors, or forbidden write/provider requests.
+
+### Current Issues
+
+- This helper depends on the local runtime, backend `http://127.0.0.1:82/think`, frontend `http://127.0.0.1:83/`, local `.env`, Node, PHP, and system Chrome.
+- It is intentionally a smoke helper, not a full browser regression suite; broader page-specific assertions still need explicit target pages and forbidden request patterns.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue with cloud storage cleanup/provider planning after configuration policy is confirmed, or choose the next concrete browser-visible page for this helper before touching side-effect-heavy writes.
+
+## 2026-06-16 09:18 +08:00 - test-agent/frontend-agent - Customer Browser Smoke
+
+### Completed
+
+- Selected `/biz/customer` as the next low-risk copied frontend page because its list and detail routes are read-focused and already have HTTP smoke coverage.
+- Ran the reusable Chrome CDP browser helper against `/biz/customer` with first table-link click enabled.
+- Found and fixed a helper false-positive: customer details may render a business-license image through `GET /api/dev/file/download`, which is a read path, not a write/provider side effect.
+- Updated `scripts/browser-page-smoke.ps1` so the default forbidden regex no longer flags `download`, and added `-ForbiddenPathPattern` for page-specific stricter checks.
+- Reran the customer browser smoke successfully: 11 rows rendered, the first customer detail drawer opened, and no forbidden write/upload/delete/approval/complete/provider requests were observed.
+- Added problem-log row `P-024` and updated the progress dashboard.
+
+### Modified Files
+
+- `scripts/browser-page-smoke.ps1`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/customer" -ClickFirstTableLink -MinRows 1`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleproject/dealProjectList" -ClickFirstTableLink -MinRows 1`: passed after the helper forbidden-filter adjustment.
+- ASCII-only check for `scripts/browser-page-smoke.ps1`: passed.
+- Observed backend requests: message SSE, org tree selector, customer page, task count, index messages, customer detail, and local file download for the image.
+
+### Current Issues
+
+- This remains browser smoke only; no customer business behavior, schema, Java source, `.env`, or production data was changed.
+- The helper now treats downloads as allowed by default; pages that must forbid downloads should pass a stricter `-ForbiddenPathPattern`.
+
+### Next Plan
+
+- Rerun the sale-project browser smoke once after the helper filter change, then run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue with another concrete read page only after choosing its expected forbidden request pattern, or wait for cloud storage/provider configuration policy before planning those deferred areas.
+
+## 2026-06-16 09:21 +08:00 - test-agent/frontend-agent - Product And Supplier Browser Smoke
+
+### Completed
+
+- Selected `/biz/bizproduct` and `/biz/supplier` as low-risk copied frontend main-data pages because their first table links open detail drawers instead of edit/delete actions.
+- Ran the reusable Chrome CDP browser helper against `/biz/bizproduct`.
+- Verified product management rendered 10 rows and clicking the first product name opened the product detail drawer.
+- Ran the reusable Chrome CDP browser helper against `/biz/supplier`.
+- Verified supplier management rendered 11 rows and clicking the first supplier name opened the supplier detail drawer.
+- Updated the progress dashboard with the new browser-smoke coverage.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizproduct" -ClickFirstTableLink -MinRows 1`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/supplier" -ClickFirstTableLink -MinRows 1`: passed.
+- Product smoke observed message SSE, org tree selector, task count, index messages, product page, and product detail reads.
+- Supplier smoke observed message SSE, supplier page/detail reads, task count, index messages, and related purchase-order list read.
+
+### Current Issues
+
+- This is still browser smoke only; no business code, frontend source, schema, Java source, `.env`, production data, or Git history was changed.
+- Product status switches and supplier edit/delete controls were not clicked; side-effect-heavy actions remain deferred to explicit write plans.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue expanding browser smoke only for concrete read/detail pages with known safe click targets, or pause for user confirmation on cloud storage/provider configuration before planning those deferred areas.
+
+## 2026-06-16 09:24 +08:00 - test-agent/frontend-agent - Settlement Account And Warehouse Browser Smoke
+
+### Completed
+
+- Inspected `/biz/warehouses` and `/biz/settlementaccount` before clicking table links.
+- Confirmed `/biz/warehouses` has no safe name/detail link in the table body; its visible table links are edit/delete controls, so the smoke stayed list-only.
+- Confirmed `/biz/settlementaccount` uses the account-name link as the detail entry while status switch and income/expense controls are separate actions.
+- Ran the reusable Chrome CDP browser helper against `/biz/settlementaccount` with first table-link click enabled.
+- Verified settlement-account management rendered 10 rows and clicking the first account name opened the detail drawer.
+- Ran the reusable Chrome CDP browser helper against `/biz/warehouses` without clicking table links.
+- Verified warehouse management rendered 4 rows without triggering write/upload/delete/approval/complete/provider requests.
+- Updated the progress dashboard with the new browser-smoke coverage.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/settlementaccount" -ClickFirstTableLink -MinRows 1`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/warehouses" -MinRows 1`: passed.
+- Settlement-account smoke observed message SSE, org tree selector, account page/detail, task count, index messages, payment-record list, and expenditure-record list reads.
+- Warehouse smoke observed message SSE, org tree selector, warehouse page, task count, and index messages.
+
+### Current Issues
+
+- This is browser smoke only; no settlement, warehouse, finance, stock, schema, Java source, `.env`, production data, or Git history was changed.
+- Warehouse add/edit/delete controls and settlement account status/income/expense/transfer actions were not clicked; those remain covered only by explicit write plans and lower-level smokes.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue only with pages where the safe click target is known, or stop browser-smoke expansion and wait for cloud storage/provider configuration policy before planning those deferred areas.
+
+## 2026-06-16 09:28 +08:00 - test-agent/frontend-agent - Inventory And Finance Browser Smoke
+
+### Completed
+
+- Inspected `/biz/inventory`, `/biz/paymentrecord`, and `/biz/bizexpenditurerecord` before choosing click behavior.
+- Confirmed `/biz/inventory` has a safe product-name detail link; the inventory add, export, and stock-check controls were left untouched.
+- Confirmed `/biz/paymentrecord` and `/biz/bizexpenditurerecord` should be list-only in this round because their visible actions are workflow/export/edit oriented rather than direct finance-detail links.
+- Ran the reusable Chrome CDP browser helper against `/biz/inventory` with first table-link click enabled.
+- Verified inventory management rendered 10 rows and clicking the first product name opened the product detail drawer.
+- Ran list-only browser smokes for `/biz/paymentrecord` and `/biz/bizexpenditurerecord`; both rendered 10 rows.
+- The first expenditure-record smoke was run in parallel with payment-record smoke and hit a `Runtime.evaluate timeout`; rerunning it alone passed, so this was classified as browser-smoke execution interference rather than a page/backend failure.
+- Added a named mutex to `scripts/browser-page-smoke.ps1` so future helper invocations run sequentially.
+- Added problem-log row `P-025` and updated the progress dashboard.
+
+### Modified Files
+
+- `scripts/browser-page-smoke.ps1`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/inventory" -ClickFirstTableLink -MinRows 1`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/paymentrecord" -MinRows 1`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizexpenditurerecord" -MinRows 1`: passed when rerun sequentially.
+- ASCII-only check for `scripts/browser-page-smoke.ps1`: passed after adding the mutex.
+- Payment-record smoke was rerun after the mutex change and passed.
+
+### Current Issues
+
+- This is browser smoke only; no inventory, finance, workflow, stock, schema, Java source, `.env`, production data, or Git history was changed.
+- Finance export/process-detail/edit actions and inventory add/export/stock-check actions remain unclicked and deferred to explicit plans.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Keep browser smokes sequential and continue only with concrete read/detail pages whose click target is safe.
+
+## 2026-06-16 09:32 +08:00 - test-agent/frontend-agent - Purchase Return And Receivable Browser Smoke
+
+### Completed
+
+- Inspected `/biz/bizpurchaseorder`, `/biz/returnorder`, `/biz/bizcollectionreceipt`, and `/biz/bizdebitnote` before choosing click behavior.
+- Confirmed `/biz/bizpurchaseorder` has a safe title detail link while procurement start, one-click warehouse entry, export, cancel, warehouse entry, edit, and audit repair actions are separate controls.
+- Confirmed `/biz/returnorder` has a safe project-name detail link while process-detail, edit, and delete controls are separate links.
+- Confirmed `/biz/bizcollectionreceipt` and `/biz/bizdebitnote` should stay list-only in this round because their visible actions are quick settlement, export, historical entry, or mark-settled controls.
+- Ran the reusable Chrome CDP browser helper against `/biz/bizpurchaseorder` with first table-link click enabled.
+- Verified purchase-order management rendered 10 rows and clicking the first title opened the purchase-order detail drawer.
+- Ran the helper against `/biz/returnorder` with first table-link click enabled.
+- Verified return-order management rendered 1 row and clicking the first project name opened the sale-project detail drawer.
+- Ran list-only browser smokes for `/biz/bizcollectionreceipt` and `/biz/bizdebitnote`; both rendered 10 rows.
+- Updated the progress dashboard with the new browser-smoke coverage.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizpurchaseorder" -ClickFirstTableLink -MinRows 1`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/returnorder" -ClickFirstTableLink -MinRows 1`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizcollectionreceipt" -MinRows 1`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizdebitnote" -MinRows 1`: passed.
+- Purchase-order smoke observed supplier list, purchase-order page/detail, process query, and filtered process query-list reads.
+- Return-order smoke observed return-order page and sale-project detail read chain.
+- Collection-receipt and debit-note smokes observed settlement-account list plus page/list reads only.
+
+### Current Issues
+
+- This is browser smoke only; no purchase, return, receivable, debit, warehouse, workflow, settlement, schema, Java source, `.env`, production data, or Git history was changed.
+- Procurement start, warehouse entry, export, cancel, edit, audit repair, process-detail, quick settlement, mark-settled, and historical entry actions remain unclicked and deferred to explicit plans.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue only with concrete read/detail pages whose click target is safe, or stop browser-smoke expansion until cloud storage/provider configuration policy is confirmed.
+
+## 2026-06-16 11:29 +08:00 - test-agent/frontend-agent - Upload Provider Guard Browser Smoke Batch
+
+### Completed
+
+- Added `scripts/browser-upload-provider-guard-smoke.ps1` as a sequential wrapper around `scripts/browser-page-smoke.ps1`.
+- Encoded the upload/provider deferred-plan forbidden request pattern into the wrapper, including upload, import, export, delete, send, provider-like, scheduler-run, approval, workflow, grant, reset, status, and save paths.
+- Ran the guarded smoke batch for `/dev/file/index`, `/biz/bizpayroll`, `/biz/bizproduct`, `/biz/customer`, and `/biz/saleproject/dealProjectList`.
+- Clicked only known safe read-detail table links on product, customer, and deal-project pages.
+- Allowed legitimate local image reads through `/api/dev/file/download` while keeping upload and provider actions unclicked.
+- Updated the upload/provider deferred plan and progress dashboard with the reusable command.
+
+### Modified Files
+
+- `scripts/browser-upload-provider-guard-smoke.ps1`
+- `docs/tasks/upload-provider-deferred-plan.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\browser-upload-provider-guard-smoke.ps1`: passed.
+- `/dev/file/index`: rendered 10 rows with file page reads only.
+- `/biz/bizpayroll`: rendered 2 rows with payroll page reads only.
+- `/biz/bizproduct`: rendered 10 rows, opened product detail, and made only product page/detail reads.
+- `/biz/customer`: rendered 11 rows, opened customer detail, and made only customer page/detail plus local file download reads.
+- `/biz/saleproject/dealProjectList`: rendered 5 rows, opened project detail, and made sale-project, process, file-relation, return-order, and customer reads only.
+
+### Current Issues
+
+- This is browser smoke only; no upload, import, export, delete, provider send, workflow, scheduler, schema, Java source, `.env`, production data, or Git history was changed.
+- Real cloud storage, provider sends, thumbnail generation, physical file cleanup, import/export actions, and side-effect-heavy business writes remain deferred.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue with another low-risk browser/read smoke slice or choose a module-specific transactional write plan before implementing side-effect-heavy behavior.
+
+## 2026-06-16 11:51 +08:00 - test-agent/frontend-agent - Finance Purchase Inventory Guard Browser Smoke Batch
+
+### Completed
+
+- Reused `scripts/browser-upload-provider-guard-smoke.ps1` with explicit finance, purchase, inventory, and business-operation targets from the current login menu.
+- Ran list-only guarded browser smokes for purchase order, return order, collection receipt, debit note, inventory, payment record, expenditure record, settlement account, warehouse, supplier, sale-project invoicing, and sale-project product-info pages.
+- Kept the slice list/static-only because these pages expose export, delete, settlement, stock, invoicing, return, warehouse, finance, upload, or workflow controls.
+- Checked current `loginMenu` paths and confirmed raw `/sys/resource`, `/mobile/module`, `/mobile/menu`, and `/gen/*` targets are not currently menu-backed without temporary authorization; no temporary authorization rows were inserted.
+- Updated the upload/provider deferred plan and progress dashboard with the reusable commands and login-menu limitation.
+
+### Modified Files
+
+- `docs/tasks/upload-provider-deferred-plan.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/biz/bizpurchaseorder','/biz/returnorder','/biz/bizcollectionreceipt','/biz/bizdebitnote','/biz/inventory'`: passed.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/biz/paymentrecord','/biz/bizexpenditurerecord','/biz/settlementaccount','/biz/warehouses','/biz/supplier','/biz/saleprojectinvoicing','/biz/saleprojectproductinfo'`: first six targets passed; `/biz/saleprojectproductinfo` hit `Runtime.evaluate timeout`.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/biz/saleprojectproductinfo'`: passed when rerun alone.
+- All successful page checks had zero forbidden requests and zero bad API statuses.
+
+### Current Issues
+
+- This is browser smoke only; no purchase, return, finance, inventory, warehouse, supplier, invoicing, product-info, workflow, schema, Java source, `.env`, production data, or Git history was changed.
+- Resource/mobile/gen browser smoke still needs a separate temporary-authorization plan if the current local login menu does not expose those paths.
+- The `Runtime.evaluate timeout` on the long batch matched the known browser-smoke resource issue and passed on single-target rerun.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue with another login-menu-backed read/browser slice, or pause broad browser-smoke expansion until a module-specific write or temporary-authorization plan is selected.
+
+## 2026-06-16 12:12 +08:00 - test-agent/frontend-agent - Sales Operations Report Guard Browser Smoke Batch
+
+### Completed
+
+- Found local web services stopped at the start of the continuation; restarted ThinkPHP on port `82` and Vue on port `83`.
+- Found MySQL/Redis/PHP-FPM runtime stopped when the first browser smoke attempted to generate a local token; restarted the user-provided runtime bundle at `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Waited for Vite cold start to finish; this run took about 90 seconds before port `83` responded.
+- Ran list/report-only guarded browser smokes for sale-project, sales public/case/shipment/completed/cancelled/report pages.
+- Ran list/report-only guarded browser smokes for operations customer/project, proxy-payment, security-deposit, and data-report pages.
+- Updated the upload/provider deferred plan and progress dashboard with the commands and runtime precondition note.
+
+### Modified Files
+
+- `docs/tasks/upload-provider-deferred-plan.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\runtime-ready.ps1`: passed after starting the local runtime bundle.
+- `.\scripts\web-ready.ps1`: passed after backend/frontend startup and Vite cold start.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/biz/saleproject','/biz/saleproject/public/list','/biz/saleproject/dealProjectCaseList','/biz/saleproject/waitShipment','/biz/saleproject/completeProjectList','/biz/saleproject/cancelProjectList','/biz/saleproject/report'`: passed.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/biz/bizops/operationCustomerList','/biz/bizops/operationProjectList','/biz/proxyPayment','/biz/ProjectSecurityDeposit','/biz/bizdatareport/index','/biz/bizdatareport/summaryStatistics','/biz/bizdatareport/settlement','/biz/bizdatareport/saleProfit'`: passed.
+- All successful page checks had zero forbidden requests and zero bad API statuses.
+
+### Current Issues
+
+- This is browser smoke only; no sale-project, operations, report, settlement, finance, workflow, delivery, cancel, export, schema, Java source, `.env`, production data, or Git history was changed.
+- Browser smoke depends on both runtime readiness and web readiness; `/think` can respond while MySQL/Redis are still unavailable, so use `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean` before DB-backed or browser checks.
+- Vite startup can be slow in this workspace; wait for `.\scripts\web-ready.ps1` before interpreting page failures.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`, `git diff --check`, and Git status.
+- Continue with another login-menu-backed read/browser slice, or pause broad browser-smoke expansion until a module-specific write or temporary-authorization plan is selected.
+
+## 2026-06-16 11:34 +08:00 - test-agent/frontend-agent - Management Page Guard Browser Smoke Batch
+
+### Completed
+
+- Reused `scripts/browser-upload-provider-guard-smoke.ps1` with explicit management-page targets.
+- Ran guarded render-only browser smokes for system user, business user, role, system organization, system position, business organization, business position, business dictionary, system config, and station-message pages.
+- Kept the slice list/static-only because these pages expose import, export, grant, reset, send, save, delete, or status controls.
+- Updated the upload/provider deferred plan with the management-page target commands.
+- Updated the progress dashboard with this verification note.
+
+### Modified Files
+
+- `docs/tasks/upload-provider-deferred-plan.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/sys/user','/biz/user','/sys/role','/sys/org','/sys/position'`: passed.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath '/biz/org','/biz/position','/biz/dict/index','/sys/sysConfig/index','/dev/message/index'`: passed.
+- `/sys/user`, `/biz/user`, `/sys/role`, `/sys/org`, `/sys/position`, `/biz/org`, `/biz/position`, `/biz/dict/index`, and `/dev/message/index` rendered list/tree rows with read/cache/SSE requests only.
+- `/sys/sysConfig/index` rendered the config page with cache/SSE requests and no save-style request.
+
+### Current Issues
+
+- This is browser smoke only; no user/org/position/role/dict/config/message writes, provider sends, import/export, grant/reset/status, schema, Java source, `.env`, production data, or Git history was changed.
+- Add/edit/delete/import/export/grant/reset/send/save/status controls remain unclicked and must stay tied to module-specific write plans.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue with another low-risk browser/read smoke slice or choose a module-specific transactional write plan before implementing side-effect-heavy behavior.
+
+## 2026-06-16 10:55 +08:00 - test-agent/frontend-agent - Frontend Controlled Deferred Write Wrappers
+
+### Completed
+
+- Inspected the copied frontend API consumers and the read-only Java reference controllers for payment record, return order, and sale-project invoicing.
+- Added missing copied-frontend API exports for visible payment-record, return-order, and invoicing form/delete controls.
+- Added protected ThinkPHP routes and controller wrappers for payment-record add/edit/edit-account/delete, return-order add/edit/delete, and sale-project-invoicing add/edit/delete.
+- Kept these wrappers controlled-deferred only: authenticated calls return `code=400` and do not call service write methods, mutate tables, move inventory, update balances, start workflow, read provider credentials, or clean physical files.
+- Added `scripts/frontend-deferred-write-wrapper-smoke.ps1` and documentation for the wrapper scope.
+- Added problem-log row `P-032` and updated dashboard/API-gap notes.
+
+### Modified Files
+
+- `app/controller/biz/PaymentRecordController.php`
+- `app/controller/biz/ReturnOrderController.php`
+- `app/controller/biz/SaleProjectInvoicingController.php`
+- `route/app.php`
+- `snowy-admin-web/src/api/biz/bizPaymentRecordApi.js`
+- `snowy-admin-web/src/api/biz/returnOrderApi.js`
+- `snowy-admin-web/src/api/biz/bizSaleProjectInvoicingApi.js`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\PaymentRecordController.php; php -l app\controller\biz\ReturnOrderController.php; php -l app\controller\biz\SaleProjectInvoicingController.php; php -l route\app.php`: passed.
+- `php think route:list` targeted check: listed all ten controlled-deferred wrapper routes.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed with no remaining active missing API-method calls.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed; ten authenticated wrapper calls returned `code=400` and three representative no-token calls returned `code=401`.
+- `.\scripts\project-progress.ps1 -CheckWeb -Lean`: passed before the final doc update.
+- ASCII-only check for `scripts/frontend-deferred-write-wrapper-smoke.ps1`: passed.
+
+### Current Issues
+
+- This is not real payment-record, return-order, or invoicing write implementation; transactional finance, return/order state, stock, invoicing, workflow, rollback, notification, provider, and data-change behavior remains deferred.
+- The API gap-map aggregate frontend endpoint counts were not fully regenerated in this slice; the route count was verified as 491, and the new wrappers were verified separately.
+- No Java source, `.env`, production data, schema, or Git history was changed.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue with the next low-risk compatibility slice only after checking active frontend consumers and the relevant problem-log rows.
+
+## 2026-06-16 09:42 +08:00 - test-agent/frontend-agent - Data Report And Team Project Browser Smoke
+
+### Completed
+
+- Inspected data-report and team-project frontend consumers before choosing smoke targets.
+- A direct `/biz/bizdatareport` smoke rendered 404; this was a guessed path, not a page/backend failure.
+- Queried local `sys_resource` menu paths and confirmed the actual report paths are `/biz/bizdatareport/index`, `/biz/bizdatareport/summaryStatistics`, `/biz/bizdatareport/settlement`, and `/biz/bizdatareport/saleProfit`.
+- Ran list/card/chart browser smokes for all four report pages without clicking statistic cards or navigation targets.
+- Ran a list/card browser smoke for `/biz/bizteamproject` without clicking project cards, task controls, or comment/write areas.
+- Added problem-log row `P-027` and updated the progress dashboard.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizdatareport/index" -MinRows 0`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizdatareport/settlement" -MinRows 0`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizdatareport/saleProfit" -MinRows 0`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizdatareport/summaryStatistics" -MinRows 0`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizteamproject" -MinRows 0`: passed.
+- Report smokes observed sale-project report, settlement income/expense, unpaid-payment, sale-profit, and summary-statistics reads only.
+- Team-project smoke observed team-project page read only.
+
+### Current Issues
+
+- This is browser smoke only; no report, team-project, task, comment, workflow, schema, Java source, `.env`, production data, or Git history was changed.
+- Statistic-card navigation, team-project detail, task/comment actions, add/edit/delete, and report export-style actions remain unclicked.
+- Route selection for browser smoke should use menu `PATH` when a component folder has no exact route root.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue only with concrete read/detail pages whose route and click target are known safe, or stop browser-smoke expansion until cloud storage/provider configuration policy is confirmed.
+
+## 2026-06-16 10:31 +08:00 - test-agent/frontend-agent - Browser Smoke Optional Click Helper
+
+### Completed
+
+- Added `-AllowMissingTableLink` to `scripts/browser-page-smoke.ps1`.
+- Preserved strict behavior by default: `-ClickFirstTableLink` still fails when no visible table link exists unless `-AllowMissingTableLink` is explicitly supplied.
+- When optional click is allowed and no link exists, the helper now passes the rendered page check and reports `click.missingAllowed=true`.
+- Updated problem-log row `P-029` from mitigated rerun practice to a closed helper-level fix.
+- Updated the progress dashboard with this helper verification note.
+
+### Modified Files
+
+- `scripts/browser-page-smoke.ps1`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/biztask" -MinRows 0 -ClickFirstTableLink -AllowMissingTableLink`: passed with `click.missingAllowed=true`.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/biztask/mystarttask" -MinRows 0 -ClickFirstTableLink -AllowMissingTableLink`: passed and still opened the process detail drawer when a visible table link existed.
+
+### Current Issues
+
+- This is a helper-only improvement; no business APIs, frontend views, schema, Java source, `.env`, production data, or Git history was changed.
+- Optional click should not be used for pages where opening detail is a required assertion.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- With login-menu component leaves covered, shift the next slice to a deliberate plan for deferred upload/provider/file-cleanup behavior or specific write flows instead of broad read-only browser expansion.
+
+## 2026-06-16 10:43 +08:00 - test-agent/api-agent - Upload Provider Deferred Plan
+
+### Completed
+
+- Added `docs/tasks/upload-provider-deferred-plan.md` as the execution boundary for upload-control browser smoke, cloud storage, real provider sends, and optional physical file cleanup.
+- Recorded current confirmed behavior: LOCAL/dynamic upload, public local download, metadata logical delete, and business file relation binding are covered; cloud upload routes remain unsupported stubs; SMS sends remain controlled-deferred wrappers; real email/SMS providers, thumbnails, historical path migration, and physical cleanup remain deferred.
+- Added concrete browser smoke forbidden-request patterns, including the default pattern that allows local file downloads and a stricter opt-in pattern that forbids `download`.
+- Linked the new plan from `docs/tasks/api-gap-map.md`.
+- Added problem-log row `P-030` so future continuations see the upload/provider scope boundary before opening a risky slice.
+- Updated the progress dashboard.
+
+### Modified Files
+
+- `docs/tasks/upload-provider-deferred-plan.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- Documentation-only slice; no route, service, frontend, schema, Java source, `.env`, credential, cloud provider, file system cleanup, or production data behavior was changed.
+
+### Current Issues
+
+- Real Aliyun, Tencent, Minio, email, SMS, thumbnail, historical storage-path migration, and physical file cleanup remain intentionally deferred.
+- Future browser smoke on pages with upload or provider controls must define the forbidden request pattern before running the helper.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue with a specific low-risk business write/read slice only after checking frontend consumers and smoke scope, or wait for user confirmation before opening cloud/provider/file-cleanup implementation.
+
+## 2026-06-16 10:47 +08:00 - test-agent/frontend-agent - Frontend API Static Smoke Comment Handling
+
+### Completed
+
+- Inspected `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred` after the upload/provider planning slice.
+- Found that the deferred list included `bizSaleProjectApi.bizSaleProjectApplyApproval` from a commented-out legacy code block in the copied project start-payment form.
+- Updated `scripts/frontend-api-method-smoke.ps1` to strip Vue/HTML comments plus JavaScript line and block comments before scanning imports and API method calls.
+- The comment stripper preserves string/template literals and line structure so real active imports and calls are still scanned.
+- Documented the behavior in `docs/api/frontend-api-method-smoke.md`.
+- Added problem-log row `P-031`.
+
+### Modified Files
+
+- `scripts/frontend-api-method-smoke.ps1`
+- `docs/api/frontend-api-method-smoke.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\frontend-api-method-smoke.ps1`: passed.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed; deferred list no longer includes the commented legacy `bizSaleProjectApplyApproval` call and now shows 6 active write-like missing methods.
+- ASCII-only check for `scripts/frontend-api-method-smoke.ps1`: passed.
+
+### Current Issues
+
+- Active write-like frontend calls for payment record, return order, and sale-project invoicing remain deferred and should not be implemented without module-specific write plans.
+
+### Next Plan
+
+- Rerun the static frontend API method smoke.
+- Then run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+
+## 2026-06-16 10:28 +08:00 - test-agent/frontend-agent - Home And Team Project Detail Browser Smoke
+
+### Completed
+
+- Listed the current smoke account's `loginMenu` again and compared it with the covered browser-smoke paths.
+- Inspected `/index` and `/biz/bizteamprojectdetails` before running smoke; confirmed the team-project detail page requires `route.query.id`.
+- Retrieved a local team-project sample id through the authenticated page API and opened `/biz/bizteamprojectdetails?id=1903996479133360129`.
+- Ran browser smokes for `/index` and the team-project detail page without clicking schedule/message, comment, member, task, edit, delete, upload, or save controls.
+- Updated the progress dashboard to note that current `loginMenu` component leaf pages are now covered by read-only browser smoke, excluding category/grouping nodes without page components.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/index" -MinRows 0`: passed with workbench, visit-log, all-process, schedule, message, and task-count reads.
+- Authenticated team-project sample lookup through `/biz/bizteamproject/page?current=1&size=1`: returned sample id `1903996479133360129`.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizteamprojectdetails?id=1903996479133360129" -MinRows 0`: passed with team-project detail, user, comment, and task-list reads.
+
+### Current Issues
+
+- This is browser smoke only; no schedule/message actions, team-project comment/member/task writes, edit/delete, upload, schema, Java source, `.env`, production data, or Git history was changed.
+- Category/grouping menu nodes such as `/biz`, `/system`, and numeric folder paths do not have page components and remain intentionally excluded from page smoke coverage.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- With login-menu component leaves covered, shift the next slice to a deliberate plan for deferred upload/provider/file-cleanup behavior or specific write flows instead of broad read-only browser expansion.
+
+## 2026-06-16 10:21 +08:00 - test-agent/frontend-agent - Workflow Menu Browser Smoke
+
+### Completed
+
+- Inspected the copied workflow menu pages before choosing click behavior.
+- Ran browser smokes for login-menu-backed `/biz/biztask`, `/biz/historytask`, `/biz/biztask/mystarttask`, `/biz/biztask/allprocess`, `/biz/copytask`, and `/biz/biztask/processList`.
+- Opened the process detail drawer on `/biz/biztask/mystarttask`, where the local sample exposed a visible safe title link.
+- Reran `/biz/biztask`, `/biz/historytask`, `/biz/biztask/allprocess`, and `/biz/copytask` as list-only smokes after strict detail-click attempts found no visible table link in the current local sample.
+- Kept `/biz/biztask/processList` static-only because it contains start-flow buttons.
+- Added problem-log row `P-029` and updated the progress dashboard.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/biztask" -MinRows 0`: passed with 1 rendered table row and `/api/biz/task/page` reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/historytask" -MinRows 0`: passed with 1 rendered table row and `/api/biz/task/history/page` reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/biztask/mystarttask" -MinRows 0 -ClickFirstTableLink`: passed with 3 rendered rows, opened process detail, and read process detail/file/variable plus related business data.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/biztask/allprocess" -MinRows 0`: passed with 1 rendered table row and `/api/biz/process/all/page` reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/copytask" -MinRows 0`: passed with 1 rendered table row and `/api/biz/ccrecords/page` reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/biztask/processList" -MinRows 0`: passed with static start-flow page rendering and read-only supporting requests.
+
+### Current Issues
+
+- This is browser smoke only; no approve, reject, cancel, start-flow, copy-record delete, schema, Java source, `.env`, production data, or Git history was changed.
+- Strict `-ClickFirstTableLink` attempts on empty/local-sample task pages can false-fail with no visible table link; `P-029` records the mitigation.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue only with login-menu-backed read/detail pages whose click targets are known safe, or stop browser-smoke expansion until cloud storage/provider configuration policy is confirmed.
+
+## 2026-06-16 10:14 +08:00 - test-agent/frontend-agent - Operations Invoicing And Debit Browser Smoke
+
+### Completed
+
+- Inspected the copied operations, invoicing, sale-project product-info, proxy-payment, and project-security-deposit pages before choosing click behavior.
+- Ran browser smokes for login-menu-backed `/biz/bizops/operationCustomerList`, `/biz/bizops/operationProjectList`, `/biz/saleprojectinvoicing`, `/biz/saleprojectproductinfo`, `/biz/proxyPayment`, and `/biz/ProjectSecurityDeposit`.
+- Clicked safe detail links only on operations customer and operations project pages.
+- Kept invoicing, product-info, proxy-payment, and deposit pages list/report-only because their visible controls include mark-complete, export, quick settlement, add, edit, or delete-style actions.
+- Updated the progress dashboard with this verification note.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizops/operationCustomerList" -MinRows 0 -ClickFirstTableLink`: passed with 11 rendered rows, opened customer detail, and read customer detail plus local file download data.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizops/operationProjectList" -MinRows 0 -ClickFirstTableLink`: passed with 11 rendered rows, opened sale-project detail, and read project detail/process/file/reissue/return/customer data.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleprojectinvoicing" -MinRows 0`: passed with 11 rendered rows and invoicing page reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleprojectproductinfo" -MinRows 0`: passed with 1 rendered row and sale-project product/detail report reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/proxyPayment" -MinRows 0`: passed with 10 rendered rows and debit-note list/page reads for proxy-payment.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/ProjectSecurityDeposit" -MinRows 0`: passed with 2 rendered rows and debit-note list/page reads for project-security-deposit.
+
+### Current Issues
+
+- This is browser smoke only; no operations customer/project writes, invoicing completion, product-info mutation, debit-note mark-success/quick settlement, export, schema, Java source, `.env`, production data, or Git history was changed.
+- Invoicing mark-complete, product-info add/edit/delete/export, proxy-payment/deposit quick settlement/export/mark, and operations edit/delete/head-reassignment actions remain unclicked.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue only with login-menu-backed read/detail pages whose click targets are known safe, or stop browser-smoke expansion until cloud storage/provider configuration policy is confirmed.
+
+## 2026-06-16 10:06 +08:00 - test-agent/frontend-agent - Sales Project Menu Browser Smoke
+
+### Completed
+
+- Inspected the copied sales-project menu pages before choosing click behavior.
+- Ran browser smokes for login-menu-backed `/biz/saleproject`, `/biz/saleproject/public/list`, `/biz/saleproject/dealProjectCaseList`, `/biz/saleproject/waitShipment`, `/biz/saleproject/completeProjectList`, `/biz/saleproject/cancelProjectList`, and `/biz/saleproject/report`.
+- Clicked the first safe project/case detail links on `/biz/saleproject`, `/biz/saleproject/public/list`, and `/biz/saleproject/dealProjectCaseList`.
+- Kept wait-shipment, completed-project, cancelled-project, and report pages list/chart-only because their visible links or controls lead toward invoice, delivery, workflow, export, cancel, or write-style actions.
+- Updated the progress dashboard with this verification note.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleproject" -MinRows 0 -ClickFirstTableLink`: passed with 11 rendered rows, opened project detail, and read project detail/process/file/reissue/return/customer data.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleproject/public/list" -MinRows 0 -ClickFirstTableLink`: passed with 10 rendered rows, opened project detail, and read project detail/process/file/reissue/return/customer data.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleproject/dealProjectCaseList" -MinRows 0 -ClickFirstTableLink`: passed with 11 rendered rows, opened case detail, and read file-relation/project-rate data.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleproject/waitShipment" -MinRows 0`: passed with 10 rendered rows and sale-project page reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleproject/completeProjectList" -MinRows 0`: passed with 10 rendered rows and sale-project page reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleproject/cancelProjectList" -MinRows 0`: passed with 11 rendered rows plus process-query reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/saleproject/report" -MinRows 0`: passed with chart/statistic reads through `POST /api/biz/bizdatareport/saleproject/list`.
+
+### Current Issues
+
+- This is browser smoke only; no sale-project write behavior, invoicing, delivery, workflow start/cancel, export, schema, Java source, `.env`, production data, or Git history was changed.
+- Shipment, completed-project, cancelled-project, report-card navigation, invoice, delivery, workflow, export, batch repeal, and visibility-switch actions remain unclicked.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue only with login-menu-backed read/detail pages whose click targets are known safe, or stop browser-smoke expansion until cloud storage/provider configuration policy is confirmed.
+
+## 2026-06-16 09:58 +08:00 - test-agent/frontend-agent - Business Directory Browser Smoke
+
+### Completed
+
+- Listed the current smoke account's `loginMenu` paths before choosing targets so browser routes were backed by frontend dynamic-menu registration.
+- Ran list/tree browser smokes for `/biz/org`, `/biz/position`, `/biz/user`, and `/biz/dict/index`.
+- Kept this slice read-only by not clicking add, edit, delete, import, export, grant, reset, status, save, or provider-action controls.
+- Confirmed all four pages rendered through the copied frontend with read/cache/SSE-style backend requests only.
+- Updated the progress dashboard with this verification note.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/org" -MinRows 0`: passed with 10 rendered rows and `/api/biz/org/tree` plus `/api/biz/org/page` reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/position" -MinRows 0`: passed with 10 rendered rows and `/api/biz/org/tree` plus `/api/biz/position/page` reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/user" -MinRows 0`: passed with 10 rendered rows and `/api/biz/org/tree` plus `/api/biz/user/page` reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/dict/index" -MinRows 0`: passed with 10 rendered rows and `/api/biz/dict/tree` plus `/api/biz/dict/page` reads.
+
+### Current Issues
+
+- This is browser smoke only; no business organization, position, user, dictionary, schema, Java source, `.env`, production data, or Git history was changed.
+- Add/edit/delete/import/export/grant/reset/status/save actions remain unclicked and should stay tied to explicit module-specific write plans.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue with only login-menu-backed read/detail pages whose click targets are known safe, or stop browser-smoke expansion until cloud storage/provider configuration policy is confirmed.
+
+## 2026-06-16 09:54 +08:00 - test-agent/frontend-agent - System Org And Position Browser Smoke
+
+### Completed
+
+- Inspected the copied `/sys/org` and `/sys/position` pages before choosing a safe list/tree-only smoke path.
+- Ran browser smokes for both login-menu-backed routes without clicking add, edit, delete, status, grant, reset, import, export, or save controls.
+- Confirmed both pages rendered rows through the copied frontend while using only read/cache/SSE-style backend requests.
+- Updated the progress dashboard with this verification note.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/sys/org" -MinRows 0`: passed with 10 rendered rows and `/api/sys/org/tree` plus `/api/sys/org/page` reads.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/sys/position" -MinRows 0`: passed with 10 rendered rows and `/api/sys/org/tree` plus `/api/sys/position/page` reads.
+
+### Current Issues
+
+- This is browser smoke only; no organization or position add/edit/delete/status behavior, schema, Java source, `.env`, production data, or Git history was changed.
+- Future browser smokes should still verify target paths through `loginMenu` first instead of raw `sys_resource` rows.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue only with login-menu-backed read/detail pages whose click targets are known safe, or stop browser-smoke expansion until cloud storage/provider configuration policy is confirmed.
+
+## 2026-06-16 09:49 +08:00 - test-agent/frontend-agent - Dev And System Browser Smoke
+
+### Completed
+
+- Queried menu-backed dev/sys paths before running browser smoke.
+- Found that raw `sys_resource` includes `/dev/job`, `/dev/email/index`, `/dev/sms/index`, and `/dev/monitor`, but the current smoke account's `loginMenu` only exposes a smaller set of dev/sys routes to the copied frontend.
+- Updated `scripts/browser-page-smoke.ps1` so it selects the top-level menu module that contains the target route instead of always using the first menu module.
+- Confirmed `/dev/job` still renders 404 because it is not in the current `loginMenu`; this is a route-availability issue, not a backend page failure.
+- Ran list/render browser smokes for `/dev/file/index`, `/dev/message/index`, `/sys/sysConfig/index`, `/sys/role`, and `/sys/user` without clicking upload, send, delete, grant, reset, import, export, enable/disable, or save controls.
+- Reran `/biz/customer` as a business-route regression check after the helper module-selection change.
+- Added problem-log row `P-028` and updated the progress dashboard.
+
+### Modified Files
+
+- `scripts/browser-page-smoke.ps1`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/dev/file/index" -MinRows 0`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/dev/message/index" -MinRows 0`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/sys/sysConfig/index" -MinRows 0`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/sys/role" -MinRows 0`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/sys/user" -MinRows 0`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/customer" -MinRows 1`: passed after the helper module-selection change.
+- ASCII-only check for `scripts/browser-page-smoke.ps1`: passed.
+
+### Current Issues
+
+- This is browser smoke only; no dev/system write behavior, provider send, scheduler execution, upload/delete, grant/reset/status, schema, Java source, `.env`, production data, or Git history was changed.
+- `/dev/job` remains unsuitable for this helper under the current smoke account because it is not present in `loginMenu`; the same rule should be checked before targeting other raw `sys_resource` paths.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue only with login-menu-backed read/detail pages, or stop browser-smoke expansion and wait for cloud storage/provider configuration policy before planning deferred provider/file-cleanup areas.
+
+## 2026-06-16 09:37 +08:00 - test-agent/frontend-agent - HR And History Browser Smoke
+
+### Completed
+
+- Inspected `/biz/bizpayroll`, `/biz/bizleaveapplication`, and `/biz/bizhistoryexcel` before choosing click behavior.
+- Confirmed `/biz/bizpayroll` should stay list-only because visible actions include import, export, and delete.
+- Confirmed `/biz/bizleaveapplication` should stay list-only in this round because visible actions include add, edit, delete, and workflow process detail rather than a direct leave-detail link.
+- Confirmed `/biz/bizhistoryexcel` has a source-level table-name detail link, but the local rendered sample did not expose a visible safe table link; the final smoke stayed list-only.
+- Ran the reusable Chrome CDP browser helper against `/biz/bizpayroll`; the first run exposed a non-blocking Ant Design Vue resizable-table warning.
+- Added that exact table warning to the helper's allowed-console filters and reran payroll successfully.
+- Ran list-only browser smokes for `/biz/bizleaveapplication` and `/biz/bizhistoryexcel`.
+- Added problem-log row `P-026` and updated the progress dashboard.
+
+### Modified Files
+
+- `scripts/browser-page-smoke.ps1`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizpayroll" -MinRows 1`: passed after allowing the known Ant Design Vue table warning.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizleaveapplication" -MinRows 1`: passed.
+- `.\scripts\browser-page-smoke.ps1 -TargetPath "/biz/bizhistoryexcel" -MinRows 0`: passed.
+- ASCII-only check for `scripts/browser-page-smoke.ps1`: passed after the warning-filter update.
+
+### Current Issues
+
+- This is browser smoke only; no payroll, leave, history Excel, workflow, schema, Java source, `.env`, production data, or Git history was changed.
+- Payroll import/export/delete, leave add/edit/delete/process-detail, and history Excel add/edit/delete/detail actions remain unclicked.
+- The local history Excel page rendered 1 table row but no visible safe link for the helper to click.
+
+### Next Plan
+
+- Run `.\scripts\project-progress.ps1 -Lean`, `git diff --check`, and Git status.
+- Continue only with concrete read/detail pages whose click target is safe, or stop browser-smoke expansion until cloud storage/provider configuration policy is confirmed.
+
+## 2026-06-16 16:26 +08:00 - merge-agent/api-agent/test-agent/docs-agent - Payroll Export CSV Download
+
+### Completed
+
+- Replaced `/biz/bizpayroll/export` controlled-deferred behavior with an authenticated CSV blob download.
+- Reused existing payroll filters, data-scope guards, organization sorting, and download response handling.
+- Added `scripts/biz-payroll-export-http-smoke.ps1`, which inserts one temporary payroll row, downloads CSV, verifies header/row markers, checks no-token rejection, confirms representative related table counts stay unchanged, and cleans up.
+- Removed payroll export from the frontend controlled-deferred smoke list.
+- Updated payroll API docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, and project-progress fast commands.
+
+### Modified Files
+
+- `app/controller/biz/BizPayrollController.php`
+- `app/service/biz/BizPayrollService.php`
+- `docs/api/biz-payroll-readonly.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/biz-payroll-export-plan.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `scripts/biz-payroll-export-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\BizPayrollController.php`: passed.
+- `php -l app\service\biz\BizPayrollService.php`: passed.
+- PowerShell syntax check for `scripts\biz-payroll-export-http-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizpayroll/(export|page|detail|downloadImportTemplate)'`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\biz-payroll-export-http-smoke.ps1`: passed.
+- `.\scripts\hr-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 78 authenticated deferred wrappers and 17 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+
+### Current Issues
+
+- Export is CSV for dependency-free ThinkPHP compatibility; Java EasyExcel-style `.xlsx` rendering, merged headers, and styling remain deferred.
+- Payroll import, generate/add, and add remain controlled-deferred because they create payroll rows and/or aggregate leave, project, payment, and business side effects.
+
+### Next Plan
+
+- Run `git diff --check` and a final lean progress check.
+- Continue with the next smallest controlled-deferred group only after a module-specific side-effect and rollback plan.
+
+## 2026-06-16 17:09 +08:00 - merge-agent/api-agent/test-agent/docs-agent - Payment Record Payer-Time Edit
+
+### Completed
+
+- Replaced `/biz/bizpaymentrecord/edit` controlled-deferred behavior with a narrow Java-compatible payer-time correction.
+- Added `PaymentRecordService::edit`, which validates `id`/`payerTime`, checks tenant/write scope, updates only payment-record audit/time fields, syncs the linked settlement-account statement timestamp by `SERIAL_ID`, and rolls back when the linked statement is missing.
+- Kept `/biz/bizpaymentrecord/add`, `/edit/account`, and `/delete` controlled-deferred.
+- Added `scripts/biz-payment-record-edit-http-smoke.ps1`, which inserts temporary payment/statement rows, verifies no-token and missing-field rejection, confirms detail readback and statement sync, checks client-spoofed fields are ignored, tests missing-statement rollback, verifies related-table counts stay stable, and cleans up.
+- Removed `/biz/bizpaymentrecord/edit` from the frontend deferred-wrapper smoke list.
+- Updated payment-record API docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, project-progress fast commands, and this status log.
+
+### Modified Files
+
+- `app/controller/biz/PaymentRecordController.php`
+- `app/service/biz/PaymentRecordService.php`
+- `docs/api/biz-payment-record-readonly-compat.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/biz-payment-record-edit-plan.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `scripts/biz-payment-record-edit-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `route/app.php`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\PaymentRecordController.php`: passed.
+- `php -l app\service\biz\PaymentRecordService.php`: passed.
+- `php -l route\app.php`: passed.
+- PowerShell syntax checks for `scripts\biz-payment-record-edit-http-smoke.ps1` and `scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizpaymentrecord/(edit|edit/account|add|delete|page|detail)'`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\biz-payment-record-edit-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 77 authenticated deferred wrappers and 17 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-preflight.ps1`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+### Current Issues
+
+- Payment-record add/delete and account switch remain controlled-deferred because they create or transfer finance records and account statements.
+- This slice does not implement settlement-account balance mutation, workflow/data-change events, Java source changes, schema changes, `.env`, Composer changes, production data operations, or Git push.
+
+### Next Plan
+
+- Run the broader regression set: `project-progress`, finance read smoke, deferred-wrapper smoke, frontend route-gap/method smokes, and `git diff --check`.
+- Decide whether to commit after the verified slice boundary, taking care not to stage unrelated dirty worktree changes.
+
+## 2026-06-16 18:25 +08:00 - merge-agent/api-agent/test-agent/docs-agent - Expenditure Record Payer-Time Category Edit
+
+### Completed
+
+- Replaced `/biz/bizexpenditurerecord/edit` controlled-deferred behavior with a narrow Java-compatible payer-time/category correction.
+- Added `ExpenditureRecordService::edit`, which validates `id`, optional `payerTime`, optional `settlementCategory`, checks tenant/write scope, rejects object-linked rows, enforces Java category guard rules, updates only expenditure payer-time/category/audit fields, syncs the linked settlement-account statement timestamp when payer time is supplied, and rolls back when the linked statement is missing.
+- Kept `/biz/bizexpenditurerecord/add`, `/edit/account`, and `/delete` controlled-deferred.
+- Added `scripts/biz-expenditure-record-edit-http-smoke.ps1`, which inserts temporary expenditure/statement/account rows, verifies no-token and missing-id rejection, confirms detail readback and statement sync, checks protected-category and object-linked guards, tests missing-statement rollback, verifies spoofed fields and related-table counts stay stable, and cleans up.
+- Removed `/biz/bizexpenditurerecord/edit` from the frontend deferred-wrapper smoke list.
+- Updated expenditure-record API docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, project-progress fast commands, and this status log.
+
+### Modified Files
+
+- `app/controller/biz/ExpenditureRecordController.php`
+- `app/service/biz/ExpenditureRecordService.php`
+- `docs/api/biz-expenditure-record-readonly-compat.md`
+- `docs/api/frontend-controlled-deferred-write-wrappers.md`
+- `docs/tasks/api-gap-map.md`
+- `docs/tasks/biz-expenditure-record-edit-plan.md`
+- `docs/tasks/frontend-adaptation-notes.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+- `docs/tasks/public-file-change-request.md`
+- `docs/tasks/refactor-progress-dashboard.md`
+- `scripts/biz-expenditure-record-edit-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `route/app.php`
+- `PLANS.md`
+- `IMPLEMENT.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php -l app\controller\biz\ExpenditureRecordController.php`: passed.
+- `php -l app\service\biz\ExpenditureRecordService.php`: passed.
+- `php -l route\app.php`: passed.
+- PowerShell syntax checks for `scripts\biz-expenditure-record-edit-http-smoke.ps1` and `scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizexpenditurerecord/(edit|edit/account|add|delete|page|detail)'`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed.
+- `.\scripts\biz-expenditure-record-edit-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 76 authenticated deferred wrappers and 17 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+### Current Issues
+
+- Expenditure-record add/delete and account switch remain controlled-deferred because they create/delete finance rows or transfer account/statement data.
+- This slice does not implement settlement-account balance mutation, statement category/account edits, purchase/inventory/return/workflow/data-change events, Java source changes, schema changes, `.env`, Composer changes, production data operations, or Git push.
+
+### Next Plan
+
+- Run the broader regression set: `project-progress`, finance read smoke, deferred-wrapper smoke, frontend route-gap/method smokes, and `git diff --check`.
+- Decide whether to commit after the verified slice boundary, taking care not to stage unrelated dirty worktree changes.

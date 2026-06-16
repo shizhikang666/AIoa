@@ -53,6 +53,73 @@ class BasicController extends BaseSysController
         return $this->guard(fn () => $this->basicService->mobileModuleSelector($request->get()));
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->basicService->add($this->bodyInput($request), $this->authPayload($request)));
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->basicService->edit($this->bodyInput($request), $this->authPayload($request)));
+    }
+
+    public function delete(Request $request): Response
+    {
+        return $this->guard(fn () => $this->basicService->delete($this->bodyInput($request), $this->authPayload($request)));
+    }
+
+    public function execGenPro(): Response
+    {
+        return $this->deferredWrite('generator project execution');
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail('该写入操作暂未开放', 400, [
+            'operation' => $operation,
+        ]);
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     */
+    private function bodyInput(Request $request): array
+    {
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+
+            throw new RuntimeException('invalid json body', 400);
+        }
+
+        return $request->param();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function authPayload(Request $request): array
+    {
+        $payload = $request->middleware('auth_payload', []);
+
+        return is_array($payload) ? $payload : [];
+    }
+
     private function downloadGuard(callable $callback): Response
     {
         try {
@@ -63,7 +130,7 @@ class BasicController extends BaseSysController
 
             return ApiResponse::fail($exception->getMessage(), $status);
         } catch (Throwable) {
-            return ApiResponse::fail('server error', 500);
+            return ApiResponse::fail('服务器错误', 500);
         }
     }
 

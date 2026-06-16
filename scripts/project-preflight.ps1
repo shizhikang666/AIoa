@@ -2,6 +2,8 @@ param(
     [switch]$SkipRuntime,
     [switch]$SkipWeb,
     [switch]$SkipFrontendApiMethod,
+    [switch]$SkipFrontendApiRouteGap,
+    [switch]$SkipFrontendDeferredWrites,
     [switch]$SkipRoleSelector,
     [switch]$SkipUserDisplay,
     [switch]$SkipBizRead,
@@ -62,6 +64,18 @@ if (-not $SkipWeb) {
 if (-not $SkipFrontendApiMethod) {
     Invoke-Step 'Frontend API Method Smoke' {
         & (Join-Path $PSScriptRoot 'frontend-api-method-smoke.ps1')
+    }
+}
+
+if (-not $SkipFrontendApiRouteGap) {
+    Invoke-Step 'Frontend API Route Gap Smoke' {
+        & (Join-Path $PSScriptRoot 'frontend-api-route-gap-smoke.ps1') -FailOnReadMissing
+    }
+}
+
+if (-not $SkipFrontendDeferredWrites) {
+    Invoke-Step 'Frontend Deferred Write Wrapper Smoke' {
+        & (Join-Path $PSScriptRoot 'frontend-deferred-write-wrapper-smoke.ps1')
     }
 }
 

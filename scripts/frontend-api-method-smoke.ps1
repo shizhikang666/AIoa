@@ -32,6 +32,73 @@ function rel(p) {
   return path.relative(root, p).replace(/\\/g, '/');
 }
 
+function stripComments(text) {
+  const withoutHtml = text.replace(/<!--[\s\S]*?-->/g, match => match.replace(/[^\r\n]/g, ' '));
+  let out = '';
+  let state = 'code';
+  let escaped = false;
+
+  for (let i = 0; i < withoutHtml.length; i++) {
+    const ch = withoutHtml[i];
+    const next = withoutHtml[i + 1] || '';
+    const code = ch.charCodeAt(0);
+
+    if (state === 'line') {
+      if (ch === '\r' || ch === '\n') {
+        out += ch;
+        state = 'code';
+      } else {
+        out += ' ';
+      }
+      continue;
+    }
+
+    if (state === 'block') {
+      if (ch === '*' && next === '/') {
+        out += '  ';
+        i++;
+        state = 'code';
+      } else {
+        out += (ch === '\r' || ch === '\n') ? ch : ' ';
+      }
+      continue;
+    }
+
+    if (state === 'single' || state === 'double' || state === 'template') {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (code === 92) {
+        escaped = true;
+      } else if ((state === 'single' && code === 39) || (state === 'double' && code === 34) || (state === 'template' && code === 96)) {
+        state = 'code';
+      }
+      continue;
+    }
+
+    if (ch === '/' && next === '/') {
+      out += '  ';
+      i++;
+      state = 'line';
+    } else if (ch === '/' && next === '*') {
+      out += '  ';
+      i++;
+      state = 'block';
+    } else {
+      out += ch;
+      if (code === 39) {
+        state = 'single';
+      } else if (code === 34) {
+        state = 'double';
+      } else if (code === 96) {
+        state = 'template';
+      }
+    }
+  }
+
+  return out;
+}
+
 function resolveImport(file, spec) {
   let apiPath = spec.startsWith('@/')
     ? path.join(srcDir, spec.slice(2))
@@ -62,7 +129,7 @@ const missingRead = new Set();
 const deferredWrite = new Set();
 
 for (const file of files) {
-  const text = fs.readFileSync(file, 'utf8');
+  const text = stripComments(fs.readFileSync(file, 'utf8'));
   const imports = [];
   for (const match of text.matchAll(/import\s+([A-Za-z_$][\w$]*)\s+from\s+['"]([^'"]*api[^'"]*)['"]/g)) {
     const local = match[1];
@@ -73,7 +140,7 @@ for (const file of files) {
   }
 
   for (const { local, apiPath } of imports) {
-    const apiText = fs.readFileSync(apiPath, 'utf8');
+    const apiText = stripComments(fs.readFileSync(apiPath, 'utf8'));
     const exported = exportedMethods(apiText);
     const callPattern = new RegExp(local.replace(/[$]/g, '\\$&') + '\\s*\\.\\s*([A-Za-z_$][\\w$]*)\\s*\\(', 'g');
     for (const call of text.matchAll(callPattern)) {

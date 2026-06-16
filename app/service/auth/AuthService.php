@@ -10,6 +10,7 @@ use think\Request;
 class AuthService
 {
     private const CAPTCHA_KEY_PREFIX = 'oa:auth:captcha:';
+    private const CAPTCHA_OPEN_KEY = 'SNOWY_SYS_DEFAULT_CAPTCHA_OPEN';
 
     public function __construct(
         private readonly TokenService $tokenService = new TokenService(),
@@ -44,7 +45,7 @@ class AuthService
         $device = trim((string)($input['device'] ?? 'PC')) ?: 'PC';
 
         if ($account === '' || $password === '') {
-            throw new RuntimeException('account and password are required', 400);
+            throw new RuntimeException('请输入账号和密码', 400);
         }
 
         $this->validateCaptchaIfPresent($input);
@@ -56,20 +57,20 @@ class AuthService
 
         $user = $query->find();
         if (!is_array($user) || $user === []) {
-            throw new RuntimeException('account or password is incorrect', 401);
+            throw new RuntimeException('账号或密码错误', 401);
         }
 
         if (($user['USER_STATUS'] ?? 'ENABLE') !== 'ENABLE') {
-            throw new RuntimeException('account is disabled', 403);
+            throw new RuntimeException('账号已被禁用', 403);
         }
 
         $password = $this->passwordService->decodeTransportPassword($password);
         if ($password === null) {
-            throw new RuntimeException('SM2 encrypted password requires AUTH_SM2_PRIVATE_KEY runtime configuration', 400);
+            throw new RuntimeException('加密密码需要配置SM2私钥', 400);
         }
 
         if (!$this->passwordService->verify($password, (string)($user['PASSWORD'] ?? ''))) {
-            throw new RuntimeException('account or password is incorrect', 401);
+            throw new RuntimeException('账号或密码错误', 401);
         }
 
         $authContext = $this->rbacService->buildForUser($user);
@@ -106,18 +107,18 @@ class AuthService
     {
         $password = (string)($input['password'] ?? '');
         if ($password === '') {
-            throw new RuntimeException('password is required', 400);
+            throw new RuntimeException('请输入密码', 400);
         }
 
         $password = $this->passwordService->decodeTransportPassword($password);
         if ($password === null) {
-            throw new RuntimeException('SM2 encrypted password requires AUTH_SM2_PRIVATE_KEY runtime configuration', 400);
+            throw new RuntimeException('加密密码需要配置SM2私钥', 400);
         }
 
         $payload = $this->currentPayload($request);
         $user = $this->currentUserRecord($payload);
         if (!$this->passwordService->verify($password, (string)($user['PASSWORD'] ?? ''))) {
-            throw new RuntimeException('password is incorrect', 401);
+            throw new RuntimeException('密码错误', 401);
         }
 
         $mark = trim((string)($input['mark'] ?? 'password'));
@@ -130,6 +131,10 @@ class AuthService
 
     private function validateCaptchaIfPresent(array $input): void
     {
+        if (!$this->captchaEnabled()) {
+            return;
+        }
+
         $validCode = strtolower(trim((string)($input['validCode'] ?? $input['valid_code'] ?? '')));
         $requestNo = trim((string)($input['validCodeReqNo'] ?? $input['valid_code_req_no'] ?? ''));
 
@@ -138,7 +143,7 @@ class AuthService
         }
 
         if ($validCode === '' || $requestNo === '') {
-            throw new RuntimeException('captcha code and request number are required together', 400);
+            throw new RuntimeException('请输入验证码', 400);
         }
 
         $key = self::CAPTCHA_KEY_PREFIX . $requestNo;
@@ -146,15 +151,27 @@ class AuthService
         Cache::delete($key);
 
         if (!is_string($cached) || !hash_equals($cached, $validCode)) {
-            throw new RuntimeException('captcha is incorrect or expired', 400);
+            throw new RuntimeException('验证码错误或已过期', 400);
         }
+    }
+
+    private function captchaEnabled(): bool
+    {
+        $value = Db::name('dev_config')
+            ->where('CONFIG_KEY', self::CAPTCHA_OPEN_KEY)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', 'NOT_DELETE');
+            })
+            ->value('CONFIG_VALUE');
+
+        return strtolower(trim((string)$value)) === 'true';
     }
 
     private function currentPayload(Request $request): array
     {
         $payload = $this->tokenService->getPayload($this->tokenService->bearerFromRequest($request));
         if ($payload === null) {
-            throw new RuntimeException('unauthenticated', 401);
+            throw new RuntimeException('未登录或登录已过期', 401);
         }
 
         return $payload;
@@ -164,7 +181,7 @@ class AuthService
     {
         $user = Db::name('sys_user')->where('ID', $payload['user_id'])->find();
         if (!is_array($user) || $user === []) {
-            throw new RuntimeException('login user not found', 401);
+            throw new RuntimeException('登录用户不存在', 401);
         }
 
         return $user;

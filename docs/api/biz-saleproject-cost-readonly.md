@@ -54,20 +54,22 @@ Cost item fields:
 
 ## Deferred Routes
 
-The following sale-project write routes remain intentionally unimplemented:
+The following sale-project write routes now return controlled `code = 400` deferred responses:
 
 | Route | Reason |
 | --- | --- |
-| `POST /biz/saleproject/add` | Creates project data and related product/file/invoice state |
-| `POST /biz/saleproject/edit` | Mutates project and product bindings |
-| `POST /biz/saleproject/deal/edit` | Deal-state and payment/status side effects |
-| `POST /biz/saleproject/delete` | Delete behavior requires dependent-state design |
-| `POST /biz/saleproject/repeal` | Project-state mutation |
-| `POST /biz/saleproject/cancel` | Status rollback and invoice deletion |
-| `POST /biz/saleproject/history/add` | History order creation |
-| `POST /biz/saleproject/special/add` | Special reimbursement project creation |
-| `POST /biz/saleproject/visibility/edit` | Project visibility mutation |
-| `POST /biz/saleproject/amount/edit` | Amount mutation and change-log side effect |
+| `POST /biz/saleproject/add` | Real project creation remains deferred |
+| `POST /biz/saleproject/edit` | Real project and product binding mutation remains deferred |
+| `POST /biz/saleproject/deal/edit` | Real deal-state and payment/status side effects remain deferred |
+| `POST /biz/saleproject/delete` | Real delete behavior requires dependent-state design |
+| `POST /biz/saleproject/repeal` | Real project-state mutation remains deferred |
+| `POST /biz/saleproject/cancel` | Real status rollback and invoice deletion remains deferred |
+| `POST /biz/saleproject/history/add` | Real history order creation remains deferred |
+| `POST /biz/saleproject/special/add` | Real special reimbursement project creation remains deferred |
+| `POST /biz/saleproject/visibility/edit` | Real project visibility mutation remains deferred |
+| `POST /biz/saleproject/amount/edit` | Real amount mutation and change-log side effect remains deferred |
+
+The controlled-deferred wrappers do not create, update, delete, cancel, repeal, or change sale projects, do not mutate products, files, invoices, finance rows, workflow state, visibility, change logs, or notifications, and do not change schema or Java source.
 
 ## Test Commands
 

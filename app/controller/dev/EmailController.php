@@ -6,6 +6,7 @@ namespace app\controller\dev;
 
 use app\controller\sys\BaseSysController;
 use app\service\dev\EmailService;
+use app\support\ApiResponse;
 use RuntimeException;
 use think\Request;
 use think\Response;
@@ -29,6 +30,53 @@ class EmailController extends BaseSysController
     public function delete(Request $request): Response
     {
         return $this->guard(fn () => $this->emailService->delete($this->deleteIds($this->bodyInput($request)), $this->payload($request)));
+    }
+
+    public function sendLocalTxt(): Response
+    {
+        return $this->deferredWrite('email send local txt');
+    }
+
+    public function sendLocalHtml(): Response
+    {
+        return $this->deferredWrite('email send local html');
+    }
+
+    public function sendAliyunTxt(): Response
+    {
+        return $this->deferredWrite('email send aliyun txt');
+    }
+
+    public function sendAliyunHtml(): Response
+    {
+        return $this->deferredWrite('email send aliyun html');
+    }
+
+    public function sendAliyunTmp(): Response
+    {
+        return $this->deferredWrite('email send aliyun tmp');
+    }
+
+    public function sendTencentTxt(): Response
+    {
+        return $this->deferredWrite('email send tencent txt');
+    }
+
+    public function sendTencentHtml(): Response
+    {
+        return $this->deferredWrite('email send tencent html');
+    }
+
+    public function sendTencentTmp(): Response
+    {
+        return $this->deferredWrite('email send tencent tmp');
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     private function tenantId(Request $request): ?string

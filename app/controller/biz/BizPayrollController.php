@@ -38,6 +38,29 @@ class BizPayrollController extends BaseSysController
         return $this->downloadGuard(fn () => $this->payrollService->downloadImportTemplate());
     }
 
+    public function add(): Response
+    {
+        return $this->deferredWrite('payroll add');
+    }
+
+    public function importExcel(): Response
+    {
+        return $this->deferredWrite('payroll import');
+    }
+
+    public function export(Request $request): Response
+    {
+        return $this->downloadGuard(fn () => $this->payrollService->export(
+            $request->get(),
+            $this->authPayload($request)
+        ));
+    }
+
+    public function generateAdd(): Response
+    {
+        return $this->deferredWrite('payroll generate add');
+    }
+
     public function edit(Request $request): Response
     {
         return $this->guard(fn () => $this->payrollService->edit($this->body($request), $this->authPayload($request)));
@@ -51,6 +74,13 @@ class BizPayrollController extends BaseSysController
     public function delete(Request $request): Response
     {
         return $this->guard(fn () => $this->payrollService->delete($this->body($request), $this->authPayload($request)));
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail('该写入操作暂未开放', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     private function authPayload(Request $request): array
@@ -94,7 +124,7 @@ class BizPayrollController extends BaseSysController
 
             return ApiResponse::fail($exception->getMessage(), $status);
         } catch (Throwable) {
-            return ApiResponse::fail('server error', 500);
+            return ApiResponse::fail('服务器错误', 500);
         }
     }
 

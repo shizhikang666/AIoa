@@ -91,6 +91,12 @@ const error = () => {
 	})
 }
 
+const isLoginRequest = (config) => {
+	const url = String(config?.url || '')
+
+	return url.includes('/auth/b/doLogin') || url.includes('/auth/b/doLoginByPhone')
+}
+
 //二级密码验证
 const safePassword = (make) => {
 	let password = ref('');
@@ -152,7 +158,7 @@ service.interceptors.response.use(
 		}
 		const data = response.data
 		const code = data.code
-		if (reloadCodes.includes(code)) {
+		if (reloadCodes.includes(code) && !isLoginRequest(response.config)) {
 			if (!loginBack.value) {
 				error()
 			}

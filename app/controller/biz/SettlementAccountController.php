@@ -6,6 +6,7 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\SettlementAccountService;
+use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -48,6 +49,33 @@ class SettlementAccountController extends BaseSysController
     public function queryName(Request $request): Response
     {
         return $this->guard(fn () => $this->settlementAccountService->queryName($this->requiredString($request, 'id'), $this->authPayload($request)));
+    }
+
+    public function delete(): Response
+    {
+        return $this->deferredWrite('settlement account delete');
+    }
+
+    public function expensesAdd(): Response
+    {
+        return $this->deferredWrite('settlement account expenses add');
+    }
+
+    public function paymentAdd(): Response
+    {
+        return $this->deferredWrite('settlement account payment add');
+    }
+
+    public function transferAdd(): Response
+    {
+        return $this->deferredWrite('settlement account transfer add');
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     private function authPayload(Request $request): array

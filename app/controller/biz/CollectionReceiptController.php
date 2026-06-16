@@ -6,6 +6,7 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\CollectionReceiptService;
+use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -33,6 +34,33 @@ class CollectionReceiptController extends BaseSysController
     public function markSuccess(Request $request): Response
     {
         return $this->guard(fn () => $this->collectionReceiptService->markSuccess($this->body($request), $this->authPayload($request)));
+    }
+
+    public function add(): Response
+    {
+        return $this->deferredWrite('collection receipt add');
+    }
+
+    public function edit(): Response
+    {
+        return $this->deferredWrite('collection receipt edit');
+    }
+
+    public function batchExpenditure(): Response
+    {
+        return $this->deferredWrite('collection receipt batch expenditure');
+    }
+
+    public function delete(): Response
+    {
+        return $this->deferredWrite('collection receipt delete');
+    }
+
+    private function deferredWrite(string $operation): Response
+    {
+        return ApiResponse::fail($operation . ' is deferred', 400, [
+            'operation' => $operation,
+        ]);
     }
 
     private function authPayload(Request $request): array

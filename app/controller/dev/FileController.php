@@ -261,7 +261,7 @@ class FileController extends BaseSysController
         } catch (RuntimeException $exception) {
             return ApiResponse::fail($exception->getMessage(), 500);
         } catch (Throwable) {
-            return ApiResponse::fail('server error', 500);
+            return ApiResponse::fail('服务器错误', 500);
         }
     }
 

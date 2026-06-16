@@ -33,9 +33,9 @@ ThinkPHP outputs:
 - The frontend export form sends `completionTime` as a range; this slice also accepts Java-shaped `deliveryStartTime` and `deliveryEndTime`.
 - `detail` is added as a read-only compatibility helper because the old frontend API wrapper includes `deliveryRecordDetail`, even though the analyzed Java controller does not expose a detail mapping.
 
-## Deferred
+## Controlled Deferred Writes
 
-- No `/biz/warehouses/delivery/add` route.
+- `POST /biz/warehouses/delivery/add` returns a controlled `code = 400` deferred response.
 - No delivery record edit/delete route.
 - No stock in/out adjustment.
 - No `inventory` update.

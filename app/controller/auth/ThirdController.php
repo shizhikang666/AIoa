@@ -23,14 +23,14 @@ class ThirdController extends BaseSysController
 
     public function render(Request $request): Response
     {
-        return ApiResponse::fail('third-party auth render is deferred', 400, [
+        return ApiResponse::fail('第三方登录功能暂未开放', 400, [
             'platform' => (string)$request->get('platform', ''),
         ]);
     }
 
     public function callback(Request $request): Response
     {
-        return ApiResponse::fail('third-party auth callback is deferred', 400, [
+        return ApiResponse::fail('第三方登录回调功能暂未开放', 400, [
             'platform' => (string)$request->get('platform', ''),
         ]);
     }

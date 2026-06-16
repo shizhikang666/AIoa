@@ -22,6 +22,14 @@ Protected routes:
 
 - `GET /dev/email/page`
 - `GET /dev/email/detail`
+- `POST /dev/email/sendLocalTxt`
+- `POST /dev/email/sendLocalHtml`
+- `POST /dev/email/sendAliyunTxt`
+- `POST /dev/email/sendAliyunHtml`
+- `POST /dev/email/sendAliyunTmp`
+- `POST /dev/email/sendTencentTxt`
+- `POST /dev/email/sendTencentHtml`
+- `POST /dev/email/sendTencentTmp`
 - `POST /dev/email/delete`
 - `GET /dev/sms/page`
 - `GET /dev/sms/detail`
@@ -114,12 +122,13 @@ SMS-specific filters:
 - Delete also accepts `idList`, `ids`, or single `id` payloads for compatibility with existing ThinkPHP helpers.
 - Delete is tenant-scoped and updates only active rows in the current token tenant.
 - Delete sets `DELETE_FLAG = DELETED`, updates audit fields, and returns `data = null`.
-- SMS provider send wrappers are routed behind `AuthMiddleware` but intentionally return `code = 400` with `sms sending is deferred`.
+- Email and SMS provider send wrappers are routed behind `AuthMiddleware` but intentionally return `code = 400` deferred responses.
+- Email send wrappers do not read provider credentials, connect to local SMTP, call email provider SDKs, insert send records, or contact external services.
 - SMS provider send wrappers do not read provider credentials, call SMS SDKs, insert send records, or contact external services.
 
 ## Deliberate Exclusions
 
-- No email send routes are implemented.
+- Email send routes are controlled-deferred wrappers only; real email sending is not implemented.
 - SMS send routes are controlled-deferred wrappers only; real SMS sending is not implemented.
 - No local mail client, cloud email provider, or SMS provider integration is called.
 - No third-party credentials, API keys, database schema, or Java source files are changed.

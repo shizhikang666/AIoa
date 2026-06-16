@@ -21,7 +21,7 @@ class UserCenterAuthController extends BaseController
     {
         $payload = $this->tokenService->getPayload($this->tokenService->bearerFromRequest($request));
         if ($payload === null) {
-            return ApiResponse::fail('unauthenticated', 401);
+            return ApiResponse::fail('未登录或登录已过期', 401);
         }
 
         return ApiResponse::ok($this->menuService->loginMenu($payload));

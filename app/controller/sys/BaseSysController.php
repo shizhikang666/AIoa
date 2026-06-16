@@ -23,7 +23,7 @@ abstract class BaseSysController extends BaseController
 
             return ApiResponse::fail($exception->getMessage(), $status);
         } catch (Throwable) {
-            return ApiResponse::fail('server error', 500);
+            return ApiResponse::fail('服务器错误', 500);
         }
     }
 
@@ -31,7 +31,7 @@ abstract class BaseSysController extends BaseController
     {
         $value = trim((string)$request->param($key, ''));
         if ($value === '') {
-            throw new RuntimeException("missing {$key}", 400);
+            throw new RuntimeException("缺少必要参数：{$key}", 400);
         }
 
         return $value;

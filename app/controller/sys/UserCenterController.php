@@ -27,22 +27,22 @@ class UserCenterController extends BaseSysController
 
     public function findPasswordGetPhoneValidCode(): Response
     {
-        return ApiResponse::fail('password recovery phone verification is deferred', 400);
+        return ApiResponse::fail('手机找回密码验证码功能暂未开放', 400);
     }
 
     public function findPasswordGetEmailValidCode(): Response
     {
-        return ApiResponse::fail('password recovery email verification is deferred', 400);
+        return ApiResponse::fail('邮箱找回密码验证码功能暂未开放', 400);
     }
 
     public function findPasswordByPhone(): Response
     {
-        return ApiResponse::fail('password recovery by phone is deferred', 400);
+        return ApiResponse::fail('手机找回密码功能暂未开放', 400);
     }
 
     public function findPasswordByEmail(): Response
     {
-        return ApiResponse::fail('password recovery by email is deferred', 400);
+        return ApiResponse::fail('邮箱找回密码功能暂未开放', 400);
     }
 
     public function loginOrgTree(Request $request): Response

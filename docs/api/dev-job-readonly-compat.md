@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice adds authenticated query compatibility plus safe metadata delete compatibility for Java scheduled-job endpoints.
+This slice adds authenticated query compatibility plus safe metadata add/edit/delete compatibility for Java scheduled-job endpoints.
 
 ## Java Reference
 
@@ -20,6 +20,11 @@ Protected routes:
 - `GET /dev/job/list`
 - `GET /dev/job/detail`
 - `GET /dev/job/getActionClass`
+- `POST /dev/job/add`
+- `POST /dev/job/edit`
+- `POST /dev/job/stopJob`
+- `POST /dev/job/runJob`
+- `POST /dev/job/runJobNow`
 - `POST /dev/job/delete`
 
 ## Response Shape
@@ -79,23 +84,22 @@ Supported sort fields are:
 - `page` and `list` follow Java filtering behavior for `category`, `jobStatus`, and `searchKey`.
 - Default sort is `SORT_CODE asc, ID asc`, matching Java's default `sortCode` ordering.
 - Java `getActionClass` scans Spring `CommonTimerTaskRunner` beans. ThinkPHP cannot execute Java beans, so this slice returns distinct stored `ACTION_CLASS` values from active `dev_job` rows as read-only compatibility data.
+- `add` and `edit` are narrow metadata maintenance endpoints. They require Java-style fields, validate `FRM`/`BIZ` category, validate Java-style cron text shape, require `actionClass` to come from the current ThinkPHP compatibility action-class list, reject duplicate active `ACTION_CLASS + CRON_EXPRESSION`, create new jobs as `STOPPED`, and preserve `CODE` plus `JOB_STATUS` on edit.
+- `edit` rejects active rows currently marked `RUNNING`.
 - `delete` accepts Java-style array payloads such as `[{ "id": "..." }]`, rejects malformed mixed payloads before any write, marks rows with `DELETE_FLAG = DELETED`, and returns `data = null`.
-- Java removes running cron entries through `CronUtil.remove` before deleting metadata. ThinkPHP does not yet run a scheduler, so this compatibility route only changes metadata and does not start, stop, or execute jobs.
+- Java starts, stops, removes, and executes cron entries through Hutool/Spring runtime hooks. ThinkPHP does not yet run a scheduler, so these compatibility routes only change metadata and do not start, stop, register, remove, or execute jobs.
 
 ## Deliberate Exclusions
 
-- No `/dev/job/add` route is implemented.
-- No `/dev/job/edit` route is implemented.
-- No `/dev/job/stopJob` route is implemented.
-- No `/dev/job/runJob` route is implemented.
-- No `/dev/job/runJobNow` route is implemented.
+- `/dev/job/stopJob`, `/runJob`, and `/runJobNow` return controlled `code = 400` deferred responses.
+- Real scheduler stop, run, and run-now behavior remains deferred.
 - No scheduler is started or stopped.
 - No job class is executed.
 - No database schema or Java source files are changed.
 
 ## Later Work
 
-Job mutation and execution need a dedicated scheduler design for ThinkPHP, permission checks, audit logging, cron validation, class allow-listing, and a safe migration strategy for Java task classes.
+Job execution needs a dedicated scheduler design for ThinkPHP, permission checks, audit logging, full cron validation, class allow-listing, and a safe migration strategy for Java task classes.
 
 ## 2026-06-15 HTTP Smoke Coverage
 
@@ -107,3 +111,20 @@ Job mutation and execution need a dedicated scheduler design for ThinkPHP, permi
 - `GET /dev/job/getActionClass`
 
 The smoke asserts Java-style paging keys and action-class list shape. It intentionally does not call delete, add, edit, stop, run, run-now, scheduler lifecycle, job class execution, or data-change behavior.
+
+## 2026-06-16 Write Smoke Coverage
+
+`scripts/dev-job-write-http-smoke.ps1` now covers authenticated metadata writes for:
+
+- no-token rejection on `POST /dev/job/add`;
+- add and detail readback for a temporary job row;
+- generated `CODE` length and default `JOB_STATUS = STOPPED`;
+- duplicate active `ACTION_CLASS + CRON_EXPRESSION` rejection;
+- invalid category rejection;
+- invalid cron-expression rejection;
+- unsupported action-class rejection;
+- edit field updates while preserving `CODE` and `JOB_STATUS`;
+- running-job edit rejection;
+- cleanup of only temporary `CODEX_JOB_` rows.
+
+The write smoke intentionally does not call `stopJob`, `runJob`, `runJobNow`, scheduler registration/removal, job class execution, provider calls, notifications, cache invalidation, data-change events, Java source changes, or schema changes.
