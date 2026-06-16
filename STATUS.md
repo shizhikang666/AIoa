@@ -9390,3 +9390,51 @@ Agent: api-agent
 
 - Commit this slice as `fix: stabilize workflow detail reads`.
 - Next candidate: cloud storage cleanup/provider planning after configuration policy is confirmed, or another targeted browser smoke only after selecting a concrete page and forbidden request pattern.
+
+## 2026-06-16 08:52 +08:00 - test-agent/frontend-agent - Sale-Project DealProjectList Browser Smoke
+
+### Completed
+
+- Started the local runtime bundle, ThinkPHP backend on port `82`, and Vue frontend on port `83`.
+- Ran `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`; runtime and backend were ready, Vue needed a cold-start wait before binding `83`.
+- Ran full backend/read preflight with `.\scripts\project-preflight.ps1 -SkipWeb`; all runtime, frontend API method, authenticated HTTP read, SSE, and whitespace checks passed.
+- Ran a targeted headless Chrome CDP browser smoke for `/biz/saleproject/dealProjectList` using a temporary local auth token and temporary browser profile.
+- Injected the same frontend cache shape used after login (`TOKEN`, `USER_INFO`, `MENU`, `SYS_CONFIG`, `SYS_USER_PROCESS_CONFIG`, `DICT_TYPE_TREE_DATA`, and module id) without printing secrets.
+- Verified the page rendered 5 table rows and clicking the first project link opened the detail drawer.
+- Observed only read/SSE backend requests:
+  - `/api/dev/message/createSseConnect`
+  - `/api/biz/user/orgTreeSelector`
+  - `/api/biz/saleproject/page`
+  - `/api/biz/task/count`
+  - `/api/sys/index/message/list`
+  - `/api/biz/process/query`
+  - `/api/biz/saleproject/detail`
+  - `/api/biz/saleprojectreissueorder/list/query`
+  - `/api/biz/bizfilerelation/list`
+  - `/api/biz/process/project/runtime/query/list`
+  - `/api/biz/returnorder/query`
+  - `/api/biz/customer/detail`
+- Updated the progress dashboard and problem log.
+
+### Modified Files
+
+- `docs/tasks/refactor-progress-dashboard.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Test Results
+
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean`: passed after services were started and Vue finished cold-starting.
+- `.\scripts\project-preflight.ps1 -SkipWeb`: passed.
+- Browser smoke: passed; no forbidden write/upload/delete/approval/complete/provider requests, no failed backend API statuses, no uncanceled failed loads, and no blocking console/page errors. The known Ant Design Vue Descriptions span warning was treated as non-blocking.
+
+### Current Issues
+
+- This is browser verification only; no business code, frontend source, Java source, schema, `.env`, production data, or Git history was changed.
+- The local frontend took about 81 seconds to cold-start before port `83` was ready.
+- Browser automation was done through a temporary Chrome CDP script because the project still has no local Playwright/Puppeteer dependency.
+
+### Next Plan
+
+- Continue with cloud storage cleanup/provider planning after configuration policy is confirmed, or pick another concrete browser-visible page with an explicit forbidden request pattern before opening side-effect-heavy sale-project, workflow, finance, stock, or provider writes.

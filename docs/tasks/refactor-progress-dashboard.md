@@ -1,6 +1,6 @@
 # Java OA To ThinkPHP Refactor Progress Dashboard
 
-Last updated: 2026-06-15 18:20 +08:00
+Last updated: 2026-06-16 08:52 +08:00
 
 Agent: merge-agent / main control agent
 
@@ -36,6 +36,7 @@ This estimate uses the final goal as the denominator: one complete runnable Thin
 
 ## Recent Verification Notes
 
+- 2026-06-16 sale-project dealProjectList browser smoke: `/biz/saleproject/dealProjectList` rendered 5 rows, opened the first project detail drawer, and observed only read/SSE backend requests with no forbidden write, upload, delete, approval, complete, or provider requests.
 - 2026-06-15 workflow read-only compatibility: `/biz/task/page`, `/biz/task/history/page`, `/biz/process/page`, `/biz/process/all/page`, and `/biz/ccrecords/page` returned HTTP 200 with `code=200` against the local runtime.
 - 2026-06-15 workflow query-list guard: `/biz/process/query/list` now accepts Java-style JSON body filters and rejects empty filters with `400`; full `project-preflight` passed.
 - 2026-06-15 workflow detail browser smoke: `/biz/biztask/mystarttask` rendered 3 rows, opened a process detail drawer, called process detail/fileList/variable reads, and observed no console errors or forbidden write/upload/delete requests.
