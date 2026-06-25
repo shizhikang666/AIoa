@@ -104,4 +104,26 @@ These behaviors need a later write-flow design.
 - `GET /biz/bizteamprojecttaskcomment/list`
 - `GET /biz/bizteamprojecttaskcomment/detail` when a visible task comment exists
 
-The smoke asserts paging/list wrappers, task/category/comment display fields, and task-detail `users`. It intentionally does not call category add/edit/sort/delete, task add/edit/delete/user-edit, task-comment add/edit/delete, notification, realtime, workflow, or data-change behavior.
+The read smoke asserts paging/list wrappers, task/category/comment display fields, and task-detail `users`. It intentionally does not call write routes.
+
+## 2026-06-18 HTTP Write Smoke Coverage
+
+`scripts/team-project-task-write-http-smoke.ps1` covers the DB-backed team-project task maintenance flow with a temporary project, temporary member user, and cleanup:
+
+- no-token rejection on a protected task-category write
+- `POST /biz/bizteamproject/add`
+- `POST /biz/bizteamprojectuser/add`
+- `POST /biz/bizteamprojecttaskcategory/add`
+- `POST /biz/bizteamprojecttaskcategory/edit`
+- `POST /biz/bizteamprojecttaskcategory/sort/edit`
+- `POST /biz/bizteamprojecttaskcategory/delete`
+- `POST /biz/bizteamprojecttask/add`
+- `POST /biz/bizteamprojecttask/edit`
+- `POST /biz/bizteamprojecttask/delete`
+- `POST /biz/bizteamprojecttask/user/edit`
+- `POST /biz/bizteamprojecttaskcomment/add`
+- `POST /biz/bizteamprojecttaskcomment/edit`
+- `POST /biz/bizteamprojecttaskcomment/delete`
+- `POST /biz/bizteamproject/delete`
+
+The write smoke verifies missing-field/missing-row guards, non-empty category delete rejection, invalid task status rejection, task assignment remove/re-add behavior, task comment attachment metadata, logical-delete hiding, final database flags, task version increments, and cleanup. Notification, realtime, workflow, generated task-log, drag-order side effects, and data-change events remain deferred.

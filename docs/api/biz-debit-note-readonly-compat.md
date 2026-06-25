@@ -26,6 +26,8 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizdebitnote/list` | Non-paginated debit-note list. |
 | GET | `/biz/bizdebitnote/detail` | Read-only detail lookup. |
 | POST | `/biz/bizdebitnote/mark/success/edit` | Marks one debit note as settled. |
+| POST | `/biz/bizdebitnote/batchRepayment/edit` | Creates loan-repayment payment rows for selected debit notes. |
+| POST | `/biz/bizdebitnote/history/add` | Creates one historical debit note from a selected settlement account. |
 
 ## Write Compatibility
 
@@ -42,12 +44,47 @@ The ThinkPHP implementation intentionally matches Java `BizDebitNoteServiceImpl.
 
 It does not update `AMOUNT`, `SETTLEMENT_AMOUNT`, `HISTORY_AMOUNT`, `EXPENDITURE_RECORD_ID`, settlement account balances, settlement account statements, payment records, or expenditure records.
 
+`POST /biz/bizdebitnote/batchRepayment/edit` accepts the copied frontend batch repayment body:
+
+- `accountId`
+- `payer`
+- `payerTime`
+- optional `remark`
+- `items[]` with `id` and positive `amount`
+
+The ThinkPHP implementation follows Java `BizDebitNoteServiceImpl.batchRepayment` plus the loan-repayment event effect that Java normally triggers through `BizPaymentRecordAddEventHandler`:
+
+- validates duplicate, missing, invalid, and over-settlement items before writing;
+- locks the selected active debit notes for the current tenant;
+- creates one `biz_payment_record` and one `settlement_account_statement` per item through the settlement-account quick-income path;
+- uses fixed `SETTLEMENT_CATEGORY = LoanRepayment` and `OBJECT_ID = debit note id`;
+- increments the target settlement account balance;
+- updates `biz_debit_note.SETTLEMENT_AMOUNT`;
+- sets `PLAY_STATUS = AlreadySettled` when the debit note is fully settled, otherwise `Unsettled`;
+- increments `VERSION`.
+
+`POST /biz/bizdebitnote/history/add` accepts the copied frontend historical debit-note body:
+
+- `accountId`
+- `amount`
+- `historyAmount`
+- `createTime`
+- `remark`
+
+The ThinkPHP implementation follows Java `BizDebitNoteServiceImpl.add(BizDebitNoteHistoryAddParam)` as a narrow debit-note insert:
+
+- validates required fields, positive `amount`, nonnegative `historyAmount`, valid `createTime`, and `historyAmount <= amount`;
+- reads the selected settlement account for tenant and organization context;
+- inserts one `biz_debit_note` row with `EXPENDITURE_RECORD_ID = null`;
+- sets `HISTORY_AMOUNT` and `SETTLEMENT_AMOUNT` to the submitted `historyAmount`;
+- sets `PLAY_STATUS = AlreadySettled` when `historyAmount == amount`, otherwise `Unsettled`;
+- does not create payment records, expenditure records, or settlement-account statements;
+- does not change settlement-account balances.
+
 ## Explicitly Deferred Routes
 
-These Java/frontend routes are not implemented in this slice because they mutate payment records, settlement accounts, or history data beyond the single Java mark-settlement update:
+These Java/frontend routes remain deferred:
 
-- `POST /biz/bizdebitnote/history/add`
-- `POST /biz/bizdebitnote/batchRepayment/edit`
 - `POST /biz/bizdebitnote/add`
 - `POST /biz/bizdebitnote/edit`
 - `POST /biz/bizdebitnote/delete`
@@ -109,8 +146,9 @@ Rows return frontend-friendly camelCase fields:
 ## Notes
 
 - Java page/list conditionally joins expenditure records for account/category filters. This ThinkPHP read query always uses left joins for display enrichment.
-- Java history-add and batch-repayment flows can change payment records, settlement-account data, and debit-note settlement amounts. They still need a later transactional write design before implementation.
-- This slice does not modify Java source, database schema, Composer files, `.env`, or any account/statement/payment side-effect endpoint.
+- Java batch-repayment can change payment records, settlement-account data, and debit-note settlement amounts. ThinkPHP implements batch repayment as a narrow transaction and explicitly applies the debit-note settlement correction that Java would normally trigger through its event handler.
+- Java history-add creates a debit-note row with historical settlement amount. ThinkPHP implements it as a debit-note-only insert and intentionally does not create payment/expenditure/statement rows or account-balance changes.
+- This compatibility work does not modify Java source, database schema, Composer files, or `.env`.
 
 ## 2026-06-15 HTTP Smoke Coverage
 
@@ -121,3 +159,26 @@ Rows return frontend-friendly camelCase fields:
 - `GET /biz/bizdebitnote/detail` when a visible page row exists
 
 The smoke checks Java-style paging keys and stable frontend-visible fields such as `expenditureRecordId`, `playStatus`, `amount`, `settlementAmount`, `historyAmount`, `version`, `accountName`, `accountNumber`, `settlementCategory`, `category`, and `orgName`. It does not call mark-success, history-add, batch-repayment, add, edit, delete, settlement-account, statement, payment, expenditure, workflow, provider, or finance mutation behavior.
+
+## 2026-06-17 Batch Repayment Smoke Coverage
+
+`scripts/biz-debit-note-batch-repayment-http-smoke.ps1` verifies authenticated quick-repayment behavior against the local backend:
+
+- no-token rejection;
+- missing `accountId`, empty items, zero amount, over amount, missing note, and missing account rollback;
+- generated `biz_payment_record` detail readback;
+- generated `settlement_account_statement` values;
+- target settlement-account balance increase;
+- `biz_debit_note.SETTLEMENT_AMOUNT`, `PLAY_STATUS`, and `VERSION` update;
+- unrelated account/expenditure/collection/debit counts stay stable except for the expected payment and statement rows.
+
+## 2026-06-17 History Add Smoke Coverage
+
+`scripts/biz-debit-note-history-add-http-smoke.ps1` verifies authenticated historical debit-note creation against the local backend:
+
+- no-token rejection;
+- missing `accountId`, zero amount, negative `historyAmount`, invalid `createTime`, over amount, and missing account rollback;
+- debit-note detail readback;
+- `biz_debit_note.EXPENDITURE_RECORD_ID`, `AMOUNT`, `HISTORY_AMOUNT`, `SETTLEMENT_AMOUNT`, `PLAY_STATUS`, `ORG`, `TENANT_ID`, `DELETE_FLAG`, `VERSION`, and `CREATE_TIME` values;
+- settlement-account balance/version preservation;
+- payment, statement, account, expenditure, collection, and debit counts stay stable except for the expected single debit-note row.

@@ -45,6 +45,33 @@ This slice keeps the imported Vue frontend as a copied baseline and only adapts 
 - Field/dictionary display alignment for org/user tables.
 - Missing SSE route `/dev/message/createSseConnect`.
 
+## 2026-06-22 Workflow General Start Runtime
+
+Agent: api-agent / test-agent
+
+### Scope
+
+No frontend source changes were required. The existing copied workflow start forms can now submit `payment`, `reimbursement`, `makePayment`, `procure`, and `procure/warehouse` start requests to ThinkPHP.
+
+### Backend Result
+
+- The five non-project start routes create first-step workflow runtime/history rows and an active `Activity_approval` task.
+- Submitted `copyUserIdList` values create workflow CC rows, and submitted `fileIdList` values create workflow file relations.
+- The created first-step processes can be read through existing task/process/detail/query routes and cancelled before approval.
+- `Process_payment` approval now completes and creates the payment-in settlement statement/payment record through the ThinkPHP settlement-account service.
+- `Process_reimbursement` and `Process_make_payment` approval now advances the first approval task into `Activity_pay_approval`; finance approval creates the payment-out settlement statement/expenditure record through the ThinkPHP settlement-account service.
+- `Process_procure` approval now advances first approval into procurement confirmation, supports optional general-office approval, and creates purchase-order rows through the ThinkPHP purchase-order service.
+- `Process_procure_in_warehouse` approval now completes and performs purchase-order stock-in through the ThinkPHP purchase-order service.
+- Existing copied project-init forms can now submit `/biz/process/project/init/start` without frontend source changes. The backend creates `Process_sale_project_init`, moves the sale project to `PENDING_APPROVAL`, and handles cancel/reject/approve side effects.
+- Existing copied project-play forms can now submit `/biz/process/project/play/start` without frontend source changes. The backend creates `Process_sale_project_play`; first approval opens the finance confirmation task, and final finance approval writes collection payment rows and recalculates project payment status.
+- Other project workflow forms for delivery, reissue, and return remain deferred where project Java delegate side effects are not yet replaced in PHP.
+
+### Frontend Impact
+
+- Existing submit buttons should no longer receive a controlled-deferred response for these five starts.
+- Existing task detail/read pages can show the newly created first-step tasks.
+- Approving payment tasks now performs payment-in settlement; approving reimbursement/makePayment tasks now opens the finance confirmation step and performs payment-out settlement on finance approval; approving procurement tasks now opens procurement confirmation and can create purchase-order rows after final approval; approving procurement-warehouse tasks now performs stock-in; approving project-init tasks now applies the bounded sale-project init side effects; approving project-play tasks now opens finance confirmation and applies bounded project collection side effects on final finance approval. Remaining delivery/reissue/return project side effects still return a controlled error until implemented.
+
 ## 2026-06-03 Summary Statistics Joint Smoke
 
 Agent: test-agent
@@ -285,8 +312,23 @@ Agent: merge-agent / api-agent / test-agent / docs-agent
 ### Frontend Notes
 
 - Payment-record form save can now use `/biz/bizpaymentrecord/edit` only for payer-time correction.
-- `/biz/bizpaymentrecord/add`, `/biz/bizpaymentrecord/edit/account`, and `/biz/bizpaymentrecord/delete` remain controlled-deferred and should not be treated as implemented business writes.
+- `/biz/bizpaymentrecord/add` and `/biz/bizpaymentrecord/delete` remain controlled-deferred and should not be treated as implemented business writes.
 - `scripts/biz-payment-record-edit-http-smoke.ps1` covers no-token rejection, missing-field rejection, detail readback, linked-statement sync, ignored client-spoofed fields, missing-statement rollback, and unchanged related-table counts.
+
+## 2026-06-17 Payment Record Account Switch
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/bizpaymentrecord/edit/account` is now active as a narrow Java-compatible settlement-account switch endpoint. It accepts `id`, `currentTargetId`, and `targetId`, validates the current record and linked statement account, subtracts the stored payment amount from the current settlement account, adds it to the target settlement account, updates the payment record target/org, and syncs the linked statement account.
+
+### Frontend Notes
+
+- Payment-record account switch controls can now call `/biz/bizpaymentrecord/edit/account` for stored-amount account reassignment.
+- The backend ignores client-spoofed amount, object, serial, process, category, user, org, audit, and delete fields.
+- `/biz/bizpaymentrecord/add` and `/biz/bizpaymentrecord/delete` remain controlled-deferred.
+- `scripts/biz-payment-record-edit-account-http-smoke.ps1` covers no-token rejection, missing target, same-account rejection, current-account mismatch, missing-statement rollback, detail readback, balance movement, statement account sync, ignored spoofed fields, and unchanged related-table counts.
 
 ## 2026-06-16 Expenditure Record Correction
 
@@ -301,8 +343,73 @@ Agent: merge-agent / api-agent / test-agent / docs-agent
 - The settlement-account detail expenditure tab can save payer-time corrections through the existing expenditure-record API wrapper.
 - The expenditure-record list/category form can save allowed `settlementCategory` corrections through the same route.
 - Object-linked expenditure records and protected category transitions are rejected by the backend.
-- `/biz/bizexpenditurerecord/add`, `/biz/bizexpenditurerecord/edit/account`, and `/biz/bizexpenditurerecord/delete` remain controlled-deferred and should not be treated as implemented business writes.
+- `/biz/bizexpenditurerecord/add` and `/biz/bizexpenditurerecord/delete` remain controlled-deferred and should not be treated as implemented business writes.
 - `scripts/biz-expenditure-record-edit-http-smoke.ps1` covers no-token and missing-id rejection, detail readback, linked-statement sync, category guard rejection, object guard rejection, missing-statement rollback, ignored client-spoofed fields, and unchanged related-table counts.
+
+## 2026-06-17 Expenditure Record Account Switch
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/bizexpenditurerecord/edit/account` is now active as a narrow Java-compatible settlement-account switch endpoint. It accepts `id`, `currentTargetId`, and `targetId`, validates the current record and linked statement account, adds the stored expenditure amount back to the current settlement account, subtracts it from the target settlement account, updates the expenditure record target account, and syncs the linked statement account.
+
+### Frontend Notes
+
+- Expenditure-record account switch controls can now call `/biz/bizexpenditurerecord/edit/account` for stored-amount account reassignment.
+- The backend ignores client-spoofed amount, object, serial, process, category, user, org, audit, and delete fields.
+- The expenditure record `org` is preserved during account switch, matching Java's record update behavior.
+- `/biz/bizexpenditurerecord/add` and `/biz/bizexpenditurerecord/delete` remain controlled-deferred.
+- `scripts/biz-expenditure-record-edit-account-http-smoke.ps1` covers no-token rejection, missing target, same-account rejection, current-account mismatch, missing-statement rollback, detail readback, balance movement, statement account sync, ignored spoofed fields, and unchanged related-table counts.
+
+## 2026-06-17 Settlement Account Payment Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/settlementaccount/payment/add` is now active as the settlement-account income form's quick-add endpoint. It accepts `targetId`, `settlementCategory`, `payer`, `payerTime`, positive `amount`, and optional object/bank/remark fields, then creates the linked income statement and payment record while incrementing the selected settlement account balance.
+
+### Frontend Notes
+
+- The existing `settlementAccountApi.settlementAccountPayment(data)` wrapper can submit the income form without frontend source changes.
+- The backend accepts both the frontend's joined category string and array-style category values by joining arrays with `/`.
+- `/biz/settlementaccount/expenses/add` and `/transfer/add` are now covered by the subsequent quick-expense and transfer slices; `/delete` remains controlled-deferred.
+- Java data-change events and workflow hooks remain out of scope.
+- `scripts/settlement-account-payment-add-http-smoke.ps1` covers no-token rejection, validation failures, missing-account rollback, detail readback through `/biz/bizpaymentrecord/detail`, statement/payment/account state, unchanged unrelated finance counts, and cleanup.
+
+## 2026-06-17 Settlement Account Expenses Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/settlementaccount/expenses/add` is now active as the settlement-account expense form's quick-add endpoint. It accepts `targetId`, `settlementCategory`, `payer`, `payerTime`, positive `amount`, and optional object/bank/remark fields, then creates the linked expense statement and expenditure record while decrementing the selected settlement account balance.
+
+### Frontend Notes
+
+- The existing `settlementAccountApi.settlementAccountExpenses(data)` wrapper can submit the expense form without frontend source changes.
+- `/biz/settlementaccount/transfer/add` is covered by the subsequent transfer slice, and `/biz/settlementaccount/delete` is covered by the protected logical-delete slice.
+- Java data-change events, workflow hooks, and collection-receipt settlement propagation remain out of scope.
+- `scripts/settlement-account-expenses-add-http-smoke.ps1` covers no-token rejection, validation failures, missing-account rollback, detail readback through `/biz/bizexpenditurerecord/detail`, statement/expenditure/account state, unchanged unrelated finance counts, and cleanup.
+
+## 2026-06-17 Settlement Account Transfer Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/settlementaccount/transfer/add` is now active as the settlement-account transfer form endpoint. It accepts `expensesAccountId`, `revenueAccountId`, `payerTime`, positive `amount`, and optional `remark`, then creates an expense-side statement/expenditure record and an income-side statement/payment record while moving the amount between the two selected settlement-account balances.
+
+### Frontend Notes
+
+- The existing `settlementAccountApi.settlementAccountTransfer(data)` wrapper can submit the transfer form without frontend source changes.
+- The backend uses fixed settlement category `dealings`, matching Java transfer behavior.
+- The backend derives payer and bank account fields from the opposite settlement account, matching Java `getSettlementAccountCorrectParam`.
+- Same-account transfers are rejected before any write.
+- `/biz/settlementaccount/delete` is covered by the protected logical-delete slice; referenced accounts are rejected.
+- Java data-change events, workflow hooks, collection-receipt settlement propagation, and debit-note repayment propagation remain out of scope.
+- `scripts/settlement-account-transfer-add-http-smoke.ps1` covers no-token rejection, validation failures, same-account rejection, missing-account rollback, detail readback through expenditure/payment detail routes, both statement rows, both finance rows, both account balances, unchanged unrelated finance counts, and cleanup.
 
 ## 2026-06-03 Sale Project Detail Remaining Tab API Smoke
 
@@ -1170,6 +1277,55 @@ This slice supports the copied warehouse maintenance wrapper and visible warehou
 
 - Inventory stock updates, delivery records, purchase-order writes, sale-project invoice writes, workflow behavior, and warehouse side effects remain out of scope.
 
+## 2026-06-17 Inventory Add Registration Compatibility
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports the copied inventory page registration action:
+
+- `snowy-admin-web/src/api/biz/inventoryApi.js`
+- `snowy-admin-web/src/views/biz/inventory/index.vue`
+
+### Result
+
+- `/biz/inventory/add` is now routed as a protected POST endpoint.
+- The endpoint accepts Java/frontend `warehousesId` and `productIds`.
+- It validates the active warehouse and active enabled products in the current tenant.
+- It rejects duplicate product ids and deleted unique-key conflicts.
+- It inserts missing warehouse/product inventory rows with `CURRENT_COUNT = 0`.
+- It preserves existing active row counts, normalizes null counts to zero, refreshes audit fields, and increments `VERSION`.
+- `scripts/inventory-add-http-smoke.ps1` verifies no-token, validation, missing-product rollback, existing-row preservation, inserted-row detail readback, and no delivery-row creation.
+
+### Deferred
+
+- Inventory delete, stock movement, delivery records, purchase-order warehouse entry, workflow behavior, Java data-change event publishing, and warehouse stock side effects remain out of scope.
+
+## 2026-06-18 Delivery Record Add Stocktake Compatibility
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports the copied inventory page stocktake action:
+
+- `snowy-admin-web/src/api/biz/warehouses/deliveryRecordApi.js`
+- `snowy-admin-web/src/views/biz/inventory/index.vue`
+
+### Result
+
+- `/biz/warehouses/delivery/add` is now routed as a protected POST endpoint.
+- The endpoint accepts Java/frontend `warehousesId`, `productId`, target `amount`, `deliveryTime`, and optional `remark`.
+- Submitted `amount` is treated as the desired final inventory count, matching Java's delivery service behavior.
+- It validates the active warehouse, active enabled product, and existing active warehouse/product inventory row.
+- It locks the inventory row, writes one system `IN` or `OUT` `delivery_record` row for non-zero movement, updates `inventory.CURRENT_COUNT` to the submitted target, and increments `VERSION`.
+- `scripts/delivery-record-add-http-smoke.ps1` covers no-token, validation, missing-inventory rollback, IN movement, OUT movement, no-op same target, detail readback, and cleanup. Execution is pending because local MySQL `MySQL80` was stopped and failed to start on 2026-06-18.
+
+### Deferred
+
+- Purchase-order warehouse entry, broader stock workflows, finance, workflow, Java event bus/data-change publishing, frontend source changes, Java source changes, database schema changes, Composer/npm changes, `.env` changes, and production data sync remain out of scope.
+
 ## 2026-06-06 Product Status And Reconciliation Compatibility
 
 Agent: api-agent / frontend-agent
@@ -1831,3 +1987,243 @@ The copied payroll list page calls `/biz/bizpayroll/export` with `responseType: 
 ### Deferred
 
 - Payroll import parsing, salary generation, payroll add, EasyExcel-style xlsx rendering/styling, workflow hooks, leave recalculation, and business side effects remain out of scope.
+
+## 2026-06-18 Payroll Generate Add
+
+The copied payroll list page can post the selected user ids, salary month, and social-security value to `/biz/bizpayroll/generate/add`. This route is now active as Java-compatible payroll generation.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing Java-style payload is accepted as-is: `user`, `salaryTime`, and `socialSecurity`.
+- Successful submissions create payroll rows for the selected users and can be followed by the existing payroll list refresh.
+
+### Deferred
+
+- Payroll import parsing, payroll add, EasyExcel-style xlsx rendering/styling, workflow hooks, Java data-change events, and duplicate-month prevention remain out of scope.
+
+## 2026-06-18 Payroll Import
+
+The copied payroll import dialog can post multipart `file` plus `orgId` to `/biz/bizpayroll/import`. This route is now active as focused Java-template payroll import.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing Java template layout is accepted: salary month in row 1 column A and data rows after the three header rows.
+- The response includes `totalCount`, `successCount`, `errorCount`, and `errorDetail`, so existing import-result UI can display partial success.
+
+### Deferred
+
+- Payroll add, EasyExcel-style xlsx export rendering/styling, workflow hooks, Java data-change events, and duplicate-month prevention remain out of scope.
+
+## 2026-06-17 Collection Receipt Batch Expenditure
+
+The copied collection-receipt quick-settlement form posts `accountId`, `payer`, `payerTime`, `remark`, and selected `items` to `/biz/bizcollectionreceipt/batchExpenditure/edit`. This route is now active as a narrow repayment quick-settlement endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing form payload is accepted as-is.
+- Successful submissions create repayment expenditure/statement rows, update the selected receipt settlement amount/status, and refresh the existing page through the copied `successful` event flow.
+
+### Deferred
+
+- Collection-receipt add/edit/delete, Java event-bus wiring, workflow hooks, and broader finance rollback/delete behavior remain out of scope.
+
+## 2026-06-17 Debit Note Batch Repayment
+
+The copied debit-note quick-repayment form posts `accountId`, `payer`, `payerTime`, `remark`, and selected `items` to `/biz/bizdebitnote/batchRepayment/edit`. This route is now active as a narrow loan-repayment quick-settlement endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing form payload is accepted as-is.
+- Successful submissions create `LoanRepayment` payment/statement rows, update the selected debit-note settlement amount/status, and refresh the existing page through the copied `successful` event flow.
+
+### Deferred
+
+- Debit-note add/edit/delete, Java event-bus wiring, workflow hooks, collection-receipt settlement, and broader finance rollback/delete behavior remain out of scope.
+
+## 2026-06-17 Debit Note History Add
+
+The copied debit-note historical entry form posts `accountId`, `amount`, `historyAmount`, `createTime`, and `remark` to `/biz/bizdebitnote/history/add`. This route is now active as a narrow historical debit-note creation endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing form payload is accepted as-is.
+- Successful submissions create one debit-note row, set its historical settlement amount, and refresh the existing page through the copied `successful` event flow.
+- The selected settlement account supplies organization/tenant context only; account balances and finance ledgers are not changed.
+
+### Deferred
+
+- Debit-note add/edit/delete, Java event-bus wiring, workflow hooks, collection-receipt settlement, and broader finance rollback/delete behavior remain out of scope.
+
+## 2026-06-17 Purchase Order Cancel
+
+The copied purchase-order page posts `{ id }` to `/biz/bizpurchaseorder/cancel` from the row-level cancel confirmation. This route is now active as a narrow purchase-order status marker.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing cancel payload is accepted as-is.
+- Successful submissions set the order `settlementStatus` to `Canceled` and refresh the existing table through the copied page flow.
+- Completed settlement and in-warehouse orders are rejected server-side in addition to the existing frontend disabled states.
+
+### Deferred
+
+- Purchase-order add/delete, inventory rollback, expenditure creation, workflow hooks, Java data-change events, and broader purchase rollback behavior remain out of scope. Normal edit, audit edit, single-order warehouse one add, and batch warehouse add are covered by separate narrow slices.
+
+## 2026-06-17 Purchase Order Edit
+
+The copied purchase-order edit drawer posts the existing order form to `/biz/bizpurchaseorder/edit`. This route is now active as a narrow Java-compatible normal-order edit.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing payload is accepted as-is, including `id`, `amount`, and `productList`.
+- Submitted product items update only existing purchase-order item amount and cost fields.
+- Completed settlement orders, orders with goods-expenditure rows, missing orders, empty product lists, duplicate item ids, and item ids from another order are rejected server-side.
+- Successful submissions return the edited order id and updated item count, then the copied page can refresh through its existing flow.
+
+### Deferred
+
+- Purchase-order add/delete, inventory rollback, expenditure creation, settlement-account statements, workflow hooks, Java data-change events, frontend source changes, and broader purchase rollback behavior remain out of scope. Audit edit, single-order warehouse one add, and batch warehouse add are covered separately as narrow slices.
+
+## 2026-06-17 Purchase Order Audit Edit
+
+The copied purchase-order audit remediation drawer posts the existing order form to `/biz/bizpurchaseorder/audit/edit`. This route is now active as a narrow Java-compatible audit-remediation edit.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing payload is accepted as-is, including `id`, `amount`, and `productList`.
+- Submitted product items update only existing purchase-order item amount and cost fields.
+- Unlike normal `/biz/bizpurchaseorder/edit`, audit edit intentionally allows completed orders and orders with goods-expenditure rows, matching Java `editAudit`.
+- Missing orders, empty product lists, duplicate item ids, and item ids from another order are rejected server-side.
+- Successful submissions return the edited order id and updated item count, then the copied page can refresh through its existing flow.
+
+### Deferred
+
+- Purchase-order add/delete, inventory rollback, expenditure creation, settlement-account statements, workflow hooks, Java data-change events, frontend source changes, and broader purchase rollback behavior remain out of scope. Single-order warehouse one add and batch warehouse add are covered separately as narrow stock-in slices.
+
+## 2026-06-18 Purchase Order Warehouse One Add
+
+The copied purchase-order one-click warehouse form posts `orderId`, `warehousesId`, and optional `remark` to `/biz/bizpurchaseorder/warehouse/one/add`. This route is now active as a Java-compatible single-order warehouse stock-in endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing form payload is accepted as-is.
+- Successful submissions create one `IN` delivery row per purchase-order item, update or create inventory rows, mark the order and items `IN_WAREHOUSE`, and refresh through the existing successful flow.
+- Already warehoused orders/items, missing warehouses, missing products, empty item lists, and unauthorized warehouse/order scopes are rejected server-side.
+
+### Deferred
+
+- Purchase-order add/delete, expenditure creation, settlement-account statements, workflow hooks, Java data-change event publishing, frontend source changes, and broader purchase rollback behavior remain out of scope. Batch warehouse add is covered separately as a narrow completed-order stock-in slice.
+
+## 2026-06-18 Purchase Order Warehouse Add
+
+The copied purchase-order batch warehouse action posts `warehousesId` to `/biz/bizpurchaseorder/warehouse/add`. This route is now active as a Java-compatible completed-order batch stock-in endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing payload is accepted as-is.
+- Successful submissions process visible completed purchase orders that are still `NOT_IN_WAREHOUSE`, create `IN` delivery rows, update or create inventory rows, mark processed orders/items `IN_WAREHOUSE`, and return the processed order ids/count for the existing page refresh flow.
+- Non-completed and already-in-warehouse orders are skipped by the server-side selection. No eligible orders returns `count = 0`.
+- Missing warehouses, missing products, invalid item quantities, and unauthorized order/warehouse scopes roll back the batch without partial delivery, inventory, item, or order mutation.
+
+### Deferred
+
+- Purchase-order add/delete, expenditure creation, settlement-account statements, workflow hooks, Java data-change event publishing, frontend source changes, and broader purchase rollback behavior remain out of scope.
+
+## 2026-06-18 Sale Project Visibility Edit
+
+The copied sale-project visibility controls post `projectId`, `visibilityState`, and optionally specimen fields to `/biz/saleproject/visibility/edit`. This route is now active as narrow sale-project visibility/specimen field maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing public visibility payload with `specimenCategory` is accepted as-is.
+- Existing copied private toggles that submit only `projectId` and `visibilityState` are accepted; the backend preserves existing specimen fields when those fields are omitted.
+- Successful submissions update only the sale-project visibility/specimen/audit/version fields and can use the existing page refresh flow.
+
+### Deferred
+
+- Sale-project add/edit/delete, deal edit, cancel, repeal, history add, special add, finance, invoice, inventory, delivery, workflow, attachment, notification, customer, and broader project-state side effects remain out of scope. Amount edit is covered separately below.
+
+## 2026-06-18 Sale Project Amount Edit
+
+The copied sale-project amount controls post `id`, `initPrice`, and optional `remark` to `/biz/saleproject/amount/edit`. This route is now active as focused Java-compatible sale-project amount maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing amount-change payload is accepted as-is.
+- Successful submissions update sale-project amount, collection/payment/project status, total/refund/return totals, audit/version fields, and create one `INIT_PRICE` field-change log row.
+- Over-collected projects are rejected server-side and roll back without extra version or change-log changes.
+
+### Deferred
+
+- Sale-project add/edit/delete, deal edit, cancel, repeal, history add, special add, workflow, attachment, notification, inventory, delivery, invoice, customer, and broader project-state side effects remain out of scope.
+
+## 2026-06-18 Sale Project Cancel
+
+The copied sale-project cancel control posts `id` to `/biz/saleproject/cancel`. This route is now active as Java-compatible WAIT_DELIVER rollback.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing cancel payload is accepted as-is.
+- Successful submissions move eligible projects from `WAIT_DELIVER` back to `FOLLOW`, refresh audit/version fields, and logically delete active invoicing rows for that project.
+- Projects in other states are rejected server-side and roll back without changing project or invoicing rows.
+
+### Deferred
+
+- Sale-project add/edit/delete, deal edit, repeal, history add, special add, workflow, payment/settlement correction, inventory, delivery, notifications, file cleanup, and Java data-change events remain out of scope.
+
+## 2026-06-18 Sale Project Repeal
+
+The copied sale-project repeal controls post Java-style arrays such as `[{ id, repealContent }]` to `/biz/saleproject/repeal`. This route is now active as Java-compatible FOLLOW-to-DISCARD discard maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing single-row and batch repeal payloads are accepted as-is.
+- Successful submissions move all selected visible `FOLLOW` projects to `DISCARD`, write `REPEAL_CONTENT` from the first submitted row/top-level field, and refresh audit/version fields.
+- Missing, unauthorized, deleted, or non-`FOLLOW` projects are rejected server-side and roll back without changing project or invoicing rows.
+
+### Deferred
+
+- Sale-project add/edit, deal edit, history add, special add, workflow, payment/settlement correction, inventory, delivery, invoice mutation, notifications, file cleanup, and Java data-change events remain out of scope. Delete is covered separately below.
+
+## 2026-06-18 Sale Project Delete
+
+The copied sale-project delete controls post Java-style arrays such as `[{ id }]` to `/biz/saleproject/delete`. This route is now active as Java-compatible FOLLOW-only logical delete maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing single-row and batch delete payloads are accepted as-is.
+- Successful submissions move all selected visible `FOLLOW` projects to `DISCARD`, set `DELETE_FLAG = DELETED`, and refresh audit/version fields.
+- Missing, unauthorized, already-deleted, or non-`FOLLOW` projects are rejected server-side and roll back without changing project or invoicing rows.
+
+### Deferred
+
+- Sale-project add/edit, history add, special add, workflow, payment/settlement correction, inventory, delivery, invoice mutation, product-item mutation, notifications, file cleanup, and Java data-change events remain out of scope. Deal edit is covered separately below.
+
+## 2026-06-18 Sale Project Deal Edit
+
+The copied sale-project deal form posts the cloned project record to `/biz/saleproject/deal/edit` when the project is no longer `FOLLOW`. This route is now active as Java-compatible delivery/freight field maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing copied payload is accepted as-is.
+- Successful submissions update only receipt unit, address, logistics category, consignee, phone, project remark, freight, freight payment category, delivery note, and audit/version fields.
+- Spoofed protected fields such as project state, delete flag, and amount totals are ignored server-side.
+
+### Deferred
+
+- Sale-project add/edit, history add, special add, workflow, payment/settlement correction, inventory, delivery, invoice mutation, product-item mutation, notifications, file cleanup, and Java data-change events remain out of scope.

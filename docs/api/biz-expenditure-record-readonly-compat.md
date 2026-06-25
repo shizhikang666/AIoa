@@ -11,6 +11,7 @@ This document tracks protected ThinkPHP routes compatible with the Java expendit
 - `GET /biz/bizexpenditurerecord/list`
 - `GET /biz/bizexpenditurerecord/detail`
 - `POST /biz/bizexpenditurerecord/edit`
+- `POST /biz/bizexpenditurerecord/edit/account`
 
 ## Java References
 
@@ -20,6 +21,7 @@ This document tracks protected ThinkPHP routes compatible with the Java expendit
 - `vip.xiaonuo.biz.modular.bizexpenditurerecord.param.BizExpenditureRecordPageParam`
 - `vip.xiaonuo.biz.modular.bizexpenditurerecord.param.BizExpenditureRecordQueryParam`
 - `vip.xiaonuo.biz.modular.bizexpenditurerecord.param.BizExpenditureRecordEditParam`
+- `vip.xiaonuo.biz.modular.bizexpenditurerecord.param.BizExpenditureRecordEditAccountParam`
 - `vip.xiaonuo.biz.modular.settlementaccountstatement.service.impl.SettlementAccountStatementServiceImpl`
 
 ## Tables
@@ -82,12 +84,25 @@ The endpoint is intentionally narrow:
 
 The linked statement category, account id, amount, object/process ids, target id, tenant, delete flag, and settlement/account balances are not changed by this route.
 
+## Account Switch
+
+`POST /biz/bizexpenditurerecord/edit/account` accepts Java-style `id`, `currentTargetId`, and `targetId`.
+
+- Rejects missing ids, same current/target account, mismatched expenditure-record current account, missing linked statement, missing accounts, tenant mismatch, or write-scope mismatch.
+- Runs in a transaction.
+- Uses the stored `biz_expenditure_record.AMOUNT`; client-submitted amount/object/serial/org/process/category fields are ignored.
+- Adds the stored amount back to the current settlement account `CURRENT_AMOUNT`.
+- Subtracts the stored amount from the target settlement account `CURRENT_AMOUNT`.
+- Updates `biz_expenditure_record.TARGET_ID`, `UPDATE_TIME`, and `UPDATE_USER`.
+- Leaves `biz_expenditure_record.ORG` unchanged, matching the Java account-switch method's `TARGET_ID`-only record update.
+- Updates the linked `settlement_account_statement.ACCOUNT_ID`, `UPDATE_TIME`, and `UPDATE_USER`.
+- Does not create additional statements or expenditure rows.
+
 ## Explicit Exclusions
 
 - No `/biz/bizexpenditurerecord/add` route was added.
-- No `/biz/bizexpenditurerecord/edit/account` route was added.
 - No `/biz/bizexpenditurerecord/delete` route was added.
-- No expenditure-record add/delete, settlement-account transfer, account switch, settlement-account balance mutation, statement category/account mutation, workflow/data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+- No expenditure-record add/delete, new statement creation, statement category mutation, workflow/data-change event, database schema change, Java source change, `.env`, Composer file, npm file, frontend source, production data, Git push, or public config change was added.
 
 ## Verification
 
@@ -97,6 +112,7 @@ The linked statement category, account id, amount, object/process ids, target id
 - PHP syntax lint
 - Token smoke tests for page, listDetails, list, detail, and no-token 401.
 - `scripts/biz-expenditure-record-edit-http-smoke.ps1`
+- `scripts/biz-expenditure-record-edit-account-http-smoke.ps1`
 
 ## 2026-06-15 HTTP Smoke Coverage
 
@@ -122,3 +138,17 @@ The smoke checks Java-style paging keys and stable frontend-visible finance fiel
 - object-linked records are rejected;
 - missing linked statements return `code=404` and roll back the expenditure row;
 - client-spoofed object, target, serial, process, amount, tenant, delete, user, org, account, and statement fields are preserved.
+
+## 2026-06-17 Account-Switch Smoke Coverage
+
+`scripts/biz-expenditure-record-edit-account-http-smoke.ps1` inserts temporary current/target settlement accounts, an expenditure record, and a linked statement, then verifies:
+
+- no-token account switch returns `code=401`;
+- missing `targetId`, same-account switch, and mismatched `currentTargetId` return `code=400`;
+- missing linked statement returns `code=404` and leaves account balances and record links unchanged;
+- valid switch returns `code=200`;
+- detail readback exposes the new `targetId` and preserves the expenditure record `org`;
+- current account balance is increased and target account balance is decreased by the stored expenditure amount only;
+- the linked statement `ACCOUNT_ID` is switched to the target account;
+- client-spoofed amount/object/serial/org fields are ignored;
+- payment, statement, account, expenditure, receipt, and debit-note row counts stay unchanged after setup.

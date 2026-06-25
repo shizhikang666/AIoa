@@ -6,7 +6,7 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\SaleProjectService;
-use app\support\ApiResponse;
+use RuntimeException;
 use think\Request;
 use think\Response;
 
@@ -61,61 +61,54 @@ class SaleProjectController extends BaseSysController
         return $this->guard(fn () => $this->saleProjectService->costDetails($this->requiredString($request, 'id'), $this->authPayload($request)));
     }
 
-    public function add(): Response
+    public function add(Request $request): Response
     {
-        return $this->deferredWrite('sale project add');
+        return $this->guard(fn () => $this->saleProjectService->add($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function edit(): Response
+    public function edit(Request $request): Response
     {
-        return $this->deferredWrite('sale project edit');
+        return $this->guard(fn () => $this->saleProjectService->edit($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function delete(): Response
+    public function delete(Request $request): Response
     {
-        return $this->deferredWrite('sale project delete');
+        return $this->guard(fn () => $this->saleProjectService->delete($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function amountEdit(): Response
+    public function amountEdit(Request $request): Response
     {
-        return $this->deferredWrite('sale project amount edit');
+        return $this->guard(fn () => $this->saleProjectService->editAmount($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function dealEdit(): Response
+    public function dealEdit(Request $request): Response
     {
-        return $this->deferredWrite('sale project deal edit');
+        return $this->guard(fn () => $this->saleProjectService->editDeal($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function cancel(): Response
+    public function cancel(Request $request): Response
     {
-        return $this->deferredWrite('sale project cancel');
+        return $this->guard(fn () => $this->saleProjectService->cancel($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function historyAdd(): Response
+    public function historyAdd(Request $request): Response
     {
-        return $this->deferredWrite('sale project history add');
+        return $this->guard(fn () => $this->saleProjectService->historyAdd($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function repeal(): Response
+    public function repeal(Request $request): Response
     {
-        return $this->deferredWrite('sale project repeal');
+        return $this->guard(fn () => $this->saleProjectService->repeal($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function specialAdd(): Response
+    public function specialAdd(Request $request): Response
     {
-        return $this->deferredWrite('sale project special add');
+        return $this->guard(fn () => $this->saleProjectService->specialAdd($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function visibilityEdit(): Response
+    public function visibilityEdit(Request $request): Response
     {
-        return $this->deferredWrite('sale project visibility edit');
-    }
-
-    private function deferredWrite(string $operation): Response
-    {
-        return ApiResponse::fail($operation . ' is deferred', 400, [
-            'operation' => $operation,
-        ]);
+        return $this->guard(fn () => $this->saleProjectService->editVisibility($this->bodyInput($request), $this->authPayload($request)));
     }
 
     private function authPayload(Request $request): array
@@ -123,5 +116,35 @@ class SaleProjectController extends BaseSysController
         $payload = $request->middleware('auth_payload', []);
 
         return is_array($payload) ? $payload : [];
+    }
+
+    /**
+     * @return array<string|int, mixed>
+     */
+    private function bodyInput(Request $request): array
+    {
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $raw = preg_replace('/^\xEF\xBB\xBF/', '', $raw) ?? $raw;
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+
+            throw new RuntimeException('invalid request data format', 400);
+        }
+
+        return $request->param();
     }
 }

@@ -1,12 +1,12 @@
 # Biz Payroll API Compatibility
 
-Date: 2026-06-16
+Date: 2026-06-18
 
 Agent: api-agent / merge-agent
 
 ## Scope
 
-This document tracks ThinkPHP compatibility for the Java payroll module. The original slice added read-only page/detail APIs. The 2026-06-12 slices add the low-risk Java-compatible base writes for edit, batch edit, logical delete, and import-template download. The 2026-06-16 slice opens payroll export as an authenticated CSV download without salary generation, import parsing, or side effects.
+This document tracks ThinkPHP compatibility for the Java payroll module. The original slice added read-only page/detail APIs. The 2026-06-12 slices add the low-risk Java-compatible base writes for edit, batch edit, logical delete, and import-template download. The 2026-06-16 slice opens payroll export as an authenticated CSV download without EasyExcel rendering. The 2026-06-18 slices open Java-compatible payroll generation and focused payroll import.
 
 Java reference inputs:
 
@@ -24,8 +24,8 @@ Java reference inputs:
 | GET | `/biz/bizpayroll/downloadImportTemplate` | `biz.BizPayrollController/downloadImportTemplate` | `BizPayrollController.download` |
 | GET | `/biz/bizpayroll/export` | `biz.BizPayrollController/export` | `BizPayrollController.export` |
 | POST | `/biz/bizpayroll/add` | `biz.BizPayrollController/add` | Controlled deferred wrapper |
-| POST | `/biz/bizpayroll/import` | `biz.BizPayrollController/importExcel` | Controlled deferred wrapper |
-| POST | `/biz/bizpayroll/generate/add` | `biz.BizPayrollController/generateAdd` | Controlled deferred wrapper |
+| POST | `/biz/bizpayroll/import` | `biz.BizPayrollController/importExcel` | `BizPayrollController.importUser` |
+| POST | `/biz/bizpayroll/generate/add` | `biz.BizPayrollController/generateAdd` | `BizPayrollController.generateAdd` |
 | POST | `/biz/bizpayroll/edit` | `biz.BizPayrollController/edit` | `BizPayrollController.edit` |
 | POST | `/biz/bizpayroll/bath/edit` | `biz.BizPayrollController/bathEdit` | `BizPayrollController.bathEdit` |
 | POST | `/biz/bizpayroll/delete` | `biz.BizPayrollController/delete` | `BizPayrollController.delete` |
@@ -82,6 +82,26 @@ The write guards are tenant-scoped. Admin-compatible users may write all current
 
 The write slice intentionally preserves fields that Java `BizPayrollEditParam` does not expose, including `POST_WAGE`, `YEAR_END_BONUS`, `PUBLIC_ACCOUNT`, `PRIVATE_ACCOUNT`, `REMARK`, `USER`, `ORG`, and `SALARY_TIME`.
 
+`POST /biz/bizpayroll/generate/add` accepts Java-style `{ user: string[], salaryTime, socialSecurity }` payloads. It validates selected active users under tenant/data-scope rules, then writes one `biz_payroll` row per user in a transaction. The generated values follow the Java service:
+
+- `BASIC_SALARY` comes from `sys_user.BASIC_SALARY`; salary allowances, commissions, tax, year-end, public/private account, and manual salary fields start at `0.00`.
+- `TRANSACTION_VOLUME` sums current-month deal-state sale projects for selected users.
+- `RECEIVED_AMOUNT` and `BEFORE_RECEIVED_AMOUNT` are derived from current-month `PROJECT_PLAY` payment records and paid sale projects, split by sale-project create month.
+- `VACATION` sums leave-of-absence records overlapping the salary month, including rows created by approved `Process_ask_leave` workflows with `CATEGORY = leaveOfAbsence`. Cross-month rows use the Java overlap-day formula, including half-day adjustment for 12:00 start/end times.
+- `BASE_AMOUNT`, `VACATION_SUB_AMOUNT`, `PAYABLE_AMOUNT`, and `ACTUAL_AMOUNT` use the Java formulas. The route intentionally preserves Java behavior by not rejecting an existing payroll row for the same user/month.
+
+Workflow approval does not automatically rewrite already-created payroll rows. This matches the Java flow: `LeaveApproveDelegate` creates the leave application row, and payroll deduction is applied when `/biz/bizpayroll/generate/add` is explicitly called.
+
+`POST /biz/bizpayroll/import` accepts multipart `file` and optional `orgId`/`org` fields. It parses the tracked Java payroll template layout with PHP built-in ZIP/XML support instead of adding Composer dependencies:
+
+- row 1 column A must be a title like `2026年06月工资表`;
+- the first three rows are treated as template headers;
+- data rows map columns C through AC to employee name, payroll numeric fields, public/private account values, and remark;
+- imported names are whitespace-normalized and matched against active `sys_user.NAME` rows in the requested organization subtree and current tenant;
+- matched rows insert one `biz_payroll` row with the matched user id, user organization, imported salary month, imported numeric values, audit fields, and `DELETE_FLAG = NOT_DELETE`;
+- missing users or invalid row values are returned in `errorDetail` while successful rows are committed, matching Java's partial-success import shape;
+- Java data-change events are not emitted.
+
 ## Import Template Download
 
 `GET /biz/bizpayroll/downloadImportTemplate` returns the original Java resource `userPayrollTemplate.xlsx` as an authenticated blob response. The tracked ThinkPHP copy is stored at:
@@ -111,17 +131,15 @@ The export reuses the existing payroll query filters and data-scope behavior. Wh
 
 ## Controlled Deferred Writes
 
-The following frontend routes now return controlled `code = 400` deferred responses:
+The following frontend route now returns a controlled `code = 400` deferred response:
 
-- `/biz/bizpayroll/import`
-- `/biz/bizpayroll/generate/add`
 - `/biz/bizpayroll/add`
 
-They do not parse salary files, create payroll rows, generate salary records, recalculate leave/salary data, start workflow, write provider output, change database schema, modify Java source, edit `.env`, or touch Composer files.
+The add wrapper does not manually create payroll rows, start workflow, write provider output, change database schema, modify Java source, edit `.env`, or touch Composer files.
 
 ## Explicit Exclusions
 
-Real salary import logic, salary generation logic, payroll add logic, EasyExcel-style xlsx rendering, merged-cell styling, and workflow/business side effects remain deferred.
+Payroll add logic, EasyExcel-style xlsx export rendering, merged-cell styling, automatic rewrites of existing payroll rows on workflow approval, Java data-change events, and broader business side effects remain deferred.
 
 ## Verification
 
@@ -133,6 +151,8 @@ php -l app/service/biz/BizPayrollService.php
 php -l route/app.php
 php think
 php think route:list
+.\scripts\biz-payroll-import-http-smoke.ps1
+.\scripts\biz-payroll-generate-add-http-smoke.ps1
 ```
 
 Focused DB smoke on 2026-06-12 inserted temporary `biz_payroll` rows, then verified:
@@ -163,3 +183,15 @@ The smoke asserts Java-style paging keys and frontend-visible identity/display/s
 ## 2026-06-16 Export HTTP Smoke Coverage
 
 `scripts/biz-payroll-export-http-smoke.ps1` covers authenticated payroll export by inserting one temporary `biz_payroll` row, downloading `/biz/bizpayroll/export` with salary-month and `searchKey` filters, asserting CSV headers and row markers, verifying representative related table counts remain unchanged, checking no-token `code = 401`, and cleaning the temporary row.
+
+## 2026-06-18 Generate HTTP Smoke Coverage
+
+`scripts/biz-payroll-generate-add-http-smoke.ps1` covers authenticated payroll generation by inserting temporary users, sale projects, payment records, and leave applications; calling `/biz/bizpayroll/generate/add`; checking validation failures, no-token rejection, generated payroll formulas, related table count stability, and cleanup.
+
+## 2026-06-22 Workflow Payroll Generation Coverage
+
+`scripts/workflow-task-transition-http-smoke.ps1` now approves a temporary `Process_ask_leave` `leaveOfAbsence` workflow, calls `/biz/bizpayroll/generate/add` for the same user and salary month, and verifies the generated payroll row includes the approved leave amount in `VACATION`.
+
+## 2026-06-18 Import HTTP Smoke Coverage
+
+`scripts/biz-payroll-import-http-smoke.ps1` is ready to cover authenticated payroll import by inserting a temporary user, generating a minimal `.xlsx` payroll file, checking no-token, missing-file, bad-month, and partial-success import behavior, verifying imported payroll field values, and cleaning temporary rows/files. DB-backed execution is pending until local MySQL is available.

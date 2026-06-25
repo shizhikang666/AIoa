@@ -1,13 +1,13 @@
 # Biz User Vacation Compatibility
 
 Date: 2026-06-05
-Updated: 2026-06-16
+Updated: 2026-06-22
 
 Agent: workflow-agent / api-agent / test-agent
 
 ## Scope
 
-This document tracks ThinkPHP compatibility for annual-leave balance reads used by copied leave-process pages and narrow manual maintenance for `biz_user_vacation` rows.
+This document tracks ThinkPHP compatibility for annual-leave balance reads used by copied leave-process pages and narrow manual maintenance for `biz_user_vacation` rows. Approved annual-leave workflow deductions are handled by `WorkflowRuntimeService`; direct vacation CRUD remains manual maintenance.
 
 The Java source project remains read-only:
 
@@ -33,7 +33,7 @@ The route is protected by `AuthMiddleware`.
 - When no row exists, Java returns a new annual-leave object with zero amount. This ThinkPHP endpoint returns a zero-balance object with `amount` and `usedAmount` set to `0` for copied frontend compatibility.
 - Java `BizUserVacationServiceImpl.page` exposes read-only pagination behavior; the copied frontend wrapper also calls `/biz/bizuservacation/page`.
 - The ThinkPHP page endpoint returns `records`, `total`, `page`, `current`, `limit`, `size`, and `pages`.
-- Java `BizUserVacationController` currently exposes only `detail`, but the Java service/generated params and copied frontend API wrapper contain add/edit/delete shapes. ThinkPHP implements these as narrow manual maintenance endpoints rather than workflow-owned generation or deduction behavior.
+- Java `BizUserVacationController` currently exposes only `detail`, but the Java service/generated params and copied frontend API wrapper contain add/edit/delete shapes. ThinkPHP implements these as narrow manual maintenance endpoints; workflow-owned approved `annualLeave` deduction is handled by `WorkflowRuntimeService`, not these CRUD routes.
 
 ## Write Behavior
 
@@ -56,15 +56,14 @@ Write safeguards:
 - increment `VERSION` on edit and delete;
 - validate every requested id before delete, then set `DELETE_FLAG = DELETED`.
 
-The implementation deliberately does not call workflow, leave-approval, payroll, provider, scheduler, notification, or data-change behavior.
+The manual CRUD implementation deliberately does not call workflow, payroll, provider, scheduler, notification, or data-change behavior. Approved `annualLeave` workflow deduction is covered separately by the workflow task transition service. Direct leave-application edit/delete now performs current-year `annualLeave` `USED_AMOUNT` adjustments in `BizLeaveApplicationService`.
 
 ## Deferred
 
 The following real behavior remains intentionally deferred:
 
-- vacation generation/reduction writes
-- leave approval balance deductions
-- workflow write side effects
+- vacation generation writes
+- workflow copy side effects outside approved `annualLeave` deduction
 - payroll-facing recalculation
 - notification and data-change events
 - Java source changes
@@ -77,7 +76,7 @@ The following real behavior remains intentionally deferred:
 - `GET /biz/bizuservacation/page`
 - `GET /biz/bizuservacation/detail`
 
-The smoke asserts Java-style paging keys for page reads and verifies that detail returns the current user's annual-leave object or the compatible zero-balance fallback. It intentionally does not call vacation generation, reduction, add, edit, delete, leave approval deduction, workflow, or payroll side effects.
+The smoke asserts Java-style paging keys for page reads and verifies that detail returns the current user's annual-leave object or the compatible zero-balance fallback. It intentionally does not call vacation generation, add, edit, delete, workflow deduction, or payroll side effects.
 
 ## 2026-06-16 Write Smoke Coverage
 
@@ -92,3 +91,13 @@ The smoke asserts Java-style paging keys for page reads and verifies that detail
 - logical delete hiding from page reads;
 - unchanged `biz_leave_application` and `biz_payroll` row counts;
 - cleanup of only the temporary smoke category rows.
+
+## 2026-06-22 Workflow Deduction Coverage
+
+`scripts/workflow-task-transition-http-smoke.ps1` covers approved `annualLeave` workflow deduction by creating a temporary current-year balance row, approving an annual-leave process, asserting `USED_AMOUNT` and `VERSION` increment, and asserting insufficient-balance rollback leaves workflow, vacation, and leave-application rows unchanged.
+
+`scripts/workflow-process-cancel-edit-http-smoke.ps1` covers the adjacent process paths: cancel before approval leaves the vacation balance unchanged, and editable annual-leave approval deducts the edited `amount` after `POST /biz/process/leave/edit`.
+
+## 2026-06-22 Direct Leave Adjustment Coverage
+
+`scripts/biz-leave-application-vacation-adjustment-http-smoke.ps1` covers direct `POST /biz/bizleaveapplication/edit` and `/delete` annual-leave balance adjustment. It verifies amount-delta deduction, category-change restoration, insufficient-balance rollback, delete restoration, `VERSION` increments, and cleanup of temporary leave/vacation rows.

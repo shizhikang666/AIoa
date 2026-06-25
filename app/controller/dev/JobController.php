@@ -6,7 +6,6 @@ namespace app\controller\dev;
 
 use app\controller\sys\BaseSysController;
 use app\service\dev\JobService;
-use app\support\ApiResponse;
 use RuntimeException;
 use think\Request;
 use think\Response;
@@ -47,31 +46,24 @@ class JobController extends BaseSysController
         return $this->guard(fn () => $this->jobService->edit($this->bodyInput($request), $this->authPayload($request)));
     }
 
-    public function stopJob(): Response
+    public function stopJob(Request $request): Response
     {
-        return $this->deferredWrite('job stop');
+        return $this->guard(fn () => $this->jobService->stopJob($this->bodyInput($request)));
     }
 
-    public function runJob(): Response
+    public function runJob(Request $request): Response
     {
-        return $this->deferredWrite('job run');
+        return $this->guard(fn () => $this->jobService->runJob($this->bodyInput($request)));
     }
 
-    public function runJobNow(): Response
+    public function runJobNow(Request $request): Response
     {
-        return $this->deferredWrite('job run now');
+        return $this->guard(fn () => $this->jobService->runJobNow($this->bodyInput($request)));
     }
 
     public function getActionClass(): Response
     {
         return $this->guard(fn () => $this->jobService->actionClasses());
-    }
-
-    private function deferredWrite(string $operation): Response
-    {
-        return ApiResponse::fail($operation . ' is deferred', 400, [
-            'operation' => $operation,
-        ]);
     }
 
     /**

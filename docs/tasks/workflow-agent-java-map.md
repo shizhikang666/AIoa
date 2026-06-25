@@ -50,6 +50,16 @@ Main process routes:
 | POST | `/biz/process/leave/start` | Start leave/travel process | Process `Process_ask_leave` |
 | POST | `/biz/process/leave/edit` | Edit editable leave process variables | Only when `isEdit` is true |
 
+ThinkPHP coverage as of 2026-06-22:
+
+- `leave/start`, `leave/edit`, leave approve/reject, and initial leave cancel are covered through bounded PHP runtime writes.
+- `payment/start`, `reimbursement/start`, `makePayment/start`, `procure/start`, and `procure/warehouse/start` are covered as first-step runtime/history starts plus initial cancel.
+- `Process_procure` approve now replaces `BizProcureApproveDelegate` through staged procurement confirmation, optional general-office approval, and PHP purchase-order creation.
+- `Process_procure_in_warehouse` approve now replaces `BizProcureInWareHouseJavaDelegate` through the PHP purchase-order warehouse-in service.
+- `Process_sale_project_init` start/approve now replaces the project-init state delegate for the bounded initial-order path; cancel/reject rolls the sale project back to `FOLLOW`.
+- `Process_sale_project_play` start/approve now replaces the project collection delegate for the bounded collection path; first approval advances to `Activity_payment_approval`, finance approval writes collection statement/payment rows, and cancel/reject close without finance side effects.
+- Project delivery/reissue/return approve/reject completion and remaining Java delegate side effects remain deferred.
+
 ### `BizProcessProjectController.java`
 
 Project-related process routes:
@@ -128,6 +138,8 @@ Business side effects:
 - Delivery validates warehouse and product item amounts.
 - Project payment/reissue/return processes call business delegates after approval.
 
+ThinkPHP now covers project init start/approval/cancel/reject through `Process_sale_project_init`, project delivery start/approval/cancel/reject through `Process_sale_project_delivery`, and project play start/approval/cancel/reject through `Process_sale_project_play`. Project reissue and return starts remain controlled-deferred until their Java state changes and delegates are replaced explicitly.
+
 ### `BizTaskServiceImpl`
 
 Handles task query and approval/reject.
@@ -182,11 +194,11 @@ Mapped from `BizProcessCategoryEnums` and BPMN IDs:
 | --- | --- | --- |
 | `CopyUserDelegate` | Copy-to participant task | Write `biz_cc_records` |
 | `BizProcureApproveDelegate` | Purchase approval result | Create purchase order and related data |
-| `BizProcureInWareHouseJavaDelegate` | Purchase warehousing result | Update purchase order and warehouse records |
-| `BizReimbursementApproveDelegate` | Reimbursement/payment-out result | Create expenditure record and serial flow |
-| `BizPaymentApproveDelegate` | Payment-in result | Create payment record and serial flow |
+| `BizProcureInWareHouseJavaDelegate` | Purchase warehousing result | Covered: update purchase order and warehouse records |
+| `BizReimbursementApproveDelegate` | Reimbursement/payment-out result | Covered: two-step payment-out approval creates expenditure record and settlement-account serial flow |
+| `BizPaymentApproveDelegate` | Payment-in result | Covered: create payment record and settlement-account serial flow |
 | `BizSaleProjectInitStateApproveDelegate` | Project init result | Update sale project state |
-| `BizSaleProjectPlayStateApproveDelegate` | Project collection result | Create sale project payment record |
+| `BizSaleProjectPlayStateApproveDelegate` | Project collection result | Covered: create sale project payment record and recalculate payment status |
 | `BizSaleProjectDeliveryApproveDelegate` | Delivery result | Update delivery/warehouse/product state |
 | `BizSaleProjectReissueProductApproveDelegate` | Reissue result | Create reissue order |
 | `BizSaleProjectReturnProductApproveDelegate` | Return result | Create return-related records |

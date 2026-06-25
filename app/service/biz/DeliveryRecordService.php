@@ -14,6 +14,9 @@ class DeliveryRecordService
 {
     private const NOT_DELETE = 'NOT_DELETE';
     private const ENABLE = 'ENABLE';
+    private const PROCESS_SYS = 'Process_sys';
+    private const CATEGORY_IN = 'IN';
+    private const CATEGORY_OUT = 'OUT';
     private const DELIVERY_FIELDS = <<<SQL
 d.ID AS ID,
 d.WAREHOUSES_ID AS WAREHOUSES_ID,
@@ -128,6 +131,77 @@ SQL;
         return $this->deliveryRows([$row])[0];
     }
 
+    public function add(array $input, array $payload = []): array
+    {
+        $warehouseId = $this->requiredInput($input, 'warehousesId');
+        $productId = $this->requiredInput($input, 'productId');
+        $targetAmount = $this->requiredDecimal($input, 'amount');
+        $deliveryTime = $this->requiredTime($input, 'deliveryTime');
+        $remark = array_key_exists('remark', $input) ? trim((string)$input['remark']) : null;
+
+        return Db::transaction(function () use ($warehouseId, $productId, $targetAmount, $deliveryTime, $remark, $payload): array {
+            $warehouse = $this->activeWarehouse($warehouseId, $payload);
+            $this->assertWarehouseWritable($warehouse, $payload, 'add delivery record');
+
+            $tenantId = $this->tenantId($payload, $warehouse);
+            $product = $this->activeProduct($productId, $tenantId);
+            $this->assertProductWritable($product, $payload, 'add delivery record');
+
+            $inventory = $this->activeInventoryForUpdate($warehouseId, $productId, $tenantId);
+            $currentAmount = (float)$this->decimalString($inventory['CURRENT_COUNT'] ?? '0');
+            $targetValue = (float)$targetAmount;
+            $diff = round($targetValue - $currentAmount, 6);
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+
+            $deliveryId = null;
+            $category = null;
+            $movementAmount = 0.0;
+            if (abs($diff) > 0.000001) {
+                $category = $diff > 0 ? self::CATEGORY_IN : self::CATEGORY_OUT;
+                $movementAmount = abs($diff);
+                $deliveryId = $this->newId();
+                Db::name('delivery_record')->insert([
+                    'ID' => $deliveryId,
+                    'WAREHOUSES_ID' => $warehouseId,
+                    'PROCESS_ID' => self::PROCESS_SYS,
+                    'PRODUCT_ID' => $productId,
+                    'AMOUNT' => $this->decimalStorage($movementAmount),
+                    'CATEGORY' => $category,
+                    'PROCESS_CATEGORY' => self::PROCESS_SYS,
+                    'OPERATOR' => $userId !== '' ? $userId : '0',
+                    'REMARK' => $remark ?? '',
+                    'DELIVERY_TIME' => $deliveryTime,
+                    'CREATE_TIME' => $now,
+                    'CREATE_USER' => $userId !== '' ? $userId : null,
+                    'UPDATE_TIME' => null,
+                    'UPDATE_USER' => null,
+                    'DELETE_FLAG' => self::NOT_DELETE,
+                    'TENANT_ID' => $tenantId,
+                    'OBJECT_ID' => null,
+                ]);
+            }
+
+            Db::name('inventory')
+                ->where('ID', (string)$inventory['ID'])
+                ->update([
+                    'CURRENT_COUNT' => $this->decimalStorage($targetAmount),
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                ]);
+
+            return [
+                'id' => $deliveryId,
+                'inventoryId' => (string)$inventory['ID'],
+                'category' => $category,
+                'amount' => $this->decimal($movementAmount),
+                'currentCount' => $this->decimal($targetAmount),
+                'count' => $deliveryId === null ? 0 : 1,
+            ];
+        });
+    }
+
     private function deliveryQuery(array $filters, array $payload, bool $enabledProductsOnly)
     {
         $query = Db::name('delivery_record')
@@ -188,6 +262,112 @@ SQL;
         }
 
         return $this->applyDeliveryTimeRange($query, $filters);
+    }
+
+    private function activeWarehouse(string $warehouseId, array $payload): array
+    {
+        $query = Db::name('warehouses')->where('ID', $warehouseId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('warehouse not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function activeProduct(string $productId, string $tenantId): array
+    {
+        $query = Db::name('biz_product')
+            ->where('ID', $productId)
+            ->where('status', self::ENABLE);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->field('ID,ORG,CREATE_USER,TENANT_ID,status')->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('product not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function activeInventoryForUpdate(string $warehouseId, string $productId, string $tenantId): array
+    {
+        $query = Db::name('inventory')
+            ->where('WAREHOUSES_ID', $warehouseId)
+            ->where('PRODUCT_ID', $productId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query
+            ->field('ID,WAREHOUSES_ID,PRODUCT_ID,CURRENT_COUNT,DELETE_FLAG,TENANT_ID,VERSION')
+            ->lock(true)
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('inventory not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertWarehouseWritable(array $warehouse, array $payload, string $action): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $warehouseOrg = trim((string)($warehouse['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && $warehouseOrg !== '' && in_array($warehouseOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $ownerUserId = trim((string)($warehouse['USER'] ?? ''));
+        if ($currentUserId !== '' && $ownerUserId === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    private function assertProductWritable(array $product, array $payload, string $action): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $productOrg = trim((string)($product['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && $productOrg !== '' && in_array($productOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($product['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    private function whereNotDeleted($query, string $column): void
+    {
+        $query->where(function ($query) use ($column): void {
+            $query->whereNull($column)->whereOr($column, '=', self::NOT_DELETE);
+        });
     }
 
     private function applyDeliveryTimeRange($query, array $filters)
@@ -322,6 +502,61 @@ SQL;
         return [$page, $limit];
     }
 
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function requiredDecimal(array $input, string $key): string
+    {
+        if (!array_key_exists($key, $input) || $input[$key] === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+        if (!is_numeric($input[$key])) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        $value = $this->decimalString($input[$key]);
+        if ((float)$value < 0) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function requiredTime(array $input, string $key): string
+    {
+        $value = $this->requiredInput($input, $key);
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function decimalString(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '0.000000';
+        }
+        if (!is_numeric($value)) {
+            throw new RuntimeException('invalid decimal', 400);
+        }
+
+        return number_format((float)$value, 6, '.', '');
+    }
+
+    private function decimalStorage(string|float $value): string
+    {
+        return rtrim(rtrim(number_format((float)$value, 6, '.', ''), '0'), '.') ?: '0';
+    }
+
     private function decimal(mixed $value): int|float|null
     {
         if ($value === null || $value === '') {
@@ -342,5 +577,80 @@ SQL;
         }
 
         return null;
+    }
+
+    private function tenantId(array $payload, array $warehouse): string
+    {
+        $warehouseTenantId = trim((string)($warehouse['TENANT_ID'] ?? ''));
+        $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($warehouseTenantId !== '' && $payloadTenantId !== '' && $warehouseTenantId !== $payloadTenantId) {
+            throw new RuntimeException('tenant mismatch', 403);
+        }
+
+        $tenantId = $warehouseTenantId !== '' ? $warehouseTenantId : $payloadTenantId;
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function scopeOrgIds(array $payload): array
+    {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            $ids = array_merge($ids, array_map(static function (mixed $scope): string {
+                if (!is_array($scope)) {
+                    return '';
+                }
+
+                return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            }, $scopes));
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? $payload['roleCodeList'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 }

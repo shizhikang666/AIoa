@@ -848,8 +848,8 @@ The existing Vue collection-receipt pages call `/biz/bizcollectionreceipt/page`,
 
 ## Explicit Exclusions
 
-- No `/biz/bizcollectionreceipt/batchExpenditure/edit` route was added.
-- No `/biz/bizcollectionreceipt/mark/success/edit` route was added.
+- No `/biz/bizcollectionreceipt/batchExpenditure/edit` route was added in this read-only slice; subsequent state: the 2026-06-17 batch-expenditure slice added a narrow repayment quick-settlement implementation.
+- No `/biz/bizcollectionreceipt/mark/success/edit` route was added in this read-only slice; subsequent state: mark-success is covered as a narrow status update.
 - No `/biz/bizcollectionreceipt/add` route was added.
 - No `/biz/bizcollectionreceipt/edit` route was added.
 - No `/biz/bizcollectionreceipt/delete` route was added.
@@ -1489,6 +1489,8 @@ The existing Vue inventory page calls `/biz/inventory/page`, `/biz/inventory/lis
 - No `/biz/inventory/delete` route was added.
 - No stock in/out, batch stock update, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
 
+Superseded note: `/biz/inventory/add` was later implemented as narrow warehouse/product registration. `/biz/inventory/delete` remains controlled-deferred.
+
 ## Verification
 
 - `php think route:list` must list the added routes.
@@ -1505,7 +1507,7 @@ Register protected read-only warehouse delivery-record routes in `route/app.php`
 
 ## Reason
 
-The existing Vue inventory and product-detail pages call `/biz/warehouses/delivery/page`, `/biz/warehouses/delivery/exportOtherCompanyRecordsList`, and retain a frontend wrapper for `/biz/warehouses/delivery/detail`. These reads are needed for compatibility while stock-changing delivery record behavior remains deferred.
+The existing Vue inventory and product-detail pages call `/biz/warehouses/delivery/page`, `/biz/warehouses/delivery/exportOtherCompanyRecordsList`, and retain a frontend wrapper for `/biz/warehouses/delivery/detail`. These reads are needed for compatibility.
 
 ## Applied Change
 
@@ -1520,6 +1522,8 @@ The existing Vue inventory and product-detail pages call `/biz/warehouses/delive
 - No `/biz/warehouses/delivery/add` route was added.
 - No delivery record edit/delete route was added.
 - No inventory stock update, batch stock movement, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+
+Superseded note: `/biz/warehouses/delivery/add` was later implemented as Java-compatible system stocktake behavior. Delivery edit/delete routes remain absent.
 
 ## Verification
 
@@ -1559,6 +1563,14 @@ The existing Vue purchase-order pages call `/biz/bizpurchaseorder/page`, `/biz/b
 - No `/biz/bizpurchaseorder/warehouse/one/add` route was added.
 - No inventory stock movement, workflow mutation, database schema change, Java source change, `.env`, Composer file, or public config change was added.
 
+## Superseded Note
+
+The `/biz/bizpurchaseorder/warehouse/one/add` and `/biz/bizpurchaseorder/warehouse/add` exclusions above describe the original read-only slice only. As of 2026-06-18, both routes are now implemented separately as narrow warehouse stock-in endpoints.
+
+## Subsequent State
+
+As of 2026-06-18, `/biz/bizpurchaseorder/cancel` is now a narrow status marker, `/biz/bizpurchaseorder/edit` is now a narrow normal-order edit, `/biz/bizpurchaseorder/audit/edit` is now a narrow audit-remediation edit, `/biz/bizpurchaseorder/warehouse/one/add` is now a narrow single-order warehouse stock-in endpoint, and `/biz/bizpurchaseorder/warehouse/add` is now a narrow completed-order batch warehouse stock-in endpoint. Purchase-order add, delete, workflow mutation, finance side effects outside the delivery/inventory rows required by stock-in, Java source, database schema, `.env`, Composer files, and public config remain out of scope.
+
 ## Verification
 
 - `php think route:list` must list the added routes.
@@ -1597,6 +1609,10 @@ The existing Vue settlement-account pages call `/biz/settlementaccount/page`, `/
 - No `/biz/settlementaccount/transfer/add` route was added.
 - No settlement amount mutation, statement write, income/expense record creation, transfer behavior, database schema change, Java source change, `.env`, Composer file, or public config change was added.
 
+## Subsequent State
+
+On 2026-06-17, `/biz/settlementaccount/payment/add` was replaced with a narrow quick-income implementation that writes one income statement, one linked payment record, and increments the settlement-account balance in a transaction. Later the same day, `/biz/settlementaccount/expenses/add` was replaced with a narrow quick-expense implementation that writes one expense statement, one linked expenditure record, and decrements the settlement-account balance in a transaction. The read-only route request above remains the historical record for the original settlement-account read slice; the later payment/expenses add changes are documented separately below.
+
 ## Verification
 
 - `php think route:list` must list the added routes.
@@ -1632,7 +1648,7 @@ The existing Vue payment-record pages call `/biz/bizpaymentrecord/page`, `/biz/b
 
 ## Subsequent State
 
-On 2026-06-16, `/biz/bizpaymentrecord/edit` was replaced with a narrow payer-time correction implementation. The read-only route request above remains the historical record for the original read slice; the later change is documented separately below.
+On 2026-06-16, `/biz/bizpaymentrecord/edit` was replaced with a narrow payer-time correction implementation. On 2026-06-17, `/biz/bizpaymentrecord/edit/account` was replaced with a narrow stored-amount account switch. The read-only route request above remains the historical record for the original read slice; the later changes are documented separately below.
 
 ## Verification
 
@@ -1678,6 +1694,46 @@ The service now:
 
 ---
 
+# Public File Change Request: Biz Payment Record Account Switch
+
+## Request
+
+Keep the existing protected `POST /biz/bizpaymentrecord/edit/account` route active and replace its controlled-deferred behavior with a narrow Java-compatible settlement-account switch.
+
+## Reason
+
+The Java payment-record account-switch contract accepts `id`, `currentTargetId`, and `targetId`. It moves the stored payment amount from the current settlement account to the target settlement account, updates the payment record target/org, and syncs the linked settlement-account statement account. It does not create payment records or statements.
+
+## Applied Change
+
+`merge-agent` changed `biz.PaymentRecordController/editAccount` to call `PaymentRecordService::editAccount`, while keeping `edit/account` ordered before `edit` in the route group.
+
+The service now:
+
+- validates `id`, `currentTargetId`, and `targetId`;
+- rejects same-account switches;
+- checks tenant/write scope for the payment record and both settlement accounts;
+- verifies the payment record and linked statement are still on `currentTargetId`;
+- locks both settlement accounts in a transaction;
+- subtracts the stored payment amount from the current account and adds it to the target account;
+- updates `biz_payment_record.TARGET_ID`, `ORG`, `UPDATE_TIME`, and `UPDATE_USER`;
+- updates `settlement_account_statement.ACCOUNT_ID`, `UPDATE_TIME`, and `UPDATE_USER`;
+- rolls back if the payment record, statement, current account, or target account is missing or mismatched.
+
+## Explicit Exclusions
+
+- No `/biz/bizpaymentrecord/add` or `/biz/bizpaymentrecord/delete` behavior was added.
+- No client-submitted amount, object, serial, process, settlement category, user, org, audit, delete flag, new statement creation, workflow, data-change event, database schema, Java source, `.env`, Composer file, npm file, frontend source, production data, Git push, or public config change was added.
+
+## Verification
+
+- `php -l app\controller\biz\PaymentRecordController.php`
+- `php -l app\service\biz\PaymentRecordService.php`
+- `php think route:list | Select-String -Pattern 'biz/bizpaymentrecord/(edit|edit/account|add|delete|page|detail)'`
+- `.\scripts\biz-payment-record-edit-account-http-smoke.ps1`
+
+---
+
 # Public File Change Request: Biz Expenditure Record Read-Only Routes
 
 ## Request
@@ -1707,7 +1763,7 @@ The existing Vue expenditure-record pages call `/biz/bizexpenditurerecord/page`,
 
 ## Subsequent State
 
-On 2026-06-16, `/biz/bizexpenditurerecord/edit` was replaced with a narrow payer-time/category correction implementation. The read-only route request above remains the historical record for the original read slice; the later change is documented separately below.
+On 2026-06-16, `/biz/bizexpenditurerecord/edit` was replaced with a narrow payer-time/category correction implementation. On 2026-06-17, `/biz/bizexpenditurerecord/edit/account` was replaced with a narrow stored-amount account switch. The read-only route request above remains the historical record for the original read slice; the later changes are documented separately below.
 
 ## Verification
 
@@ -1753,6 +1809,47 @@ The service now:
 - `php -l app\service\biz\ExpenditureRecordService.php`
 - `php think route:list | Select-String -Pattern 'biz/bizexpenditurerecord/(edit|edit/account|add|delete|page|detail)'`
 - `.\scripts\biz-expenditure-record-edit-http-smoke.ps1`
+
+---
+
+# Public File Change Request: Biz Expenditure Record Account Switch
+
+## Request
+
+Keep the existing protected `POST /biz/bizexpenditurerecord/edit/account` route active and replace its controlled-deferred behavior with a narrow Java-compatible settlement-account switch.
+
+## Reason
+
+The Java expenditure-record account-switch contract accepts `id`, `currentTargetId`, and `targetId`. It adds the stored expenditure amount back to the current settlement account, subtracts it from the target settlement account, updates the expenditure record target account, and syncs the linked settlement-account statement account. It does not create expenditure records or statements.
+
+## Applied Change
+
+`merge-agent` changed `biz.ExpenditureRecordController/editAccount` to call `ExpenditureRecordService::editAccount`, while keeping `edit/account` ordered before `edit` in the route group.
+
+The service now:
+
+- validates `id`, `currentTargetId`, and `targetId`;
+- rejects same-account switches;
+- checks tenant/write scope for the expenditure record and both settlement accounts;
+- verifies the expenditure record and linked statement are still on `currentTargetId`;
+- locks both settlement accounts in a transaction;
+- adds the stored expenditure amount back to the current account and subtracts it from the target account;
+- updates `biz_expenditure_record.TARGET_ID`, `UPDATE_TIME`, and `UPDATE_USER`;
+- preserves `biz_expenditure_record.ORG`, matching Java's record update behavior;
+- updates `settlement_account_statement.ACCOUNT_ID`, `UPDATE_TIME`, and `UPDATE_USER`;
+- rolls back if the expenditure record, statement, current account, or target account is missing or mismatched.
+
+## Explicit Exclusions
+
+- No `/biz/bizexpenditurerecord/add` or `/biz/bizexpenditurerecord/delete` behavior was added.
+- No client-submitted amount, object, serial, process, settlement category, user, org, audit, delete flag, new statement creation, workflow, data-change event, database schema, Java source, `.env`, Composer file, npm file, frontend source, production data, Git push, or public config change was added.
+
+## Verification
+
+- `php -l app\controller\biz\ExpenditureRecordController.php`
+- `php -l app\service\biz\ExpenditureRecordService.php`
+- `php think route:list | Select-String -Pattern 'biz/bizexpenditurerecord/(edit|edit/account|add|delete|page|detail)'`
+- `.\scripts\biz-expenditure-record-edit-account-http-smoke.ps1`
 
 ---
 
@@ -2025,6 +2122,10 @@ The copied Vue settlement account detail page calls `/biz/settlementaccountpayme
 - No workflow side effect was added.
 - No Java source, database schema, frontend, Composer, `.env`, or business write code was changed.
 
+## Subsequent State
+
+On 2026-06-17, `/biz/settlementaccount/payment/add` and `/biz/settlementaccount/expenses/add` were replaced with narrow quick income/expense implementations. The read-only route request above remains the historical record for settlement-account statement reads; payment/expenses add behavior is documented separately below.
+
 ## Verification
 
 - `php think route:list` must list the added routes.
@@ -2112,7 +2213,7 @@ Register protected read-only payroll routes in `route/app.php`.
 
 ## Reason
 
-The copied Vue payroll pages call Java-compatible payroll page, personal page, and detail endpoints. These routes are needed for read-only salary browsing while payroll import/export/generate/edit/delete behavior remains deferred.
+The copied Vue payroll pages call Java-compatible payroll page, personal page, and detail endpoints. These routes were needed for the initial read-only salary browsing slice while payroll import/export/generate/edit/delete behavior remained deferred.
 
 ## Applied Change
 
@@ -2130,7 +2231,7 @@ The copied Vue payroll pages call Java-compatible payroll page, personal page, a
 - No payroll add, edit, batch edit, or delete route was added.
 - No Java source, database schema, frontend, Composer, `.env`, workflow, finance, or business write code was changed.
 
-Subsequent state on 2026-06-16: `/biz/bizpayroll/export` is now covered as an authenticated CSV download; payroll import/generate/add and EasyExcel-style xlsx rendering remain deferred.
+Subsequent state on 2026-06-18: `/biz/bizpayroll/export` is covered as an authenticated CSV download, `/biz/bizpayroll/generate/add` is covered as Java-compatible payroll generation, and `/biz/bizpayroll/import` is covered by focused Java-template `.xlsx` parsing. Payroll add and EasyExcel-style xlsx rendering remain deferred.
 
 ## Verification
 
@@ -2230,6 +2331,10 @@ The copied Vue data-report settlement page calls Java-compatible income and expe
 - No sale profit report route was added.
 - No summary-statistics route was added.
 - No Java source, database schema, frontend, Composer, `.env`, workflow, finance mutation, account-balance update, or business write code was changed.
+
+## Subsequent State
+
+On 2026-06-17, `/biz/settlementaccount/payment/add` and `/biz/settlementaccount/expenses/add` were implemented as narrow settlement-account quick income/expense writes. The settlement report route request above remains the historical record for the original read-only report slice.
 
 ## Verification
 
@@ -3068,7 +3173,7 @@ Java exposes `/biz/ccrecords/delete`, and the copied Vue `biz/biztask/copytask.v
 
 ## Subsequent State
 
-As of 2026-06-16, `/biz/ccrecords/add` and `/biz/ccrecords/edit` are now protected routes with narrow current-user `biz_cc_records` row maintenance. Workflow copy-user delegate generation, approval/reject/start/cancel side effects, notification behavior, Java source, database schema, Composer, `.env`, and frontend source remain out of scope.
+As of 2026-06-16, `/biz/ccrecords/add` and `/biz/ccrecords/edit` are now protected routes with narrow current-user `biz_cc_records` row maintenance. As of 2026-06-22, active `Process_ask_leave` leave starts generate copy-user CC rows and workflow file relations; other process copy/file delegate generation, broader approval/reject/start/cancel side effects, notification behavior, Java source, database schema, Composer, `.env`, and frontend source remain out of scope.
 
 ## Verification
 
@@ -4685,3 +4790,826 @@ The route reuses existing payroll filters, data-scope guards, organization sorti
 - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
 - `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
 - `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+# Public File Change Request: Payroll Generate Add
+
+## Request
+
+Replace the protected `/biz/bizpayroll/generate/add` controlled-deferred wrapper with Java-compatible payroll generation.
+
+## Reason
+
+Java exposes this route and the copied payroll page can submit selected users, salary month, and social-security amount. The behavior is bounded enough to migrate independently because it reads users, sale projects, payment records, and leave applications, then writes only generated payroll rows in one transaction.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/bizpayroll/generate/add`
+
+The route accepts Java-style `{ user: [...], salaryTime, socialSecurity }`, validates selected users under tenant/data-scope rules, and inserts one generated payroll row per selected user.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- The route keeps Java's formula boundaries for transaction volume, current/previous received amount, leave-of-absence overlap days, vacation deduction, payable amount, and actual amount.
+- Java-compatible duplicate-month behavior is preserved: the route does not reject an existing payroll row for the same user/month.
+- Payroll add/import, EasyExcel-style xlsx rendering, workflow hooks, Java data-change events, frontend source changes, Java source changes, database schema changes, Composer changes, `.env` edits, and production data sync remain deferred.
+
+## Verification
+
+- `php -l app\controller\biz\BizPayrollController.php`
+- `php -l app\service\biz\BizPayrollService.php`
+- PowerShell parser check for `scripts\biz-payroll-generate-add-http-smoke.ps1`
+- `php think route:list | Select-String -Pattern 'biz/bizpayroll/(generate/add|add|import|export|page|detail|downloadImportTemplate)'`
+- `.\scripts\biz-payroll-generate-add-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+# Public File Change Request: Purchase Order Cancel
+
+## Request
+
+Replace the protected `/biz/bizpurchaseorder/cancel` controlled-deferred wrapper with narrow Java-compatible purchase-order status marking.
+
+## Reason
+
+The copied purchase-order page calls `bizPurchaseOrderApi.bizPurchaseOrderCancel({ id })` from its row-level cancel confirmation. Java exposes `/biz/bizpurchaseorder/cancel` as a status-only operation that marks the purchase order settlement state as canceled, while broader purchase edits, audit repair, stock-in, inventory movement, workflow, and finance behavior remain separate flows.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/bizpurchaseorder/cancel`
+
+The route validates `id`, locks the active purchase-order row in the current tenant, checks write scope, rejects completed settlement and in-warehouse orders, updates only `biz_purchase_order.SETTLEMENT_STATUS = Canceled`, `UPDATE_TIME`, `UPDATE_USER`, and `VERSION`, then returns a Java-style success envelope.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Missing id, missing order, completed settlement, and in-warehouse requests do not mutate purchase-order rows.
+- Purchase-order add/delete routes remain controlled-deferred; normal `/biz/bizpurchaseorder/edit`, `/biz/bizpurchaseorder/audit/edit`, single-order `/biz/bizpurchaseorder/warehouse/one/add`, and batch `/biz/bizpurchaseorder/warehouse/add` are covered separately as narrow slices.
+- No purchase-order item, expenditure record, inventory, delivery, settlement-account, workflow, Java data-change event, frontend source, Java source, database schema, Composer/npm, `.env`, or production data sync behavior is changed.
+
+## Verification
+
+- `php -l app\controller\biz\PurchaseOrderController.php`
+- `php -l app\service\biz\PurchaseOrderService.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String -Pattern 'biz/bizpurchaseorder/(page|detail/list|list|detail|cancel|add|edit|audit/edit|warehouse/add|warehouse/one/add|delete)'`
+- `.\scripts\purchase-order-cancel-http-smoke.ps1`
+- `.\scripts\purchase-order-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Purchase Order Edit
+
+## Request
+
+Replace the protected `/biz/bizpurchaseorder/edit` controlled-deferred wrapper with narrow Java-compatible purchase-order normal edit behavior.
+
+## Reason
+
+The copied purchase-order edit drawer submits the existing order id, amount, and product item list to `/biz/bizpurchaseorder/edit`. Java exposes this route for normal order edits while still separating purchase-order add, audit repair, warehouse stock-in, inventory movement, workflow, and finance side effects into other flows.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/bizpurchaseorder/edit`
+
+The route validates `id` and unique nonempty `productList`, locks the active purchase-order row in the current tenant, checks write scope, rejects completed settlement orders, rejects orders that already have goods expenditure rows, requires every submitted item to belong to the same order, updates only `biz_purchase_order.AMOUNT`, existing purchase-order item amount/cost fields, `UPDATE_TIME`, `UPDATE_USER`, and `VERSION`, then returns a Java-style success envelope.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Missing id, missing product list, missing order, completed settlement, goods-expenditure-linked order, duplicate item ids, and wrong-order item requests roll back without mutating order or item rows.
+- Purchase-order add/delete routes remain controlled-deferred. Normal edit, audit edit, single-order warehouse one add, and batch warehouse add are covered by separate narrow slices.
+- No purchase-order item creation/deletion, audit record, expenditure record, inventory, delivery, settlement-account, workflow, Java data-change event, frontend source, Java source, database schema, Composer/npm, `.env`, or production data sync behavior is changed.
+
+## Verification
+
+- `php -l app\controller\biz\PurchaseOrderController.php`
+- `php -l app\service\biz\PurchaseOrderService.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String -Pattern 'biz/bizpurchaseorder/(page|detail/list|list|detail|cancel|edit|add|audit/edit|warehouse/add|warehouse/one/add|delete)'`
+- `.\scripts\purchase-order-edit-http-smoke.ps1`
+- `.\scripts\purchase-order-cancel-http-smoke.ps1`
+- `.\scripts\purchase-order-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Purchase Order Audit Edit
+
+## Request
+
+Replace the protected `/biz/bizpurchaseorder/audit/edit` controlled-deferred wrapper with narrow Java-compatible purchase-order audit-remediation edit behavior.
+
+## Reason
+
+The copied purchase-order audit remediation drawer submits the existing order id, amount, and product item list to `/biz/bizpurchaseorder/audit/edit`. Java exposes this route as `editAudit`, using the same edit parameter as normal edit but without the completed-settlement and goods-expenditure guards.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/bizpurchaseorder/audit/edit`
+
+The route validates `id` and unique nonempty `productList`, locks the active purchase-order row in the current tenant, checks write scope, intentionally skips normal edit's completed-settlement and goods-expenditure guards, requires every submitted item to belong to the same order, updates only `biz_purchase_order.AMOUNT`, existing purchase-order item amount/cost fields, `UPDATE_TIME`, `UPDATE_USER`, and `VERSION`, then returns a Java-style success envelope.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Missing id, missing product list, missing order, duplicate item ids, and wrong-order item requests roll back without mutating order or item rows.
+- Purchase-order add/delete routes remain controlled-deferred. Single-order warehouse one add and batch warehouse add are covered separately as narrow stock-in slices.
+- No purchase-order item creation/deletion, audit record, expenditure record creation, inventory, delivery, settlement-account, workflow, Java data-change event, frontend source, Java source, database schema, Composer/npm, `.env`, or production data sync behavior is changed.
+
+## Verification
+
+- `php -l app\controller\biz\PurchaseOrderController.php`
+- `php -l app\service\biz\PurchaseOrderService.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String -Pattern 'biz/bizpurchaseorder/(page|detail/list|list|detail|cancel|edit|audit/edit|add|warehouse/add|warehouse/one/add|delete)'`
+- `.\scripts\purchase-order-audit-edit-http-smoke.ps1`
+- `.\scripts\purchase-order-edit-http-smoke.ps1`
+- `.\scripts\purchase-order-cancel-http-smoke.ps1`
+- `.\scripts\purchase-order-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Purchase Order Warehouse One Add
+
+## Request
+
+Replace the protected `/biz/bizpurchaseorder/warehouse/one/add` controlled-deferred wrapper with Java-compatible single-order purchase stock-in behavior.
+
+## Reason
+
+The copied purchase-order one-click warehouse form submits `orderId`, `warehousesId`, and optional `remark` to `/biz/bizpurchaseorder/warehouse/one/add`. Java exposes this route as `fastInWareOneHouse`: it stocks one purchase order into a warehouse, writes `IN` delivery rows for its items, updates inventory, and marks the order/items in warehouse while keeping broader purchase-order creation, batch stock-in, workflow, and finance behavior separate.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/bizpurchaseorder/warehouse/one/add`
+
+The route validates `orderId`, `warehousesId`, and optional `remark`, locks the active purchase-order row in the current tenant, checks conservative write scope, requires `STORAGE_STATUS = NOT_IN_WAREHOUSE`, validates the active target warehouse, locks active purchase-order items, validates referenced products, rejects already-warehoused items and non-positive item quantities, inserts one `delivery_record` row per item with `CATEGORY = IN`, `PROCESS_ID = Process_sys`, `PROCESS_CATEGORY = Process_procure_in_warehouse`, and `OBJECT_ID = orderId`, increases or creates matching inventory rows, marks items and the order `IN_WAREHOUSE`, refreshes audit fields, increments versions, and returns a Java-style success envelope.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Missing order id, missing warehouse id, missing order, missing warehouse, missing products, empty item lists, already-warehoused orders/items, invalid quantities, and unauthorized order/warehouse scopes roll back without partial delivery, inventory, item, or order mutation.
+- Purchase-order add/delete remain controlled-deferred. Batch `/biz/bizpurchaseorder/warehouse/add` is covered separately as a narrow completed-order stock-in slice.
+- No purchase-order creation, purchase-order item creation/deletion, expenditure creation, settlement-account statement, workflow, Java data-change event publishing, frontend source, Java source, database schema, Composer/npm, `.env`, production data sync, or commit behavior is changed.
+
+## Verification
+
+- `php -l app\controller\biz\PurchaseOrderController.php`
+- `php -l app\service\biz\PurchaseOrderService.php`
+- `php -l route\app.php`
+- PowerShell parser check for `scripts\purchase-order-warehouse-one-add-http-smoke.ps1`
+- `php think route:list | Select-String -Pattern 'biz/bizpurchaseorder/(warehouse/one/add|warehouse/add|add|delete|cancel|edit|audit/edit|page|detail)'`
+- `Select-String -Path scripts\frontend-deferred-write-wrapper-smoke.ps1 -Pattern '/biz/bizpurchaseorder/warehouse/one/add'`
+
+## Pending Verification
+
+- `.\scripts\purchase-order-warehouse-one-add-http-smoke.ps1` is ready but DB-backed execution is pending because local MySQL `MySQL80` was stopped and failed to start in this run.
+
+---
+
+# Public File Change Request: Purchase Order Warehouse Add
+
+## Request
+
+Replace the protected `/biz/bizpurchaseorder/warehouse/add` controlled-deferred wrapper with Java-compatible completed-order batch purchase stock-in behavior.
+
+## Reason
+
+The copied purchase-order batch warehouse action submits `warehousesId` to `/biz/bizpurchaseorder/warehouse/add`. Java exposes this route as `fastInWareHouse`: it selects visible completed purchase orders that are not yet in warehouse, stocks each selected order into the target warehouse, writes `IN` delivery rows for each item, updates inventory, and marks the processed orders/items in warehouse while keeping purchase-order creation, delete, workflow, and finance behavior separate.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/bizpurchaseorder/warehouse/add`
+
+The route validates `warehousesId`, selects active purchase orders with `SETTLEMENT_STATUS = COMPLETED` and `STORAGE_STATUS = NOT_IN_WAREHOUSE` under the current tenant/data-scope rules, locks the selected orders and their active items, validates the active target warehouse and referenced products, rejects invalid item quantities, inserts `delivery_record` rows with `CATEGORY = IN`, `PROCESS_ID = Process_sys`, `PROCESS_CATEGORY = Process_procure_in_warehouse`, and `OBJECT_ID = orderId`, increases or creates matching inventory rows, marks processed items and orders `IN_WAREHOUSE`, refreshes audit fields, increments versions, and returns a Java-style success envelope with processed counts and ids. If no eligible orders are visible, it returns success with `count = 0`.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Missing warehouse id, missing warehouse, missing products, invalid item quantities, and unauthorized order/warehouse scopes roll back without partial delivery, inventory, item, or order mutation.
+- Purchase-order add/delete remain controlled-deferred.
+- No purchase-order creation, purchase-order item creation/deletion, expenditure creation, settlement-account statement, workflow, Java data-change event publishing, frontend source, Java source, database schema, Composer/npm, `.env`, production data sync, or commit behavior is changed.
+
+## Verification
+
+- `php -l app\controller\biz\PurchaseOrderController.php`
+- `php -l app\service\biz\PurchaseOrderService.php`
+- `php -l route\app.php`
+- PowerShell parser check for `scripts\purchase-order-warehouse-add-http-smoke.ps1`
+- `php think route:list | Select-String -Pattern 'biz/bizpurchaseorder/(warehouse/add|warehouse/one/add|add|delete|cancel|edit|audit/edit|page|detail)'`
+- `Select-String -Path scripts\frontend-deferred-write-wrapper-smoke.ps1 -Pattern '/biz/bizpurchaseorder/warehouse/add'`
+
+## Pending Verification
+
+- `.\scripts\purchase-order-warehouse-add-http-smoke.ps1` is ready but DB-backed execution is pending because local MySQL `MySQL80` is stopped.
+
+---
+
+# Public File Change Request: Delivery Record Add Stocktake
+
+## Request
+
+Replace the protected `/biz/warehouses/delivery/add` controlled-deferred wrapper with Java-compatible system stocktake behavior.
+
+## Reason
+
+The copied inventory page posts a warehouse, product, target stock count, and delivery time to `/biz/warehouses/delivery/add`. Java treats the submitted `amount` as the desired final inventory count, records an `IN` or `OUT` system delivery movement for the difference, and updates warehouse inventory through the delivery event handler.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/warehouses/delivery/add`
+
+The route validates `warehousesId`, `productId`, non-negative target `amount`, `deliveryTime`, the active warehouse, the active enabled product, and an existing active warehouse/product inventory row. It locks the inventory row, computes the target-vs-current movement, writes one `delivery_record` row with `PROCESS_ID = Process_sys`, `PROCESS_CATEGORY = Process_sys`, and `CATEGORY = IN` or `OUT` for non-zero movement, updates `inventory.CURRENT_COUNT` to the submitted target, increments `VERSION`, and returns the delivery id/count plus movement metadata.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Failed validation, missing warehouse, missing product, missing inventory, and scope failures do not write delivery rows or mutate inventory.
+- Repeating the current inventory amount is treated as a no-movement stocktake and does not create a zero-amount delivery row.
+- `/biz/inventory/delete` remains controlled-deferred.
+- No purchase-order warehouse entry, broader stock workflow, finance, workflow hook, Java event-bus/data-change publication, frontend source change, Java source change, database schema change, Composer/npm change, `.env` change, or production data sync is performed.
+
+## Verification
+
+- `php -l app\controller\biz\DeliveryRecordController.php`
+- `php -l app\service\biz\DeliveryRecordService.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String -Pattern 'biz/warehouses/delivery/(add|page|detail|exportOtherCompanyRecordsList)'`
+- `.\scripts\delivery-record-add-http-smoke.ps1`
+- `.\scripts\inventory-delivery-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+DB-backed smoke execution is pending because local MySQL `MySQL80` was stopped and failed to start on 2026-06-18.
+
+---
+
+# Public File Change Request: Inventory Add Registration
+
+## Request
+
+Replace the protected `/biz/inventory/add` controlled-deferred wrapper with narrow Java-compatible warehouse/product inventory registration.
+
+## Reason
+
+The copied inventory page posts selected products and a warehouse to `/biz/inventory/add` for initial inventory registration. Java creates missing inventory rows and refreshes existing rows without changing stock quantity; stock movement happens through separate warehouse/delivery flows.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/inventory/add`
+
+The route validates `warehousesId`, nonempty unique `productIds`, the active warehouse, and active enabled products in the current tenant. It inserts missing `inventory` rows with `CURRENT_COUNT = 0`, refreshes existing active rows without changing their count, normalizes null counts to zero, increments `VERSION`, and derives inventory tenant from the warehouse.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Failed validation, duplicate ids, missing products, missing warehouse, and deleted unique-key conflicts do not write inventory rows or delivery rows.
+- `/biz/inventory/delete` remains controlled-deferred.
+- No stock movement, delivery row creation, purchase-order warehouse entry, workflow hook, Java data-change event, frontend source change, Java source change, database schema change, Composer/npm change, `.env` change, or production data sync is performed by the inventory add route. Delivery movement is now handled only by `/biz/warehouses/delivery/add`.
+
+## Verification
+
+- `php -l app\controller\biz\InventoryController.php`
+- `php -l app\service\biz\InventoryService.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String -Pattern 'biz/inventory/(add|delete|page|list|detail)'`
+- `.\scripts\inventory-add-http-smoke.ps1`
+- `.\scripts\inventory-delivery-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Debit Note Batch Repayment
+
+## Request
+
+Replace the protected `/biz/bizdebitnote/batchRepayment/edit` controlled-deferred wrapper with narrow Java-compatible loan-repayment quick-settlement creation.
+
+## Reason
+
+The copied debit-note quick-repayment form posts selected debit-note rows to `/biz/bizdebitnote/batchRepayment/edit`. Java creates `LoanRepayment` payment rows through the settlement-account quick-income helper, then its payment-add event recalculates the debit-note settlement amount and status.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/bizdebitnote/batchRepayment/edit`
+
+The route validates `accountId`, `payer`, `payerTime`, and `items`, rejects duplicate, nonpositive, missing, and over-settlement items, locks selected debit notes, creates `LoanRepayment` `biz_payment_record` and `settlement_account_statement` rows through the settlement-account quick-income path, increments the selected settlement account, updates `biz_debit_note.SETTLEMENT_AMOUNT`, sets `PLAY_STATUS`, and increments `VERSION` in one transaction.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Failed validation, missing-note, missing-account, and over-settlement requests do not write statements, payment records, account-balance changes, or debit-note settlement changes.
+- Debit-note add/edit/history-add/delete remain controlled-deferred.
+- No Java event bus, workflow hook, frontend source change, Java source change, database schema change, Composer/npm change, `.env` change, or production data sync is performed.
+
+## Verification
+
+- `php -l app\controller\biz\DebitNoteController.php`
+- `php -l app\service\biz\DebitNoteService.php`
+- `php -l app\service\biz\SettlementAccountService.php`
+- `php think route:list | Select-String -Pattern 'biz/bizdebitnote/(batchRepayment/edit|mark/success/edit|page|list|detail|add|edit|history/add|delete)'`
+- `.\scripts\biz-debit-note-batch-repayment-http-smoke.ps1`
+- `.\scripts\settlement-account-payment-add-http-smoke.ps1`
+- `.\scripts\finance-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Debit Note History Add
+
+## Request
+
+Replace the protected `/biz/bizdebitnote/history/add` controlled-deferred wrapper with narrow Java-compatible historical debit-note creation.
+
+## Reason
+
+The copied debit-note historical entry form posts `accountId`, `amount`, `historyAmount`, `createTime`, and `remark` to `/biz/bizdebitnote/history/add`. Java uses the selected settlement account to derive the debit note organization, saves a debit-note row, and corrects the debit-note settlement amount from the submitted history amount.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/bizdebitnote/history/add`
+
+The route validates required fields, positive `amount`, nonnegative `historyAmount`, valid `createTime`, and `historyAmount <= amount`; reads the selected settlement account for tenant/org context; inserts one `biz_debit_note` row with no expenditure-record link; sets `SETTLEMENT_AMOUNT = HISTORY_AMOUNT`; and sets the settlement status from the inserted values.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Failed validation and missing-account requests do not write debit-note rows.
+- Successful requests do not create settlement-account statements, payment records, or expenditure records.
+- Successful requests do not mutate settlement-account balances.
+- Debit-note add/edit/delete remain controlled-deferred.
+- No Java event bus, workflow hook, frontend source change, Java source change, database schema change, Composer/npm change, `.env` change, or production data sync is performed.
+
+## Verification
+
+- `php -l app\controller\biz\DebitNoteController.php`
+- `php -l app\service\biz\DebitNoteService.php`
+- `php -l app\service\biz\SettlementAccountService.php`
+- `php think route:list | Select-String -Pattern 'biz/bizdebitnote/(history/add|batchRepayment/edit|mark/success/edit|page|list|detail|add|edit|delete)'`
+- `.\scripts\biz-debit-note-history-add-http-smoke.ps1`
+- `.\scripts\biz-debit-note-batch-repayment-http-smoke.ps1`
+- `.\scripts\finance-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Collection Receipt Batch Expenditure
+
+## Request
+
+Replace the protected `/biz/bizcollectionreceipt/batchExpenditure/edit` controlled-deferred wrapper with narrow Java-compatible repayment quick-settlement creation.
+
+## Reason
+
+The copied collection-receipt quick-settlement form posts selected receipt rows to `/biz/bizcollectionreceipt/batchExpenditure/edit`. Java creates repayment expenditure rows through the settlement-account quick-expense helper, then its expenditure-add event recalculates the collection receipt settlement amount and status.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/bizcollectionreceipt/batchExpenditure/edit`
+
+The route validates `accountId`, `payer`, `payerTime`, and `items`, rejects duplicate, nonpositive, missing, and over-settlement items, locks selected receipts, creates repayment `biz_expenditure_record` and `settlement_account_statement` rows through the settlement-account quick-expense path, decrements the selected settlement account, updates `biz_collection_receipt.SETTLEMENT_AMOUNT`, sets `PLAY_STATUS`, and increments `VERSION` in one transaction.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Failed validation, missing-receipt, missing-account, and over-settlement requests do not write statements, expenditure records, account-balance changes, or receipt settlement changes.
+- Collection-receipt add/edit/delete remain controlled-deferred.
+- No Java event bus, workflow hook, frontend source change, Java source change, database schema change, Composer/npm change, `.env` change, or production data sync is performed.
+
+## Verification
+
+- `php -l app\controller\biz\CollectionReceiptController.php`
+- `php -l app\service\biz\CollectionReceiptService.php`
+- `php -l app\service\biz\SettlementAccountService.php`
+- `php think route:list | Select-String -Pattern 'biz/bizcollectionreceipt/(batchExpenditure/edit|mark/success/edit|page|list|detail|add|edit|delete)'`
+- `.\scripts\biz-collection-receipt-batch-expenditure-http-smoke.ps1`
+- `.\scripts\settlement-account-expenses-add-http-smoke.ps1`
+- `.\scripts\finance-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Settlement Account Transfer Add
+
+## Request
+
+Replace the protected `/biz/settlementaccount/transfer/add` controlled-deferred wrapper with narrow Java-compatible account transfer creation.
+
+## Reason
+
+The copied settlement-account transfer form calls `settlementAccountApi.settlementAccountTransfer(data)`, which posts to `/biz/settlementaccount/transfer/add`. Java exposes this route as a transfer helper: it writes an expense-side settlement statement and expenditure record, writes an income-side settlement statement and payment record, and moves the amount between the two selected settlement accounts.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/settlementaccount/transfer/add`
+
+The route validates `expensesAccountId`, `revenueAccountId`, `payerTime`, and positive `amount`, rejects same-account transfers, locks both accounts in stable id order, creates expense and income `settlement_account_statement` rows with `Process_sys`, creates linked `biz_expenditure_record` and `biz_payment_record` rows using fixed `dealings` category, and updates both `settlement_account.CURRENT_AMOUNT` values in one transaction.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Failed validation, same-account, and missing-account requests do not write statements, finance records, or balance changes.
+- `/biz/settlementaccount/delete` is covered by the later protected logical-delete slice; referenced accounts are rejected.
+- No Java data-change event, workflow hook, collection-receipt/debit-note propagation, frontend source change, Java source change, database schema change, Composer/npm change, `.env` change, or production data sync is performed.
+
+## Verification
+
+- `php -l app\controller\biz\SettlementAccountController.php`
+- `php -l app\service\biz\SettlementAccountService.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String -Pattern 'biz/settlementaccount/(transfer/add|expenses/add|payment/add|delete|page|list|detail)'`
+- `.\scripts\settlement-account-transfer-add-http-smoke.ps1`
+- `.\scripts\settlement-account-expenses-add-http-smoke.ps1`
+- `.\scripts\settlement-account-payment-add-http-smoke.ps1`
+- `.\scripts\settlement-account-read-http-smoke.ps1`
+- `.\scripts\settlement-account-payment-read-http-smoke.ps1`
+- `.\scripts\finance-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Settlement Account Delete
+
+## Request
+
+Replace the protected `/biz/settlementaccount/delete` controlled-deferred wrapper with protected logical deletion for unused settlement accounts.
+
+## Reason
+
+The copied settlement-account page exposes a delete API wrapper. Java has delete service behavior based on selected ids, but the copied Java controller route is commented in this source snapshot. The ThinkPHP route now provides a conservative logical delete that preserves finance history.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/settlementaccount/delete`
+
+The route accepts Java/copied-frontend id-list payloads, validates the whole batch through existing tenant/write-scope guards, rejects accounts referenced by active settlement statements, payment records, or expenditure records, and marks unused accounts as `DELETE_FLAG = DELETED`.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Missing, out-of-scope, already-deleted, referenced, or mixed invalid batches do not delete any account.
+- No physical delete, balance mutation, statement/payment/expenditure mutation, workflow hook, notification, Java source change, database schema change, Composer/npm change, `.env` change, or production data sync is performed.
+
+## Verification
+
+- `php -l app\controller\biz\SettlementAccountController.php`
+- `php -l app\service\biz\SettlementAccountService.php`
+- PowerShell parser check for `scripts\settlement-account-delete-http-smoke.ps1`
+- `.\scripts\settlement-account-delete-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+
+---
+
+# Public File Change Request: Sale Project Visibility Edit
+
+## Request
+
+Replace the protected `/biz/saleproject/visibility/edit` controlled-deferred wrapper with narrow Java-compatible sale-project visibility/specimen field maintenance.
+
+## Reason
+
+The copied sale-project visibility controls post to `/biz/saleproject/visibility/edit`. Java exposes this route as a focused visibility update that sets the project visibility and specimen fields without running broader sale-project workflow, finance, inventory, invoicing, or notification side effects.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/saleproject/visibility/edit`
+
+The route validates `projectId`, `visibilityState`, and specimen fields, checks the active sale project through the existing tenant/data-scope query, requires `specimenCategory` for public visibility, preserves specimen fields for copied frontend private toggles that omit them, and updates only visibility/specimen/audit/version fields.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Failed validation and missing-project requests do not update sale-project rows.
+- Product items, invoicing rows, field-change logs, payment records, delivery records, workflow state, notifications, attachments, customer rows, and finance rows are not changed.
+- Sale-project add/edit/delete, amount edit, deal edit, repeal, history add, and special add remained controlled-deferred at this checkpoint; cancel is covered separately by the 2026-06-18 sale-project cancel slice.
+- No frontend source change, Java source change, database schema change, Composer/npm change, `.env` change, production data sync, or commit is performed.
+
+## Verification
+
+- `php -l app\controller\biz\SaleProjectController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l route\app.php`
+- PowerShell parser check for `scripts\sale-project-visibility-edit-http-smoke.ps1`
+- `php think route:list | Select-String -Pattern 'biz/saleproject/(visibility/edit|add|edit|delete|amount/edit|deal/edit|cancel|history/add|repeal|special/add)'`
+- `Select-String -Path scripts\frontend-deferred-write-wrapper-smoke.ps1 -Pattern '/biz/saleproject/visibility/edit'`
+
+# Public File Change Request: Sale Project Amount Edit
+
+Date: 2026-06-18
+
+## Request
+
+Replace the protected `/biz/saleproject/amount/edit` controlled-deferred wrapper with focused Java-compatible sale-project amount maintenance.
+
+## Rationale
+
+The copied sale-project amount controls post `id`, `initPrice`, and optional `remark` to `/biz/saleproject/amount/edit`. Java exposes this route as an amount correction that also recalculates sale-project status/totals and records an `INIT_PRICE` change log, without running broader sale-project add/edit/delete, workflow, invoice, inventory, notification, or customer side effects.
+
+## Files To Change
+
+- `app/controller/biz/SaleProjectController.php`
+- `app/service/biz/SaleProjectService.php`
+- `scripts/sale-project-amount-edit-http-smoke.ps1`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- `scripts/project-progress.ps1`
+- `docs/tasks/sale-project-amount-edit-plan.md`
+- related status/API docs
+
+## Route
+
+- `POST /biz/saleproject/amount/edit`
+
+## Verification
+
+- `php -l app\controller\biz\SaleProjectController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- PowerShell parser check for `scripts\sale-project-amount-edit-http-smoke.ps1`
+- `Select-String -Path scripts\frontend-deferred-write-wrapper-smoke.ps1 -Pattern '/biz/saleproject/amount/edit'`
+- `.\scripts\sale-project-amount-edit-http-smoke.ps1`
+
+DB-backed HTTP verification is pending because local MySQL `MySQL80` is stopped.
+- `.\scripts\sale-project-visibility-edit-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Settlement Account Payment Add
+
+## Request
+
+Replace the protected `/biz/settlementaccount/payment/add` controlled-deferred wrapper with narrow Java-compatible quick-income creation.
+
+## Reason
+
+The copied settlement-account income form calls `settlementAccountApi.settlementAccountPayment(data)`, which posts to `/biz/settlementaccount/payment/add`. Java exposes this route as a quick add for income records: it writes a settlement-account statement, creates a linked payment record, and increments the target account balance.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/settlementaccount/payment/add`
+
+The route validates `targetId`, `settlementCategory`, `payer`, `payerTime`, and positive `amount`, locks the target settlement account, creates one `settlement_account_statement` row with `SETTLEMENT_TYPE = INCOME` and `Process_sys`, creates one linked `biz_payment_record`, and updates `settlement_account.CURRENT_AMOUNT`.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Failed validation and missing-account requests do not write statements, payment records, or balance changes.
+- `/biz/settlementaccount/expenses/add`, `/biz/settlementaccount/transfer/add`, and `/biz/settlementaccount/delete` are now covered by the quick-expense, transfer, and protected logical-delete slices.
+- No Java data-change event, workflow hook, frontend source change, Java source change, database schema change, Composer/npm change, `.env` change, or production data sync is performed.
+
+## Verification
+
+- `php -l app\controller\biz\SettlementAccountController.php`
+- `php -l app\service\biz\SettlementAccountService.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String -Pattern 'biz/settlementaccount/(payment/add|expenses/add|transfer/add|delete|page|list|detail)'`
+- `.\scripts\settlement-account-payment-add-http-smoke.ps1`
+- `.\scripts\settlement-account-read-http-smoke.ps1`
+- `.\scripts\settlement-account-payment-read-http-smoke.ps1`
+- `.\scripts\finance-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+---
+
+# Public File Change Request: Settlement Account Expenses Add
+
+## Request
+
+Replace the protected `/biz/settlementaccount/expenses/add` controlled-deferred wrapper with narrow Java-compatible quick-expense creation.
+
+## Reason
+
+The copied settlement-account expense form calls `settlementAccountApi.settlementAccountExpenses(data)`, which posts to `/biz/settlementaccount/expenses/add`. Java exposes this route as a quick add for expense records: it writes a settlement-account statement, creates a linked expenditure record, and decrements the target account balance.
+
+## Applied Change
+
+`merge-agent` opens:
+
+- `POST /biz/settlementaccount/expenses/add`
+
+The route validates `targetId`, `settlementCategory`, `payer`, `payerTime`, and positive `amount`, locks the target settlement account, creates one `settlement_account_statement` row with `SETTLEMENT_TYPE = EXPEND` and `Process_sys`, creates one linked `biz_expenditure_record`, and updates `settlement_account.CURRENT_AMOUNT`.
+
+## Guardrails
+
+- Requests remain behind `AuthMiddleware`.
+- Failed validation and missing-account requests do not write statements, expenditure records, or balance changes.
+- `/biz/settlementaccount/transfer/add` is covered by the transfer slice, and `/biz/settlementaccount/delete` is covered by the protected logical-delete slice.
+- No Java data-change event, workflow hook, collection-receipt settlement propagation, frontend source change, Java source change, database schema change, Composer/npm change, `.env` change, or production data sync is performed.
+
+## Verification
+
+- `php -l app\controller\biz\SettlementAccountController.php`
+- `php -l app\service\biz\SettlementAccountService.php`
+- `php -l route\app.php`
+- `php think route:list | Select-String -Pattern 'biz/settlementaccount/(expenses/add|payment/add|transfer/add|delete|page|list|detail)'`
+- `.\scripts\settlement-account-expenses-add-http-smoke.ps1`
+- `.\scripts\settlement-account-payment-add-http-smoke.ps1`
+- `.\scripts\settlement-account-read-http-smoke.ps1`
+- `.\scripts\settlement-account-payment-read-http-smoke.ps1`
+- `.\scripts\finance-read-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+
+# Public File Change Request: Payroll Import
+
+Date: 2026-06-18
+
+## Request
+
+Replace the protected `/biz/bizpayroll/import` controlled-deferred wrapper with focused Java-template payroll import.
+
+## Planned Public Behavior
+
+- Accept multipart `file` plus optional `orgId`/`org`.
+- Parse `.xlsx` payroll templates using PHP built-in ZIP/XML support without Composer changes.
+- Read the salary month from row 1 column A, skip the three header rows, and map data rows to `biz_payroll` fields.
+- Match imported names against active users in the requested organization subtree and tenant.
+- Insert one payroll row for each matched row and return Java-style partial-success counts.
+- Keep payroll add, EasyExcel-style xlsx export rendering/styling, workflow hooks, Java data-change events, frontend source changes, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+## Verification
+
+- `php -l app\controller\biz\BizPayrollController.php`
+- `php -l app\service\biz\BizPayrollService.php`
+- `php -l route\app.php`
+- PowerShell parser check for `scripts\biz-payroll-import-http-smoke.ps1`
+- `php think route:list | Select-String -Pattern 'biz/bizpayroll/(import|add|generate/add|edit|bath/edit|delete|page|detail|downloadImportTemplate|export)'`
+- `.\scripts\biz-payroll-import-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+- `git diff --check`
+
+# Public File Change Request: Sale Project Cancel
+
+Date: 2026-06-18
+
+## Request
+
+Replace the protected `/biz/saleproject/cancel` controlled-deferred wrapper with Java-compatible sale-project status rollback.
+
+## Planned Public Behavior
+
+- Accept `id` or `projectId` in a JSON/form POST body.
+- Validate the active sale project through the existing tenant/data-scope-aware query.
+- Require `PROJECT_STATE = WAIT_DELIVER`.
+- Set `PROJECT_STATE = FOLLOW`, refresh audit fields, and increment `VERSION`.
+- Logically delete active `biz_sale_project_invoicing` rows for the same project and tenant.
+- Keep sale-project add/edit/delete, deal edit, repeal, history add, special add, workflow process starts/cancels, task actions, payment/settlement correction, inventory/delivery mutation, notification, file cleanup, Java data-change events, frontend source changes, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+## Verification
+
+- `php -l app\controller\biz\SaleProjectController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l route\app.php`
+- PowerShell parser check for `scripts\sale-project-cancel-http-smoke.ps1`
+- `php think route:list | Select-String -Pattern 'biz/saleproject/(cancel|amount/edit|visibility/edit|add|edit|delete|deal/edit|history/add|repeal|special/add)'`
+- `.\scripts\sale-project-cancel-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+- `git diff --check`
+
+# Public File Change Request: Sale Project Repeal
+
+Date: 2026-06-18
+
+## Request
+
+Replace the protected `/biz/saleproject/repeal` controlled-deferred wrapper with Java-compatible sale-project discard maintenance.
+
+## Planned Public Behavior
+
+- Accept Java/copied-frontend array payloads such as `[{ id, repealContent }]`, plus compatible `ids`, `idList`, `projectIds`, `items`, and single `id` forms.
+- Validate every selected active project through the existing tenant/data-scope-aware query.
+- Require every selected project to have `PROJECT_STATE = FOLLOW`.
+- Set selected projects to `PROJECT_STATE = DISCARD`, write `REPEAL_CONTENT` from the first submitted row/top-level field, refresh audit fields, and increment `VERSION`.
+- Keep sale-project add/edit/delete, deal edit, history add, special add, workflow process starts/cancels, task actions, payment/settlement correction, inventory/delivery mutation, invoice mutation, notification, file cleanup, Java data-change events, frontend source changes, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+## Verification
+
+- `php -l app\controller\biz\SaleProjectController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l route\app.php`
+- PowerShell parser check for `scripts\sale-project-repeal-http-smoke.ps1`
+- `php think route:list | Select-String -Pattern 'biz/saleproject/(repeal|cancel|amount/edit|visibility/edit|add|edit|delete|deal/edit|history/add|special/add)'`
+- `.\scripts\sale-project-repeal-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+- `git diff --check`
+
+# Public File Change Request: Sale Project Delete
+
+Date: 2026-06-18
+
+## Request
+
+Replace the protected `/biz/saleproject/delete` controlled-deferred wrapper with Java-compatible sale-project logical delete maintenance.
+
+## Planned Public Behavior
+
+- Accept Java/copied-frontend array payloads such as `[{ id }]`, plus compatible `ids`, `idList`, `projectIds`, `items`, and single `id` forms.
+- Validate every selected active project through the existing tenant/data-scope-aware query.
+- Require every selected project to have `PROJECT_STATE = FOLLOW`.
+- Set selected projects to `PROJECT_STATE = DISCARD`, set `DELETE_FLAG = DELETED`, refresh audit fields, and increment `VERSION`.
+- Keep sale-project add/edit, history add, special add, workflow process starts/cancels, task actions, payment/settlement correction, inventory/delivery mutation, invoice mutation, product-item mutation, notification, file cleanup, Java data-change events, frontend source changes, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred. Deal edit is covered separately.
+
+## Verification
+
+- `php -l app\controller\biz\SaleProjectController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l route\app.php`
+- PowerShell parser check for `scripts\sale-project-delete-http-smoke.ps1`
+- `php think route:list | Select-String -Pattern 'biz/saleproject/(delete|repeal|cancel|amount/edit|visibility/edit|add|edit|deal/edit|history/add|special/add)'`
+- `.\scripts\sale-project-delete-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+- `git diff --check`
+
+# Public File Change Request: Sale Project Deal Edit
+
+Date: 2026-06-18
+
+## Request
+
+Replace the protected `/biz/saleproject/deal/edit` controlled-deferred wrapper with Java-compatible sale-project delivery/freight field maintenance.
+
+## Planned Public Behavior
+
+- Accept copied frontend/Java JSON bodies with `id`.
+- Validate active sale-project access through the existing tenant/data-scope-aware query.
+- Update only `UNIT`, `ADDRESS`, `LOGISTICS_CATEGORY`, `CONSIGNEE`, `PHONE`, `REMARK`, `FREIGHT`, `FREIGHT_CATEGORY`, and `DELIVERY_NOTE`.
+- Refresh audit fields and increment `VERSION`.
+- Ignore protected spoofed fields such as project state, delete flag, payment state, amount totals, and broad project edit fields.
+- Keep sale-project add/edit, history add, special add, workflow process starts/cancels, task actions, payment/settlement correction, inventory/delivery mutation, invoice mutation, product-item mutation, notification, file cleanup, Java data-change events, frontend source changes, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+## Verification
+
+- `php -l app\controller\biz\SaleProjectController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l route\app.php`
+- PowerShell parser check for `scripts\sale-project-deal-edit-http-smoke.ps1`
+- `php think route:list | Select-String -Pattern 'biz/saleproject/(deal/edit|delete|repeal|cancel|amount/edit|visibility/edit|add|edit|history/add|special/add)'`
+- `Select-String -Path scripts\frontend-deferred-write-wrapper-smoke.ps1 -Pattern '/biz/saleproject/deal/edit|/biz/saleproject/add|/biz/saleproject/edit'`
+- `.\scripts\sale-project-deal-edit-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+- `git diff --check`

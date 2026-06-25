@@ -41,29 +41,29 @@ class PurchaseOrderController extends BaseSysController
         return $this->deferredWrite('purchase order add');
     }
 
-    public function edit(): Response
+    public function edit(Request $request): Response
     {
-        return $this->deferredWrite('purchase order edit');
+        return $this->guard(fn () => $this->purchaseOrderService->edit($this->body($request), $this->authPayload($request)));
     }
 
-    public function auditEdit(): Response
+    public function auditEdit(Request $request): Response
     {
-        return $this->deferredWrite('purchase order audit edit');
+        return $this->guard(fn () => $this->purchaseOrderService->auditEdit($this->body($request), $this->authPayload($request)));
     }
 
-    public function warehouseAdd(): Response
+    public function warehouseAdd(Request $request): Response
     {
-        return $this->deferredWrite('purchase order warehouse add');
+        return $this->guard(fn () => $this->purchaseOrderService->warehouseAdd($this->body($request), $this->authPayload($request)));
     }
 
-    public function warehouseOneAdd(): Response
+    public function warehouseOneAdd(Request $request): Response
     {
-        return $this->deferredWrite('purchase order one-click warehouse add');
+        return $this->guard(fn () => $this->purchaseOrderService->warehouseOneAdd($this->body($request), $this->authPayload($request)));
     }
 
-    public function cancel(): Response
+    public function cancel(Request $request): Response
     {
-        return $this->deferredWrite('purchase order cancel');
+        return $this->guard(fn () => $this->purchaseOrderService->cancel($this->body($request), $this->authPayload($request)));
     }
 
     public function delete(): Response
@@ -83,5 +83,29 @@ class PurchaseOrderController extends BaseSysController
         $payload = $request->middleware('auth_payload', []);
 
         return is_array($payload) ? $payload : [];
+    }
+
+    private function body(Request $request): array
+    {
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $request->param();
     }
 }

@@ -14,6 +14,7 @@ class BizLeaveApplicationService
 {
     private const NOT_DELETE = 'NOT_DELETE';
     private const DELETED = 'DELETED';
+    private const LEAVE_CATEGORY_ANNUAL = 'annualLeave';
     private const EDITABLE_FIELDS = [
         'userId' => 'USER_ID',
         'processId' => 'PROCESS_ID',
@@ -121,13 +122,24 @@ SQL;
         $id = $this->requiredInput($input, 'id');
 
         return Db::transaction(function () use ($id, $input, $payload): array {
-            $this->assertLeaveWritable($id, $payload, 'edit leave application');
-            $this->assertTargetUserWritable($this->requiredInput($input, 'userId'), $payload);
+            $existing = $this->assertLeaveWritable($id, $payload, 'edit leave application');
+            $targetUserId = $this->requiredInput($input, 'userId');
+            $this->assertTargetUserWritable($targetUserId, $payload);
+            $update = $this->editableUpdate($input, $payload);
+            $adjustments = $this->applyAnnualLeaveBalanceDeltas(
+                $this->annualLeaveEditDeltas($existing, $update),
+                date('Y-m-d H:i:s'),
+                $this->currentUserId($payload)
+            );
             $updated = Db::name('biz_leave_application')
                 ->where('ID', $id)
-                ->update($this->editableUpdate($input, $payload));
+                ->update($update);
 
-            return ['id' => $id, 'count' => $updated];
+            return [
+                'id' => $id,
+                'count' => $updated,
+                'vacationAdjustments' => $adjustments,
+            ];
         });
     }
 
@@ -146,15 +158,24 @@ SQL;
             }
 
             $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $adjustments = $this->applyAnnualLeaveBalanceDeltas(
+                $this->annualLeaveDeleteDeltas($rows),
+                $now,
+                $userId
+            );
             $updated = Db::name('biz_leave_application')
                 ->whereIn('ID', $ids)
                 ->update([
                     'DELETE_FLAG' => self::DELETED,
-                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_TIME' => $now,
                     'UPDATE_USER' => $userId !== '' ? $userId : null,
                 ]);
 
-            return ['count' => $updated];
+            return [
+                'count' => $updated,
+                'vacationAdjustments' => $adjustments,
+            ];
         });
     }
 
@@ -295,7 +316,8 @@ SQL;
         }
 
         $rows = $query
-            ->field('l.ID,l.USER_ID,l.CREATE_USER,l.TENANT_ID,u.ORG_ID AS ORG_ID')
+            ->field('l.ID,l.USER_ID,l.PROCESS_ID,l.`category` AS CATEGORY,l.AMOUNT,l.REMARK,l.START_TIME,l.END_TIME,l.CREATE_TIME,l.CREATE_USER,l.TENANT_ID,l.OBJECT_ID,u.ORG_ID AS ORG_ID')
+            ->lock(true)
             ->select()
             ->toArray();
 
@@ -360,6 +382,190 @@ SQL;
         $row['UPDATE_USER'] = $userId !== '' ? $userId : null;
 
         return $row;
+    }
+
+    /**
+     * @return array<string, array{userId: string, tenantId: string, delta: float}>
+     */
+    private function annualLeaveEditDeltas(array $existing, array $update): array
+    {
+        $deltas = [];
+        if ($this->isAnnualLeaveCategory($existing['CATEGORY'] ?? null)) {
+            $this->appendAnnualLeaveDelta(
+                $deltas,
+                (string)($existing['USER_ID'] ?? ''),
+                (string)($existing['TENANT_ID'] ?? ''),
+                -(float)$this->decimalAmount($existing['AMOUNT'] ?? null),
+                $existing
+            );
+        }
+
+        if ($this->isAnnualLeaveCategory($update['category'] ?? $update['CATEGORY'] ?? null)) {
+            $this->appendAnnualLeaveDelta(
+                $deltas,
+                (string)($update['USER_ID'] ?? ''),
+                (string)($existing['TENANT_ID'] ?? ''),
+                (float)$this->decimalAmount($update['AMOUNT'] ?? null),
+                $existing
+            );
+        }
+
+        return $deltas;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $rows
+     * @return array<string, array{userId: string, tenantId: string, delta: float}>
+     */
+    private function annualLeaveDeleteDeltas(array $rows): array
+    {
+        $deltas = [];
+        foreach ($rows as $row) {
+            if (!$this->isAnnualLeaveCategory($row['CATEGORY'] ?? null)) {
+                continue;
+            }
+
+            $this->appendAnnualLeaveDelta(
+                $deltas,
+                (string)($row['USER_ID'] ?? ''),
+                (string)($row['TENANT_ID'] ?? ''),
+                -(float)$this->decimalAmount($row['AMOUNT'] ?? null),
+                $row
+            );
+        }
+
+        return $deltas;
+    }
+
+    /**
+     * @param array<string, array{userId: string, tenantId: string, delta: float}> $deltas
+     * @return array<int, array<string, mixed>>
+     */
+    private function applyAnnualLeaveBalanceDeltas(array $deltas, string $now, string $updateUser): array
+    {
+        $adjustments = [];
+        foreach ($deltas as $delta) {
+            $amountDelta = (float)$delta['delta'];
+            if (abs($amountDelta) < 0.00001) {
+                continue;
+            }
+
+            $adjustments[] = $this->adjustAnnualLeaveBalance(
+                $delta['userId'],
+                $delta['tenantId'],
+                $amountDelta,
+                $now,
+                $updateUser
+            );
+        }
+
+        return $adjustments;
+    }
+
+    /**
+     * @param array<string, array{userId: string, tenantId: string, delta: float}> $deltas
+     */
+    private function appendAnnualLeaveDelta(array &$deltas, string $userId, string $tenantId, float $amountDelta, array $sourceRow): void
+    {
+        if ($userId === '') {
+            throw new RuntimeException('missing leave userId', 400);
+        }
+        if (abs($amountDelta) < 0.00001) {
+            return;
+        }
+
+        $this->assertCurrentYearAnnualLeaveRow($sourceRow);
+        $key = $userId . '|' . $tenantId;
+        if (!isset($deltas[$key])) {
+            $deltas[$key] = [
+                'userId' => $userId,
+                'tenantId' => $tenantId,
+                'delta' => 0.0,
+            ];
+        }
+
+        $deltas[$key]['delta'] += $amountDelta;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function adjustAnnualLeaveBalance(
+        string $userId,
+        string $tenantId,
+        float $amountDelta,
+        string $now,
+        string $updateUser
+    ): array {
+        $query = Db::name('biz_user_vacation')
+            ->where('USER_ID', $userId)
+            ->where('CATEGORY', self::LEAVE_CATEGORY_ANNUAL)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->whereBetweenTime('CREATE_TIME', date('Y-01-01 00:00:00'), date('Y-12-31 23:59:59'));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query
+            ->field('ID,USER_ID,AMOUNT,USED_AMOUNT,CATEGORY,TENANT_ID,VERSION')
+            ->order('CREATE_TIME', 'desc')
+            ->order('ID', 'desc')
+            ->lock(true)
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('user annual leave balance not found', 400);
+        }
+
+        $amount = number_format((float)($row['AMOUNT'] ?? 0), 2, '.', '');
+        $usedAmount = number_format((float)($row['USED_AMOUNT'] ?? 0), 2, '.', '');
+        if ($amountDelta > 0) {
+            $remaining = (float)$amount - (float)$usedAmount;
+            if ($remaining + 0.00001 < $amountDelta) {
+                throw new RuntimeException('insufficient annual leave balance', 400);
+            }
+        }
+        if ($amountDelta < 0 && (float)$usedAmount + 0.00001 < abs($amountDelta)) {
+            throw new RuntimeException('annual leave used amount underflow', 400);
+        }
+
+        $newUsedAmount = number_format((float)$usedAmount + $amountDelta, 2, '.', '');
+        Db::name('biz_user_vacation')
+            ->where('ID', (string)$row['ID'])
+            ->update([
+                'USED_AMOUNT' => $newUsedAmount,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $updateUser !== '' ? $updateUser : null,
+                'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+            ]);
+
+        return [
+            'id' => (string)$row['ID'],
+            'userId' => $userId,
+            'tenantId' => (string)($row['TENANT_ID'] ?? $tenantId),
+            'amount' => $amount,
+            'usedAmount' => $newUsedAmount,
+            'deltaAmount' => number_format($amountDelta, 2, '.', ''),
+        ];
+    }
+
+    private function assertCurrentYearAnnualLeaveRow(array $row): void
+    {
+        $time = trim((string)($row['CREATE_TIME'] ?? ''));
+        if ($time === '') {
+            $time = trim((string)($row['START_TIME'] ?? ''));
+        }
+
+        $timestamp = strtotime($time);
+        if ($timestamp === false || date('Y', $timestamp) !== date('Y')) {
+            throw new RuntimeException('direct annual leave adjustment only supports current-year leave rows', 400);
+        }
+    }
+
+    private function isAnnualLeaveCategory(mixed $category): bool
+    {
+        return trim((string)$category) === self::LEAVE_CATEGORY_ANNUAL;
     }
 
     private function applySort($query, array $filters)

@@ -58,13 +58,12 @@ The service also accepts frontend aliases `startPayerTime` and `endPayerTime` in
 
 The following remain intentionally deferred:
 
-- settlement account payment creation
-- settlement account expenses/income actions
-- settlement account transfer actions
-- account balance mutation
+- broad account balance mutation outside the narrow quick payment/expense/transfer add paths
 - workflow side effects
 - frontend component changes
 - database schema changes
+
+`POST /biz/settlementaccount/payment/add`, `POST /biz/settlementaccount/expenses/add`, and `POST /biz/settlementaccount/transfer/add` are no longer part of this read-only note's deferred scope; they are covered by `docs/api/biz-settlement-account-readonly-compat.md` as the 2026-06-17 quick income/expense/transfer add slices.
 
 ## Test Commands
 
@@ -86,4 +85,4 @@ git diff --check
 - `GET /biz/settlementaccountpayment/page`
 - `GET /biz/settlementaccountpayment/list`
 
-The smoke checks Java-style paging keys and stable frontend-visible fields such as `accountId`, `accountName`, `accountNumber`, `beforeAmount`, `amount`, `afterAmount`, `settlementType`, `settlementCategory`, `processCategory`, `payerTime`, `orgName`, and decoded `ext`. It does not call settlement account payment creation, expenses/income actions, transfer actions, account balance mutation, workflow, provider, or data-change behavior.
+The smoke checks Java-style paging keys and stable frontend-visible fields such as `accountId`, `accountName`, `accountNumber`, `beforeAmount`, `amount`, `afterAmount`, `settlementType`, `settlementCategory`, `processCategory`, `payerTime`, `orgName`, and decoded `ext`. It does not call settlement account mutation routes, workflow, provider, or data-change behavior.

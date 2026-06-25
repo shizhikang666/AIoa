@@ -148,6 +148,36 @@ Start the ThinkPHP server separately, then run:
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, inserts temporary `biz_sale_project` and `biz_sale_project_invoicing` rows, verifies a cross-tenant complete request fails without updating the row, calls `/biz/saleprojectinvoicing/complete`, verifies the response returns `data = null`, confirms `INVOICING_STATE = INVOICING_STATE_COMPLETE`, and then removes temporary rows. It does not print tokens or local credentials.
 
+## Sale Project Invoicing Write HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\sale-project-invoicing-write-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+```
+
+This authenticated smoke creates a temporary active sale project, verifies no-token and validation guards for `/biz/saleprojectinvoicing/add`, verifies add/page/customer/detail readback, verifies invalid edit rollback, verifies valid edit, calls `/biz/saleprojectinvoicing/complete`, verifies mixed delete rollback, verifies logical delete, confirms the owning sale project is unchanged, and checks delivery invoice, payment, expenditure, statement, return, and rating side-effect table counts stay stable. It reads the local account from ignored `.env` and does not print tokens or credentials.
+
+## Return Order Write HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\return-order-write-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+```
+
+This authenticated smoke creates a temporary sale project, warehouse, products, and shipped project product items, verifies no-token and validation guards for `/biz/returnorder/add`, verifies invalid-add rollback, verifies add/page/query/detail readback, verifies project return-total recalculation, verifies invalid edit rollback, verifies valid edit with child-row replacement, blocks edit/delete when a linked `ReturnAndRefund` expenditure exists, verifies mixed delete rollback, verifies final master/detail logical delete, confirms project totals return to the original values, and checks delivery, inventory, payment, expenditure, and statement table counts stay stable. It reads the local account from ignored `.env` and does not print tokens or credentials.
+
+## Sale Project Product Item Mutation HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\sale-project-product-item-mutation-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+```
+
+This authenticated smoke creates a temporary customer, products, a kit-product child relation, and sale project, verifies no-token and invalid-product rollback for `/biz/saleproject/add`, verifies product-list add with direct and kit rows, verifies detail/product readback, verifies `/biz/saleproject/edit` update/insert/logical-delete behavior, verifies `productList = null` preserves active rows, blocks deletion when an active return-order item references a product item, verifies rollback, then clears unreferenced rows. It reads the local account from ignored `.env` and does not print tokens or credentials.
+
 ## Optional File Relation HTTP Smoke
 
 Start the ThinkPHP server separately, then run:
@@ -238,6 +268,16 @@ Start the ThinkPHP server separately, then run:
 
 This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, calls `/biz/bizteamproject/add`, verifies the created project, current-user `LEADER` member, and `TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` relation, calls `/biz/bizteamprojectuser/edit` and verifies audit refresh without role/permission mutation, calls `/biz/bizteamproject/edit`, verifies base field updates and version increment, calls `/biz/bizteamproject/delete`, verifies project/member logical delete, and cleans up temporary rows. It does not print tokens or local credentials.
 
+## Optional Team Project Task Write HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\team-project-task-write-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+```
+
+This optional authenticated smoke creates a short-lived local token from `LOCAL_SUPER_ADMIN_ACCOUNT` in the ignored `.env`, creates a temporary project and temporary member user, calls task category add/edit/sort/delete, task add/edit/delete, task assignee remove/re-add, and task-comment add/edit/delete endpoints, verifies validation and missing-row guards, verifies final logical-delete/version/task-user database state, and cleans up temporary rows. It does not print tokens or local credentials.
+
 ## Local Runtime Services
 
 Use the user-provided local service bundle before DB-backed smoke tests:
@@ -292,6 +332,8 @@ Add these only when a backend and frontend browser session are already available
 - optional dev-job HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -DevJobHttpSmoke`
 - optional gen-config HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -GenConfigHttpSmoke`
 - optional sale-project invoicing HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SaleProjectInvoicingHttpSmoke`
+- sale-project invoicing write HTTP smoke through `.\scripts\sale-project-invoicing-write-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+- sale-project product-item mutation HTTP smoke through `.\scripts\sale-project-product-item-mutation-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
 - optional sys-module HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke`
 - optional sys-menu HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysMenuHttpSmoke`

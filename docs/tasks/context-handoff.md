@@ -6,7 +6,7 @@ Purpose: keep long ThinkPHP OA refactor work continuable when the current Codex 
 
 Ask the user to open a new conversation when any of these are true:
 
-- The conversation has accumulated several completed slices and the next slice needs broad Java/frontend/backend inspection.
+- The conversation has accumulated several completed feature blocks and the next block needs broad Java/frontend/backend inspection.
 - Tool outputs or status logs are repeatedly being summarized instead of read precisely because the context is too large.
 - The assistant starts needing to re-open the same orientation files multiple times in one turn.
 - A planned task is side-effect-heavy, risky, or cross-module and deserves a clean context.
@@ -32,7 +32,7 @@ Keep the handoff concise. Do not paste long command output or secrets.
 Use this exact starter when opening a new conversation:
 
 ```text
-Continue the ThinkPHP OA refactor in F:\AI\projects\testJava\OA-ThinkPHP. Do not rely on prior chat history. Start with Set-Location F:\AI\projects\testJava\OA-ThinkPHP, then run .\scripts\project-progress.ps1 -Lean. If local MySQL, Redis, PHP FastCGI, ThinkPHP backend, and Vue frontend are expected to be running, run .\scripts\project-preflight.ps1 next; otherwise use the relevant skip switches. Read docs\tasks\context-handoff.md, docs\tasks\problem-optimization-log.md, and docs\tasks\parallel-execution-plan.md only as needed. Treat F:\AI\projects\testJava\OA as read-only Java reference. Do not print or commit secrets; read local database, Redis, and login smoke values only from the ignored .env. Do not commit unless the current user explicitly asks for a commit or the main merge/coordinator explicitly approves committing the completed slice. Continue with the next smallest safe slice from the progress dashboard, STATUS.md, and the problem table.
+Continue the ThinkPHP OA refactor in F:\AI\projects\testJava\OA-ThinkPHP. Do not rely on prior chat history. Start with Set-Location F:\AI\projects\testJava\OA-ThinkPHP, then run .\scripts\project-progress.ps1 -Lean. If local MySQL, Redis, PHP FastCGI, ThinkPHP backend, and Vue frontend are expected to be running, run .\scripts\project-preflight.ps1 next; otherwise use the relevant skip switches. Read docs\tasks\context-handoff.md, docs\tasks\problem-optimization-log.md, and docs\tasks\parallel-execution-plan.md only as needed. Treat F:\AI\projects\testJava\OA as read-only Java reference. Do not print or commit secrets; read local database, Redis, and login smoke values only from the ignored .env. Do not commit unless the current user explicitly asks for a commit or the main merge/coordinator explicitly approves committing the completed feature block. Continue with the next complete feature-closure block from the progress dashboard, STATUS.md, API gap map, and problem table; the sale-project foundation closure block is already complete, so choose from remaining deferred side-effect groups unless the user redirects. Before editing, map related Java/frontend/ThinkPHP/database/downstream behavior and write the block's side-effect and smoke plan.
 ```
 
 ## First Commands In The New Conversation
@@ -84,4 +84,4 @@ Before continuing browser or authenticated HTTP smoke work:
 - Start from `OA-ThinkPHP`, not the parent directory.
 - Use targeted `rg` searches for the active module instead of reading long logs.
 - Update the problem table whenever the same problem repeats or a better mitigation is found.
-- Continue small, coherent slices and verify each slice before reporting completion.
+- Continue coherent feature blocks and verify each block before reporting completion.

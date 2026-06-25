@@ -43,9 +43,13 @@ class BizPayrollController extends BaseSysController
         return $this->deferredWrite('payroll add');
     }
 
-    public function importExcel(): Response
+    public function importExcel(Request $request): Response
     {
-        return $this->deferredWrite('payroll import');
+        return $this->guard(fn () => $this->payrollService->importExcel(
+            $request->file('file'),
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
     public function export(Request $request): Response
@@ -56,9 +60,9 @@ class BizPayrollController extends BaseSysController
         ));
     }
 
-    public function generateAdd(): Response
+    public function generateAdd(Request $request): Response
     {
-        return $this->deferredWrite('payroll generate add');
+        return $this->guard(fn () => $this->payrollService->generate($this->body($request), $this->authPayload($request)));
     }
 
     public function edit(Request $request): Response

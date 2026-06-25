@@ -8,7 +8,7 @@ use RuntimeException;
 use think\facade\Db;
 
 /**
- * Expenditure-record queries and narrow correction compatible with Java BizExpenditureRecordController.
+ * Expenditure-record queries plus narrow corrections compatible with Java BizExpenditureRecordController.
  */
 class ExpenditureRecordService
 {
@@ -169,6 +169,84 @@ SQL;
                 'id' => $id,
                 'statementId' => (string)$statement['ID'],
                 'count' => $updated,
+                'statementCount' => $statementUpdated,
+            ];
+        });
+    }
+
+    public function editAccount(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $currentTargetId = $this->requiredInput($input, 'currentTargetId');
+        $targetId = $this->requiredInput($input, 'targetId');
+        if ($currentTargetId === $targetId) {
+            throw new RuntimeException('结算账户不能相同', 400);
+        }
+
+        return Db::transaction(function () use ($id, $currentTargetId, $targetId, $payload): array {
+            $record = $this->assertRecordWritable($id, $payload, 'switch this expenditure record account');
+            $recordTargetId = trim((string)($record['TARGET_ID'] ?? ''));
+            if ($recordTargetId === '' || $recordTargetId !== $currentTargetId) {
+                throw new RuntimeException('支出记录当前结算账户不匹配', 400);
+            }
+
+            $statementId = trim((string)($record['SERIAL_ID'] ?? ''));
+            if ($statementId === '') {
+                throw new RuntimeException('expenditure record statement missing', 404);
+            }
+            $statement = $this->activeStatement($statementId, $payload);
+            $statementAccountId = trim((string)($statement['ACCOUNT_ID'] ?? ''));
+            if ($statementAccountId !== '' && $statementAccountId !== $currentTargetId) {
+                throw new RuntimeException('支出流水当前结算账户不匹配', 400);
+            }
+
+            $accounts = $this->activeSettlementAccounts([$currentTargetId, $targetId], $payload);
+            $currentAccount = $this->assertSettlementAccountWritable($accounts[$currentTargetId], $payload, 'switch from');
+            $targetAccount = $this->assertSettlementAccountWritable($accounts[$targetId], $payload, 'switch to');
+
+            $amountCents = $this->moneyCents($record['AMOUNT'] ?? null);
+            $currentAmount = $this->moneyFromCents($this->moneyCents($currentAccount['CURRENT_AMOUNT'] ?? '0') + $amountCents);
+            $targetAmount = $this->moneyFromCents($this->moneyCents($targetAccount['CURRENT_AMOUNT'] ?? '0') - $amountCents);
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $audit = [
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+            ];
+
+            $currentAccountUpdated = Db::name('settlement_account')
+                ->where('ID', $currentTargetId)
+                ->update(array_merge($audit, [
+                    'CURRENT_AMOUNT' => $currentAmount,
+                ]));
+
+            $targetAccountUpdated = Db::name('settlement_account')
+                ->where('ID', $targetId)
+                ->update(array_merge($audit, [
+                    'CURRENT_AMOUNT' => $targetAmount,
+                ]));
+
+            $recordUpdated = Db::name('biz_expenditure_record')
+                ->where('ID', $id)
+                ->update(array_merge($audit, [
+                    'TARGET_ID' => $targetId,
+                ]));
+
+            $statementUpdated = Db::name('settlement_account_statement')
+                ->where('ID', (string)$statement['ID'])
+                ->update(array_merge($audit, [
+                    'ACCOUNT_ID' => $targetId,
+                ]));
+
+            return [
+                'id' => $id,
+                'statementId' => (string)$statement['ID'],
+                'currentTargetId' => $currentTargetId,
+                'targetId' => $targetId,
+                'amount' => $this->moneyFromCents($amountCents),
+                'currentAccountCount' => $currentAccountUpdated,
+                'targetAccountCount' => $targetAccountUpdated,
+                'count' => $recordUpdated,
                 'statementCount' => $statementUpdated,
             ];
         });
@@ -339,12 +417,78 @@ SQL;
             $query->where('TENANT_ID', $tenantId);
         }
 
-        $row = $query->field('ID,TENANT_ID')->find();
+        $row = $query->field('ID,TENANT_ID,ACCOUNT_ID')->find();
         if (!is_array($row) || $row === []) {
             throw new RuntimeException('expenditure record statement not found', 404);
         }
 
         return $row;
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<string, array<string, mixed>>
+     */
+    private function activeSettlementAccounts(array $ids, array $payload): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn (string $id): string => trim($id),
+            $ids
+        ))));
+        if ($ids === []) {
+            throw new RuntimeException('settlement account not found', 404);
+        }
+
+        $query = Db::name('settlement_account')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->order('ID', 'asc')
+            ->lock(true)
+            ->select()
+            ->toArray();
+
+        $accounts = [];
+        foreach ($rows as $row) {
+            $accounts[(string)($row['ID'] ?? '')] = $row;
+        }
+
+        foreach ($ids as $id) {
+            if (!isset($accounts[$id])) {
+                throw new RuntimeException('settlement account not found', 404);
+            }
+        }
+
+        return $accounts;
+    }
+
+    private function assertSettlementAccountWritable(array $row, array $payload, string $action): array
+    {
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $accountOrg = trim((string)($row['org'] ?? $row['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $accountOrg !== '' && in_array($accountOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action} this settlement account", 403);
     }
 
     private function applyTimeRange($query, array $filters, string $column, string $startKey, string $endKey): void
@@ -566,6 +710,36 @@ SQL;
         }
 
         return false;
+    }
+
+    private function moneyCents(mixed $value): int
+    {
+        if ($value === null || $value === '') {
+            throw new RuntimeException('invalid amount', 400);
+        }
+
+        $normalized = trim((string)$value);
+        if (!preg_match('/^-?\d+(?:\.\d+)?$/', $normalized)) {
+            if (!is_numeric($value)) {
+                throw new RuntimeException('invalid amount', 400);
+            }
+            $normalized = number_format((float)$value, 2, '.', '');
+        }
+
+        $negative = str_starts_with($normalized, '-');
+        $normalized = ltrim($normalized, '-');
+        [$whole, $fraction] = array_pad(explode('.', $normalized, 2), 2, '0');
+        $cents = ((int)$whole * 100) + (int)str_pad(substr($fraction, 0, 2), 2, '0');
+
+        return $negative ? -$cents : $cents;
+    }
+
+    private function moneyFromCents(int $cents): string
+    {
+        $sign = $cents < 0 ? '-' : '';
+        $absolute = abs($cents);
+
+        return $sign . (string)intdiv($absolute, 100) . '.' . str_pad((string)($absolute % 100), 2, '0', STR_PAD_LEFT);
     }
 
     private function decimal(mixed $value): int|float|null

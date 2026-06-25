@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This workflow keeps the ThinkPHP OA refactor moving faster with lower context and token cost while preserving the existing quality bar.
+This workflow keeps the ThinkPHP OA refactor moving faster with lower context and token cost while preserving the existing quality bar. The default execution unit is now a complete feature-closure block, not a single easy route.
 
 It is a process rule only. It must not be used as permission to change completed behavior, skip tests on risky work, edit the Java source project, or commit secrets.
 
@@ -11,7 +11,7 @@ It is a process rule only. It must not be used as permission to change completed
 - Preserve completed functionality unless the user explicitly asks for a correction.
 - Treat `F:\AI\projects\testJava\OA` as read-only reference input.
 - Keep credentials, tokens, database passwords, Redis passwords, and local login values only in ignored `.env` or the active shell environment.
-- Work in small slices with explicit scope, non-goals, and targeted verification.
+- Work in complete feature-closure blocks with explicit dependency maps, side-effect maps, non-goals, and end-to-end verification. Use internal checkpoints only to manage risk.
 - Do not add broad refactors, new dependencies, schema changes, destructive operations, or production data operations without a separate approved plan.
 - Final online data sync remains a final-stage task and must not start early.
 
@@ -55,9 +55,9 @@ Read full `PLANS.md`, `IMPLEMENT.md`, or `STATUS.md` only when:
 - the task touches cross-module behavior;
 - a merge, audit, release, or user-requested full status report requires it.
 
-Check `docs/tasks/problem-optimization-log.md` before starting the slice. If the current work repeats an existing problem, update that row instead of adding a duplicate.
+Check `docs/tasks/problem-optimization-log.md` before starting the feature block. If the current work repeats an existing problem, update that row instead of adding a duplicate.
 
-Use `docs/tasks/context-handoff.md` when the current conversation becomes too large for precise work. Ask the user to open a new conversation before starting broad, risky, or cross-module work if the current context is already overloaded.
+Use `docs/tasks/context-handoff.md` when the current conversation becomes too large for precise work. Ask the user to open a new conversation before starting a broad, risky, or cross-module feature block if the current context is already overloaded.
 
 For DB-backed, authenticated HTTP, or browser smoke work, run the relevant readiness helper first:
 
@@ -68,7 +68,7 @@ For DB-backed, authenticated HTTP, or browser smoke work, run the relevant readi
 .\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean
 ```
 
-## Slice Triage
+## Feature Closure Triage
 
 Classify each next task before editing:
 
@@ -80,7 +80,7 @@ Classify each next task before editing:
 | Frontend-visible fix | page load, upload, drawer, SSE fallback | Backend route check plus browser smoke when server is available |
 | Infrastructure/deployment | env, runtime, server, queue, storage | Separate checklist, no secret output, no production mutation |
 
-Prefer the smallest safe slice that unlocks a visible frontend gap or removes a clear backend blocker.
+Prefer the smallest complete user-visible feature closure that resolves a real workflow. Do not choose a route only because it is easy; first map the related frontend callers, Java service logic, current PHP services, database tables, downstream reads, and rollback/smoke requirements.
 
 ## Multi-Agent Rules
 
@@ -108,30 +108,30 @@ Good explorer prompts ask for concrete output:
 
 ## Implementation Loop
 
-Use this loop for each slice:
+Use this loop for each feature-closure block:
 
 1. Check worktree status.
-2. Search only relevant Java, frontend, route, controller, service, docs, and tests.
-3. Write a short local plan with scope, touched files, non-goals, and acceptance checks.
+2. Search the related Java controller/service/params, frontend callers, ThinkPHP routes/controllers/services, database tables, downstream readers, docs, and tests.
+3. Write a short local plan with feature scope, dependency map, side-effect map, touched files, non-goals, and acceptance checks.
 4. Edit only the scoped files.
 5. Update the narrow docs that future conversations need.
 6. Record new recurring problems or mitigations in `docs/tasks/problem-optimization-log.md`.
-7. Run risk-appropriate checks.
-8. Commit only when the user explicitly asks or the main merge/coordinator explicitly approves committing this completed slice.
-9. Report changed files, checks, problem-log updates, residual risks, and next slice.
+7. Run risk-appropriate end-to-end checks, including downstream readback when behavior changes.
+8. Commit only when the user explicitly asks or the main merge/coordinator explicitly approves committing this completed feature block.
+9. Report changed files, checks, problem-log updates, residual risks, and next feature block.
 
 Avoid re-reading stable decisions. Link to existing docs instead of restating them.
 
 ## Documentation Rules
 
-Each slice should update only the docs it actually changes:
+Each feature block should update only the docs it actually changes:
 
 - API behavior: one `docs/api/*` file or the existing module doc.
 - Route/gap count: `docs/tasks/api-gap-map.md` when route coverage changes.
 - Project progress: `docs/tasks/refactor-progress-dashboard.md` when capability or counts change.
 - Recurring problems and workflow improvements: `docs/tasks/problem-optimization-log.md`.
 - Future startup facts: `docs/tasks/new-conversation-bootstrap.md` only for reusable runtime, credential, smoke, or workflow facts.
-- Long-running record: append concise entries to `PLANS.md`, `IMPLEMENT.md`, and `STATUS.md` for completed implementation slices.
+- Long-running record: append concise entries to `PLANS.md`, `IMPLEMENT.md`, and `STATUS.md` for completed implementation or process feature blocks.
 
 Do not paste long command output into docs. Record pass/fail and the few facts needed for future verification.
 
@@ -143,21 +143,21 @@ Use `docs/tasks/problem-optimization-log.md` as the living problem table.
 - Update an existing row when the same problem repeats or when a better mitigation is found.
 - Keep entries practical: problem, impact, root cause, current mitigation, next optimization, and status.
 - Do not store secrets, raw credentials, tokens, local login values, or production data in the problem log.
-- Mention important problem-log changes in the completed slice's `STATUS.md` entry.
+- Mention important problem-log changes in the completed feature block's `STATUS.md` entry.
 
 ## Context Handoff Rules
 
 Use `docs/tasks/context-handoff.md` as the handoff contract for long conversations.
 
-- Keep working in the current conversation while the current slice is small and precise.
-- Finish and verify the active coherent slice before asking for a new conversation when practical.
+- Keep working in the current conversation while the active feature block is precise enough to inspect safely.
+- Finish and verify the active coherent feature block before asking for a new conversation when practical.
 - Ask for a new conversation before broad Java/frontend/backend inspections, side-effect-heavy work, or cross-module work if this thread is already long.
 - Before handing off, update `STATUS.md` and `docs/tasks/problem-optimization-log.md`; update the dashboard, gap map, `PLANS.md`, or `IMPLEMENT.md` only when their facts changed.
 - In the new conversation, start with `.\scripts\project-progress.ps1 -Lean`, then run `.\scripts\project-preflight.ps1` when local services are expected to be available.
 
 ## Quality Gates
 
-Minimum checks for every code slice:
+Minimum checks for every code feature block:
 
 ```powershell
 php -l <touched php files>
@@ -200,7 +200,7 @@ Use targeted checks first:
 - Focused service smoke through ThinkPHP bootstrap for DB behavior.
 - Existing optional HTTP smoke flags when they match the slice.
 
-Use broad checks when the slice touches shared foundations, before push/release, or after many accumulated changes:
+Use broad checks when the feature block touches shared foundations, before push/release, or after many accumulated changes:
 
 - full `.\scripts\test-agent-smoke.ps1 -SkipComposer`;
 - `.\scripts\test-agent-db-smoke.ps1`;

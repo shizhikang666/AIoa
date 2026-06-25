@@ -46,9 +46,9 @@ class PaymentRecordController extends BaseSysController
         return $this->guard(fn () => $this->paymentRecordService->edit($this->body($request), $this->authPayload($request)));
     }
 
-    public function editAccount(): Response
+    public function editAccount(Request $request): Response
     {
-        return $this->deferredWrite('payment record account switch');
+        return $this->guard(fn () => $this->paymentRecordService->editAccount($this->body($request), $this->authPayload($request)));
     }
 
     public function delete(): Response

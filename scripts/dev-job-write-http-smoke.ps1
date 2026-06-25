@@ -307,6 +307,64 @@ think\facade\Db::name('dev_job')->where('ID', '$safeId')->update(['JOB_STATUS' =
     }
     Assert-Code -Json $editRunning -Expected 400 -Name 'dev job running edit guard'
 
+    $runNoToken = Invoke-RawPostJson -Url "$baseUrl/dev/job/runJob" -Data @{
+        id = $id
+    }
+    Assert-Code -Json $runNoToken -Expected 401 -Name 'dev job run without token'
+
+    $missingRun = Invoke-RawPostJson -Url "$baseUrl/dev/job/runJob" -Token $token -Data @{
+        id = ''
+    }
+    Assert-Code -Json $missingRun -Expected 400 -Name 'dev job run missing id'
+
+    $runAlready = Invoke-RawPostJson -Url "$baseUrl/dev/job/runJob" -Token $token -Data @{
+        id = $id
+    }
+    Assert-Code -Json $runAlready -Expected 400 -Name 'dev job run already running'
+
+    $stop = Invoke-RawPostJson -Url "$baseUrl/dev/job/stopJob" -Token $token -Data @{
+        id = $id
+    }
+    Assert-Code -Json $stop -Expected 200 -Name 'dev job stop'
+
+    $detailStopped = Invoke-RawGet -Url "$baseUrl/dev/job/detail?id=$encodedId" -Token $token
+    Assert-Code -Json $detailStopped -Expected 200 -Name 'dev job detail after stop'
+    Assert-PathEquals -Json $detailStopped -Path 'data.jobStatus' -Expected 'STOPPED' -Name 'dev job detail stop status'
+
+    $stopAlready = Invoke-RawPostJson -Url "$baseUrl/dev/job/stopJob" -Token $token -Data @{
+        id = $id
+    }
+    Assert-Code -Json $stopAlready -Expected 400 -Name 'dev job stop already stopped'
+
+    $run = Invoke-RawPostJson -Url "$baseUrl/dev/job/runJob" -Token $token -Data @{
+        id = $id
+    }
+    Assert-Code -Json $run -Expected 200 -Name 'dev job run'
+
+    $detailRunning = Invoke-RawGet -Url "$baseUrl/dev/job/detail?id=$encodedId" -Token $token
+    Assert-Code -Json $detailRunning -Expected 200 -Name 'dev job detail after run'
+    Assert-PathEquals -Json $detailRunning -Path 'data.jobStatus' -Expected 'RUNNING' -Name 'dev job detail run status'
+
+    $runNowRunning = Invoke-RawPostJson -Url "$baseUrl/dev/job/runJobNow" -Token $token -Data @{
+        id = $id
+    }
+    Assert-Code -Json $runNowRunning -Expected 200 -Name 'dev job run now while running'
+
+    Invoke-Php -Code @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+think\facade\Db::name('dev_job')->where('ID', '$safeId')->update(['JOB_STATUS' => 'STOPPED']);
+"@ | Out-Null
+
+    $runNowStopped = Invoke-RawPostJson -Url "$baseUrl/dev/job/runJobNow" -Token $token -Data @{
+        id = $id
+    }
+    Assert-Code -Json $runNowStopped -Expected 200 -Name 'dev job run now while stopped'
+
+    $detailRunNow = Invoke-RawGet -Url "$baseUrl/dev/job/detail?id=$encodedId" -Token $token
+    Assert-Code -Json $detailRunNow -Expected 200 -Name 'dev job detail after run now'
+    Assert-PathEquals -Json $detailRunNow -Path 'data.jobStatus' -Expected 'RUNNING' -Name 'dev job detail run now status'
+
     Write-Host 'dev job write HTTP smoke passed'
 } finally {
     Invoke-Php -Code $cleanupCode | Out-Null

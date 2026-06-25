@@ -1,6 +1,6 @@
 # Sales Project Field Change Log Compatibility
 
-Updated: 2026-06-05
+Updated: 2026-06-18
 
 Agent: api-agent / frontend-agent
 
@@ -35,13 +35,14 @@ All routes are protected by `AuthMiddleware`.
 - Edit requires the same fields plus `id`.
 - Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
 - ThinkPHP uses `DELETE_FLAG = DELETED` for delete safety instead of physically removing imported rows.
+- `/biz/saleproject/amount/edit` now generates one `INIT_PRICE` change log row as part of its focused Java-compatible amount maintenance.
 
 ## Deferred
 
 The following remain intentionally deferred:
 
 - sale-project change-log generation writes
-- sale-project amount/change writes
+- sale-project non-amount change writes
 - workflow, finance, and audit side effects
 - Java source changes
 - database schema changes

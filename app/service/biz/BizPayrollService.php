@@ -6,6 +6,8 @@ namespace app\service\biz;
 
 use RuntimeException;
 use think\facade\Db;
+use think\file\UploadedFile;
+use ZipArchive;
 
 /**
  * Read-only payroll queries compatible with Java BizPayrollController.
@@ -14,6 +16,16 @@ class BizPayrollService
 {
     private const NOT_DELETE = 'NOT_DELETE';
     private const DELETED = 'DELETED';
+    private const PROJECT_PLAY = 'PROJECT_PLAY';
+    private const PAID = 'PAID';
+    private const LEAVE_OF_ABSENCE = 'leaveOfAbsence';
+    private const DEAL_PROJECT_STATES = [
+        'WAIT_DELIVER',
+        'SHIPPED',
+        'PARTIALLY_SHIPPED',
+        'COMPLETED',
+    ];
+    private const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
     private const EDITABLE_FIELDS = [
         'senioritySalary' => 'SENIORITY_SALARY',
         'performanceSalary' => 'PERFORMANCE_SALARY',
@@ -38,6 +50,64 @@ class BizPayrollService
         'socialSecurity' => 'SOCIAL_SECURITY',
         'actualAmount' => 'ACTUAL_AMOUNT',
         'rateCommission' => 'RATE_COMMISSION',
+    ];
+    private const IMPORT_COLUMNS = [
+        0 => 'orgName',
+        1 => 'order',
+        2 => 'name',
+        3 => 'basicSalary',
+        4 => 'postWage',
+        5 => 'workSalary',
+        6 => 'senioritySalary',
+        7 => 'performanceSalary',
+        8 => 'rentSubsidies',
+        9 => 'mealAllowance',
+        10 => 'dormitoryRent',
+        11 => 'baseAmount',
+        12 => 'transactionVolume',
+        13 => 'receivedAmount',
+        14 => 'taxFreight',
+        15 => 'monthlyCommission',
+        16 => 'beforeReceivedAmount',
+        17 => 'beforeCommission',
+        18 => 'totalCommission',
+        19 => 'meritBonuses',
+        20 => 'vacationSubAmount',
+        21 => 'yearEndBonus',
+        22 => 'payableAmount',
+        23 => 'personalIncomeTax',
+        24 => 'socialSecurity',
+        25 => 'actualAmount',
+        26 => 'publicAccount',
+        27 => 'privateAccount',
+        28 => 'remark',
+    ];
+    private const IMPORT_NUMERIC_FIELDS = [
+        'senioritySalary' => 'SENIORITY_SALARY',
+        'performanceSalary' => 'PERFORMANCE_SALARY',
+        'workSalary' => 'WORK_SALARY',
+        'basicSalary' => 'BASIC_SALARY',
+        'postWage' => 'POST_WAGE',
+        'rentSubsidies' => 'RENT_SUBSIDIES',
+        'mealAllowance' => 'MEAL_ALLOWANCE',
+        'dormitoryRent' => 'DORMITORY_RENT',
+        'baseAmount' => 'BASE_AMOUNT',
+        'transactionVolume' => 'TRANSACTION_VOLUME',
+        'receivedAmount' => 'RECEIVED_AMOUNT',
+        'taxFreight' => 'TAX_FREIGHT',
+        'monthlyCommission' => 'MONTHLY_COMMISSION',
+        'beforeReceivedAmount' => 'BEFORE_RECEIVED_AMOUNT',
+        'beforeCommission' => 'BEFORE_COMMISSION',
+        'totalCommission' => 'TOTAL_COMMISSION',
+        'meritBonuses' => 'MERIT_BONUSES',
+        'vacationSubAmount' => 'VACATION_SUB_AMOUNT',
+        'yearEndBonus' => 'YEAR_END_BONUS',
+        'payableAmount' => 'PAYABLE_AMOUNT',
+        'personalIncomeTax' => 'PERSONAL_INCOME_TAX',
+        'socialSecurity' => 'SOCIAL_SECURITY',
+        'actualAmount' => 'ACTUAL_AMOUNT',
+        'publicAccount' => 'PUBLIC_ACCOUNT',
+        'privateAccount' => 'PRIVATE_ACCOUNT',
     ];
     private const FIELDS = <<<SQL
 p.ID AS ID,
@@ -220,6 +290,108 @@ SQL;
         ];
     }
 
+    public function importExcel(mixed $file, array $input = [], array $payload = []): array
+    {
+        if (!$file instanceof UploadedFile) {
+            throw new RuntimeException('missing file', 400);
+        }
+
+        $sourcePath = $file->getRealPath() ?: $file->getPathname();
+        if (!is_string($sourcePath) || $sourcePath === '' || !is_file($sourcePath)) {
+            throw new RuntimeException('invalid uploaded file', 400);
+        }
+
+        $size = filesize($sourcePath);
+        $size = $size === false ? 0 : $size;
+        if ($size <= 0) {
+            throw new RuntimeException('invalid uploaded file', 400);
+        }
+        if ($size > self::MAX_IMPORT_BYTES) {
+            throw new RuntimeException('payroll import file is too large', 400);
+        }
+
+        $originalName = $this->uploadedOriginalName($file);
+        if (strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION)) !== 'xlsx') {
+            throw new RuntimeException('unsupported payroll import file type', 400);
+        }
+
+        $workbook = $this->readPayrollImportWorkbook($sourcePath);
+        $salaryTime = $this->payrollImportSalaryTime((string)$workbook['title']);
+        $rows = $workbook['rows'];
+        $orgId = trim((string)($input['orgId'] ?? $input['org'] ?? $input['ORG_ID'] ?? ''));
+        $users = $this->payrollImportUsers($orgId, $payload);
+
+        return Db::transaction(function () use ($rows, $salaryTime, $users, $payload): array {
+            $successCount = 0;
+            $errorCount = 0;
+            $errorDetail = [];
+
+            foreach ($rows as $index => $row) {
+                try {
+                    $this->importPayrollRow($row, $users, $salaryTime, $payload);
+                    $successCount++;
+                } catch (\Throwable $exception) {
+                    $errorCount++;
+                    $errorDetail[] = [
+                        'index' => $index + 1,
+                        'success' => false,
+                        'msg' => $exception->getMessage() !== '' ? $exception->getMessage() : 'payroll import row failed',
+                    ];
+                }
+            }
+
+            return [
+                'totalCount' => count($rows),
+                'successCount' => $successCount,
+                'errorCount' => $errorCount,
+                'errorDetail' => $errorDetail,
+            ];
+        });
+    }
+
+    public function generate(array $input, array $payload = []): array
+    {
+        $userIds = $this->generateUserIds($input);
+        $salaryTime = $this->requiredDateTime($input, 'salaryTime');
+        $salaryTimestamp = strtotime($salaryTime);
+        if ($salaryTimestamp === false) {
+            throw new RuntimeException('invalid salaryTime', 400);
+        }
+
+        $monthStart = date('Y-m-01 00:00:00', $salaryTimestamp);
+        $monthEnd = date('Y-m-t 23:59:59', $salaryTimestamp);
+        $socialSecurity = $this->nonNegativeDecimal($input['socialSecurity'] ?? 0, 'socialSecurity');
+
+        return Db::transaction(function () use ($userIds, $salaryTime, $monthStart, $monthEnd, $socialSecurity, $payload): array {
+            $users = $this->activeGenerateUsers($userIds, $payload);
+            if (count($users) !== count($userIds)) {
+                throw new RuntimeException('payroll generate user not found', 404);
+            }
+
+            $operatorId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $payrolls = [];
+            foreach ($userIds as $userId) {
+                $user = $users[$userId];
+                $this->assertGenerateUserWritable($user, $payload);
+                $payrolls[$userId] = $this->initialGeneratedPayroll($user, $salaryTime, $socialSecurity, $operatorId, $now, $payload);
+            }
+
+            $this->applyGeneratedTransactionVolume($payrolls, $userIds, $monthStart, $monthEnd, $payload);
+            $this->applyGeneratedReceivedAmounts($payrolls, $monthStart, $monthEnd, $payload);
+            $this->applyGeneratedLeaveAmounts($payrolls, $userIds, $monthStart, $monthEnd, $payload);
+            $this->recalculateGeneratedPayrolls($payrolls);
+
+            Db::name('biz_payroll')->insertAll(array_values($payrolls));
+
+            return [
+                'count' => count($payrolls),
+                'ids' => array_values(array_map(static fn (array $row): string => (string)$row['ID'], $payrolls)),
+                'salaryTime' => $salaryTime,
+            ];
+        });
+    }
+
     public function edit(array $input, array $payload = []): array
     {
         $id = $this->requiredInput($input, 'id');
@@ -297,6 +469,271 @@ SQL;
 
             return ['count' => $updated];
         });
+    }
+
+    /**
+     * @return array{title:string, rows:array<int, array<string, mixed>>}
+     */
+    private function readPayrollImportWorkbook(string $path): array
+    {
+        $zip = new ZipArchive();
+        if ($zip->open($path) !== true) {
+            throw new RuntimeException('invalid xlsx file', 400);
+        }
+
+        try {
+            $sharedStrings = $this->xlsxSharedStrings($zip);
+            $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+            if ($sheetXml === false || $sheetXml === '') {
+                throw new RuntimeException('payroll import sheet not found', 400);
+            }
+
+            $sheet = simplexml_load_string($sheetXml);
+            if ($sheet === false) {
+                throw new RuntimeException('invalid payroll import sheet', 400);
+            }
+
+            $title = '';
+            $rows = [];
+            foreach ($sheet->sheetData->row as $row) {
+                $rowNumber = (int)$row['r'];
+                $values = [];
+                foreach ($row->c as $cell) {
+                    $columnIndex = $this->xlsxColumnIndex((string)$cell['r']);
+                    $value = $this->xlsxCellValue($cell, $sharedStrings);
+                    if ($rowNumber === 1 && $columnIndex === 0) {
+                        $title = $value;
+                    }
+
+                    $field = self::IMPORT_COLUMNS[$columnIndex] ?? null;
+                    if ($rowNumber > 3 && $field !== null) {
+                        $values[$field] = $value;
+                    }
+                }
+
+                if ($rowNumber > 3 && !$this->blankImportRow($values)) {
+                    $rows[] = $values;
+                }
+            }
+
+            return [
+                'title' => $title,
+                'rows' => $rows,
+            ];
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function xlsxSharedStrings(ZipArchive $zip): array
+    {
+        $xml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($xml === false || $xml === '') {
+            return [];
+        }
+
+        $shared = simplexml_load_string($xml);
+        if ($shared === false) {
+            throw new RuntimeException('invalid xlsx shared strings', 400);
+        }
+
+        $strings = [];
+        foreach ($shared->si as $item) {
+            $parts = [];
+            if (isset($item->t)) {
+                $parts[] = (string)$item->t;
+            }
+            foreach ($item->r as $run) {
+                $parts[] = (string)$run->t;
+            }
+            $strings[] = implode('', $parts);
+        }
+
+        return $strings;
+    }
+
+    /**
+     * @param array<int, string> $sharedStrings
+     */
+    private function xlsxCellValue(\SimpleXMLElement $cell, array $sharedStrings): string
+    {
+        $type = (string)$cell['t'];
+        if ($type === 'inlineStr') {
+            return trim((string)($cell->is->t ?? ''));
+        }
+
+        $value = isset($cell->v) ? (string)$cell->v : '';
+        if ($type === 's' && $value !== '') {
+            return trim((string)($sharedStrings[(int)$value] ?? $value));
+        }
+
+        return trim($value);
+    }
+
+    private function xlsxColumnIndex(string $cellRef): int
+    {
+        if (preg_match('/^([A-Z]+)/i', $cellRef, $matches) !== 1) {
+            return 0;
+        }
+
+        $letters = strtoupper($matches[1]);
+        $index = 0;
+        for ($i = 0, $length = strlen($letters); $i < $length; $i++) {
+            $index = ($index * 26) + (ord($letters[$i]) - ord('A') + 1);
+        }
+
+        return $index - 1;
+    }
+
+    private function payrollImportSalaryTime(string $title): string
+    {
+        $title = trim($title);
+        if (preg_match('/(\d{4})\s*年\s*(\d{1,2})\s*月\s*工资表/u', $title, $matches) !== 1) {
+            throw new RuntimeException('invalid payroll import salary month', 400);
+        }
+
+        $month = (int)$matches[2];
+        if ($month < 1 || $month > 12) {
+            throw new RuntimeException('invalid payroll import salary month', 400);
+        }
+
+        return sprintf('%04d-%02d-01 00:00:00', (int)$matches[1], $month);
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function payrollImportUsers(string $orgId, array $payload): array
+    {
+        $query = Db::name('sys_user')
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = $this->tenantId($payload);
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        if ($orgId !== '') {
+            $orgIds = $this->orgAndChildren($orgId);
+            if ($orgIds === []) {
+                return [];
+            }
+            $query->whereIn('ORG_ID', $orgIds);
+        }
+
+        $rows = $query
+            ->field('ID,NAME,ORG_ID,TENANT_ID,CREATE_USER')
+            ->select()
+            ->toArray();
+
+        $users = [];
+        foreach ($rows as $row) {
+            $name = trim((string)($row['NAME'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            if (isset($users[$name])) {
+                throw new RuntimeException('duplicate payroll import user name: ' . $name, 400);
+            }
+            $this->assertPayrollImportUserWritable($row, $payload);
+            $users[$name] = $row;
+        }
+
+        return $users;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param array<string, array<string, mixed>> $users
+     */
+    private function importPayrollRow(array $row, array $users, string $salaryTime, array $payload): void
+    {
+        $name = $this->payrollImportName((string)($row['name'] ?? ''));
+        if ($name === '' || !isset($users[$name])) {
+            throw new RuntimeException('payroll import user not found', 400);
+        }
+
+        $user = $users[$name];
+        $tenantId = trim((string)($user['TENANT_ID'] ?? $this->tenantId($payload)));
+        if ($tenantId === '') {
+            $tenantId = '1';
+        }
+
+        $now = date('Y-m-d H:i:s');
+        $operatorId = $this->currentUserId($payload);
+        $payroll = [
+            'ID' => $this->newId(),
+            'RATE_COMMISSION' => '0.00',
+            'VACATION' => '0.00',
+            'SALARY_TIME' => $salaryTime,
+            'USER' => (string)$user['ID'],
+            'ORG' => (string)($user['ORG_ID'] ?? ''),
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => null,
+            'UPDATE_USER' => null,
+            'TENANT_ID' => $tenantId,
+            'REMARK' => trim((string)($row['remark'] ?? '')),
+        ];
+
+        foreach (self::IMPORT_NUMERIC_FIELDS as $field => $column) {
+            $payroll[$column] = $this->decimalAmount($row[$field] ?? 0);
+        }
+
+        Db::name('biz_payroll')->insert($payroll);
+    }
+
+    private function payrollImportName(string $name): string
+    {
+        $normalized = preg_replace('/\s+/u', '', $name);
+
+        return trim($normalized === null ? $name : $normalized);
+    }
+
+    private function assertPayrollImportUserWritable(array $row, array $payload): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $orgId = trim((string)($row['ORG_ID'] ?? ''));
+        if ($scopeOrgIds !== [] && $orgId !== '' && in_array($orgId, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        if ($currentUserId !== '' && (string)($row['ID'] ?? '') === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to import payroll for this user', 403);
+    }
+
+    private function uploadedOriginalName(UploadedFile $file): string
+    {
+        $name = trim($file->getOriginalName());
+        $name = str_replace('\\', '/', $name);
+        $name = basename($name);
+
+        return $name === '' ? 'payroll-import.xlsx' : $name;
+    }
+
+    private function blankImportRow(array $row): bool
+    {
+        foreach ($row as $value) {
+            if (trim((string)$value) !== '') {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function pagedResult(array $filters, array $payload, bool $onlyCurrentUser): array
@@ -453,6 +890,314 @@ SQL;
         }
 
         return $result;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function generateUserIds(array $input): array
+    {
+        $source = $input['user'] ?? $input['users'] ?? $input['userIds'] ?? $input['userIdList'] ?? null;
+        if (is_string($source)) {
+            $source = explode(',', $source);
+        }
+        if (!is_array($source)) {
+            throw new RuntimeException('missing user', 400);
+        }
+
+        $ids = [];
+        foreach ($source as $id) {
+            if (is_array($id)) {
+                throw new RuntimeException('invalid user', 400);
+            }
+            $id = trim((string)$id);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+        if ($ids === []) {
+            throw new RuntimeException('missing user', 400);
+        }
+        if (count($ids) !== count(array_unique($ids))) {
+            throw new RuntimeException('duplicate user', 400);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<string, array<string, mixed>>
+     */
+    private function activeGenerateUsers(array $ids, array $payload): array
+    {
+        $query = Db::name('sys_user')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = $this->tenantId($payload);
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field('ID,ORG_ID,BASIC_SALARY,TENANT_ID')
+            ->select()
+            ->toArray();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $result[(string)$row['ID']] = $row;
+        }
+
+        return $result;
+    }
+
+    private function assertGenerateUserWritable(array $row, array $payload): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $rowOrg = trim((string)($row['ORG_ID'] ?? ''));
+        if ($scopeOrgIds !== [] && $rowOrg !== '' && in_array($rowOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        if ($currentUserId !== '' && trim((string)($row['ID'] ?? '')) === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException('no permission to generate payroll', 403);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function initialGeneratedPayroll(
+        array $user,
+        string $salaryTime,
+        string $socialSecurity,
+        string $operatorId,
+        string $now,
+        array $payload
+    ): array {
+        $zero = '0.00';
+        $tenantId = trim((string)($user['TENANT_ID'] ?? ''));
+        if ($tenantId === '') {
+            $tenantId = $this->tenantId($payload);
+        }
+        if ($tenantId === '') {
+            $tenantId = '1';
+        }
+
+        return [
+            'ID' => $this->newId(),
+            'SENIORITY_SALARY' => $zero,
+            'PERFORMANCE_SALARY' => $zero,
+            'WORK_SALARY' => $zero,
+            'BASIC_SALARY' => $this->decimalAmount($user['BASIC_SALARY'] ?? 0),
+            'POST_WAGE' => $zero,
+            'RENT_SUBSIDIES' => $zero,
+            'MEAL_ALLOWANCE' => $zero,
+            'DORMITORY_RENT' => $zero,
+            'BASE_AMOUNT' => $zero,
+            'TRANSACTION_VOLUME' => $zero,
+            'RECEIVED_AMOUNT' => $zero,
+            'TAX_FREIGHT' => $zero,
+            'MONTHLY_COMMISSION' => $zero,
+            'BEFORE_RECEIVED_AMOUNT' => $zero,
+            'BEFORE_COMMISSION' => $zero,
+            'RATE_COMMISSION' => $zero,
+            'TOTAL_COMMISSION' => $zero,
+            'MERIT_BONUSES' => $zero,
+            'VACATION' => $zero,
+            'VACATION_SUB_AMOUNT' => $zero,
+            'YEAR_END_BONUS' => $zero,
+            'PAYABLE_AMOUNT' => $zero,
+            'PERSONAL_INCOME_TAX' => $zero,
+            'SOCIAL_SECURITY' => $socialSecurity,
+            'ACTUAL_AMOUNT' => $zero,
+            'PRIVATE_ACCOUNT' => $zero,
+            'PUBLIC_ACCOUNT' => $zero,
+            'SALARY_TIME' => $salaryTime,
+            'USER' => (string)$user['ID'],
+            'ORG' => (string)($user['ORG_ID'] ?? ''),
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+            'UPDATE_TIME' => null,
+            'UPDATE_USER' => null,
+            'TENANT_ID' => $tenantId,
+            'REMARK' => '',
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $payrolls
+     * @param array<int, string> $userIds
+     */
+    private function applyGeneratedTransactionVolume(array &$payrolls, array $userIds, string $monthStart, string $monthEnd, array $payload): void
+    {
+        $query = Db::name('biz_sale_project')
+            ->whereIn('PROJECT_STATE', self::DEAL_PROJECT_STATES)
+            ->whereIn('USER', $userIds)
+            ->whereBetweenTime('CREATE_TIME', $monthStart, $monthEnd)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        $tenantId = $this->tenantId($payload);
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field('`USER` AS USER_ID,TOTAL_PRICE')
+            ->select()
+            ->toArray();
+        foreach ($rows as $row) {
+            $userId = (string)($row['USER_ID'] ?? '');
+            if (!isset($payrolls[$userId])) {
+                continue;
+            }
+            $this->addGeneratedAmount($payrolls[$userId], 'TRANSACTION_VOLUME', $row['TOTAL_PRICE'] ?? 0);
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $payrolls
+     */
+    private function applyGeneratedReceivedAmounts(array &$payrolls, string $monthStart, string $monthEnd, array $payload): void
+    {
+        $paymentQuery = Db::name('biz_payment_record')
+            ->where('SETTLEMENT_CATEGORY', self::PROJECT_PLAY)
+            ->whereBetweenTime('CREATE_TIME', $monthStart, $monthEnd)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        $tenantId = $this->tenantId($payload);
+        if ($tenantId !== '') {
+            $paymentQuery->where('TENANT_ID', $tenantId);
+        }
+
+        $projectIds = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $paymentQuery->column('OBJECT_ID')
+        ))));
+        if ($projectIds === []) {
+            return;
+        }
+
+        $projectQuery = Db::name('biz_sale_project')
+            ->where('PLAY_STATE', self::PAID)
+            ->whereIn('ID', $projectIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if ($tenantId !== '') {
+            $projectQuery->where('TENANT_ID', $tenantId);
+        }
+
+        $projects = $projectQuery
+            ->field('ID,`USER` AS USER_ID,TOTAL_PRICE,REBATE_AMOUNT,CREATE_TIME')
+            ->select()
+            ->toArray();
+        foreach ($projects as $project) {
+            $userId = (string)($project['USER_ID'] ?? '');
+            if (!isset($payrolls[$userId])) {
+                continue;
+            }
+
+            $amount = $this->numericAmount($project['TOTAL_PRICE'] ?? 0) - $this->numericAmount($project['REBATE_AMOUNT'] ?? 0);
+            $column = $this->isInTimeRange((string)($project['CREATE_TIME'] ?? ''), $monthStart, $monthEnd)
+                ? 'RECEIVED_AMOUNT'
+                : 'BEFORE_RECEIVED_AMOUNT';
+            $this->addGeneratedAmount($payrolls[$userId], $column, $amount);
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $payrolls
+     * @param array<int, string> $userIds
+     */
+    private function applyGeneratedLeaveAmounts(array &$payrolls, array $userIds, string $monthStart, string $monthEnd, array $payload): void
+    {
+        $query = Db::name('biz_leave_application')
+            ->where('category', self::LEAVE_OF_ABSENCE)
+            ->whereIn('USER_ID', $userIds)
+            ->whereRaw('((START_TIME BETWEEN ? AND ?) OR (END_TIME BETWEEN ? AND ?))', [
+                $monthStart,
+                $monthEnd,
+                $monthStart,
+                $monthEnd,
+            ])
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        $tenantId = $this->tenantId($payload);
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field('USER_ID,AMOUNT,START_TIME,END_TIME')
+            ->select()
+            ->toArray();
+        foreach ($rows as $row) {
+            $userId = (string)($row['USER_ID'] ?? '');
+            if (!isset($payrolls[$userId])) {
+                continue;
+            }
+
+            $amount = $this->generatedVacationAmount(
+                (string)($row['START_TIME'] ?? ''),
+                (string)($row['END_TIME'] ?? ''),
+                $monthStart,
+                $monthEnd,
+                $row['AMOUNT'] ?? 0
+            );
+            $this->addGeneratedAmount($payrolls[$userId], 'VACATION', $amount);
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $payrolls
+     */
+    private function recalculateGeneratedPayrolls(array &$payrolls): void
+    {
+        foreach ($payrolls as &$payroll) {
+            $baseAmount = $this->numericAmount($payroll['SENIORITY_SALARY'])
+                + $this->numericAmount($payroll['PERFORMANCE_SALARY'])
+                + $this->numericAmount($payroll['WORK_SALARY'])
+                + $this->numericAmount($payroll['BASIC_SALARY'])
+                + $this->numericAmount($payroll['RENT_SUBSIDIES'])
+                + $this->numericAmount($payroll['MEAL_ALLOWANCE'])
+                - $this->numericAmount($payroll['DORMITORY_RENT']);
+            $payroll['BASE_AMOUNT'] = $this->decimalAmount($baseAmount);
+
+            $vacationSubAmount = 0.0;
+            $basicSalary = $this->numericAmount($payroll['BASIC_SALARY']);
+            if ($basicSalary > 0) {
+                $dailyDeduction = floor(($basicSalary / 24) * 100) / 100;
+                $vacationSubAmount = $dailyDeduction * $this->numericAmount($payroll['VACATION']);
+            }
+            $payroll['VACATION_SUB_AMOUNT'] = $this->decimalAmount($vacationSubAmount);
+
+            $payableAmount = $this->numericAmount($payroll['BASE_AMOUNT'])
+                + $this->numericAmount($payroll['TOTAL_COMMISSION'])
+                - $this->numericAmount($payroll['VACATION_SUB_AMOUNT']);
+            $payroll['PAYABLE_AMOUNT'] = $this->decimalAmount($payableAmount);
+
+            $actualAmount = $this->numericAmount($payroll['PAYABLE_AMOUNT'])
+                - $this->numericAmount($payroll['PERFORMANCE_SALARY'])
+                - $this->numericAmount($payroll['SOCIAL_SECURITY']);
+            $payroll['ACTUAL_AMOUNT'] = $this->decimalAmount($actualAmount);
+        }
+        unset($payroll);
     }
 
     private function editableUpdate(array $input, array $payload): array
@@ -771,6 +1516,33 @@ SQL;
         return $value;
     }
 
+    private function requiredDateTime(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function nonNegativeDecimal(mixed $value, string $field): string
+    {
+        if ($value === null || $value === '') {
+            return '0.00';
+        }
+        if (!is_numeric($value) || (float)$value < 0) {
+            throw new RuntimeException("invalid {$field}", 400);
+        }
+
+        return $this->decimalAmount($value);
+    }
+
     private function decimalAmount(mixed $value): string
     {
         if ($value === null || $value === '') {
@@ -781,6 +1553,74 @@ SQL;
         }
 
         return number_format((float)$value, 2, '.', '');
+    }
+
+    private function numericAmount(mixed $value): float
+    {
+        return (float)($value ?? 0);
+    }
+
+    private function addGeneratedAmount(array &$row, string $column, mixed $amount): void
+    {
+        $row[$column] = $this->decimalAmount($this->numericAmount($row[$column] ?? 0) + $this->numericAmount($amount));
+    }
+
+    private function generatedVacationAmount(string $leaveStart, string $leaveEnd, string $monthStart, string $monthEnd, mixed $storedAmount): string
+    {
+        if ($this->isInTimeRange($leaveStart, $monthStart, $monthEnd) && $this->isInTimeRange($leaveEnd, $monthStart, $monthEnd)) {
+            return $this->decimalAmount($storedAmount);
+        }
+
+        $startTs = strtotime($leaveStart);
+        $endTs = strtotime($leaveEnd);
+        $monthStartTs = strtotime($monthStart);
+        $monthEndTs = strtotime($monthEnd);
+        if ($startTs === false || $endTs === false || $monthStartTs === false || $monthEndTs === false) {
+            return '0.00';
+        }
+
+        $effectiveStart = $this->timestampInRange($startTs, $monthStartTs, $monthEndTs) ? $startTs : $monthStartTs;
+        $effectiveEnd = $this->timestampInRange($endTs, $monthStartTs, $monthEndTs) ? $endTs : $monthEndTs;
+        if ($effectiveEnd < $effectiveStart) {
+            return '0.00';
+        }
+
+        $days = floor(($effectiveEnd - $effectiveStart) / 86400) + 1;
+        if ((int)date('G', $effectiveStart) === 12) {
+            $days -= 0.5;
+        }
+        if ((int)date('G', $effectiveEnd) === 12) {
+            $days -= 0.5;
+        }
+
+        return $this->decimalAmount(max(0, $days));
+    }
+
+    private function isInTimeRange(string $time, string $start, string $end): bool
+    {
+        $timestamp = strtotime($time);
+        $startTs = strtotime($start);
+        $endTs = strtotime($end);
+        if ($timestamp === false || $startTs === false || $endTs === false) {
+            return false;
+        }
+
+        return $this->timestampInRange($timestamp, $startTs, $endTs);
+    }
+
+    private function timestampInRange(int $timestamp, int $start, int $end): bool
+    {
+        return $timestamp >= $start && $timestamp <= $end;
+    }
+
+    private function tenantId(array $payload): string
+    {
+        return trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function decimal(mixed $value): int|float|null

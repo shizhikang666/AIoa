@@ -1,4 +1,4 @@
-# Biz Sale Project Read-Only API Compatibility
+# Biz Sale Project API Compatibility
 
 Date: 2026-06-02
 
@@ -25,6 +25,16 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/saleproject/product` | `biz.SaleProjectController/product` | Product items for one sale project |
 | POST | `/biz/saleproject/cost` | `biz.SaleProjectController/cost` | Read-only aggregate sale-project product cost |
 | POST | `/biz/saleproject/cost/details` | `biz.SaleProjectController/costDetails` | Read-only sale-project product cost details |
+| POST | `/biz/saleproject/add` | `biz.SaleProjectController/add` | Java-compatible base project creation with optional copied-frontend `productList` sync |
+| POST | `/biz/saleproject/edit` | `biz.SaleProjectController/edit` | Java-compatible base project edit for `FOLLOW` rows with optional copied-frontend `productList` sync |
+| POST | `/biz/saleproject/history/add` | `biz.SaleProjectController/historyAdd` | Historical project creation with history-customer row and payment-state correction |
+| POST | `/biz/saleproject/special/add` | `biz.SaleProjectController/specialAdd` | Public reimbursement project creation with history-customer row and payment-state correction |
+| POST | `/biz/saleproject/visibility/edit` | `biz.SaleProjectController/visibilityEdit` | Narrow visibility/specimen field update |
+| POST | `/biz/saleproject/amount/edit` | `biz.SaleProjectController/amountEdit` | Java-compatible amount/status/totals update with change log |
+| POST | `/biz/saleproject/deal/edit` | `biz.SaleProjectController/dealEdit` | Java-compatible delivery/freight field update |
+| POST | `/biz/saleproject/cancel` | `biz.SaleProjectController/cancel` | Java-compatible WAIT_DELIVER rollback to FOLLOW with invoicing logical delete |
+| POST | `/biz/saleproject/repeal` | `biz.SaleProjectController/repeal` | Java-compatible FOLLOW to DISCARD state update with repeal content |
+| POST | `/biz/saleproject/delete` | `biz.SaleProjectController/delete` | Java-compatible FOLLOW-only logical delete with DISCARD state |
 
 ## Compatibility Notes
 
@@ -42,23 +52,26 @@ All routes are protected by `AuthMiddleware`.
   - `returnOrders`
 - Payment records are limited to `SETTLEMENT_CATEGORY = PROJECT_PLAY`, matching Java list/detail aggregation.
 - Data scope follows the existing auth payload `data_scope_org_ids`; if no org scope is available, it falls back to the current user id.
+- `/biz/saleproject/add` validates the selected active customer, creates one base `biz_sale_project` row, sets `PROJECT_STATE = FOLLOW`, `PLAY_STATE = UNPAID`, `VISIBILITY = PRIVATE`, zeroes money defaults, and still ignores copied-frontend state/amount spoof fields because Java `BizSaleProjectAddParam` exposes only base fields.
+- `/biz/saleproject/add` now also accepts the copied sale-project form's optional `productList`: omitted or `null` means no product rows; an array creates active `biz_sale_project_product_item` rows and `sale_project_product_item_relation` rows inside the same transaction.
+- `/biz/saleproject/edit` validates active sale-project access, requires `PROJECT_STATE = FOLLOW`, updates only Java `BizSaleProjectEditParam` fields (`PROJECT_NAME`, `PROJECT_CATEGORY`, `REMARK`, `AREA`, `DETAILS_ADDRESS`, `PROJECT_CODE`), and preserves customer, state, visibility, amount, finance, invoice, workflow, and delete fields.
+- `/biz/saleproject/edit` treats omitted or `null` `productList` as "preserve product rows"; an array synchronizes the active product-item set by updating submitted existing rows, inserting new rows, and logically deleting removed rows.
+- Product-list sync validates enabled active products in the current tenant/data scope, requires positive integer quantities and non-negative money fields, sets normal rows to `CATEGORY = INIT`, `STATE = WAIT_DELIVER`, and `DELIVERY = 0`, auto-hydrates kit product children from `product_relation.CATEGORY = KIT_PRODUCT_DATA` when children are omitted, and writes child relation `EXT_JSON.product` snapshots for copied frontend parsers.
+- Product-list sync logically deletes removed product-item and child-relation rows. If an existing product item is referenced by active `biz_sale_project_invoice_item` or `return_order_item` rows, delete and product/quantity/money/children changes are rejected and rolled back.
+- `/biz/saleproject/history/add` validates the target user, creates one `customer` history row with `CUSTOM_TYPE = OLD` and `STATUS = ENABLE`, creates one direct private project, stores `HISTORY_AMOUNT`, and applies Java-style payment-state correction from submitted `initPrice/historyAmount`.
+- `/biz/saleproject/special/add` validates the selected org, creates one current-user history customer, creates one direct private project with `special_type = PUBLIC_FOR_REIMBURSEMENT`, stores `HISTORY_AMOUNT = 0.00`, and applies Java-style payment-state correction from submitted `initPrice`.
+- `/biz/saleproject/visibility/edit` validates `PUBLIC`/`PRIVATE`, requires `specimenCategory` for public visibility, updates only visibility/specimen/audit/version fields, and preserves specimen fields for copied frontend private toggles that omit them.
+- `/biz/saleproject/amount/edit` validates active sale-project access, updates `INIT_PRICE`, recalculates collection/payment/project/return totals, writes one `INIT_PRICE` field-change log, and keeps broader sale-project workflow/finance/inventory/invoice side effects deferred.
+- `/biz/saleproject/deal/edit` validates active sale-project access, updates only Java `BizDealProjectEditParam` fields (`UNIT`, `ADDRESS`, `LOGISTICS_CATEGORY`, `CONSIGNEE`, `PHONE`, `REMARK`, `FREIGHT`, `FREIGHT_CATEGORY`, `DELIVERY_NOTE`), refreshes audit/version fields, and preserves protected state, amount, invoicing, product, finance, and workflow data.
+- `/biz/saleproject/cancel` validates active sale-project access, requires `PROJECT_STATE = WAIT_DELIVER`, sets `PROJECT_STATE = FOLLOW`, refreshes audit/version fields, and logically deletes active `biz_sale_project_invoicing` rows for that project and tenant.
+- `/biz/saleproject/repeal` accepts Java/copied-frontend array payloads, validates every selected project is visible and `FOLLOW`, then sets `PROJECT_STATE = DISCARD`, writes `REPEAL_CONTENT`, and refreshes audit/version fields without deleting the project row.
+- `/biz/saleproject/delete` accepts Java/copied-frontend array payloads, validates every selected project is visible and `FOLLOW`, then sets `PROJECT_STATE = DISCARD`, sets `DELETE_FLAG = DELETED`, and refreshes audit/version fields without touching invoicing or product rows.
 
-## Deferred Routes
+## Remaining Deferred Behavior
 
-The following Java routes remain intentionally unimplemented in this slice:
+The sale-project foundation routes and copied-form product-list mutation are implemented. Broader side effects still remain intentionally deferred until separate feature-closure plans map their Java ownership paths:
 
-| Route | Reason |
-| --- | --- |
-| `POST /biz/saleproject/add` | Creates project, product items, invoices, files, customer deal count, and workflow-sensitive state |
-| `POST /biz/saleproject/edit` | Updates project and product bindings; needs transaction plan |
-| `POST /biz/saleproject/deal/edit` | Deal-state mutation and payment/status side effects |
-| `POST /biz/saleproject/delete` | Delete behavior must preserve Java soft-delete and dependent-state rules |
-| `POST /biz/saleproject/repeal` | Project-state mutation |
-| `POST /biz/saleproject/cancel` | Status rollback plus invoice deletion |
-| `POST /biz/saleproject/history/add` | History order creation |
-| `POST /biz/saleproject/special/add` | Special reimbursement project creation |
-| `POST /biz/saleproject/visibility/edit` | Write route requiring project field mutation |
-| `POST /biz/saleproject/amount/edit` | Amount mutation and change-log side effect |
+- Direct standalone product-item add/edit/delete routes, delivery invoice/invoice item, payment, expenditure, settlement-account, delivery, inventory, reissue-order, workflow, file cleanup, notification, and Java data-change event side effects. Return-order master/detail writes and sale-project invoice-application row add/edit/delete are covered separately.
 
 ## Test Commands
 
@@ -123,3 +136,105 @@ Covered sale-project checks:
 The smoke loads an existing active sale-project id from the local database, verifies Java-style paging keys, checks display fields such as `projectName`, `projectState`, `playState`, `customerName`, `headName`, `orgName`, and `accountName`, and checks detail aggregate buckets including product items, invoicing, invoices, payment records, follow-ups, change logs, and return orders.
 
 This smoke is read-only. It does not call sale-project add, edit, delete, deal edit, visibility edit, amount edit, repeal/cancel, history/special creation, invoicing complete, workflow actions, finance effects, stock effects, settlement effects, or file cleanup.
+
+## 2026-06-18 Foundation Closure HTTP Smoke
+
+`scripts/sale-project-foundation-closure-http-smoke.ps1` verifies the four foundation writes against the local authenticated backend.
+
+Covered checks:
+
+- no-token, missing-field, missing-row, invalid-state, invalid-money, and over-collected guards;
+- normal add Java defaults and ignored state/amount spoof fields;
+- normal edit Java field whitelist, `FOLLOW` guard, and version refresh;
+- history add customer/project creation and paid/completed correction;
+- special add reimbursement customer/project creation and unpaid/shipped correction;
+- readback through detail, product, cost, and cost details;
+- no unexpected product-item, invoicing, payment-record, field-change-log, or rating side effects.
+
+## 2026-06-18 Product Item Mutation Coverage
+
+`scripts/sale-project-product-item-mutation-http-smoke.ps1` verifies copied-form product-list writes through `/biz/saleproject/add` and `/biz/saleproject/edit`.
+
+Covered checks:
+
+- no-token rejection and invalid product rollback;
+- add with direct product rows and kit-product child relation auto-hydration;
+- detail and product endpoint readback after product-list add;
+- edit updating an existing product item, inserting a new item, and logically deleting a removed item/relation;
+- `productList = null` edit preserving active product rows;
+- active return-order item reference blocking product-item deletion with rollback;
+- empty-array edit clearing unreferenced product items.
+
+## 2026-06-18 Visibility Edit Coverage
+
+`POST /biz/saleproject/visibility/edit` is now covered as narrow field maintenance. `scripts/sale-project-visibility-edit-http-smoke.ps1` creates a temporary sale project and is ready to verify:
+
+- no-token rejection;
+- missing project id rejection;
+- invalid visibility rejection;
+- missing specimen category rejection when switching to public;
+- missing project rejection;
+- public update of `VISIBILITY`, `SPECIMEN_CATEGORY`, `SPECIMEN_NAME`, audit fields, and `VERSION`;
+- private update without specimen input while preserving existing specimen fields;
+- no product-item, invoicing, change-log, payment-record, or delivery-record side effects.
+
+DB-backed execution is pending while local MySQL `MySQL80` is stopped.
+
+## 2026-06-18 Delete Coverage
+
+`POST /biz/saleproject/delete` is now covered as Java-compatible logical delete maintenance. `scripts/sale-project-delete-http-smoke.ps1` creates temporary sale projects and an invoicing row and is ready to verify:
+
+- no-token rejection;
+- missing list rejection;
+- missing project rejection;
+- non-`FOLLOW` state rollback without project mutation;
+- batch update to `PROJECT_STATE = DISCARD`;
+- logical delete via `DELETE_FLAG = DELETED`;
+- audit and `VERSION` refresh;
+- no invoicing row mutation.
+
+DB-backed execution is pending while local MySQL `MySQL80` is stopped.
+
+## 2026-06-18 Repeal Coverage
+
+`POST /biz/saleproject/repeal` is now covered as Java-compatible discard state maintenance. `scripts/sale-project-repeal-http-smoke.ps1` creates temporary sale projects and an invoicing row and is ready to verify:
+
+- no-token rejection;
+- missing list rejection;
+- missing project rejection;
+- non-`FOLLOW` state rollback without project mutation;
+- batch update to `PROJECT_STATE = DISCARD`;
+- first submitted `repealContent` propagation to all selected rows;
+- audit and `VERSION` refresh;
+- no project logical delete and no invoicing row mutation.
+
+DB-backed execution is pending while local MySQL `MySQL80` is stopped.
+
+## 2026-06-18 Cancel Coverage
+
+`POST /biz/saleproject/cancel` is now covered as Java-compatible status rollback. `scripts/sale-project-cancel-http-smoke.ps1` creates temporary sale projects and invoicing rows and is ready to verify:
+
+- no-token rejection;
+- missing id rejection;
+- missing project rejection;
+- non-`WAIT_DELIVER` state rollback without project or invoicing mutation;
+- successful `PROJECT_STATE = FOLLOW`, audit, and `VERSION` update;
+- logical deletion of active target `biz_sale_project_invoicing` rows;
+- preservation of unrelated invoicing rows.
+
+DB-backed execution is pending while local MySQL `MySQL80` is stopped.
+
+## 2026-06-18 Amount Edit Coverage
+
+`POST /biz/saleproject/amount/edit` is now covered as focused Java-compatible amount maintenance. `scripts/sale-project-amount-edit-http-smoke.ps1` creates a temporary sale project and is ready to verify:
+
+- no-token rejection;
+- missing id rejection;
+- negative amount rejection;
+- missing project rejection;
+- successful `INIT_PRICE`, `TOTAL_PRICE`, `AMOUNT_COLLECTED`, `PLAY_STATE`, `PROJECT_STATE`, `TOTAL_RETURN_AMOUNT`, `TOTAL_REFUND_AMOUNT`, audit, and `VERSION` updates;
+- one `sales_project_field_change_log` row for `INIT_PRICE`;
+- no unrelated product-item, invoicing, reissue-order, return-order, expenditure, or payment side effects on successful edit;
+- over-collected rollback without extra version or change-log changes.
+
+DB-backed execution is pending while local MySQL `MySQL80` is stopped.

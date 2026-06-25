@@ -13,6 +13,7 @@ use think\facade\Db;
 class SettlementAccountService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const ENABLE = 'ENABLE';
     private const DISABLED = 'DISABLED';
     private const ACCOUNT_FIELDS = <<<SQL
@@ -212,9 +213,465 @@ SQL;
         });
     }
 
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->stringList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing id', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $accounts = $this->lockedAccounts($idList, $payload);
+            foreach ($idList as $id) {
+                $this->assertAccountRowWritable($accounts[$id], $payload, 'delete');
+            }
+
+            $this->assertAccountsUnreferenced($idList);
+
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('settlement_account')
+                ->whereIn('ID', $idList)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
+    }
+
+    public function expensesAdd(array $input, array $payload = []): array
+    {
+        return $this->createExpenses($input, $payload, 'Process_sys', 'Process_sys');
+    }
+
+    public function expensesFromWorkflow(
+        array $input,
+        string $processInstanceId,
+        string $tenantId,
+        string $operatorUserId,
+        string $processCategory
+    ): array {
+        $workflowInput = $input;
+        if (!isset($workflowInput['targetId']) || trim((string)$workflowInput['targetId']) === '') {
+            $workflowInput['targetId'] = $workflowInput['accountId'] ?? '';
+        }
+
+        return $this->createExpenses(
+            $workflowInput,
+            [
+                'tenant_id' => $tenantId,
+                'user_id' => $operatorUserId,
+            ],
+            $processInstanceId,
+            $processCategory,
+            $operatorUserId,
+            true
+        );
+    }
+
+    private function createExpenses(
+        array $input,
+        array $payload,
+        string $processId,
+        string $processCategory,
+        ?string $operatorUserId = null,
+        bool $skipPermissionCheck = false
+    ): array {
+        $targetId = $this->requiredInput($input, 'targetId');
+        $settlementCategory = $this->requiredCategory($input['settlementCategory'] ?? null);
+        $payer = $this->requiredInput($input, 'payer');
+        $payerTime = $this->requiredTime($input, 'payerTime');
+        $amountCents = $this->positiveMoneyCents($input['amount'] ?? null);
+        $amount = $this->moneyFromCents($amountCents);
+        $objectId = $this->nullableString($input['objectId'] ?? null);
+        $bankName = $this->nullableString($input['bankName'] ?? null);
+        $bankAccount = $this->nullableString($input['bankAccount'] ?? null);
+        $remark = $this->nullableString($input['remark'] ?? null);
+
+        return Db::transaction(function () use ($input, $payload, $targetId, $settlementCategory, $payer, $payerTime, $amountCents, $amount, $objectId, $bankName, $bankAccount, $remark, $processId, $processCategory, $operatorUserId, $skipPermissionCheck): array {
+            $account = $this->lockedAccount($targetId, $payload);
+            if (!$skipPermissionCheck) {
+                $account = $this->assertAccountRowWritable($account, $payload, 'add expenses');
+            }
+            $beforeAmount = $this->moneyFromCents($this->moneyCents($account['CURRENT_AMOUNT'] ?? '0'));
+            $afterAmount = $this->moneyFromCents($this->moneyCents($beforeAmount) - $amountCents);
+            $tenantId = trim((string)($account['TENANT_ID'] ?? ''));
+            if ($tenantId === '') {
+                $tenantId = $this->tenantId($input, $payload);
+            }
+            $userId = trim((string)($operatorUserId ?? $this->currentUserId($payload)));
+            $orgId = trim((string)($account['org'] ?? $account['ORG'] ?? ''));
+            $now = date('Y-m-d H:i:s');
+            $statementId = $this->newId();
+            $expenditureId = $this->newId();
+
+            $audit = [
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'TENANT_ID' => $tenantId,
+            ];
+
+            Db::name('settlement_account_statement')->insert(array_merge($audit, [
+                'ID' => $statementId,
+                'ACCOUNT_ID' => $targetId,
+                'PROCESS_ID' => $processId,
+                'AFTER_AMOUNT' => $afterAmount,
+                'BEFORE_AMOUNT' => $beforeAmount,
+                'AMOUNT' => $amount,
+                'SETTLEMENT_TYPE' => 'EXPEND',
+                'SETTLEMENT_CATEGORY' => $settlementCategory,
+                'PROCESS_CATEGORY' => $processCategory,
+                'PAYER_TIME' => $payerTime,
+                'DELETE_FLAG' => self::NOT_DELETE,
+            ]));
+
+            Db::name('biz_expenditure_record')->insert(array_merge($audit, [
+                'ID' => $expenditureId,
+                'OBJECT_ID' => $objectId,
+                'TARGET_ID' => $targetId,
+                'SERIAL_ID' => $statementId,
+                'PROCESS_ID' => $processId,
+                'SETTLEMENT_CATEGORY' => $settlementCategory,
+                'PAYER' => $payer,
+                'BANK_NAME' => $bankName,
+                'BANK_ACCOUNT' => $bankAccount,
+                'REMARK' => $remark,
+                'PAYER_TIME' => $payerTime,
+                'AMOUNT' => $amount,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'USER' => $userId !== '' ? $userId : null,
+                'ORG' => $orgId !== '' ? $orgId : null,
+            ]));
+
+            $accountUpdated = Db::name('settlement_account')
+                ->where('ID', $targetId)
+                ->update([
+                    'CURRENT_AMOUNT' => $afterAmount,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                ]);
+
+            return [
+                'id' => $expenditureId,
+                'statementId' => $statementId,
+                'accountId' => $targetId,
+                'amount' => $amount,
+                'beforeAmount' => $beforeAmount,
+                'afterAmount' => $afterAmount,
+                'accountCount' => $accountUpdated,
+            ];
+        });
+    }
+
+    public function paymentAdd(array $input, array $payload = []): array
+    {
+        return $this->createPayment($input, $payload, 'Process_sys', 'Process_sys');
+    }
+
+    public function paymentFromWorkflow(
+        array $input,
+        string $processInstanceId,
+        string $tenantId,
+        string $operatorUserId,
+        string $processCategory = 'Process_payment'
+    ): array {
+        $workflowInput = $input;
+        if (!isset($workflowInput['targetId']) || trim((string)$workflowInput['targetId']) === '') {
+            $workflowInput['targetId'] = $workflowInput['accountId'] ?? '';
+        }
+        if (!isset($workflowInput['payer']) || trim((string)$workflowInput['payer']) === '') {
+            $workflowInput['payer'] = $workflowInput['treasurer'] ?? $operatorUserId;
+        }
+
+        return $this->createPayment(
+            $workflowInput,
+            [
+                'tenant_id' => $tenantId,
+                'user_id' => $operatorUserId,
+            ],
+            $processInstanceId,
+            $processCategory,
+            $operatorUserId,
+            true
+        );
+    }
+
+    private function createPayment(
+        array $input,
+        array $payload,
+        string $processId,
+        string $processCategory,
+        ?string $operatorUserId = null,
+        bool $skipPermissionCheck = false
+    ): array {
+        $targetId = $this->requiredInput($input, 'targetId');
+        $settlementCategory = $this->requiredCategory($input['settlementCategory'] ?? null);
+        $payer = $this->requiredInput($input, 'payer');
+        $payerTime = $this->requiredTime($input, 'payerTime');
+        $amountCents = $this->positiveMoneyCents($input['amount'] ?? null);
+        $amount = $this->moneyFromCents($amountCents);
+        $objectId = $this->nullableString($input['objectId'] ?? null);
+        $bankName = $this->nullableString($input['bankName'] ?? null);
+        $bankAccount = $this->nullableString($input['bankAccount'] ?? null);
+        $remark = $this->nullableString($input['remark'] ?? null);
+
+        return Db::transaction(function () use ($input, $payload, $targetId, $settlementCategory, $payer, $payerTime, $amountCents, $amount, $objectId, $bankName, $bankAccount, $remark, $processId, $processCategory, $operatorUserId, $skipPermissionCheck): array {
+            $account = $this->lockedAccount($targetId, $payload);
+            if (!$skipPermissionCheck) {
+                $account = $this->assertAccountRowWritable($account, $payload, 'add payment');
+            }
+            $beforeAmount = $this->moneyFromCents($this->moneyCents($account['CURRENT_AMOUNT'] ?? '0'));
+            $afterAmount = $this->moneyFromCents($this->moneyCents($beforeAmount) + $amountCents);
+            $tenantId = trim((string)($account['TENANT_ID'] ?? ''));
+            if ($tenantId === '') {
+                $tenantId = $this->tenantId($input, $payload);
+            }
+            $userId = trim((string)($operatorUserId ?? $this->currentUserId($payload)));
+            $orgId = trim((string)($account['org'] ?? $account['ORG'] ?? ''));
+            $now = date('Y-m-d H:i:s');
+            $statementId = $this->newId();
+            $paymentId = $this->newId();
+
+            $audit = [
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'TENANT_ID' => $tenantId,
+            ];
+
+            Db::name('settlement_account_statement')->insert(array_merge($audit, [
+                'ID' => $statementId,
+                'ACCOUNT_ID' => $targetId,
+                'PROCESS_ID' => $processId,
+                'AFTER_AMOUNT' => $afterAmount,
+                'BEFORE_AMOUNT' => $beforeAmount,
+                'AMOUNT' => $amount,
+                'SETTLEMENT_TYPE' => 'INCOME',
+                'SETTLEMENT_CATEGORY' => $settlementCategory,
+                'PROCESS_CATEGORY' => $processCategory,
+                'PAYER_TIME' => $payerTime,
+                'DELETE_FLAG' => self::NOT_DELETE,
+            ]));
+
+            Db::name('biz_payment_record')->insert(array_merge($audit, [
+                'ID' => $paymentId,
+                'OBJECT_ID' => $objectId,
+                'TARGET_ID' => $targetId,
+                'SERIAL_ID' => $statementId,
+                'PROCESS_ID' => $processId,
+                'SETTLEMENT_CATEGORY' => $settlementCategory,
+                'PAYER' => $payer,
+                'BANK_NAME' => $bankName,
+                'BANK_ACCOUNT' => $bankAccount,
+                'REMARK' => $remark,
+                'PAYER_TIME' => $payerTime,
+                'AMOUNT' => $amount,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'USER' => $userId !== '' ? $userId : null,
+                'ORG' => $orgId !== '' ? $orgId : null,
+            ]));
+
+            $accountUpdated = Db::name('settlement_account')
+                ->where('ID', $targetId)
+                ->update([
+                    'CURRENT_AMOUNT' => $afterAmount,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                ]);
+
+            return [
+                'id' => $paymentId,
+                'statementId' => $statementId,
+                'accountId' => $targetId,
+                'amount' => $amount,
+                'beforeAmount' => $beforeAmount,
+                'afterAmount' => $afterAmount,
+                'accountCount' => $accountUpdated,
+            ];
+        });
+    }
+
+    public function transferAdd(array $input, array $payload = []): array
+    {
+        $expensesAccountId = $this->requiredInput($input, 'expensesAccountId');
+        $revenueAccountId = $this->requiredInput($input, 'revenueAccountId');
+        if ($expensesAccountId === $revenueAccountId) {
+            throw new RuntimeException('transfer accounts must be different', 400);
+        }
+
+        $payerTime = $this->requiredTime($input, 'payerTime');
+        $amountCents = $this->positiveMoneyCents($input['amount'] ?? null);
+        $amount = $this->moneyFromCents($amountCents);
+        $remark = $this->nullableString($input['remark'] ?? null);
+        $settlementCategory = 'dealings';
+
+        return Db::transaction(function () use ($input, $payload, $expensesAccountId, $revenueAccountId, $payerTime, $amountCents, $amount, $remark, $settlementCategory): array {
+            $accounts = $this->lockedAccounts([$expensesAccountId, $revenueAccountId], $payload);
+            $expensesAccount = $this->assertAccountRowWritable($accounts[$expensesAccountId], $payload, 'transfer from this settlement account');
+            $revenueAccount = $this->assertAccountRowWritable($accounts[$revenueAccountId], $payload, 'transfer to this settlement account');
+
+            $expensesBefore = $this->moneyFromCents($this->moneyCents($expensesAccount['CURRENT_AMOUNT'] ?? '0'));
+            $expensesAfter = $this->moneyFromCents($this->moneyCents($expensesBefore) - $amountCents);
+            $revenueBefore = $this->moneyFromCents($this->moneyCents($revenueAccount['CURRENT_AMOUNT'] ?? '0'));
+            $revenueAfter = $this->moneyFromCents($this->moneyCents($revenueBefore) + $amountCents);
+
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $processId = 'Process_sys';
+            $expensesStatementId = $this->newId();
+            $revenueStatementId = $this->newId();
+            $expenditureId = $this->newId();
+            $paymentId = $this->newId();
+
+            $expensesTenantId = trim((string)($expensesAccount['TENANT_ID'] ?? ''));
+            if ($expensesTenantId === '') {
+                $expensesTenantId = $this->tenantId($input, $payload);
+            }
+            $revenueTenantId = trim((string)($revenueAccount['TENANT_ID'] ?? ''));
+            if ($revenueTenantId === '') {
+                $revenueTenantId = $this->tenantId($input, $payload);
+            }
+
+            $expensesOrgId = trim((string)($expensesAccount['org'] ?? $expensesAccount['ORG'] ?? ''));
+            $revenueOrgId = trim((string)($revenueAccount['org'] ?? $revenueAccount['ORG'] ?? ''));
+            $expensesAccountName = trim((string)($expensesAccount['ACCOUNT_NAME'] ?? ''));
+            $expensesAccountNumber = trim((string)($expensesAccount['ACCOUNT_NUMBER'] ?? ''));
+            $revenueAccountName = trim((string)($revenueAccount['ACCOUNT_NAME'] ?? ''));
+            $revenueAccountNumber = trim((string)($revenueAccount['ACCOUNT_NUMBER'] ?? ''));
+
+            $expensesAudit = [
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'TENANT_ID' => $expensesTenantId,
+            ];
+            $revenueAudit = [
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'TENANT_ID' => $revenueTenantId,
+            ];
+
+            Db::name('settlement_account_statement')->insert(array_merge($expensesAudit, [
+                'ID' => $expensesStatementId,
+                'ACCOUNT_ID' => $expensesAccountId,
+                'PROCESS_ID' => $processId,
+                'AFTER_AMOUNT' => $expensesAfter,
+                'BEFORE_AMOUNT' => $expensesBefore,
+                'AMOUNT' => $amount,
+                'SETTLEMENT_TYPE' => 'EXPEND',
+                'SETTLEMENT_CATEGORY' => $settlementCategory,
+                'PROCESS_CATEGORY' => $processId,
+                'PAYER_TIME' => $payerTime,
+                'DELETE_FLAG' => self::NOT_DELETE,
+            ]));
+            Db::name('settlement_account_statement')->insert(array_merge($revenueAudit, [
+                'ID' => $revenueStatementId,
+                'ACCOUNT_ID' => $revenueAccountId,
+                'PROCESS_ID' => $processId,
+                'AFTER_AMOUNT' => $revenueAfter,
+                'BEFORE_AMOUNT' => $revenueBefore,
+                'AMOUNT' => $amount,
+                'SETTLEMENT_TYPE' => 'INCOME',
+                'SETTLEMENT_CATEGORY' => $settlementCategory,
+                'PROCESS_CATEGORY' => $processId,
+                'PAYER_TIME' => $payerTime,
+                'DELETE_FLAG' => self::NOT_DELETE,
+            ]));
+
+            Db::name('biz_expenditure_record')->insert(array_merge($expensesAudit, [
+                'ID' => $expenditureId,
+                'OBJECT_ID' => $revenueAccountId,
+                'TARGET_ID' => $expensesAccountId,
+                'SERIAL_ID' => $expensesStatementId,
+                'PROCESS_ID' => $processId,
+                'SETTLEMENT_CATEGORY' => $settlementCategory,
+                'PAYER' => $revenueAccountName !== '' ? $revenueAccountName : null,
+                'BANK_NAME' => null,
+                'BANK_ACCOUNT' => $revenueAccountNumber !== '' ? $revenueAccountNumber : null,
+                'REMARK' => $remark,
+                'PAYER_TIME' => $payerTime,
+                'AMOUNT' => $amount,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'USER' => $userId !== '' ? $userId : null,
+                'ORG' => $expensesOrgId !== '' ? $expensesOrgId : null,
+            ]));
+            Db::name('biz_payment_record')->insert(array_merge($revenueAudit, [
+                'ID' => $paymentId,
+                'OBJECT_ID' => $expensesAccountId,
+                'TARGET_ID' => $revenueAccountId,
+                'SERIAL_ID' => $revenueStatementId,
+                'PROCESS_ID' => $processId,
+                'SETTLEMENT_CATEGORY' => $settlementCategory,
+                'PAYER' => $expensesAccountName !== '' ? $expensesAccountName : null,
+                'BANK_NAME' => null,
+                'BANK_ACCOUNT' => $expensesAccountNumber !== '' ? $expensesAccountNumber : null,
+                'REMARK' => $remark,
+                'PAYER_TIME' => $payerTime,
+                'AMOUNT' => $amount,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'USER' => $userId !== '' ? $userId : null,
+                'ORG' => $revenueOrgId !== '' ? $revenueOrgId : null,
+            ]));
+
+            $expensesAccountUpdated = Db::name('settlement_account')
+                ->where('ID', $expensesAccountId)
+                ->update([
+                    'CURRENT_AMOUNT' => $expensesAfter,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                ]);
+            $revenueAccountUpdated = Db::name('settlement_account')
+                ->where('ID', $revenueAccountId)
+                ->update([
+                    'CURRENT_AMOUNT' => $revenueAfter,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                ]);
+
+            return [
+                'amount' => $amount,
+                'settlementCategory' => $settlementCategory,
+                'expenses' => [
+                    'id' => $expenditureId,
+                    'statementId' => $expensesStatementId,
+                    'accountId' => $expensesAccountId,
+                    'objectId' => $revenueAccountId,
+                    'beforeAmount' => $expensesBefore,
+                    'afterAmount' => $expensesAfter,
+                    'accountCount' => $expensesAccountUpdated,
+                ],
+                'income' => [
+                    'id' => $paymentId,
+                    'statementId' => $revenueStatementId,
+                    'accountId' => $revenueAccountId,
+                    'objectId' => $expensesAccountId,
+                    'beforeAmount' => $revenueBefore,
+                    'afterAmount' => $revenueAfter,
+                    'accountCount' => $revenueAccountUpdated,
+                ],
+            ];
+        });
+    }
+
     private function assertAccountWritable(string $id, array $payload, string $action): array
     {
         $row = $this->activeAccount($id, $payload);
+        return $this->assertAccountRowWritable($row, $payload, $action);
+    }
+
+    private function assertAccountRowWritable(array $row, array $payload, string $action): array
+    {
         if ($this->canSeeAll($payload)) {
             return $row;
         }
@@ -290,6 +747,65 @@ SQL;
         return $row;
     }
 
+    private function lockedAccount(string $id, array $payload): array
+    {
+        $query = Db::name('settlement_account')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->lock(true)->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('settlement account not found', 404);
+        }
+
+        return $row;
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<string, array<string, mixed>>
+     */
+    private function lockedAccounts(array $ids, array $payload): array
+    {
+        $ids = array_values(array_unique(array_map(
+            static fn (string $id): string => trim($id),
+            $ids
+        )));
+        sort($ids, SORT_STRING);
+
+        $query = Db::name('settlement_account')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $rows = $query->order('ID', 'asc')->lock(true)->select()->toArray();
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(string)($row['ID'] ?? '')] = $row;
+        }
+
+        foreach ($ids as $id) {
+            if (!isset($map[$id])) {
+                throw new RuntimeException('settlement account not found', 404);
+            }
+        }
+
+        return $map;
+    }
+
     private function assertUniqueAccountName(string $accountName, string $tenantId, ?string $ignoreId = null): void
     {
         $query = Db::name('settlement_account')
@@ -305,6 +821,39 @@ SQL;
         if ($query->count() > 0) {
             throw new RuntimeException('settlement account name already exists', 400);
         }
+    }
+
+    /**
+     * @param array<int, string> $ids
+     */
+    private function assertAccountsUnreferenced(array $ids): void
+    {
+        $checks = [
+            ['settlement_account_statement', 'ACCOUNT_ID'],
+            ['biz_payment_record', 'TARGET_ID'],
+            ['biz_payment_record', 'OBJECT_ID'],
+            ['biz_expenditure_record', 'TARGET_ID'],
+            ['biz_expenditure_record', 'OBJECT_ID'],
+        ];
+
+        foreach ($checks as [$table, $column]) {
+            if ($this->activeReferenceCount($table, $column, $ids) > 0) {
+                throw new RuntimeException('settlement account is referenced', 400);
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $ids
+     */
+    private function activeReferenceCount(string $table, string $column, array $ids): int
+    {
+        return (int)Db::name($table)
+            ->whereIn($column, $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->count();
     }
 
     private function accountStatus(mixed $value): string
@@ -416,6 +965,55 @@ SQL;
         return $value;
     }
 
+    private function requiredCategory(mixed $value): string
+    {
+        if (is_array($value)) {
+            $value = implode('/', array_values(array_filter(array_map(
+                static fn (mixed $part): string => trim((string)$part),
+                $value
+            ))));
+        } else {
+            $value = trim((string)$value);
+        }
+
+        if ($value === '') {
+            throw new RuntimeException('missing settlementCategory', 400);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<int, mixed> $values
+     * @return array<int, string>
+     */
+    private function stringList(array $values): array
+    {
+        $ids = [];
+        foreach ($values as $value) {
+            if (is_array($value)) {
+                $value = $value['id'] ?? $value['ID'] ?? '';
+            }
+            $id = trim((string)$value);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function requiredTime(array $input, string $key): string
+    {
+        $value = $this->requiredInput($input, $key);
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
     private function nullableString(mixed $value): ?string
     {
         if ($value === null) {
@@ -446,6 +1044,46 @@ SQL;
         }
 
         return number_format((float)$value, 2, '.', '');
+    }
+
+    private function positiveMoneyCents(mixed $value): int
+    {
+        $cents = $this->moneyCents($value);
+        if ($cents <= 0) {
+            throw new RuntimeException('amount must be greater than 0', 400);
+        }
+
+        return $cents;
+    }
+
+    private function moneyCents(mixed $value): int
+    {
+        if ($value === null || $value === '') {
+            throw new RuntimeException('invalid amount', 400);
+        }
+
+        $normalized = trim((string)$value);
+        if (!preg_match('/^-?\d+(?:\.\d+)?$/', $normalized)) {
+            if (!is_numeric($value)) {
+                throw new RuntimeException('invalid amount', 400);
+            }
+            $normalized = number_format((float)$value, 2, '.', '');
+        }
+
+        $negative = str_starts_with($normalized, '-');
+        $normalized = ltrim($normalized, '-');
+        [$whole, $fraction] = array_pad(explode('.', $normalized, 2), 2, '0');
+        $cents = ((int)$whole * 100) + (int)str_pad(substr($fraction, 0, 2), 2, '0');
+
+        return $negative ? -$cents : $cents;
+    }
+
+    private function moneyFromCents(int $cents): string
+    {
+        $sign = $cents < 0 ? '-' : '';
+        $absolute = abs($cents);
+
+        return $sign . (string)intdiv($absolute, 100) . '.' . str_pad((string)($absolute % 100), 2, '0', STR_PAD_LEFT);
     }
 
     private function newId(): string

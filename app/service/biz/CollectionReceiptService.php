@@ -13,7 +13,9 @@ use think\facade\Db;
 class CollectionReceiptService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const UNSETTLED = 'Unsettled';
     private const ALREADY_SETTLED = 'AlreadySettled';
+    private const REPAYMENT_CATEGORY = 'repayment';
     private const RECEIPT_FIELDS = <<<SQL
 c.ID AS ID,
 c.PAYMENT_RECORD_ID AS PAYMENT_RECORD_ID,
@@ -54,6 +56,10 @@ SQL;
         'accountName' => 'a.ACCOUNT_NAME',
         'orgName' => 'org.NAME',
     ];
+
+    public function __construct(private readonly SettlementAccountService $settlementAccountService = new SettlementAccountService())
+    {
+    }
 
     public function page(array $filters = [], array $payload = []): array
     {
@@ -121,6 +127,85 @@ SQL;
         });
     }
 
+    public function batchExpenditure(array $input, array $payload = []): array
+    {
+        $accountId = $this->requiredInput($input, 'accountId');
+        $payer = $this->requiredInput($input, 'payer');
+        $payerTime = $this->requiredTime($input, 'payerTime');
+        $remark = $this->nullableString($input['remark'] ?? null);
+        $items = $this->requiredBatchItems($input['items'] ?? null);
+
+        return Db::transaction(function () use ($items, $accountId, $payer, $payerTime, $remark, $payload): array {
+            $receipts = $this->lockedReceipts(array_column($items, 'id'), $payload);
+            $prepared = [];
+
+            foreach ($items as $item) {
+                $receipt = $this->assertReceiptRowWritable($receipts[$item['id']], $payload, 'settle this collection receipt');
+                $receiptAmountCents = $this->moneyCents($receipt['AMOUNT'] ?? '0');
+                $settlementBeforeCents = $this->moneyCents($receipt['SETTLEMENT_AMOUNT'] ?? '0');
+                $settlementAfterCents = $settlementBeforeCents + $item['amountCents'];
+                if ($settlementAfterCents > $receiptAmountCents) {
+                    throw new RuntimeException('collection receipt settlement amount exceeds receipt amount', 400);
+                }
+
+                $prepared[] = [
+                    'id' => $item['id'],
+                    'amount' => $item['amount'],
+                    'amountCents' => $item['amountCents'],
+                    'settlementBefore' => $this->moneyFromCents($settlementBeforeCents),
+                    'settlementAfter' => $this->moneyFromCents($settlementAfterCents),
+                    'playStatus' => $settlementAfterCents === $receiptAmountCents ? self::ALREADY_SETTLED : self::UNSETTLED,
+                ];
+            }
+
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $results = [];
+            foreach ($prepared as $item) {
+                $expense = $this->settlementAccountService->expensesAdd([
+                    'targetId' => $accountId,
+                    'settlementCategory' => self::REPAYMENT_CATEGORY,
+                    'objectId' => $item['id'],
+                    'payer' => $payer,
+                    'payerTime' => $payerTime,
+                    'amount' => $item['amount'],
+                    'remark' => $remark,
+                ], $payload);
+
+                $updated = Db::name('biz_collection_receipt')
+                    ->where('ID', $item['id'])
+                    ->update([
+                        'SETTLEMENT_AMOUNT' => $item['settlementAfter'],
+                        'PLAY_STATUS' => $item['playStatus'],
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $userId !== '' ? $userId : null,
+                        'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                    ]);
+
+                $results[] = [
+                    'id' => $item['id'],
+                    'amount' => $item['amount'],
+                    'settlementAmountBefore' => $item['settlementBefore'],
+                    'settlementAmountAfter' => $item['settlementAfter'],
+                    'playStatus' => $item['playStatus'],
+                    'expenditureId' => $expense['id'] ?? null,
+                    'statementId' => $expense['statementId'] ?? null,
+                    'accountId' => $accountId,
+                    'accountCount' => $expense['accountCount'] ?? null,
+                    'receiptCount' => $updated,
+                ];
+            }
+
+            return [
+                'accountId' => $accountId,
+                'settlementCategory' => self::REPAYMENT_CATEGORY,
+                'payerTime' => $payerTime,
+                'count' => count($results),
+                'items' => $results,
+            ];
+        });
+    }
+
     private function receiptQuery(array $filters, array $payload)
     {
         $query = Db::name('biz_collection_receipt')
@@ -176,6 +261,11 @@ SQL;
     private function assertReceiptWritable(string $id, array $payload, string $action): array
     {
         $row = $this->activeReceipt($id, $payload);
+        return $this->assertReceiptRowWritable($row, $payload, $action);
+    }
+
+    private function assertReceiptRowWritable(array $row, array $payload, string $action): array
+    {
         if ($this->canSeeAll($payload)) {
             return $row;
         }
@@ -193,6 +283,52 @@ SQL;
         }
 
         throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<string, array<string, mixed>>
+     */
+    private function lockedReceipts(array $ids, array $payload): array
+    {
+        $ids = array_values(array_unique(array_map(
+            static fn (string $id): string => trim($id),
+            $ids
+        )));
+        sort($ids, SORT_STRING);
+
+        $query = Db::name('biz_collection_receipt')
+            ->alias('c')
+            ->leftJoin('biz_payment_record p', 'p.ID = c.PAYMENT_RECORD_ID')
+            ->whereIn('c.ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('c.DELETE_FLAG')->whereOr('c.DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('c.TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field('c.ID,c.PAYMENT_RECORD_ID,c.CREATE_USER,c.TENANT_ID,c.AMOUNT,c.SETTLEMENT_AMOUNT,c.PLAY_STATUS,p.ORG AS PAYMENT_ORG')
+            ->order('c.ID', 'asc')
+            ->lock(true)
+            ->select()
+            ->toArray();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(string)($row['ID'] ?? '')] = $row;
+        }
+
+        foreach ($ids as $id) {
+            if (!isset($map[$id])) {
+                throw new RuntimeException('collection receipt not found', 404);
+            }
+        }
+
+        return $map;
     }
 
     private function activeReceipt(string $id, array $payload): array
@@ -344,6 +480,101 @@ SQL;
         }
 
         return $value;
+    }
+
+    /**
+     * @return array<int, array{id: string, amount: string, amountCents: int}>
+     */
+    private function requiredBatchItems(mixed $items): array
+    {
+        if (!is_array($items) || $items === []) {
+            throw new RuntimeException('missing items', 400);
+        }
+
+        $seen = [];
+        $normalized = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('invalid items', 400);
+            }
+
+            $id = $this->requiredInput($item, 'id');
+            if (isset($seen[$id])) {
+                throw new RuntimeException('duplicate collection receipt item', 400);
+            }
+            $seen[$id] = true;
+
+            $amountCents = $this->positiveMoneyCents($item['amount'] ?? null);
+            $normalized[] = [
+                'id' => $id,
+                'amount' => $this->moneyFromCents($amountCents),
+                'amountCents' => $amountCents,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function requiredTime(array $input, string $key): string
+    {
+        $value = $this->requiredInput($input, $key);
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string)$value);
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function positiveMoneyCents(mixed $value): int
+    {
+        $cents = $this->moneyCents($value);
+        if ($cents <= 0) {
+            throw new RuntimeException('amount must be greater than 0', 400);
+        }
+
+        return $cents;
+    }
+
+    private function moneyCents(mixed $value): int
+    {
+        if ($value === null || $value === '') {
+            throw new RuntimeException('invalid amount', 400);
+        }
+
+        $normalized = trim((string)$value);
+        if (!preg_match('/^-?\d+(?:\.\d+)?$/', $normalized)) {
+            if (!is_numeric($value)) {
+                throw new RuntimeException('invalid amount', 400);
+            }
+            $normalized = number_format((float)$value, 2, '.', '');
+        }
+
+        $negative = str_starts_with($normalized, '-');
+        $normalized = ltrim($normalized, '-');
+        [$whole, $fraction] = array_pad(explode('.', $normalized, 2), 2, '0');
+        $cents = ((int)$whole * 100) + (int)str_pad(substr($fraction, 0, 2), 2, '0');
+
+        return $negative ? -$cents : $cents;
+    }
+
+    private function moneyFromCents(int $cents): string
+    {
+        $sign = $cents < 0 ? '-' : '';
+        $absolute = abs($cents);
+
+        return $sign . (string)intdiv($absolute, 100) . '.' . str_pad((string)($absolute % 100), 2, '0', STR_PAD_LEFT);
     }
 
     private function decimal(mixed $value): int|float|null

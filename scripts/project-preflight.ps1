@@ -12,6 +12,7 @@ param(
     [switch]$SkipPurchaseOrderRead,
     [switch]$SkipSettlementAccountPaymentRead,
     [switch]$SkipSettlementAccountRead,
+    [switch]$SkipSettlementAccountDelete,
     [switch]$SkipSupplierWarehouseRead,
     [switch]$SkipProductRead,
     [switch]$SkipHrRead,
@@ -25,6 +26,18 @@ param(
     [switch]$SkipTenantRead,
     [switch]$SkipMessageSse,
     [switch]$SkipWorkflowRead,
+    [switch]$SkipWorkflowLeaveStart,
+    [switch]$SkipWorkflowGeneralStart,
+    [switch]$SkipWorkflowPaymentApprove,
+    [switch]$SkipWorkflowPaymentOutApprove,
+    [switch]$SkipWorkflowProcureApprove,
+    [switch]$SkipWorkflowProcureWarehouseApprove,
+    [switch]$SkipWorkflowProjectInitApprove,
+    [switch]$SkipWorkflowProjectDeliveryApprove,
+    [switch]$SkipWorkflowProjectPlayApprove,
+    [switch]$SkipWorkflowTaskTransition,
+    [switch]$SkipWorkflowProcessCancelEdit,
+    [switch]$SkipBizLeaveApplicationVacationAdjustment,
     [switch]$SkipDiffCheck
 )
 
@@ -127,6 +140,12 @@ if (-not $SkipSettlementAccountRead) {
     }
 }
 
+if (-not $SkipSettlementAccountDelete) {
+    Invoke-Step 'Settlement Account Delete HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'settlement-account-delete-http-smoke.ps1')
+    }
+}
+
 if (-not $SkipSupplierWarehouseRead) {
     Invoke-Step 'Supplier/Warehouse Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'supplier-warehouse-read-http-smoke.ps1')
@@ -202,6 +221,78 @@ if (-not $SkipMessageSse) {
 if (-not $SkipWorkflowRead) {
     Invoke-Step 'Workflow Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'workflow-read-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowLeaveStart) {
+    Invoke-Step 'Workflow Leave Start HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-leave-start-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowGeneralStart) {
+    Invoke-Step 'Workflow General Start HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-general-start-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowPaymentApprove) {
+    Invoke-Step 'Workflow Payment Approve HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-payment-approve-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowPaymentOutApprove) {
+    Invoke-Step 'Workflow Payment-Out Approve HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-payment-out-approve-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowProcureApprove) {
+    Invoke-Step 'Workflow Procure Approve HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-procure-approve-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowProcureWarehouseApprove) {
+    Invoke-Step 'Workflow Procure Warehouse Approve HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-procure-warehouse-approve-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowProjectInitApprove) {
+    Invoke-Step 'Workflow Project Init Approve HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-project-init-approve-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowProjectDeliveryApprove) {
+    Invoke-Step 'Workflow Project Delivery Approve HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-project-delivery-approve-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowProjectPlayApprove) {
+    Invoke-Step 'Workflow Project Play Approve HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-project-play-approve-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowTaskTransition) {
+    Invoke-Step 'Workflow Task Transition HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-task-transition-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowProcessCancelEdit) {
+    Invoke-Step 'Workflow Process Cancel/Edit HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-process-cancel-edit-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipBizLeaveApplicationVacationAdjustment) {
+    Invoke-Step 'Biz Leave Application Vacation Adjustment HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'biz-leave-application-vacation-adjustment-http-smoke.ps1')
     }
 }
 

@@ -285,7 +285,7 @@ SQL;
 
     private function recordRow(array $row): array
     {
-        return array_merge($row, [
+        return [
             'id' => $row['ID'] ?? null,
             'title' => $row['TITLE'] ?? null,
             'processId' => $row['PROCESS_ID'] ?? null,
@@ -302,7 +302,7 @@ SQL;
             'updateTime' => $row['UPDATE_TIME'] ?? null,
             'updateUser' => $row['UPDATE_USER'] ?? null,
             'tenantId' => $row['TENANT_ID'] ?? null,
-        ]);
+        ];
     }
 
     private function currentUserId(array $payload): string

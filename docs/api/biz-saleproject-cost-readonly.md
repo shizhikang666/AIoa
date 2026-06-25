@@ -60,16 +60,10 @@ The following sale-project write routes now return controlled `code = 400` defer
 | --- | --- |
 | `POST /biz/saleproject/add` | Real project creation remains deferred |
 | `POST /biz/saleproject/edit` | Real project and product binding mutation remains deferred |
-| `POST /biz/saleproject/deal/edit` | Real deal-state and payment/status side effects remain deferred |
-| `POST /biz/saleproject/delete` | Real delete behavior requires dependent-state design |
-| `POST /biz/saleproject/repeal` | Real project-state mutation remains deferred |
-| `POST /biz/saleproject/cancel` | Real status rollback and invoice deletion remains deferred |
 | `POST /biz/saleproject/history/add` | Real history order creation remains deferred |
 | `POST /biz/saleproject/special/add` | Real special reimbursement project creation remains deferred |
-| `POST /biz/saleproject/visibility/edit` | Real project visibility mutation remains deferred |
-| `POST /biz/saleproject/amount/edit` | Real amount mutation and change-log side effect remains deferred |
 
-The controlled-deferred wrappers do not create, update, delete, cancel, repeal, or change sale projects, do not mutate products, files, invoices, finance rows, workflow state, visibility, change logs, or notifications, and do not change schema or Java source.
+`POST /biz/saleproject/visibility/edit` is covered separately as a narrow visibility/specimen field update. `POST /biz/saleproject/amount/edit` is covered separately as focused amount/status/totals maintenance with one `INIT_PRICE` change-log row. `POST /biz/saleproject/deal/edit` is covered separately as narrow delivery/freight field maintenance. `POST /biz/saleproject/cancel` is covered separately as WAIT_DELIVER-to-FOLLOW rollback with invoicing logical delete. `POST /biz/saleproject/repeal` is covered separately as FOLLOW-to-DISCARD discard maintenance. `POST /biz/saleproject/delete` is covered separately as FOLLOW-only logical delete maintenance. The remaining controlled-deferred wrappers do not create, update, history-create, special-create, or otherwise broadly change sale projects, do not mutate products, files, invoices, finance rows, workflow state, change logs, or notifications, and do not change schema or Java source.
 
 ## Test Commands
 

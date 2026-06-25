@@ -6,7 +6,6 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\SaleProjectBillingService;
-use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -36,26 +35,19 @@ class SaleProjectInvoicingController extends BaseSysController
         return $this->guard(fn () => $this->billingService->invoicingComplete($this->requiredBodyString($request, 'id'), $this->authPayload($request)));
     }
 
-    public function add(): Response
+    public function add(Request $request): Response
     {
-        return $this->deferredWrite('sale project invoicing add');
+        return $this->guard(fn () => $this->billingService->invoicingAdd($this->body($request), $this->authPayload($request)));
     }
 
-    public function edit(): Response
+    public function edit(Request $request): Response
     {
-        return $this->deferredWrite('sale project invoicing edit');
+        return $this->guard(fn () => $this->billingService->invoicingEdit($this->body($request), $this->authPayload($request)));
     }
 
-    public function delete(): Response
+    public function delete(Request $request): Response
     {
-        return $this->deferredWrite('sale project invoicing delete');
-    }
-
-    private function deferredWrite(string $operation): Response
-    {
-        return ApiResponse::fail($operation . ' is deferred', 400, [
-            'operation' => $operation,
-        ]);
+        return $this->guard(fn () => $this->billingService->invoicingDelete($this->body($request), $this->authPayload($request)));
     }
 
     private function authPayload(Request $request): array

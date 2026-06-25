@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\controller\biz;
 
 use app\service\workflow\WorkflowQueryService;
+use app\service\workflow\WorkflowRuntimeService;
 use app\service\workflow\WorkflowVariableService;
 use app\service\biz\FileRelationService;
 use app\support\ApiResponse;
@@ -15,6 +16,7 @@ class ProcessController extends BaseWorkflowController
 {
     public function __construct(
         private readonly WorkflowQueryService $workflowQueryService = new WorkflowQueryService(),
+        private readonly WorkflowRuntimeService $workflowRuntimeService = new WorkflowRuntimeService(),
         private readonly WorkflowVariableService $workflowVariableService = new WorkflowVariableService(),
         private readonly FileRelationService $fileRelationService = new FileRelationService()
     ) {
@@ -95,54 +97,88 @@ class ProcessController extends BaseWorkflowController
         ], $this->authPayload($request)));
     }
 
-    public function cancel(): Response
+    public function cancel(Request $request): Response
     {
-        return $this->deferredWrite('process cancel');
+        return $this->guard(fn () => $this->workflowRuntimeService->cancelProcess(
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function leaveEdit(): Response
+    public function leaveEdit(Request $request): Response
     {
-        return $this->deferredWrite('leave process edit');
+        return $this->guard(fn () => $this->workflowRuntimeService->editLeaveProcess(
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function leaveStart(): Response
+    public function leaveStart(Request $request): Response
     {
-        return $this->deferredWrite('leave process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startLeaveProcess(
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function makePaymentStart(): Response
+    public function makePaymentStart(Request $request): Response
     {
-        return $this->deferredWrite('make payment process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startGeneralProcess(
+            'Process_make_payment',
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function paymentStart(): Response
+    public function paymentStart(Request $request): Response
     {
-        return $this->deferredWrite('payment process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startGeneralProcess(
+            'Process_payment',
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function procureStart(): Response
+    public function procureStart(Request $request): Response
     {
-        return $this->deferredWrite('procure process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startGeneralProcess(
+            'Process_procure',
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function procureWarehouseStart(): Response
+    public function procureWarehouseStart(Request $request): Response
     {
-        return $this->deferredWrite('procure warehouse process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startGeneralProcess(
+            'Process_procure_in_warehouse',
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function projectDeliveryStart(): Response
+    public function projectDeliveryStart(Request $request): Response
     {
-        return $this->deferredWrite('project delivery process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startProjectDeliveryProcess(
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function projectInitStart(): Response
+    public function projectInitStart(Request $request): Response
     {
-        return $this->deferredWrite('project init process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startProjectInitProcess(
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function projectPlayStart(): Response
+    public function projectPlayStart(Request $request): Response
     {
-        return $this->deferredWrite('project play process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startProjectPlayProcess(
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
     public function projectReissueStart(): Response
@@ -155,9 +191,13 @@ class ProcessController extends BaseWorkflowController
         return $this->deferredWrite('project return process start');
     }
 
-    public function reimbursementStart(): Response
+    public function reimbursementStart(Request $request): Response
     {
-        return $this->deferredWrite('reimbursement process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startGeneralProcess(
+            'Process_reimbursement',
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
     private function deferredWrite(string $operation): Response

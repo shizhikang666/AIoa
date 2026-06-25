@@ -92,6 +92,27 @@ function Show-DashboardLean {
     }
 
     $notePatterns = @(
+        '^- 2026-06-22 workflow payment approval:',
+        '^- 2026-06-22 workflow payment-out approval:',
+        '^- 2026-06-22 workflow procure approval:',
+        '^- 2026-06-22 workflow procure warehouse approval:',
+        '^- 2026-06-22 workflow project init approval:',
+        '^- 2026-06-22 workflow project delivery approval:',
+        '^- 2026-06-22 workflow project play approval:',
+        '^- 2026-06-22 workflow general start runtime:',
+        '^- 2026-06-18 sale-project product-list mutation smoke:',
+        '^- 2026-06-18 sale-project invoicing write smoke:',
+        '^- 2026-06-18 return-order write smoke:',
+        '^- 2026-06-18 team-project task write smoke:',
+        '^- 2026-06-18 sale-project foundation closure:',
+        '^- 2026-06-18 feature-closure workflow baseline:',
+        '^- 2026-06-18 sale-project deal edit:',
+        '^- 2026-06-18 sale-project delete:',
+        '^- 2026-06-18 sale-project repeal:',
+        '^- 2026-06-18 sale-project cancel:',
+        '^- 2026-06-18 payroll import:',
+        '^- 2026-06-18 sale-project amount edit:',
+        '^- 2026-06-18 sale-project visibility edit:',
         '^- 2026-06-15 selector pagination compatibility:',
         '^- 2026-06-15 continuation speed helpers:',
         '^- 2026-06-15 local preflight bundle:'
@@ -197,11 +218,11 @@ if ($Lean) {
 }
 
 Write-Section 'Context Handoff'
-Write-Host 'Open a new conversation when this thread is too large for precise inspection or the next slice is broad/risky.'
+Write-Host 'Open a new conversation when this thread is too large for precise inspection or the next feature block is broad/risky.'
 Write-Host 'Starter doc: docs/tasks/context-handoff.md'
 
 Write-Section 'Commit Guardrail'
-Write-Host 'Do not commit unless the current user explicitly asks for a commit or the main merge/coordinator explicitly approves committing the completed slice.'
+Write-Host 'Do not commit unless the current user explicitly asks for a commit or the main merge/coordinator explicitly approves committing the completed feature block.'
 
 if ($CheckRuntime) {
     Write-Section 'Runtime Readiness'
@@ -279,20 +300,55 @@ Write-Host '.\scripts\tenant-read-http-smoke.ps1'
 Write-Host '.\scripts\tenant-write-http-smoke.ps1'
 Write-Host '.\scripts\message-sse-http-smoke.ps1'
 Write-Host '.\scripts\inventory-delivery-read-http-smoke.ps1'
+Write-Host '.\scripts\inventory-add-http-smoke.ps1'
+Write-Host '.\scripts\delivery-record-add-http-smoke.ps1'
 Write-Host '.\scripts\finance-read-http-smoke.ps1'
+Write-Host '.\scripts\biz-collection-receipt-batch-expenditure-http-smoke.ps1'
+Write-Host '.\scripts\biz-debit-note-history-add-http-smoke.ps1'
+Write-Host '.\scripts\biz-debit-note-batch-repayment-http-smoke.ps1'
 Write-Host '.\scripts\purchase-order-read-http-smoke.ps1'
+Write-Host '.\scripts\purchase-order-audit-edit-http-smoke.ps1'
+Write-Host '.\scripts\purchase-order-edit-http-smoke.ps1'
+Write-Host '.\scripts\purchase-order-cancel-http-smoke.ps1'
+Write-Host '.\scripts\purchase-order-warehouse-one-add-http-smoke.ps1'
+Write-Host '.\scripts\purchase-order-warehouse-add-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-foundation-closure-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-deal-edit-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-delete-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-repeal-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-cancel-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-invoicing-write-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-product-item-mutation-http-smoke.ps1'
+Write-Host '.\scripts\return-order-write-http-smoke.ps1'
+Write-Host '.\scripts\settlement-account-expenses-add-http-smoke.ps1'
+Write-Host '.\scripts\settlement-account-payment-add-http-smoke.ps1'
+Write-Host '.\scripts\settlement-account-transfer-add-http-smoke.ps1'
 Write-Host '.\scripts\settlement-account-payment-read-http-smoke.ps1'
 Write-Host '.\scripts\settlement-account-read-http-smoke.ps1'
 Write-Host '.\scripts\supplier-warehouse-read-http-smoke.ps1'
 Write-Host '.\scripts\product-read-http-smoke.ps1'
 Write-Host '.\scripts\hr-read-http-smoke.ps1'
 Write-Host '.\scripts\biz-payment-record-edit-http-smoke.ps1'
+Write-Host '.\scripts\biz-payment-record-edit-account-http-smoke.ps1'
 Write-Host '.\scripts\biz-expenditure-record-edit-http-smoke.ps1'
+Write-Host '.\scripts\biz-expenditure-record-edit-account-http-smoke.ps1'
 Write-Host '.\scripts\biz-payroll-export-http-smoke.ps1'
+Write-Host '.\scripts\biz-payroll-import-http-smoke.ps1'
+Write-Host '.\scripts\biz-payroll-generate-add-http-smoke.ps1'
 Write-Host '.\scripts\biz-user-vacation-write-http-smoke.ps1'
 Write-Host '.\scripts\biz-cc-records-write-http-smoke.ps1'
+Write-Host '.\scripts\workflow-general-start-http-smoke.ps1'
+Write-Host '.\scripts\workflow-payment-approve-http-smoke.ps1'
+Write-Host '.\scripts\workflow-payment-out-approve-http-smoke.ps1'
+Write-Host '.\scripts\workflow-procure-approve-http-smoke.ps1'
+Write-Host '.\scripts\workflow-procure-warehouse-approve-http-smoke.ps1'
+Write-Host '.\scripts\workflow-project-delivery-approve-http-smoke.ps1'
+Write-Host '.\scripts\workflow-project-play-approve-http-smoke.ps1'
 Write-Host '.\scripts\team-project-read-http-smoke.ps1'
+Write-Host '.\scripts\team-project-task-write-http-smoke.ps1'
 Write-Host '.\scripts\datareport-read-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-visibility-edit-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-amount-edit-http-smoke.ps1'
 Write-Host '.\scripts\resource-read-http-smoke.ps1'
 Write-Host '.\scripts\dev-read-http-smoke.ps1'
 Write-Host '.\scripts\dev-config-edit-batch-http-smoke.ps1'

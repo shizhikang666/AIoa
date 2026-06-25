@@ -100,6 +100,82 @@ SQL;
         return $this->inventoryRows([$row])[0];
     }
 
+    public function add(array $input, array $payload = []): array
+    {
+        $warehouseId = $this->requiredInput($input, 'warehousesId');
+        $productIds = $this->productIds($input);
+
+        return Db::transaction(function () use ($input, $payload, $warehouseId, $productIds): array {
+            $warehouse = $this->activeWarehouse($warehouseId, $payload);
+            $this->assertWarehouseWritable($warehouse, $payload, 'add inventory');
+
+            $tenantId = $this->inventoryTenantId($input, $payload, $warehouse);
+            $products = $this->activeProducts($productIds, $tenantId);
+            if (count($products) !== count($productIds)) {
+                throw new RuntimeException('inventory products contain missing rows', 400);
+            }
+            foreach ($productIds as $productId) {
+                $this->assertProductWritable($products[$productId], $payload, 'add inventory');
+            }
+
+            $existingRows = $this->inventoryRowsForWarehouse($warehouseId, $productIds, $tenantId);
+            foreach ($existingRows as $existingRow) {
+                $deleteFlag = (string)($existingRow['DELETE_FLAG'] ?? '');
+                if ($deleteFlag !== '' && $deleteFlag !== self::NOT_DELETE) {
+                    throw new RuntimeException('inventory row already deleted', 409);
+                }
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $existingByProduct = [];
+            foreach ($existingRows as $existingRow) {
+                $existingByProduct[(string)$existingRow['PRODUCT_ID']] = $existingRow;
+            }
+
+            $insertedIds = [];
+            $updated = 0;
+            foreach ($productIds as $productId) {
+                if (isset($existingByProduct[$productId])) {
+                    Db::name('inventory')
+                        ->where('ID', (string)$existingByProduct[$productId]['ID'])
+                        ->update([
+                            'CURRENT_COUNT' => Db::raw('COALESCE(CURRENT_COUNT, 0)'),
+                            'UPDATE_TIME' => $now,
+                            'UPDATE_USER' => $userId !== '' ? $userId : null,
+                            'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                        ]);
+                    $updated++;
+
+                    continue;
+                }
+
+                $id = $this->newId();
+                Db::name('inventory')->insert([
+                    'ID' => $id,
+                    'WAREHOUSES_ID' => $warehouseId,
+                    'PRODUCT_ID' => $productId,
+                    'CURRENT_COUNT' => '0',
+                    'DELETE_FLAG' => self::NOT_DELETE,
+                    'CREATE_TIME' => $now,
+                    'CREATE_USER' => $userId !== '' ? $userId : null,
+                    'UPDATE_TIME' => null,
+                    'UPDATE_USER' => null,
+                    'TENANT_ID' => $tenantId,
+                    'VERSION' => 0,
+                ]);
+                $insertedIds[] = $id;
+            }
+
+            return [
+                'count' => count($productIds),
+                'inserted' => count($insertedIds),
+                'updated' => $updated,
+                'ids' => $insertedIds,
+            ];
+        });
+    }
+
     private function inventoryQuery(array $filters, array $payload, bool $requireWarehouse, bool $enabledProductsOnly)
     {
         $warehouseId = trim((string)($filters['warehousesId'] ?? $filters['warehouseId'] ?? ''));
@@ -229,6 +305,120 @@ SQL;
         }
     }
 
+    private function activeWarehouse(string $warehouseId, array $payload): array
+    {
+        $query = Db::name('warehouses')->where('ID', $warehouseId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('warehouse not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertWarehouseWritable(array $warehouse, array $payload, string $action): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $warehouseOrg = trim((string)($warehouse['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && $warehouseOrg !== '' && in_array($warehouseOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $ownerUserId = trim((string)($warehouse['USER'] ?? ''));
+        if ($currentUserId !== '' && $ownerUserId === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    /**
+     * @param array<int, string> $productIds
+     * @return array<string, array<string, mixed>>
+     */
+    private function activeProducts(array $productIds, string $tenantId): array
+    {
+        $query = Db::name('biz_product')
+            ->whereIn('ID', $productIds)
+            ->where('status', self::ENABLE);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field('ID,ORG,CREATE_USER,TENANT_ID,status')
+            ->select()
+            ->toArray();
+
+        $products = [];
+        foreach ($rows as $row) {
+            $products[(string)$row['ID']] = $row;
+        }
+
+        return $products;
+    }
+
+    private function assertProductWritable(array $product, array $payload, string $action): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $productOrg = trim((string)($product['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && $productOrg !== '' && in_array($productOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($product['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    /**
+     * @param array<int, string> $productIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function inventoryRowsForWarehouse(string $warehouseId, array $productIds, string $tenantId): array
+    {
+        $query = Db::name('inventory')
+            ->where('WAREHOUSES_ID', $warehouseId)
+            ->whereIn('PRODUCT_ID', $productIds);
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return $query
+            ->field('ID,PRODUCT_ID,DELETE_FLAG,CURRENT_COUNT,VERSION,TENANT_ID')
+            ->lock(true)
+            ->select()
+            ->toArray();
+    }
+
+    private function whereNotDeleted($query, string $column): void
+    {
+        $query->where(function ($query) use ($column): void {
+            $query->whereNull($column)->whereOr($column, '=', self::NOT_DELETE);
+        });
+    }
+
     private function pagination(array $filters): array
     {
         $page = max(1, (int)($filters['current'] ?? $filters['page'] ?? $filters['pageNo'] ?? 1));
@@ -266,5 +456,117 @@ SQL;
         }
 
         return null;
+    }
+
+    private function requiredInput(array $input, string $key): string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            throw new RuntimeException("missing {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function productIds(array $input): array
+    {
+        $source = $input['productIds'] ?? $input['productIdList'] ?? null;
+        if ($source === null && array_key_exists('productId', $input)) {
+            $source = [$input['productId']];
+        }
+        if (is_string($source)) {
+            $source = explode(',', $source);
+        }
+        if (!is_array($source) || $source === []) {
+            throw new RuntimeException('missing productIds', 400);
+        }
+
+        $ids = array_values(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $source)));
+        if ($ids === []) {
+            throw new RuntimeException('missing productIds', 400);
+        }
+        if (count($ids) !== count(array_unique($ids))) {
+            throw new RuntimeException('duplicate productId', 400);
+        }
+
+        return $ids;
+    }
+
+    private function inventoryTenantId(array $input, array $payload, array $warehouse): string
+    {
+        $warehouseTenantId = trim((string)($warehouse['TENANT_ID'] ?? ''));
+        $requestedTenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($warehouseTenantId !== '' && $requestedTenantId !== '' && $warehouseTenantId !== $requestedTenantId) {
+            throw new RuntimeException('tenant mismatch', 403);
+        }
+
+        $tenantId = $warehouseTenantId !== '' ? $warehouseTenantId : $requestedTenantId;
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function currentUserId(array $payload): string
+    {
+        return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function scopeOrgIds(array $payload): array
+    {
+        $ids = [];
+        $direct = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($direct)) {
+            $direct = explode(',', $direct);
+        }
+        if (is_array($direct)) {
+            $ids = array_merge($ids, $direct);
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            $ids = array_merge($ids, array_map(static function (mixed $scope): string {
+                if (!is_array($scope)) {
+                    return '';
+                }
+
+                return trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            }, $scopes));
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
+    }
+
+    private function canSeeAll(array $payload): bool
+    {
+        $account = strtolower((string)($payload['account'] ?? ''));
+        if (in_array($account, ['bizadmin', 'superadmin'], true)) {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? $payload['roleCodeList'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 }

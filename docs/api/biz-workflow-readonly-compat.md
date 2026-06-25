@@ -1,14 +1,15 @@
 # Biz Workflow Read-Only Compatibility
 
 Date: 2026-06-15
+Updated: 2026-06-22
 
 Agent: workflow-agent / api-agent
 
 ## Scope
 
-This slice adds protected read-only ThinkPHP endpoints used by the copied Vue workflow pages. It maps Java workflow query routes to the existing ThinkPHP Camunda-table read layer.
+This slice adds protected ThinkPHP workflow compatibility endpoints used by the copied Vue workflow pages. It maps Java workflow query routes to the existing ThinkPHP Camunda-table read layer and includes narrow `Process_ask_leave` start, approval, cancel, and editable-leave writes, first-step non-project process starts, `Process_sale_project_init` start/approval/cancel/reject, `Process_sale_project_play` start/approval/cancel/reject, plus the `Process_payment`, `Process_reimbursement`/`Process_make_payment`, `Process_procure`, and `Process_procure_in_warehouse` approval side effects.
 
-The Java project remains read-only. This slice does not implement approval, rejection, process start, process cancel, task SSE, workflow writes, or Java delegate side effects.
+The Java project remains read-only. This slice does not implement broad workflow engine parity, task SSE, non-leave approval/reject delegate side effects outside `Process_payment`, `Process_reimbursement`, `Process_make_payment`, `Process_procure`, `Process_procure_in_warehouse`, `Process_sale_project_init`, and `Process_sale_project_play`, project workflow start side effects outside project init/play, or workflow writes outside the explicitly listed bounded paths.
 
 ## Java Reference
 
@@ -29,11 +30,19 @@ The Java project remains read-only. This slice does not implement approval, reje
 | GET | `/biz/process/project/runtime/query/list` | `biz.ProcessController/projectRuntimeQueryList` |
 | POST | `/biz/process/fileList` | `biz.ProcessController/fileList` |
 | GET | `/biz/task/runtime/activity/detail` | `biz.TaskController/runtimeActivityDetail` |
-| POST | `/biz/task/approve` | `biz.TaskController::approve`, controlled deferred |
-| POST | `/biz/task/reject` | `biz.TaskController::reject`, controlled deferred |
+| POST | `/biz/task/approve` | `biz.TaskController::approve`, minimal `Process_ask_leave` transition plus `Process_payment` income, `Process_reimbursement`/`Process_make_payment` payment-out, `Process_procure` purchase-order, `Process_procure_in_warehouse` warehouse, `Process_sale_project_init` initial project, and `Process_sale_project_play` collection side effects |
+| POST | `/biz/task/reject` | `biz.TaskController::reject`, minimal `Process_ask_leave`, `Process_payment`, `Process_reimbursement`, `Process_make_payment`, `Process_procure`, `Process_procure_in_warehouse`, `Process_sale_project_init`, and `Process_sale_project_play` transition |
 | GET | `/biz/task/sse/stream` | `biz.TaskController::sseStream`, controlled deferred |
-| POST | `/biz/process/cancel` | `biz.ProcessController::cancel`, controlled deferred |
-| POST | `/biz/process/*/start` and `/leave/edit` | `biz.ProcessController` controlled-deferred wrappers |
+| POST | `/biz/process/cancel` | `biz.ProcessController::cancel`, minimal active leave, non-project first-step, project-init, and project-play cancellation |
+| POST | `/biz/process/leave/edit` | `biz.ProcessController::leaveEdit`, minimal editable `Process_ask_leave` variable update |
+| POST | `/biz/process/payment/start` | `biz.ProcessController::paymentStart`, minimal `Process_payment` first-step start |
+| POST | `/biz/process/reimbursement/start` | `biz.ProcessController::reimbursementStart`, minimal `Process_reimbursement` first-step start |
+| POST | `/biz/process/makePayment/start` | `biz.ProcessController::makePaymentStart`, minimal `Process_make_payment` first-step start |
+| POST | `/biz/process/procure/start` | `biz.ProcessController::procureStart`, minimal `Process_procure` first-step start |
+| POST | `/biz/process/procure/warehouse/start` | `biz.ProcessController::procureWarehouseStart`, minimal `Process_procure_in_warehouse` first-step start |
+| POST | `/biz/process/project/init/start` | `biz.ProcessController::projectInitStart`, minimal `Process_sale_project_init` first-step start with sale-project pending state |
+| POST | `/biz/process/project/play/start` | `biz.ProcessController::projectPlayStart`, minimal `Process_sale_project_play` first-step start with collection approval path |
+| POST | `/biz/process/project/delivery|reissue|return/start` | `biz.ProcessController` controlled-deferred project-start wrappers |
 
 All routes are protected by `AuthMiddleware`.
 
@@ -66,6 +75,7 @@ All routes are protected by `AuthMiddleware`.
 - `runtime/activity/detail` returns `category`, `variables`, `taskId`, `processKey`, `processInstanceId`, and `processDefinitionId`.
 - Existing `detail` and `variable` reads now accept either `processInstanceId` or the Java/frontend `id` parameter.
 - `detail` also returns the old frontend detail shape: `userProcess`, `startUser`, `startOrgTree`, `userActivityList`, and `ccUser`.
+- Leave, non-project, project-init, and project-play process-start responses return `id`, `processInstanceId`, `processDefinitionId`, `processKey`, `taskId`, `assignee`, `status`, `ccRecordCount`, and `fileRelationCount`.
 
 ## Browser And API Smoke, 2026-06-15
 
@@ -95,19 +105,20 @@ Additional workflow detail browser smoke on 2026-06-15:
 
 The following routes now return controlled `code = 400` deferred responses:
 
-- `POST /biz/task/approve`
-- `POST /biz/task/reject`
 - `GET /biz/task/sse/stream`
-- `POST /biz/process/cancel`
-- all copied process start/edit routes under `/biz/process`
+- copied project process start routes under `/biz/process/project` except `/biz/process/project/init/start` and `/biz/process/project/play/start`
 
-They do not start or cancel workflow instances, complete tasks, reject tasks, mutate business tables, emit workflow-copy notifications, push long-lived SSE data, change schema, or modify Java source.
+They do not start or cancel workflow instances, mutate business tables, emit workflow-copy notifications, push long-lived SSE data, change schema, or modify Java source.
+
+`POST /biz/process/leave/start` now creates a minimal `Process_ask_leave` runtime/history row set, generates `biz_cc_records` rows for submitted `copyUserIdList` users, and binds active submitted `fileIdList` files through `biz_file_relation` with `CATEGORY = Process_ask_leave`. The non-project `payment`, `reimbursement`, `makePayment`, `procure`, and `procure/warehouse` start routes create the same first-step runtime/history shape with the actual process key in variables, CC rows, and file relations. `POST /biz/process/project/init/start` creates the same first-step shape for `Process_sale_project_init`, marks the sale project `PENDING_APPROVAL`, and binds project-init workflow files; cancel and reject roll that pending project back to `FOLLOW`. `POST /biz/process/project/play/start` creates the same first-step shape for `Process_sale_project_play`; first approval advances to BPMN-compatible `Activity_payment_approval`, finance reject closes without payment rows, and finance approval writes an income settlement statement plus linked `biz_payment_record` with `PROCESS_ID = processInstanceId`, `PROCESS_CATEGORY = Process_sale_project_play`, and `SETTLEMENT_CATEGORY = PROJECT_PLAY`, then recalculates sale-project payment state. `POST /biz/process/leave/edit` updates editable leave runtime/history variables once, then sets `isEdit = false`. `POST /biz/process/cancel` cancels an active unapproved leave, non-project first-step process, project-init process, or project-play process and writes final `cancel` history variables. `POST /biz/task/approve` and `/reject` complete/reject `Process_ask_leave` `Activity_approval` tasks by closing history rows and deleting runtime rows. Approved leave transitions also emulate the `LeaveApproveDelegate` business-row side effect by creating/updating one `biz_leave_application` row from historic process variables. Approved `annualLeave` transitions deduct the current-year `biz_user_vacation.USED_AMOUNT`; if the process was edited before approval, the edited amount is deducted. Approved `leaveOfAbsence` rows are consumed by explicit `/biz/bizpayroll/generate/add` payroll generation. `Process_payment` approve now closes the workflow and performs the payment-in side effect, writing an income settlement statement and linked `biz_payment_record` with `PROCESS_ID = processInstanceId` while incrementing the settlement account; reject closes the workflow without finance side effects. `Process_reimbursement` and `Process_make_payment` first approval now creates an active `Activity_pay_approval` finance task without finance side effects; finance approval writes an expense settlement statement and linked `biz_expenditure_record` with `PROCESS_ID = processInstanceId` while decrementing the settlement account, and reject closes without finance side effects. `Process_procure` approval advances through procurement confirmation and optional general-office approval before creating purchase-order rows with `INSTANCE_ID = processInstanceId`; reject closes without purchase-order side effects. `Process_procure_in_warehouse` approve now closes the workflow and performs the purchase-order warehouse-in side effect, writing delivery rows with `PROCESS_ID = processInstanceId`; reject closes the workflow without warehouse side effects. `Process_sale_project_init` approve applies the bounded project-init side effects by writing sale-project delivery/account/amount fields, product items, `SALE_PROJECT` file relations, optional invoicing rows, customer deal amount, and `PROCESS_ID = processInstanceId`. Other non-leave approve/reject remains blocked and does not create remaining project business rows. These paths do not auto-update existing payroll rows or push SSE notifications.
 
 ## Deferred
 
-- Real workflow task approve/reject behavior
-- Real process start/edit/cancel behavior
-- Java delegate side effects
+- Workflow task approve/reject for process keys or task definitions other than `Process_ask_leave`, `Process_payment`, `Process_reimbursement`, `Process_make_payment`, `Process_procure`, `Process_procure_in_warehouse`, `Process_sale_project_init`, and `Process_sale_project_play` bounded approval tasks
+- Process edit behavior outside active `Process_ask_leave`
+- Process cancel behavior outside active unapproved leave, non-project first-step, project-init, and project-play processes
+- Project process start behavior under `/biz/process/project` except `/biz/process/project/init/start` and `/biz/process/project/play/start`
+- Java delegate side effects outside approved leave-row creation, `Process_payment` income creation, `Process_reimbursement`/`Process_make_payment` expense creation, `Process_procure` purchase-order creation, `Process_procure_in_warehouse` stock-in, `Process_sale_project_init` initial project side effects, and `Process_sale_project_play` project collection side effects
 - Long-lived task SSE or Redis workflow push
 
 Note: Java `BizTaskController` does not currently expose `/biz/task/sse/stream`; the copied frontend wrapper contains `sse()` but no active caller was found. Layout task refresh currently flows through `/dev/message/createSseConnect` and the `FlushProcessNotice` SSE payload.

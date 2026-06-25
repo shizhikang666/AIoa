@@ -1,5 +1,1015 @@
 ﻿锘块敇鍧楁晣閸ф鏅ｉ柛褎顨嗛弲? IMPLEMENT.md
 
+## api-agent/test-agent Implementation Log: Workflow Project Delivery Approval
+
+Date: 2026-06-22
+
+### Implemented
+
+- `ProcessController::projectDeliveryStart()` now starts `Process_sale_project_delivery` instead of returning a controlled-deferred response.
+- `WorkflowRuntimeService::startProjectDeliveryProcess()` validates the project delivery form, creates first-step runtime/history rows, and binds workflow CC/file rows.
+- `POST /biz/process/cancel` now cancels active unapproved project-delivery workflows without business side effects.
+- `POST /biz/task/reject` now rejects project-delivery workflows without invoice, delivery-record, inventory, or project-state side effects.
+- `POST /biz/task/approve` now applies bounded project delivery side effects through `SaleProjectService::applyProjectDeliveryFromWorkflow()`.
+- Workflow-owned project delivery writes `biz_sale_project_invoice`, `biz_sale_project_invoice_item`, and OUT `delivery_record` rows with `PROCESS_ID = processInstanceId`.
+- Workflow-owned project delivery updates sale-project product-item `DELIVERY`/`STATE`, decrements inventory, and recalculates sale-project `PROJECT_STATE`.
+- Removed `/biz/process/project/delivery/start` from the generic deferred-wrapper smoke list.
+- Added `scripts/workflow-project-delivery-approve-http-smoke.ps1`.
+- Added `docs/tasks/workflow-project-delivery-approve-plan.md`.
+- Added the focused smoke to `scripts/project-preflight.ps1` and `scripts/project-progress.ps1`.
+
+### Deferred
+
+- Project reissue and return workflows.
+- Non-leave edit behavior, task SSE, notifications, Java data-change events.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\service\biz\SaleProjectService.php`
+  - `php -l app\controller\biz\ProcessController.php`
+  - PowerShell parser checks for `scripts\workflow-project-delivery-approve-http-smoke.ps1`, `scripts\project-preflight.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-progress.ps1`
+  - `.\scripts\workflow-project-delivery-approve-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+  - `php think route:list | Select-String "biz/process/project/(play|init|delivery|reissue|return)/start"`
+
+## api-agent/test-agent Implementation Log: Workflow Project Play Approval
+
+Date: 2026-06-22
+
+### Implemented
+
+- `ProcessController::projectPlayStart()` now starts `Process_sale_project_play` instead of returning a controlled-deferred response.
+- `WorkflowRuntimeService::startProjectPlayProcess()` validates the project collection form, creates first-step runtime/history rows, and binds workflow CC/file rows.
+- `POST /biz/process/cancel` now cancels active unapproved project-play workflows without finance side effects.
+- `POST /biz/task/reject` now rejects first-step and finance project-play tasks without payment, account, or project-status side effects.
+- `POST /biz/task/approve` now advances first approval to BPMN-compatible `Activity_payment_approval`.
+- Finance approval now applies bounded project collection side effects through `SettlementAccountService::paymentFromWorkflow()` and `SaleProjectService::refreshProjectPaymentStatusFromWorkflow()`.
+- Workflow-owned project play writes `settlement_account_statement` and `biz_payment_record` rows with `PROCESS_ID = processInstanceId`, `PROCESS_CATEGORY = Process_sale_project_play`, and `SETTLEMENT_CATEGORY = PROJECT_PLAY`.
+- Workflow-owned project play recalculates sale-project `AMOUNT_COLLECTED`, `PLAY_STATE`, and `PROJECT_STATE`.
+- Removed `/biz/process/project/play/start` from the generic deferred-wrapper smoke list.
+- Added `scripts/workflow-project-play-approve-http-smoke.ps1`.
+- Added `docs/tasks/workflow-project-play-approve-plan.md`.
+- Added the focused smoke to `scripts/project-preflight.ps1` and `scripts/project-progress.ps1`.
+
+### Deferred
+
+- Project delivery, reissue, and return workflows.
+- Non-leave edit behavior, task SSE, notifications, Java data-change events.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\service\biz\SaleProjectService.php`
+  - `php -l app\service\biz\SettlementAccountService.php`
+  - `php -l app\controller\biz\ProcessController.php`
+  - PowerShell parser checks for `scripts\workflow-project-play-approve-http-smoke.ps1`, `scripts\project-preflight.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-progress.ps1`
+  - `.\scripts\workflow-project-play-approve-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+  - `.\scripts\workflow-project-init-approve-http-smoke.ps1`
+  - `.\scripts\workflow-payment-approve-http-smoke.ps1`
+  - `.\scripts\workflow-payment-out-approve-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Project Init Approval
+
+Date: 2026-06-22
+
+### Implemented
+
+- `ProcessController::projectInitStart()` now starts `Process_sale_project_init` instead of returning a controlled-deferred response.
+- `WorkflowRuntimeService::startProjectInitProcess()` validates the project-init form, marks the sale project `PENDING_APPROVAL`, creates first-step runtime/history rows, and binds workflow CC/file rows.
+- `POST /biz/process/cancel` now cancels active unapproved project-init workflows and rolls the sale project back to `FOLLOW`.
+- `POST /biz/task/reject` now rejects `Process_sale_project_init` and rolls the sale project back to `FOLLOW`.
+- `POST /biz/task/approve` now applies bounded initial project side effects through `SaleProjectService::applyProjectInitFromWorkflow()`.
+- Workflow-owned project init writes sale-project delivery/account/amount fields, product items, `SALE_PROJECT` file relations, optional invoicing rows, customer deal amount, and `PROCESS_ID = processInstanceId`.
+- Removed `/biz/process/project/init/start` from the generic deferred-wrapper smoke list.
+- Added `scripts/workflow-project-init-approve-http-smoke.ps1`.
+- Added `docs/tasks/workflow-project-init-approve-plan.md`.
+- Added the focused smoke to `scripts/project-preflight.ps1` and `scripts/project-progress.ps1`.
+
+### Deferred
+
+- Project delivery, reissue, and return workflows. Project play is covered by the Workflow Project Play Approval entry above.
+- Non-leave edit behavior, task SSE, notifications, Java data-change events.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\service\biz\SaleProjectService.php`
+  - `php -l app\controller\biz\ProcessController.php`
+  - PowerShell parser checks for `scripts\workflow-project-init-approve-http-smoke.ps1`, `scripts\project-preflight.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-progress.ps1`
+  - `.\scripts\workflow-project-init-approve-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+  - `.\scripts\workflow-general-start-http-smoke.ps1`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+  - `.\scripts\workflow-process-cancel-edit-http-smoke.ps1`
+  - `.\scripts\workflow-payment-approve-http-smoke.ps1`
+  - `.\scripts\workflow-payment-out-approve-http-smoke.ps1`
+  - `.\scripts\workflow-procure-approve-http-smoke.ps1`
+  - `.\scripts\workflow-procure-warehouse-approve-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Procure Approval
+
+Date: 2026-06-22
+
+### Implemented
+
+- `WorkflowRuntimeService::transitionApprovalTask()` now allows `Process_procure` staged approvals.
+- Approved `Activity_approval` tasks advance to `Activity_procure_approval` assigned to `procure`.
+- Approved `Activity_procure_approval` tasks decode and persist the procurement `productList`/`amount`, then advance to `Activity_approval_procure` when `approvesGeneralOffice` is present.
+- Empty `approvesGeneralOffice` skips the general-office task and creates the purchase order immediately after procurement confirmation.
+- Approved final `Activity_approval_procure` tasks call `PurchaseOrderService::purchaseOrderFromWorkflow()` before closing runtime rows.
+- Workflow-owned procurement creates `biz_purchase_order` with `INSTANCE_ID = processInstanceId`, `SETTLEMENT_STATUS = NOT_COMPLETED`, `STORAGE_STATUS = NOT_IN_WAREHOUSE`, and supplier snapshot JSON.
+- Workflow-owned procurement creates `biz_purchase_order_item` rows from the procurement confirmation `productList`.
+- Reject at any procurement stage closes workflow history without purchase-order side effects.
+- Added `scripts/workflow-procure-approve-http-smoke.ps1`.
+- Added `docs/tasks/workflow-procure-approve-plan.md`.
+- Added the focused smoke to `scripts/project-preflight.ps1` and `scripts/project-progress.ps1`.
+- Updated `scripts/workflow-general-start-http-smoke.ps1` for first approval advancing to procurement confirmation.
+
+### Deferred
+
+- Project delivery, reissue, and return workflows. Project play is covered by the Workflow Project Play Approval entry above.
+- Non-leave edit behavior, task SSE, notifications, Java data-change events.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\service\biz\PurchaseOrderService.php`
+  - PowerShell parser checks for `scripts\workflow-procure-approve-http-smoke.ps1`, `scripts\workflow-general-start-http-smoke.ps1`, `scripts\project-preflight.ps1`, and `scripts\project-progress.ps1`
+  - `.\scripts\workflow-procure-approve-http-smoke.ps1`
+  - `.\scripts\workflow-general-start-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Payment-Out Approval
+
+Date: 2026-06-22
+
+### Implemented
+
+- `WorkflowRuntimeService::transitionApprovalTask()` now allows `Process_reimbursement` and `Process_make_payment`.
+- Approved first-step `Activity_approval` tasks for those process keys now advance to a new `Activity_pay_approval` runtime/history task assigned to `treasurer` instead of closing the process.
+- Approved `Activity_pay_approval` tasks update submitted finance variables and call `SettlementAccountService::expensesFromWorkflow()` before closing runtime rows.
+- Workflow-owned payment-out writes `settlement_account_statement.PROCESS_ID = processInstanceId`, `PROCESS_CATEGORY = Process_reimbursement` or `Process_make_payment`, and `biz_expenditure_record.PROCESS_ID = processInstanceId`.
+- Manual quick expense defaults remain unchanged through `Process_sys`.
+- Added `scripts/workflow-payment-out-approve-http-smoke.ps1`.
+- Added `docs/tasks/workflow-payment-out-approve-plan.md`.
+- Added the focused smoke to `scripts/project-preflight.ps1` and updated `scripts/workflow-general-start-http-smoke.ps1` for the finance-confirmation step.
+
+### Deferred
+
+- Procurement-order creation and remaining project reissue and return workflows. Project delivery and project play are covered by later workflow entries above.
+- Non-leave edit behavior, task SSE, notifications, Java data-change events.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\service\biz\SettlementAccountService.php`
+  - PowerShell parser checks for `scripts\workflow-payment-out-approve-http-smoke.ps1`, `scripts\workflow-general-start-http-smoke.ps1`, and `scripts\project-preflight.ps1`
+  - `.\scripts\workflow-payment-out-approve-http-smoke.ps1`
+  - `.\scripts\workflow-general-start-http-smoke.ps1`
+  - `.\scripts\settlement-account-expenses-add-http-smoke.ps1`
+  - `.\scripts\workflow-payment-approve-http-smoke.ps1`
+  - `.\scripts\workflow-procure-warehouse-approve-http-smoke.ps1`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Payment Approval
+
+Date: 2026-06-22
+
+### Implemented
+
+- `WorkflowRuntimeService::transitionApprovalTask()` now allows `Process_payment` `Activity_approval` tasks.
+- Approved payment workflow tasks call a new `SettlementAccountService::paymentFromWorkflow()` method before closing runtime rows.
+- `SettlementAccountService` now keeps manual quick income defaults unchanged while allowing workflow callers to supply the workflow process instance id and operator.
+- Workflow-owned income writes `settlement_account_statement.PROCESS_ID = processInstanceId`, `PROCESS_CATEGORY = Process_payment`, and `biz_payment_record.PROCESS_ID = processInstanceId`.
+- `Process_payment` reject closes workflow history without payment, statement, or account-balance side effects.
+- Added `scripts/workflow-payment-approve-http-smoke.ps1`.
+- Added `docs/tasks/workflow-payment-approve-plan.md`.
+- Added the focused smoke to `scripts/project-preflight.ps1` and `scripts/project-progress.ps1`.
+
+### Deferred
+
+- Reimbursement and make-payment approval are covered by the Workflow Payment-Out Approval entry above; procurement-order creation and remaining project reissue and return workflows remain deferred. Project delivery and project play are covered by later workflow entries above.
+- Non-leave edit behavior, task SSE, notifications, Java data-change events.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\service\biz\SettlementAccountService.php`
+  - PowerShell parser checks for `scripts\workflow-payment-approve-http-smoke.ps1`, `scripts\workflow-general-start-http-smoke.ps1`, `scripts\project-preflight.ps1`, and `scripts\project-progress.ps1`
+  - `.\scripts\workflow-payment-approve-http-smoke.ps1`
+  - `.\scripts\workflow-general-start-http-smoke.ps1`
+  - `.\scripts\settlement-account-payment-add-http-smoke.ps1`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Procure Warehouse Approval
+
+Date: 2026-06-22
+
+### Implemented
+
+- `WorkflowRuntimeService::transitionApprovalTask()` now allows `Process_procure_in_warehouse` `Activity_approval` tasks.
+- Approved procurement-warehouse workflow tasks call a new `PurchaseOrderService::warehouseOneFromWorkflow()` method before closing runtime rows.
+- `PurchaseOrderService` now keeps manual quick stock-in defaults unchanged while allowing workflow callers to supply the workflow process instance id and operator.
+- Workflow-owned stock-in writes `delivery_record.PROCESS_ID = processInstanceId`, `PROCESS_CATEGORY = Process_procure_in_warehouse`, and `OBJECT_ID = orderId`.
+- `Process_procure_in_warehouse` reject closes workflow history without stock-in side effects.
+- Added `scripts/workflow-procure-warehouse-approve-http-smoke.ps1`.
+- Added `docs/tasks/workflow-procure-warehouse-approve-plan.md`.
+- Added the focused smoke to `scripts/project-preflight.ps1` and `scripts/project-progress.ps1`.
+
+### Deferred
+
+- Reimbursement and make-payment approval are covered by the Workflow Payment-Out Approval entry above; procurement-order creation and remaining project reissue and return workflows remain deferred. Payment approval, project delivery, and project play are covered by later workflow entries above.
+- Non-leave edit behavior, task SSE, notifications, Java data-change events.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\service\biz\PurchaseOrderService.php`
+  - PowerShell parser checks for `scripts\workflow-procure-warehouse-approve-http-smoke.ps1`, `scripts\workflow-general-start-http-smoke.ps1`, `scripts\project-preflight.ps1`, and `scripts\project-progress.ps1`
+  - `.\scripts\workflow-procure-warehouse-approve-http-smoke.ps1`
+  - `.\scripts\workflow-general-start-http-smoke.ps1`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+  - `.\scripts\purchase-order-warehouse-one-add-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+  - `.\scripts\project-progress.ps1 -Lean`
+  - `git diff --check`
+
+## api-agent/test-agent Implementation Log: Workflow General Start Runtime
+
+Date: 2026-06-22
+
+### Implemented
+
+- `ProcessController` now routes `payment/start`, `reimbursement/start`, `makePayment/start`, `procure/start`, and `procure/warehouse/start` into `WorkflowRuntimeService::startGeneralProcess()`.
+- `WorkflowRuntimeService` now supports first-step starts for `Process_payment`, `Process_reimbursement`, `Process_make_payment`, `Process_procure`, and `Process_procure_in_warehouse`.
+- Starts create minimal Camunda-compatible runtime/history rows, one active `Activity_approval` task, process variables, CC rows, and workflow file relations with the actual process key.
+- Process-specific validation covers required payment, payment-out, procurement, and procurement-warehouse fields.
+- `cancelProcess()` now supports active unapproved non-project first-step workflows while preserving leave cancel/edit behavior.
+- Added `scripts/workflow-general-start-http-smoke.ps1`.
+- Added `docs/tasks/workflow-general-start-runtime-plan.md`.
+- Removed the five non-project start routes from the generic deferred-wrapper smoke list and added the focused smoke to `scripts/project-preflight.ps1`.
+
+### Deferred
+
+- Project delivery, reissue, and return workflows. Project play is covered by the Workflow Project Play Approval entry above.
+- Non-leave approve/reject completion and non-leave edit behavior.
+- Finance, purchase, warehouse, project, notification, task SSE, and Java data-change delegate side effects.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\controller\biz\ProcessController.php`
+  - PowerShell parser checks for `scripts\workflow-general-start-http-smoke.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-preflight.ps1`
+  - Targeted `php think route:list` check for the five non-project start routes and remaining project-start route
+  - `.\scripts\workflow-general-start-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+  - `git diff --check`
+  - `.\scripts\project-progress.ps1 -Lean`
+
+## api-agent/test-agent Implementation Log: Settlement Account Delete
+
+Date: 2026-06-22
+
+### Implemented
+
+- `SettlementAccountController::delete(Request)` now parses copied-frontend/Java delete payloads and calls the service instead of returning a deferred wrapper.
+- `SettlementAccountService::delete()` validates the full id batch, locks active settlement accounts, applies existing tenant/write-scope guards, rejects missing or out-of-scope ids, and logically deletes only after all checks pass.
+- The delete path rejects active references from settlement statements, payment records, and expenditure records, including transfer-side `OBJECT_ID` references.
+- The HTTP route updates only `settlement_account.DELETE_FLAG`, `UPDATE_TIME`, and `UPDATE_USER`.
+- Added `scripts/settlement-account-delete-http-smoke.ps1`.
+- Added `docs/tasks/settlement-account-delete-plan.md`.
+- Removed `/biz/settlementaccount/delete` from the generic deferred-wrapper smoke list and added the focused smoke to `scripts/project-preflight.ps1`.
+
+### Deferred
+
+- Physical deletion through the HTTP route.
+- Balance, statement, payment-record, expenditure-record, collection-receipt, or debit-note mutation.
+- Workflow hooks, notifications, Java data-change events.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\controller\biz\SettlementAccountController.php`
+  - `php -l app\service\biz\SettlementAccountService.php`
+  - PowerShell parser checks for `scripts\settlement-account-delete-http-smoke.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-preflight.ps1`
+  - `.\scripts\settlement-account-delete-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Payroll Generation Coverage
+
+Date: 2026-06-22
+
+### Implemented
+
+- Confirmed no new business PHP runtime was needed for workflow approval itself: Java `LeaveApproveDelegate` writes the leave row, and Java payroll generation consumes leave rows later.
+- Extended `scripts/workflow-task-transition-http-smoke.ps1` with payroll cleanup and a workflow-to-payroll assertion.
+- The smoke approves a temporary `leaveOfAbsence` workflow, runs `/biz/bizpayroll/generate/add`, verifies a generated payroll row exists, and asserts `VACATION` equals the approved workflow amount.
+- Tightened `scripts/biz-payroll-generate-add-http-smoke.ps1` temporary IDs for narrow sale-project/payment/leave-process reference columns so setup data matches the current schema.
+- Added `docs/tasks/workflow-payroll-generation-coverage-plan.md`.
+- Updated workflow, payroll, leave, gap, dashboard, deferred-wrapper, status, plan, and implementation docs to distinguish explicit payroll generation from automatic existing-row recalculation.
+
+### Deferred
+
+- Automatic updates to already-created `biz_payroll` rows on workflow approval.
+- Payroll add and EasyExcel-style xlsx export rendering.
+- Notifications, data-change events, non-leave delegates, task SSE push.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\service\biz\BizPayrollService.php`
+  - PowerShell parser check for `scripts\workflow-task-transition-http-smoke.ps1`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+  - PowerShell parser check for `scripts\biz-payroll-generate-add-http-smoke.ps1`
+  - `.\scripts\biz-payroll-generate-add-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow File Relation Binding
+
+Date: 2026-06-22
+
+### Implemented
+
+- `WorkflowRuntimeService::startLeaveProcess` now generates `biz_file_relation` rows for submitted `fileIdList` files in the same leave-start transaction.
+- The write path validates every submitted file as an active current-tenant `dev_file` row before inserting relations.
+- Generated rows use the process instance id as `OBJECT_ID`, the file id as `TARGET_ID`, `CATEGORY = Process_ask_leave`, `FILE_NAME = dev_file.NAME`, starter `CREATE_USER`, tenant id, and `DELETE_FLAG = NOT_DELETE`.
+- Leave-start responses include `fileRelationCount`.
+- `scripts/workflow-leave-start-http-smoke.ps1` now creates a temporary `dev_file`, passes it through `fileIdList`, checks `fileRelationCount`, verifies the generated `biz_file_relation` row, verifies `/biz/process/fileList` readback, and deletes temporary file/relation rows during cleanup.
+- Added `docs/tasks/workflow-file-relation-binding-plan.md`.
+
+### Deferred
+
+- Copy/file generation for other process keys.
+- Notifications, data-change events, automatic existing-payroll row updates, non-leave delegates, task SSE push.
+- Cloud storage behavior and physical file cleanup.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - PowerShell parser check for `scripts\workflow-leave-start-http-smoke.ps1`
+  - `.\scripts\workflow-leave-start-http-smoke.ps1`
+  - `.\scripts\workflow-read-http-smoke.ps1`
+  - `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Copy-User Records
+
+Date: 2026-06-22
+
+### Implemented
+
+- `WorkflowRuntimeService::startLeaveProcess` now generates `biz_cc_records` rows for submitted `copyUserIdList` users in the same leave-start transaction.
+- Generated rows use the workflow title, process definition id, process instance id, starter as promoter, `CATEGORY = Process_ask_leave`, copied user id, copied-user `CREATE_USER`, tenant id, and `DELETE_FLAG = NOT_DELETE`.
+- Leave-start responses include `ccRecordCount`.
+- `CcRecordsService` now returns clean camelCase page/detail row payloads without duplicate uppercase/lowercase JSON keys.
+- `scripts/workflow-leave-start-http-smoke.ps1` now submits a copy user, checks `ccRecordCount`, verifies the generated `biz_cc_records` row, verifies `/biz/ccrecords/page` readback, and deletes generated rows during cleanup.
+- Added `docs/tasks/workflow-copy-user-records-plan.md`.
+
+### Deferred
+
+- Copy-user generation for other process keys.
+- Copy/file generation outside active leave start.
+- Notifications, data-change events, automatic existing-payroll row updates, non-leave delegates, task SSE push.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\service\biz\CcRecordsService.php`
+  - PowerShell parser check for `scripts\workflow-leave-start-http-smoke.ps1`
+  - `.\scripts\workflow-leave-start-http-smoke.ps1`
+  - `.\scripts\biz-cc-records-write-http-smoke.ps1`
+  - `.\scripts\workflow-read-http-smoke.ps1`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Biz Leave Application Vacation Adjustment
+
+Date: 2026-06-22
+
+### Implemented
+
+- `BizLeaveApplicationService::edit` now locks the existing active leave row, computes annual-leave deltas from old/new category, user, tenant, and amount, and adjusts current-year `biz_user_vacation.USED_AMOUNT` in the same transaction.
+- `BizLeaveApplicationService::delete` now validates the full batch, restores annual-leave amounts for current-year rows, and then logically deletes the leave rows.
+- Annual-leave adjustment rejects missing vacation rows, insufficient remaining balance, and used-amount underflow with `400`, preserving both leave and vacation rows.
+- Added `scripts/biz-leave-application-vacation-adjustment-http-smoke.ps1`.
+- Added the new smoke to `scripts/project-preflight.ps1` with `-SkipBizLeaveApplicationVacationAdjustment`.
+- Added `docs/tasks/biz-leave-application-vacation-adjustment-plan.md`.
+
+### Deferred
+
+- Direct leave add.
+- Vacation generation.
+- Payroll recalculation.
+- Copy-user generation outside active leave start, notifications, data-change events.
+- Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\biz\BizLeaveApplicationService.php`
+  - PowerShell parser checks for `scripts\biz-leave-application-vacation-adjustment-http-smoke.ps1` and `scripts\project-preflight.ps1`
+  - `.\scripts\biz-leave-application-vacation-adjustment-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Process Cancel/Edit Runtime
+
+Date: 2026-06-22
+
+### Implemented
+
+- `ProcessController::cancel(Request)` now parses the body and calls `WorkflowRuntimeService::cancelProcess`.
+- `ProcessController::leaveEdit(Request)` now parses the body and calls `WorkflowRuntimeService::editLeaveProcess`.
+- `WorkflowRuntimeService::cancelProcess` now closes active unapproved `Process_ask_leave` workflows started by the current token user, writes final `cancel` history variables, deletes runtime rows, and leaves leave/vacation rows unchanged.
+- `WorkflowRuntimeService::editLeaveProcess` now updates `endTime`, `amount`, and `remark` runtime/history variables for editable active leave processes, then sets `isEdit = false`.
+- Added runtime variable upsert support for editable process variables.
+- `scripts/workflow-process-cancel-edit-http-smoke.ps1` verifies cancel, edit, second-edit rejection, non-editable rejection, and approval after edit using edited annual-leave amount.
+- Removed `POST /biz/process/cancel` and `/leave/edit` from the deferred-wrapper smoke list.
+- Added the workflow process cancel/edit smoke to `scripts/project-preflight.ps1` with `-SkipWorkflowProcessCancelEdit`.
+- Added `docs/tasks/workflow-process-cancel-edit-plan.md`.
+
+### Deferred
+
+- Other process starts/transitions and non-leave cancel/edit behavior.
+- Copy-user generation outside active leave start and notifications.
+- Payroll recalculation.
+- Non-leave BPMN delegates, task SSE push, Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\controller\biz\ProcessController.php`
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - PowerShell parser checks for `scripts\workflow-process-cancel-edit-http-smoke.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-preflight.ps1`
+  - `.\scripts\workflow-process-cancel-edit-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Annual Leave Deduction
+
+Date: 2026-06-22
+
+### Implemented
+
+- `WorkflowRuntimeService` now deducts annual-leave balances when an approved `Process_ask_leave` workflow creates a new `biz_leave_application` row with `category = annualLeave`.
+- The deduction finds the current-year active `biz_user_vacation` row, validates enough remaining days, updates `USED_AMOUNT`, refreshes update audit, and increments `VERSION`.
+- Deduction failure rolls back the approval transaction, preserving the active workflow task and leaving vacation/leave rows unchanged.
+- `scripts/workflow-task-transition-http-smoke.ps1` now creates temporary annual-leave balance rows, verifies successful deduction, verifies insufficient-balance rollback, and cleans up temporary rows.
+- Added `docs/tasks/workflow-annual-leave-deduction-plan.md`.
+
+### Deferred
+
+- Copy-user generation outside active leave start and notifications. Active leave process cancel/edit is covered by the Workflow Process Cancel/Edit Runtime slice, and direct leave-row annual-leave restoration is covered by the Biz Leave Application Vacation Adjustment slice.
+- Copy-user generation outside active leave start and notifications.
+- Payroll recalculation.
+- Other workflow starts/transitions, non-leave delegates, task SSE push, Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - PowerShell parser check for `scripts\workflow-task-transition-http-smoke.ps1`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Leave Application Side Effect
+
+Date: 2026-06-22
+
+### Implemented
+
+- `WorkflowRuntimeService::transitionApprovalTask` now creates/updates one `biz_leave_application` row when an approved `Process_ask_leave` `Activity_approval` task completes.
+- The leave row is decoded from historic workflow variables and uses the workflow initiator as `USER_ID` plus the process instance id as `PROCESS_ID`.
+- The write path validates required leave fields, enforces same-user/same-tenant overlap protection, and uses `PROCESS_ID` as an idempotent update key.
+- Reject transitions still close workflow history and do not create leave rows.
+- `scripts/workflow-task-transition-http-smoke.ps1` now verifies approved leave-row creation/read-back and rejected zero-row behavior.
+- Added `docs/tasks/workflow-leave-application-side-effect-plan.md`.
+
+### Deferred
+
+- Direct leave-row annual-leave restoration is covered by the Biz Leave Application Vacation Adjustment slice.
+- Copy-user generation outside active leave start.
+- Payroll recalculation.
+- Other workflow starts/transitions. Active leave process cancel/edit is covered by the Workflow Process Cancel/Edit Runtime slice.
+- Non-leave BPMN delegates, notifications, task SSE push, Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - PowerShell parser check for `scripts\workflow-task-transition-http-smoke.ps1`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Workflow Task Transition Runtime
+
+Date: 2026-06-22
+
+### Implemented
+
+- `TaskController::approve(Request)` now parses JSON/form bodies and calls `WorkflowRuntimeService::approveTask`.
+- `TaskController::reject(Request)` now parses JSON/form bodies and calls `WorkflowRuntimeService::rejectTask`.
+- `WorkflowRuntimeService` now validates active task ownership by current token user and restricts real transitions to `Process_ask_leave` `Activity_approval`.
+- Approve transitions write `AGREE` status/state variables, close historic task/activity/process rows, and remove runtime task/variable/execution rows.
+- Reject transitions write `REJECT` status/state variables, close historic task/activity/process rows with task delete reason `deleted`, and remove runtime task/variable/execution rows.
+- Added `scripts/workflow-task-transition-http-smoke.ps1`.
+- Removed `/biz/task/approve` and `/biz/task/reject` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added the workflow task transition smoke to `scripts/project-preflight.ps1` with `-SkipWorkflowTaskTransition`.
+
+### Deferred
+
+- Task transitions outside `Process_ask_leave` `Activity_approval`.
+- Other process starts. Active leave process cancel/edit is covered by the Workflow Process Cancel/Edit Runtime slice.
+- BPMN service-task/delegate behavior.
+- Copy-user notification rows, automatic existing-payroll row updates, and task SSE push. Approved leave-application row creation is covered by the Workflow Leave Application Side Effect slice, approved annual-leave deduction is covered by the Workflow Annual Leave Deduction slice, workflow-approved `leaveOfAbsence` payroll generation is covered by the Workflow Payroll Generation Coverage slice, active leave process cancel/edit is covered by the Workflow Process Cancel/Edit Runtime slice, and direct leave-row annual-leave restoration is covered by the Biz Leave Application Vacation Adjustment slice.
+- Frontend source changes, Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\controller\biz\TaskController.php`
+  - PowerShell parser checks for `scripts\workflow-task-transition-http-smoke.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-preflight.ps1`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1` with 38 authenticated POST deferred wrappers plus the task-SSE deferred GET wrapper
+  - `.\scripts\workflow-read-http-smoke.ps1`
+  - `.\scripts\workflow-leave-start-http-smoke.ps1`
+  - `git diff --check` with normal LF/CRLF working-copy warnings only
+
+## api-agent/test-agent Implementation Log: Workflow Leave Start Runtime
+
+Date: 2026-06-22
+
+### Implemented
+
+- `ProcessController::leaveStart(Request)` now parses JSON/form bodies and calls `WorkflowRuntimeService::startLeaveProcess`.
+- `WorkflowRuntimeService::startLeaveProcess` validates the current token user, tenant/org context, leave category, `startTime`, and submitted approver/copy/file user ids.
+- The route writes a transitional Camunda-compatible `Process_ask_leave` runtime:
+  - root and active approval rows in `act_ru_execution`;
+  - one active `Activity_approval` task in `act_ru_task`;
+  - process variables in `act_ru_variable`;
+  - matching active history rows in `act_hi_procinst`, `act_hi_taskinst`, `act_hi_actinst`, and `act_hi_varinst`.
+- The created task/process can be read back through existing workflow read endpoints.
+- Added `scripts/workflow-leave-start-http-smoke.ps1`.
+- Removed `/biz/process/leave/start` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added the workflow leave start smoke to `scripts/project-preflight.ps1` with `-SkipWorkflowLeaveStart`.
+
+### Deferred
+
+- Other process starts. Active leave process cancel/edit is covered by the Workflow Process Cancel/Edit Runtime slice.
+- BPMN service-task/delegate behavior.
+- Copy-user notification rows and automatic existing-payroll row updates. Approved leave-application row creation is covered by the Workflow Leave Application Side Effect slice, approved annual-leave deduction is covered by the Workflow Annual Leave Deduction slice, workflow-approved `leaveOfAbsence` payroll generation is covered by the Workflow Payroll Generation Coverage slice, active leave process cancel/edit is covered by the Workflow Process Cancel/Edit Runtime slice, and direct leave-row annual-leave restoration is covered by the Biz Leave Application Vacation Adjustment slice.
+- Frontend source changes, Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+Subsequent state on 2026-06-22: minimal `Process_ask_leave` `Activity_approval` approve/reject transitions are now covered by the Workflow Task Transition Runtime slice.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\service\workflow\WorkflowRuntimeService.php`
+  - `php -l app\controller\biz\ProcessController.php`
+  - PowerShell parser checks for `scripts\workflow-leave-start-http-smoke.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-preflight.ps1`
+  - `php think route:list | Select-String -Pattern 'biz/process/leave/start|biz/process/leave/edit|biz/process/cancel|biz/task/approve|biz/task/reject|biz/task/sse/stream'`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1` with 40 authenticated POST deferred wrappers plus the task-SSE deferred GET wrapper
+  - `.\scripts\workflow-leave-start-http-smoke.ps1`
+
+## api-agent/test-agent Implementation Log: Sale Project Foundation Closure
+
+Date: 2026-06-18
+
+### Implemented
+
+- `SaleProjectController::add`, `edit`, `historyAdd`, and `specialAdd` now parse JSON/form bodies and call real service methods instead of returning controlled-deferred responses.
+- `SaleProjectService::add` implements Java-compatible base project creation with active customer, tenant, and data-scope checks; it sets `FOLLOW`, `UNPAID`, `PRIVATE`, zero amount defaults, and ignores product/state/amount spoof fields.
+- `SaleProjectService::edit` implements Java-compatible base field editing with active sale-project access, `FOLLOW` guard, Java edit-field whitelist, audit/version refresh, and protected-field preservation.
+- `SaleProjectService::historyAdd` creates one history customer plus one direct private project, stores `HISTORY_AMOUNT`, uses the target user's org, and applies Java-style payment-state correction.
+- `SaleProjectService::specialAdd` creates one history customer plus one direct private reimbursement project, sets `special_type = PUBLIC_FOR_REIMBURSEMENT`, uses the selected org, and applies Java-style payment-state correction.
+- Added `scripts/sale-project-foundation-closure-http-smoke.ps1`.
+- Removed `/biz/saleproject/add`, `/edit`, `/history/add`, and `/special/add` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+
+### Deferred
+
+- Product-item mutation through copied form `productList`.
+- Invoice, invoicing item, payment, expenditure, settlement-account, delivery, inventory, return-order, reissue-order, workflow, file cleanup, notification, Java data-change events, frontend source changes, Java source changes, schema changes, `.env` changes, production data operations, and commits.
+
+### Verification Status
+
+- Passed:
+  - `php -l app\controller\biz\SaleProjectController.php`
+  - `php -l app\service\biz\SaleProjectService.php`
+  - PowerShell parser checks for `scripts\sale-project-foundation-closure-http-smoke.ps1` and `scripts\frontend-deferred-write-wrapper-smoke.ps1`
+  - `.\scripts\runtime-ready.ps1`
+  - `php think route:list | Select-String -Pattern 'biz/saleproject/(add|edit|history/add|special/add|deal/edit|delete|repeal|cancel|amount/edit|visibility/edit)'`
+  - `.\scripts\sale-project-foundation-closure-http-smoke.ps1`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1` with 47 authenticated POST deferred wrappers plus the task-SSE deferred GET wrapper
+
+## merge-agent Implementation Log: Feature Closure Execution Baseline
+
+Date: 2026-06-18
+
+### Implemented
+
+- Updated the active continuation workflow so the default unit of work is a complete feature-closure block, not an isolated easy route.
+- Updated new-conversation and context-handoff prompts to start from the next complete feature block and default to sale-project foundation closure unless redirected.
+- Updated the API gap map and progress helper output to point at feature-closure execution.
+- Added `docs/tasks/sale-project-foundation-closure-plan.md` for sale-project `add`, `edit`, `history/add`, and `special/add`.
+- Added problem-log rows for route-by-route granularity and database readiness misclassification.
+- Clarified that runtime DB availability should be checked through the configured local runtime and app-level ThinkPHP checks instead of relying on the Windows `MySQL80` service name.
+
+### Deferred
+
+- No PHP business behavior was changed in this process slice.
+- Sale-project foundation implementation remains pending and should start from `docs/tasks/sale-project-foundation-closure-plan.md`.
+- Product-item mutation through normal sale-project add/edit remains out of scope until the Java ownership path is explicitly mapped.
+
+### Verification Status
+
+- Static/process verification passed:
+  - PowerShell parser check for `scripts\project-progress.ps1`
+  - `.\scripts\runtime-ready.ps1`
+  - ThinkPHP app-level `SELECT 1 AS ok` DB query
+  - active-startup wording scan for removed `next smallest safe slice` guidance
+  - `.\scripts\project-progress.ps1 -Lean`
+  - `git diff --check` passed with normal LF/CRLF working-copy warnings only.
+
+## api-agent/test-agent Implementation Log: Sale Project Deal Edit
+
+Date: 2026-06-18
+
+### Implemented
+
+- `SaleProjectController::dealEdit(Request)` now parses JSON/form bodies and calls `SaleProjectService::editDeal`.
+- `SaleProjectService::editDeal` validates active sale-project access through the existing tenant/data-scope query and runs the update in a transaction.
+- The route updates only Java `BizDealProjectEditParam` fields: `UNIT`, `ADDRESS`, `LOGISTICS_CATEGORY`, `CONSIGNEE`, `PHONE`, `REMARK`, `FREIGHT`, `FREIGHT_CATEGORY`, and `DELIVERY_NOTE`.
+- Protected project state, delete state, payment state, amount fields, invoicing rows, product rows, finance rows, and workflow state are ignored/preserved.
+- Removed `/biz/saleproject/deal/edit` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added `scripts/sale-project-deal-edit-http-smoke.ps1` to cover auth, validation, missing row, invalid freight rollback, successful field updates, spoofed protected-field preservation, audit/version refresh, and unchanged invoicing rows.
+
+### Deferred
+
+- Sale-project add/edit, history add, special add, workflow, payment/settlement correction, inventory, delivery, invoice mutation, product-item mutation, file cleanup, Java data-change events, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope.
+
+### Verification Status
+
+- Static verification passed:
+  - `php -l app\controller\biz\SaleProjectController.php`
+  - `php -l app\service\biz\SaleProjectService.php`
+  - `php -l route\app.php`
+  - PowerShell parser checks for `scripts\sale-project-deal-edit-http-smoke.ps1`, `scripts\sale-project-delete-http-smoke.ps1`, `scripts\sale-project-repeal-http-smoke.ps1`, `scripts\sale-project-cancel-http-smoke.ps1`, `scripts\biz-payroll-import-http-smoke.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-progress.ps1`
+  - `php think route:list | Select-String -Pattern 'biz/saleproject/(deal/edit|delete|repeal|cancel|amount/edit|visibility/edit|add|edit|history/add|special/add)'`
+  - `Select-String -Path scripts\frontend-deferred-write-wrapper-smoke.ps1 -Pattern '/biz/saleproject/deal/edit|/biz/saleproject/add|/biz/saleproject/edit'` listed only the remaining sale-project deferred representatives.
+  - `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+  - `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+  - `.\scripts\project-progress.ps1 -Lean`
+  - `git diff --check` passed with only existing LF/CRLF working-copy warnings.
+- DB-backed HTTP smoke execution is pending because local MySQL `MySQL80` is stopped/manual.
+
+## api-agent/test-agent Implementation Log: Sale Project Delete
+
+Date: 2026-06-18
+
+### Implemented
+
+- `SaleProjectController::delete(Request)` now parses JSON/form bodies and calls `SaleProjectService::delete`.
+- `SaleProjectService::delete` accepts Java/copied-frontend array payloads plus compatible id-list forms, validates active sale-project access through the existing tenant/data-scope query, and runs the update in a transaction.
+- The route requires all selected projects to be `FOLLOW`, updates `PROJECT_STATE = DISCARD`, sets `DELETE_FLAG = DELETED`, refreshes audit fields, and increments `VERSION`.
+- Removed `/biz/saleproject/delete` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added `scripts/sale-project-delete-http-smoke.ps1` to cover auth, validation, missing row, invalid-state rollback, batch success, logical delete, and unchanged invoicing rows.
+
+### Deferred
+
+- Sale-project add/edit, deal edit, history add, special add, workflow, payment/settlement correction, inventory, delivery, invoice mutation, product-item mutation, file cleanup, Java data-change events, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope.
+
+### Verification Status
+
+- Static verification passed:
+  - `php -l app\controller\biz\SaleProjectController.php`
+  - `php -l app\service\biz\SaleProjectService.php`
+  - `php -l route\app.php`
+  - PowerShell parser checks for `scripts\sale-project-delete-http-smoke.ps1`, `scripts\sale-project-repeal-http-smoke.ps1`, `scripts\sale-project-cancel-http-smoke.ps1`, `scripts\biz-payroll-import-http-smoke.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-progress.ps1`
+  - `php think route:list | Select-String -Pattern 'biz/saleproject/(delete|repeal|cancel|amount/edit|visibility/edit|add|edit|deal/edit|history/add|special/add)'`
+  - `Select-String -Path scripts\frontend-deferred-write-wrapper-smoke.ps1 -Pattern '/biz/saleproject/delete|/biz/saleproject/add|/biz/saleproject/deal/edit'` listed only the remaining sale-project deferred representatives.
+  - `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+  - `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+  - `.\scripts\project-progress.ps1 -Lean`
+  - `git diff --check` passed with only existing LF/CRLF working-copy warnings.
+- DB-backed HTTP smoke execution is pending because local MySQL `MySQL80` is stopped/manual.
+
+## api-agent/test-agent Implementation Log: Sale Project Repeal
+
+Date: 2026-06-18
+
+### Implemented
+
+- `SaleProjectController::repeal(Request)` now parses JSON/form bodies and calls `SaleProjectService::repeal`.
+- `SaleProjectService::repeal` accepts Java/copied-frontend array payloads plus compatible id-list forms, validates active sale-project access through the existing tenant/data-scope query, and runs the update in a transaction.
+- The route requires all selected projects to be `FOLLOW`, updates `PROJECT_STATE = DISCARD`, writes `REPEAL_CONTENT`, refreshes audit fields, and increments `VERSION`.
+- Removed `/biz/saleproject/repeal` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added `scripts/sale-project-repeal-http-smoke.ps1` to cover auth, validation, missing row, invalid-state rollback, batch success, no logical delete, and unchanged invoicing rows.
+
+### Deferred
+
+- Sale-project add/edit, deal edit, history add, special add, workflow, payment/settlement correction, inventory, delivery, invoice mutation, notification, file cleanup, Java data-change events, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope.
+
+### Verification Status
+
+- Static verification passed:
+  - `php -l app\controller\biz\SaleProjectController.php`
+  - `php -l app\service\biz\SaleProjectService.php`
+  - `php -l route\app.php`
+  - PowerShell parser checks for `scripts\sale-project-repeal-http-smoke.ps1`, `scripts\sale-project-cancel-http-smoke.ps1`, `scripts\biz-payroll-import-http-smoke.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-progress.ps1`
+  - `php think route:list | Select-String -Pattern 'biz/saleproject/(repeal|cancel|amount/edit|visibility/edit|add|edit|delete|deal/edit|history/add|special/add)'`
+  - `Select-String -Path scripts\frontend-deferred-write-wrapper-smoke.ps1 -Pattern '/biz/saleproject/repeal|/biz/saleproject/cancel|/biz/saleproject/delete'` only listed `/biz/saleproject/delete`.
+  - `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+  - `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+  - `git diff --check` passed with only existing LF/CRLF working-copy warnings.
+- DB-backed HTTP smoke execution is pending because local MySQL `MySQL80` is stopped/manual.
+
+## api-agent/test-agent Implementation Log: Sale Project Cancel
+
+Date: 2026-06-18
+
+### Implemented
+
+- `SaleProjectController::cancel(Request)` now parses JSON/form bodies and calls `SaleProjectService::cancel`.
+- `SaleProjectService::cancel` accepts `id`/`projectId`, validates the active sale project through the existing tenant/data-scope query, and runs the rollback in a transaction.
+- The route requires `PROJECT_STATE = WAIT_DELIVER`, updates `PROJECT_STATE` to `FOLLOW`, refreshes audit fields, increments `VERSION`, and logically deletes active `biz_sale_project_invoicing` rows for the same project and tenant.
+- Removed `/biz/saleproject/cancel` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added `scripts/sale-project-cancel-http-smoke.ps1` to cover auth, validation, missing row, invalid state rollback, successful status rollback, target invoicing logical delete, unrelated invoicing preservation, and cleanup.
+
+### Deferred
+
+- Sale-project add/edit/delete, deal edit, repeal, history add, special add, workflow, payment/settlement correction, inventory, delivery, notification, file cleanup, Java data-change events, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope.
+
+### Verification Status
+
+- PHP syntax checks, route-list check, frontend static route/method checks, PowerShell parser check, and `git diff --check` passed.
+- DB-backed HTTP smoke execution is pending because local MySQL `MySQL80` is stopped.
+
+## api-agent/test-agent Implementation Log: Payroll Import
+
+Date: 2026-06-18
+
+### Implemented
+
+- `BizPayrollController::importExcel(Request)` now accepts multipart uploads and calls `BizPayrollService::importExcel`.
+- `BizPayrollService::importExcel` validates `.xlsx` uploads, parses the Java payroll template with PHP built-in ZIP/XML support, reads the salary month from row 1 column A, and skips the three header rows.
+- Data rows map the copied template columns to payroll salary, commission, deduction, public/private account, and remark fields.
+- Imported names are whitespace-normalized and matched against active `sys_user.NAME` rows in the requested organization subtree and current tenant.
+- Successful rows insert one `biz_payroll` record with matched `USER`, matched `ORG`, parsed `SALARY_TIME`, imported values, audit fields, and `DELETE_FLAG = NOT_DELETE`.
+- Row-level missing-user or invalid-value failures are returned in Java-style `errorDetail` while successful rows are committed.
+- Removed `/biz/bizpayroll/import` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added `scripts/biz-payroll-import-http-smoke.ps1` to cover no-token, missing-file, invalid month, partial-success import, field readback, and cleanup.
+
+### Deferred
+
+- Payroll add, EasyExcel-style xlsx export rendering/styling, workflow hooks, Java data-change events, duplicate-month prevention, frontend source changes, Java source changes, database schema changes, Composer changes, `.env` changes, production data operations, and commits remain out of scope.
+
+### Verification Status
+
+- PHP syntax checks, PowerShell parser checks, and XLSX parser reflection smoke passed.
+- DB-backed HTTP smoke execution is pending because local MySQL `MySQL80` is stopped.
+
+## api-agent/test-agent Implementation Log: Sale Project Amount Edit
+
+Date: 2026-06-18
+
+### Implemented
+
+- `SaleProjectController::amountEdit(Request)` now parses JSON/form bodies and calls `SaleProjectService::editAmount`.
+- `SaleProjectService::editAmount` accepts Java/copied-frontend `id`, `initPrice`, and optional `remark`, validates the active sale project through the existing tenant/data-scope query, and runs the update in a transaction.
+- The route updates `INIT_PRICE`, recalculates `AMOUNT_COLLECTED`, `PLAY_STATE`, `PROJECT_STATE`, `TOTAL_PRICE`, `TOTAL_REFUND_AMOUNT`, and `TOTAL_RETURN_AMOUNT`, and writes one `sales_project_field_change_log` `INIT_PRICE` row.
+- The over-collected guard is preserved against the pre-recalculation `TOTAL_PRICE`, matching Java's correction order.
+- Removed `/biz/saleproject/amount/edit` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added `scripts/sale-project-amount-edit-http-smoke.ps1` to cover auth, validation, missing row, successful amount/status/totals/log update, side-effect count stability, and over-collected rollback.
+
+### Deferred
+
+- Sale-project add/edit/delete, deal edit, repeal, history add, special add, workflow, attachment, notification, inventory, delivery, invoice side effects beyond cancel's invoicing logical delete, customer side effects, Java data-change events, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope. Cancel is covered separately by the sale-project cancel slice.
+
+### Verification Status
+
+- PHP syntax checks and the PowerShell parser check passed.
+- DB-backed HTTP smoke execution is pending because local MySQL `MySQL80` is stopped.
+
+## api-agent/test-agent Implementation Log: Sale Project Visibility Edit
+
+Date: 2026-06-18
+
+### Implemented
+
+- `SaleProjectController::visibilityEdit(Request)` now parses JSON/form bodies and calls `SaleProjectService::editVisibility`.
+- `SaleProjectService::editVisibility` accepts Java/copied-frontend `projectId` and `visibilityState` fields, validates `PUBLIC`/`PRIVATE`, and validates project access through the existing tenant/data-scope query.
+- Public visibility requires `specimenCategory`; copied frontend private toggles may omit specimen fields and preserve existing specimen values.
+- The route updates only `biz_sale_project.VISIBILITY`, specimen fields when allowed, audit fields, and `VERSION`.
+- Removed `/biz/saleproject/visibility/edit` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added `scripts/sale-project-visibility-edit-http-smoke.ps1` to cover auth, validation, missing-row, public update, private preservation, audit/version updates, and unrelated side-effect table count stability.
+
+### Deferred
+
+- Sale-project add/edit/delete, amount edit, deal edit, repeal, history add, special add, project-state changes beyond cancel, play-state, finance, invoice side effects beyond cancel's invoicing logical delete, inventory, delivery, workflow, attachment, notification, change-log, customer side effects, Java data-change events, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope. Cancel is covered separately by the sale-project cancel slice.
+
+### Verification Status
+
+- PHP syntax checks, route-list check, frontend static route/method checks, PowerShell parser check, and `git diff --check` passed.
+- DB-backed HTTP smoke execution is pending because local MySQL `MySQL80` is stopped.
+
+## api-agent/test-agent Implementation Log: Dev Job Action Status
+
+Date: 2026-06-18
+
+### Implemented
+
+- `JobController::stopJob(Request)`, `runJob(Request)`, and `runJobNow(Request)` now parse JSON/form bodies and call `JobService`.
+- `JobService::stopJob` validates `{ id }`, rejects rows already marked `STOPPED`, and updates `dev_job.JOB_STATUS` to `STOPPED`.
+- `JobService::runJob` validates `{ id }`, rejects rows already marked `RUNNING`, and updates `dev_job.JOB_STATUS` to `RUNNING`.
+- `JobService::runJobNow` validates `{ id }` and updates stopped rows to `RUNNING`, matching Java's "start before immediate run" branch without executing the task.
+- Removed `/dev/job/stopJob`, `/dev/job/runJob`, and `/dev/job/runJobNow` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Extended `scripts/dev-job-write-http-smoke.ps1` to cover no-token, missing-id, already-running/already-stopped guards, status readback, and `runJobNow` stopped/running behavior.
+
+### Deferred
+
+- Real scheduler registration/removal, scheduler lifecycle, task-class execution, full Java bean validation, provider calls, cache invalidation, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope.
+
+### Verification Status
+
+- PHP syntax checks, route-list check, frontend static route/method checks, PowerShell parser check, and `git diff --check` passed.
+- DB-backed HTTP smoke execution is pending because local MySQL `MySQL80` is stopped.
+
+## api-agent/test-agent Implementation Log: Payroll Generate Add
+
+Date: 2026-06-18
+
+### Implemented
+
+- `BizPayrollController::generateAdd(Request)` now parses JSON/form bodies and calls `BizPayrollService::generate`.
+- `BizPayrollService::generate` validates selected users, `salaryTime`, and non-negative `socialSecurity`, then inserts generated payroll rows in one transaction.
+- User validation stays tenant-scoped and reuses the module's admin/data-scope/current-user guard pattern.
+- Generation now matches Java's main formulas:
+  - basic salary from `sys_user.BASIC_SALARY`;
+  - current-month deal-state sale-project `TRANSACTION_VOLUME`;
+  - current-month `PROJECT_PLAY` payment records plus paid sale projects split into `RECEIVED_AMOUNT` and `BEFORE_RECEIVED_AMOUNT`;
+  - leave-of-absence overlap days, including Java's cross-month and 12:00 half-day handling;
+  - base amount, vacation deduction, payable amount, and actual amount calculations.
+- The route intentionally keeps Java's duplicate-month behavior and does not reject an existing payroll row for the same selected user/month.
+- Removed `/biz/bizpayroll/generate/add` from `scripts/frontend-deferred-write-wrapper-smoke.ps1`.
+- Added `scripts/biz-payroll-generate-add-http-smoke.ps1` to create temporary users, sale projects, payment records, leave rows, verify validation/no-token behavior, assert generated payroll formulas, check related counts, and clean all temporary rows.
+
+### Deferred
+
+- Payroll add/import, EasyExcel-style xlsx rendering/styling, workflow hooks, Java data-change events, duplicate-month prevention, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope.
+
+### Verification Status
+
+- PHP syntax checks and the PowerShell parser check passed.
+- DB-backed HTTP smoke execution is pending because local MySQL `MySQL80` is stopped.
+
+## api-agent/test-agent Implementation Log: Purchase Order Warehouse Add
+
+Date: 2026-06-18
+
+### Implemented
+
+- `PurchaseOrderController::warehouseAdd(Request)` now parses JSON/form bodies and calls `PurchaseOrderService::warehouseAdd`.
+- `PurchaseOrderService::warehouseAdd` validates `warehousesId`, selects active completed purchase orders still marked `NOT_IN_WAREHOUSE` under tenant/data-scope visibility, and locks the selected orders in one transaction.
+- The service reuses the purchase-order stock-in helper to validate the active warehouse, active items, referenced products, item quantities, and write scope before mutating rows.
+- For each processed item, it inserts one `delivery_record` row with `CATEGORY = IN`, `PROCESS_ID = Process_sys`, `PROCESS_CATEGORY = Process_procure_in_warehouse`, and `OBJECT_ID = orderId`.
+- It increases existing inventory or creates missing inventory rows, marks processed purchase-order items and orders `IN_WAREHOUSE`, refreshes audit fields, and increments versions.
+- If no eligible orders are visible, the route returns success with `count = 0` and no mutation.
+- `scripts/purchase-order-warehouse-add-http-smoke.ps1` creates temporary warehouse/product/order/item/inventory rows and is ready to verify no-token, validation rollback, missing warehouse/product failures, successful batch delivery/inventory/order/item mutation, skip behavior, repeat no-op behavior, readback, and cleanup.
+
+### Deferred
+
+- Purchase-order add/delete, purchase-order item creation/deletion, expenditure creation, settlement-account statements, workflow hooks, Java data-change event publishing, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope.
+
+### Verification Status
+
+- PHP syntax checks and PowerShell parser checks passed.
+- DB-backed HTTP smokes are pending because local MySQL `MySQL80` is stopped.
+
+## api-agent/test-agent Implementation Log: Purchase Order Warehouse One Add
+
+Date: 2026-06-18
+
+### Implemented
+
+- `PurchaseOrderController::warehouseOneAdd(Request)` now parses JSON/form bodies and calls `PurchaseOrderService::warehouseOneAdd`.
+- `PurchaseOrderService::warehouseOneAdd` validates `orderId`, `warehousesId`, and optional `remark`, locks the active purchase order, applies tenant and conservative write-scope checks, and requires `STORAGE_STATUS = NOT_IN_WAREHOUSE`.
+- The service validates the active warehouse, locks active purchase-order items, validates referenced products, rejects already-warehoused items and non-positive quantities, and performs the full stock-in in one transaction.
+- For each item, it inserts one `delivery_record` row with `CATEGORY = IN`, `PROCESS_ID = Process_sys`, `PROCESS_CATEGORY = Process_procure_in_warehouse`, and `OBJECT_ID = orderId`.
+- It increases existing inventory or creates missing inventory rows, marks purchase-order items and the order `IN_WAREHOUSE`, refreshes audit fields, and increments versions.
+- `scripts/purchase-order-warehouse-one-add-http-smoke.ps1` creates temporary warehouse/product/order/item/inventory rows and is ready to verify validation rollback, missing warehouse/product failures, successful delivery/inventory/order/item mutation, repeat rejection, readback, and cleanup.
+- Delivery record insert defaults now avoid null `OPERATOR` and `REMARK` values on the delivery stocktake and purchase-order one-add paths.
+
+### Deferred
+
+- Purchase-order add/delete, purchase-order item creation/deletion, expenditure creation, settlement-account statements, workflow hooks, Java data-change event publishing, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope. Batch `/biz/bizpurchaseorder/warehouse/add` is covered separately as a narrow completed-order stock-in slice.
+
+### Verification Status
+
+- PHP syntax checks and PowerShell parser checks passed.
+- DB-backed HTTP smokes are pending because local MySQL `MySQL80` is stopped and `Start-Service MySQL80` failed in this run.
+
+## api-agent/test-agent Implementation Log: Delivery Record Add Stocktake
+
+Date: 2026-06-18
+
+### Implemented
+
+- `DeliveryRecordController::add(Request)` now parses JSON/form bodies and calls `DeliveryRecordService::add`.
+- `DeliveryRecordService::add` validates `warehousesId`, `productId`, non-negative target `amount`, and `deliveryTime`, then locks the existing active inventory row for the warehouse/product pair.
+- The service validates the active warehouse and enabled product in the current tenant with conservative write-scope checks.
+- If the submitted target count is greater than current inventory, it creates one `delivery_record` row with `CATEGORY = IN`, `PROCESS_ID = Process_sys`, and `PROCESS_CATEGORY = Process_sys`; if lower, it creates one `OUT` row for the absolute difference.
+- It updates `inventory.CURRENT_COUNT` to the submitted target count, refreshes audit fields, and increments `VERSION` in the same transaction. Equal target/current counts do not create a delivery row.
+- `scripts/delivery-record-add-http-smoke.ps1` creates temporary warehouse/product/inventory rows and is ready to verify no-token, validation rollback, missing inventory, IN stocktake, OUT stocktake, no-movement behavior, detail readback, final counts, and cleanup.
+
+### Deferred
+
+- Delivery edit/delete, inventory delete, purchase-order add/delete, sale-project delivery, return stock-in, workflow hooks, Java data-change event publishing, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope. Batch purchase-order warehouse stock-in is covered by a later narrow slice.
+
+### Verification Status
+
+- PHP syntax checks and PowerShell parser checks passed.
+- DB-backed HTTP smokes are pending because local MySQL `MySQL80` is stopped and `Start-Service MySQL80` failed in this run.
+
+## api-agent/test-agent Implementation Log: Purchase Order Audit Edit
+
+Date: 2026-06-17
+
+### Implemented
+
+- `PurchaseOrderController::auditEdit(Request)` now parses JSON/form bodies and calls `PurchaseOrderService::auditEdit`.
+- `PurchaseOrderService::auditEdit` reuses the purchase-order edit field whitelist, validates `id` and unique nonempty `productList`, locks the active purchase-order row, applies tenant and conservative write-scope checks, and requires submitted items to belong to the same order.
+- Audit edit intentionally skips normal edit's completed-settlement and goods-expenditure guards to match Java `BizPurchaseOrderServiceImpl.editAudit`.
+- The edit path updates only `biz_purchase_order.AMOUNT`, existing purchase-order item amount/cost fields, `UPDATE_TIME`, `UPDATE_USER`, and `VERSION`.
+- `scripts/purchase-order-audit-edit-http-smoke.ps1` creates a completed order with a goods-expenditure row, verifies normal edit still rejects it, verifies audit edit succeeds, checks rollback/side-effect boundaries, and cleans up temporary rows.
+
+### Deferred
+
+- Purchase-order add/delete, purchase-order item creation/deletion, inventory movement outside warehouse stock-in, delivery creation outside warehouse stock-in, expenditure creation, settlement-account statements, workflow hooks, Java data-change events, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope. Batch warehouse add is covered by a later narrow slice.
+
+## api-agent/test-agent Implementation Log: Purchase Order Edit
+
+Date: 2026-06-17
+
+### Implemented
+
+- `PurchaseOrderController::edit(Request)` now parses JSON/form bodies and calls `PurchaseOrderService::edit`.
+- `PurchaseOrderService::edit` validates `id` and unique nonempty `productList`, locks the active purchase-order row, applies tenant and conservative write-scope checks, rejects completed settlement and goods-expenditure-linked orders, and requires submitted items to belong to the same order.
+- The edit path updates only `biz_purchase_order.AMOUNT`, existing purchase-order item amount/cost fields, `UPDATE_TIME`, `UPDATE_USER`, and `VERSION`.
+- `scripts/purchase-order-edit-http-smoke.ps1` creates temporary purchase-order rows and items for success, completed, goods-expenditure, wrong-item-order, and rollback cases, then verifies readback, count stability, audit/version updates, and cleanup.
+
+### Deferred
+
+- Purchase-order add/delete, purchase-order item creation/deletion, inventory movement outside warehouse stock-in, delivery creation outside warehouse stock-in, expenditure creation, settlement-account statements, workflow hooks, Java data-change events, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope. Single-order warehouse one add and batch warehouse add are covered by later narrow slices.
+
+## api-agent/test-agent Implementation Log: Inventory Add Registration
+
+Date: 2026-06-17
+
+### Implemented
+
+- `InventoryController::add(Request)` now parses JSON/form bodies and calls `InventoryService::add`.
+- `InventoryService::add` validates `warehousesId`, normalizes `productIds`, rejects empty/duplicate ids, locks the active warehouse, validates active enabled products, and writes within the current tenant and conservative write scope.
+- Missing inventory rows are inserted with `CURRENT_COUNT = 0`; existing active rows preserve their count, normalize null to zero, refresh audit fields, and increment `VERSION`.
+- `scripts/inventory-add-http-smoke.ps1` creates temporary warehouse/product/inventory rows, verifies validation failures, success readback, existing-row preservation, no delivery rows, and cleanup.
+
+### Deferred
+
+- Inventory delete, stock movement, delivery creation, purchase-order warehouse entry, workflow hooks, Java data-change events, frontend source changes, Java source changes, database schema changes, `.env` changes, production data operations, and commits remain out of scope.
+
+## api-agent/test-agent Implementation Log: Purchase Order Cancel
+
+Date: 2026-06-17
+
+### Implemented
+
+- `PurchaseOrderController::cancel(Request)` now parses JSON/form body and calls `PurchaseOrderService::cancel`.
+- `PurchaseOrderService::cancel` validates `id`, locks the active purchase-order row, applies tenant and conservative write-scope checks, rejects completed settlement and in-warehouse orders, and updates only `SETTLEMENT_STATUS`, `UPDATE_TIME`, `UPDATE_USER`, and `VERSION`.
+- `scripts/purchase-order-cancel-http-smoke.ps1` creates temporary purchase-order rows for success, completed, and in-warehouse cases, then verifies rollback/side-effect boundaries and cleanup.
+
+### Deferred
+
+- Purchase-order add/delete, inventory movement outside warehouse stock-in, expenditure creation, workflow hooks, Java data-change events, and broader rollback/delete behavior remain out of scope. Normal purchase-order edit, audit edit, single-order warehouse one add, and batch warehouse add are now covered by separate narrow slices.
+
 ## db-agent Implementation Flow
 
 Every db-agent phase must follow this order:
@@ -1841,4 +2851,300 @@ Verification summary:
 Explicit non-goals:
 
 - No expenditure-record add/delete, no account switch, no settlement-account balance mutation, no statement category/account edit, no purchase/inventory/return/workflow or data-change event, no Java source edit, no schema change, no `.env` edit, no Composer change, no production data operation, and no Git push.
+
+## 2026-06-17 Payment Record Account Switch
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java payment-record account-switch behavior and kept the slice limited to `id`, `currentTargetId`, and `targetId`.
+2. Updated `PaymentRecordController::editAccount()` to parse JSON/form bodies and call `PaymentRecordService::editAccount()`.
+3. Added a transactional service method that checks tenant/write scope for the payment record, validates the payment record and linked statement still point at `currentTargetId`, locks both settlement accounts, moves the stored payment amount from current account to target account, updates `biz_payment_record.TARGET_ID`/`ORG`, and syncs `settlement_account_statement.ACCOUNT_ID`.
+4. Kept payment-record add and delete controlled-deferred.
+5. Added `scripts/biz-payment-record-edit-account-http-smoke.ps1` with temporary data setup, no-token/missing-target/same-account/current-mismatch checks, missing-statement rollback, success readback, stored-amount balance movement, linked-statement account sync, client-spoofed field preservation checks, count stability checks, and cleanup.
+6. Removed `/biz/bizpaymentrecord/edit/account` from the generic deferred-wrapper smoke list.
+7. Updated payment-record docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\PaymentRecordController.php`: passed.
+- `php -l app\service\biz\PaymentRecordService.php`: passed.
+- PowerShell syntax check for `scripts\biz-payment-record-edit-account-http-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizpaymentrecord/(edit|edit/account|add|delete|page|detail)'`: passed.
+- `.\scripts\web-ready.ps1`: passed.
+- `.\scripts\biz-payment-record-edit-account-http-smoke.ps1`: passed.
+- `.\scripts\biz-payment-record-edit-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 75 authenticated deferred wrappers and 17 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No payment-record add/delete, no new statement creation, no workflow or data-change event, no Java source edit, no schema change, no `.env` edit, no Composer/npm/frontend source change, no production data operation, and no Git push.
+
+## 2026-06-17 Expenditure Record Account Switch
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java expenditure-record account-switch behavior and kept the slice limited to `id`, `currentTargetId`, and `targetId`.
+2. Updated `ExpenditureRecordController::editAccount()` to parse JSON/form bodies and call `ExpenditureRecordService::editAccount()`.
+3. Added a transactional service method that checks tenant/write scope for the expenditure record, validates the record and linked statement still point at `currentTargetId`, locks both settlement accounts, adds the stored expenditure amount back to the current account, subtracts it from the target account, updates `biz_expenditure_record.TARGET_ID`, preserves `ORG`, and syncs `settlement_account_statement.ACCOUNT_ID`.
+4. Kept expenditure-record add and delete controlled-deferred.
+5. Added `scripts/biz-expenditure-record-edit-account-http-smoke.ps1` with temporary data setup, no-token/missing-target/same-account/current-mismatch checks, missing-statement rollback, success readback, stored-amount balance movement, linked-statement account sync, client-spoofed field preservation checks, count stability checks, and cleanup.
+6. Removed `/biz/bizexpenditurerecord/edit/account` from the generic deferred-wrapper smoke list.
+7. Updated expenditure-record docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\ExpenditureRecordController.php`: passed.
+- `php -l app\service\biz\ExpenditureRecordService.php`: passed.
+- PowerShell syntax check for `scripts\biz-expenditure-record-edit-account-http-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizexpenditurerecord/(edit|edit/account|add|delete|page|detail)'`: passed.
+- `.\scripts\web-ready.ps1`: passed.
+- `.\scripts\biz-expenditure-record-edit-account-http-smoke.ps1`: passed.
+- `.\scripts\biz-expenditure-record-edit-http-smoke.ps1`: passed.
+- `.\scripts\biz-payment-record-edit-account-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 74 authenticated deferred wrappers and 17 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No expenditure-record add/delete, no new statement creation, no workflow or data-change event, no Java source edit, no schema change, no `.env` edit, no Composer/npm/frontend source change, no production data operation, and no Git push.
+
+## 2026-06-17 Settlement Account Payment Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java settlement-account quick-income behavior and kept the slice limited to `/biz/settlementaccount/payment/add`.
+2. Updated `SettlementAccountController::paymentAdd()` to parse JSON/form bodies and call `SettlementAccountService::paymentAdd()`.
+3. Added a transactional service method that validates `targetId`, `settlementCategory`, `payer`, `payerTime`, and positive `amount`, locks the target settlement account, creates an `INCOME` settlement statement with `Process_sys`, creates a linked `biz_payment_record`, and increments the settlement-account balance.
+4. Kept settlement-account delete, expenses add, and transfer add controlled-deferred.
+5. Added `docs/tasks/settlement-account-payment-add-plan.md`.
+6. Added `scripts/settlement-account-payment-add-http-smoke.ps1` with temporary account setup, no-token/missing-target/zero-amount/missing-account checks, failed-case count/balance stability, success readback through payment-record detail, account/statement/payment assertions, unrelated finance count checks, and cleanup.
+7. Removed `/biz/settlementaccount/payment/add` from the generic deferred-wrapper smoke list.
+8. Updated settlement-account docs, settlement-account-payment read docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\SettlementAccountController.php`: passed.
+- `php -l app\service\biz\SettlementAccountService.php`: passed.
+- `php -l route\app.php`: passed.
+- PowerShell syntax check for `scripts\settlement-account-payment-add-http-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/settlementaccount/(payment/add|expenses/add|transfer/add|delete|page|list|detail)'`: passed.
+- `.\scripts\web-ready.ps1`: passed.
+- `.\scripts\settlement-account-payment-add-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-read-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-payment-read-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 74 authenticated POST deferred wrappers plus the task-SSE deferred GET wrapper, and 16 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No settlement-account expenses add, transfer add, delete, Java data-change event, workflow hook, Java source edit, schema change, `.env` edit, Composer/npm/frontend source change, production data operation, and no Git push.
+
+Subsequent state: settlement-account expenses add is covered by the 2026-06-17 quick-expense slice below, transfer add is covered by the account-transfer slice, and delete is covered by the 2026-06-22 protected logical-delete slice.
+
+## 2026-06-17 Settlement Account Expenses Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java settlement-account quick-expense behavior and kept the slice limited to `/biz/settlementaccount/expenses/add`.
+2. Updated `SettlementAccountController::expensesAdd()` to parse JSON/form bodies and call `SettlementAccountService::expensesAdd()`.
+3. Added a transactional service method that validates `targetId`, `settlementCategory`, `payer`, `payerTime`, and positive `amount`, locks the target settlement account, creates an `EXPEND` settlement statement with `Process_sys`, creates a linked `biz_expenditure_record`, and decrements the settlement-account balance.
+4. Kept settlement-account delete and transfer add controlled-deferred.
+5. Added `docs/tasks/settlement-account-expenses-add-plan.md`.
+6. Added `scripts/settlement-account-expenses-add-http-smoke.ps1` with temporary account setup, no-token/missing-target/zero-amount/missing-account checks, failed-case count/balance stability, success readback through expenditure-record detail, account/statement/expenditure assertions, unrelated finance count checks, and cleanup.
+7. Removed `/biz/settlementaccount/expenses/add` from the generic deferred-wrapper smoke list.
+8. Updated settlement-account docs, settlement-account-payment read docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\SettlementAccountController.php`: passed.
+- `php -l app\service\biz\SettlementAccountService.php`: passed.
+- `php -l route\app.php`: passed.
+- PowerShell syntax check for `scripts\settlement-account-expenses-add-http-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/settlementaccount/(expenses/add|payment/add|transfer/add|delete|page|list|detail)'`: passed.
+- `.\scripts\web-ready.ps1`: passed.
+- `.\scripts\settlement-account-expenses-add-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-payment-add-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-read-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-payment-read-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 73 authenticated POST deferred wrappers plus the task-SSE deferred GET wrapper, and 16 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No settlement-account transfer add, delete, Java data-change event, workflow hook, collection-receipt settlement propagation, Java source edit, schema change, `.env` edit, Composer/npm/frontend source change, production data operation, and no Git push.
+
+Subsequent state: settlement-account transfer add is covered by the 2026-06-17 account-transfer slice below, and delete is covered by the 2026-06-22 protected logical-delete slice.
+
+## 2026-06-17 Settlement Account Transfer Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java settlement-account transfer behavior and kept the slice limited to `/biz/settlementaccount/transfer/add`.
+2. Updated `SettlementAccountController::transferAdd()` to parse JSON/form bodies and call `SettlementAccountService::transferAdd()`.
+3. Added a transactional service method that validates `expensesAccountId`, `revenueAccountId`, `payerTime`, and positive `amount`, rejects same-account transfers, locks both accounts in stable id order, writes EXPEND and INCOME settlement statements with `Process_sys`, creates linked expenditure/payment records with fixed `dealings` category, and moves the amount between account balances.
+4. Kept settlement-account delete controlled-deferred.
+5. Added `docs/tasks/settlement-account-transfer-add-plan.md`.
+6. Added `scripts/settlement-account-transfer-add-http-smoke.ps1` with temporary account setup, no-token/missing-field/zero-amount/same-account/missing-account checks, failed-case count/balance stability, success readback through expenditure/payment detail routes, two-account/statement/finance-record assertions, unrelated finance count checks, and cleanup.
+7. Removed `/biz/settlementaccount/transfer/add` from the generic deferred-wrapper smoke list.
+8. Updated settlement-account docs, settlement-account-payment read docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\SettlementAccountController.php`: passed.
+- `php -l app\service\biz\SettlementAccountService.php`: passed.
+- `php -l route\app.php`: passed.
+- PowerShell syntax check for `scripts\settlement-account-transfer-add-http-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/settlementaccount/(transfer/add|expenses/add|payment/add|delete|page|list|detail)'`: passed.
+- `.\scripts\web-ready.ps1`: passed.
+- `.\scripts\settlement-account-transfer-add-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-expenses-add-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-payment-add-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-read-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-payment-read-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 72 authenticated POST deferred wrappers plus the task-SSE deferred GET wrapper, and 16 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No settlement-account delete, Java data-change event, workflow hook, collection-receipt/debit-note settlement propagation, Java source edit, schema change, `.env` edit, Composer/npm/frontend source change, production data operation, and no Git push.
+
+## 2026-06-17 Collection Receipt Batch Expenditure
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java collection-receipt batch-expenditure behavior and kept the slice limited to `/biz/bizcollectionreceipt/batchExpenditure/edit`.
+2. Updated `CollectionReceiptController::batchExpenditure()` to parse JSON/form bodies and call `CollectionReceiptService::batchExpenditure()`.
+3. Added a transactional service method that validates `accountId`, `payer`, `payerTime`, and selected `items`, rejects duplicate/nonpositive/missing/over-settlement items, locks selected collection receipts, creates repayment expenditure/statement rows through `SettlementAccountService::expensesAdd()`, updates `biz_collection_receipt.SETTLEMENT_AMOUNT`, sets `PLAY_STATUS`, and increments `VERSION`.
+4. Kept collection-receipt add, edit, and delete controlled-deferred.
+5. Added `docs/tasks/biz-collection-receipt-batch-expenditure-plan.md`.
+6. Added `scripts/biz-collection-receipt-batch-expenditure-http-smoke.ps1` with temporary collection/payment/account setup, no-token/missing-field/empty-items/zero-amount/over-amount/missing-receipt/missing-account checks, failed-case count/balance/receipt stability, success readback through collection-receipt and expenditure-record detail routes, account/statement/expenditure/receipt assertions, unrelated finance count checks, and cleanup.
+7. Removed `/biz/bizcollectionreceipt/batchExpenditure/edit` from the generic deferred-wrapper smoke list.
+8. Updated collection-receipt docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\CollectionReceiptController.php`: passed.
+- `php -l app\service\biz\CollectionReceiptService.php`: passed.
+- `php -l app\service\biz\SettlementAccountService.php`: passed.
+- PowerShell syntax check for `scripts\biz-collection-receipt-batch-expenditure-http-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizcollectionreceipt/(batchExpenditure/edit|mark/success/edit|page|list|detail|add|edit|delete)'`: passed.
+- `.\scripts\web-ready.ps1`: passed.
+- `.\scripts\biz-collection-receipt-batch-expenditure-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-expenses-add-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 71 authenticated POST deferred wrappers plus the task-SSE deferred GET wrapper, and 16 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No collection-receipt add/edit/delete, Java event bus, workflow/data-change event, Java source edit, schema change, `.env` edit, Composer/npm/frontend source change, production data operation, and no Git push.
+
+## 2026-06-17 Debit Note Batch Repayment
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java debit-note batch-repayment behavior and kept the slice limited to `/biz/bizdebitnote/batchRepayment/edit`.
+2. Updated `DebitNoteController::batchRepayment()` to parse JSON/form bodies and call `DebitNoteService::batchRepayment()`.
+3. Added a transactional service method that validates `accountId`, `payer`, `payerTime`, and selected `items`, rejects duplicate/nonpositive/missing/over-settlement items, locks selected debit notes, creates `LoanRepayment` payment/statement rows through `SettlementAccountService::paymentAdd()`, updates `biz_debit_note.SETTLEMENT_AMOUNT`, sets `PLAY_STATUS`, and increments `VERSION`.
+4. Kept debit-note add, edit, history-add, and delete controlled-deferred.
+5. Added `docs/tasks/biz-debit-note-batch-repayment-plan.md`.
+6. Added `scripts/biz-debit-note-batch-repayment-http-smoke.ps1` with temporary debit-note/expenditure/account setup, no-token/missing-field/empty-items/zero-amount/over-amount/missing-note/missing-account checks, failed-case count/balance/note stability, success readback through debit-note and payment-record detail routes, account/statement/payment/debit-note assertions, unrelated finance count checks, and cleanup.
+7. Removed `/biz/bizdebitnote/batchRepayment/edit` from the generic deferred-wrapper smoke list.
+8. Updated debit-note docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\DebitNoteController.php`: passed.
+- `php -l app\service\biz\DebitNoteService.php`: passed.
+- `php -l app\service\biz\SettlementAccountService.php`: passed.
+- PowerShell syntax check for `scripts\biz-debit-note-batch-repayment-http-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizdebitnote/(batchRepayment/edit|mark/success/edit|page|list|detail|add|edit|history/add|delete)'`: passed.
+- `.\scripts\web-ready.ps1`: passed.
+- `.\scripts\biz-debit-note-batch-repayment-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-payment-add-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 70 authenticated POST deferred wrappers plus the task-SSE deferred GET wrapper, and 16 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No debit-note add/edit/delete/history-add, collection-receipt writes, Java event bus, workflow/data-change event, Java source edit, schema change, `.env` edit, Composer/npm/frontend source change, production data operation, and no Git push.
+
+## 2026-06-17 Debit Note History Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+Execution summary:
+
+1. Compared the Java debit-note history-add behavior and kept the slice limited to `/biz/bizdebitnote/history/add`.
+2. Updated `DebitNoteController::historyAdd()` to parse JSON/form bodies and call `DebitNoteService::historyAdd()`.
+3. Added a transactional service method that validates `accountId`, `amount`, `historyAmount`, `createTime`, and `remark`, rejects negative/over-settlement values, reads the selected settlement account for tenant/org context, inserts one `biz_debit_note` row with no expenditure-record link, sets `SETTLEMENT_AMOUNT = HISTORY_AMOUNT`, and derives `PLAY_STATUS` from the inserted values.
+4. Kept debit-note add, edit, and delete controlled-deferred.
+5. Added `docs/tasks/biz-debit-note-history-add-plan.md`.
+6. Added `scripts/biz-debit-note-history-add-http-smoke.ps1` with temporary settlement-account setup, no-token/missing-field/zero-amount/negative-history/invalid-time/over-amount/missing-account checks, failed-case count/balance stability, success readback through debit-note detail, account/debit-note assertions, unrelated finance count checks, and cleanup.
+7. Removed `/biz/bizdebitnote/history/add` from the generic deferred-wrapper smoke list.
+8. Updated debit-note docs, deferred-wrapper docs, gap map, progress dashboard, bootstrap notes, frontend adaptation notes, public route-change notes, plan log, implementation log, and status log.
+
+Verification summary:
+
+- `php -l app\controller\biz\DebitNoteController.php`: passed.
+- `php -l app\service\biz\DebitNoteService.php`: passed.
+- `php -l app\service\biz\SettlementAccountService.php`: passed.
+- PowerShell syntax check for `scripts\biz-debit-note-history-add-http-smoke.ps1`: passed.
+- `php think route:list | Select-String -Pattern 'biz/bizdebitnote/(history/add|batchRepayment/edit|mark/success/edit|page|list|detail|add|edit|delete)'`: passed.
+- `.\scripts\web-ready.ps1`: passed.
+- `.\scripts\biz-debit-note-history-add-http-smoke.ps1`: passed.
+- `.\scripts\biz-debit-note-batch-repayment-http-smoke.ps1`: passed.
+- `.\scripts\settlement-account-payment-add-http-smoke.ps1`: passed.
+- `.\scripts\finance-read-http-smoke.ps1`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`: passed with 69 authenticated POST deferred wrappers plus the task-SSE deferred GET wrapper, and 15 representative no-token checks.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 560/560 frontend endpoints covered by route path and zero missing reads.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+Explicit non-goals:
+
+- No debit-note add/edit/delete, payment/expenditure/statement creation, account-balance change, collection-receipt write, Java event bus, workflow/data-change event, Java source edit, schema change, `.env` edit, Composer/npm/frontend source change, production data operation, and no Git push.
 

@@ -46,9 +46,9 @@ class CollectionReceiptController extends BaseSysController
         return $this->deferredWrite('collection receipt edit');
     }
 
-    public function batchExpenditure(): Response
+    public function batchExpenditure(Request $request): Response
     {
-        return $this->deferredWrite('collection receipt batch expenditure');
+        return $this->guard(fn () => $this->collectionReceiptService->batchExpenditure($this->body($request), $this->authPayload($request)));
     }
 
     public function delete(): Response

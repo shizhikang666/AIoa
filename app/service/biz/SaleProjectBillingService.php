@@ -25,6 +25,9 @@ class SaleProjectBillingService
         'COMPLETED',
     ];
     private const INVOICING_STATE_COMPLETE = 'INVOICING_STATE_COMPLETE';
+    private const INVOICING_STATE_WAIT = 'INVOICING_STATE_WAIT';
+    private const INVOICING_CATEGORIES = ['SpecialTicket', 'GeneralTicket'];
+    private const INVOICING_STATES = ['INVOICING_STATE_WAIT', 'INVOICING_STATE_COMPLETE'];
 
     private const INVOICING_SORT_FIELDS = [
         'id' => 'i.ID',
@@ -136,6 +139,103 @@ class SaleProjectBillingService
                 ]);
 
             return null;
+        });
+    }
+
+    public function invoicingAdd(array $input, array $payload = []): array
+    {
+        $projectId = $this->requiredInput($input, 'projectId');
+
+        return Db::transaction(function () use ($projectId, $input, $payload): array {
+            $project = $this->assertInvoicingProjectWritable($projectId, $payload, 'add');
+            $id = $this->newId();
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+
+            Db::name('biz_sale_project_invoicing')->insert(array_merge(
+                [
+                    'ID' => $id,
+                    'PROJECT_ID' => $projectId,
+                    'INVOICING_STATE' => self::INVOICING_STATE_WAIT,
+                    'DELETE_FLAG' => self::NOT_DELETE,
+                    'CREATE_TIME' => $now,
+                    'CREATE_USER' => $userId !== '' ? $userId : null,
+                    'UPDATE_TIME' => null,
+                    'UPDATE_USER' => null,
+                    'TENANT_ID' => $this->tenantId($input, $payload, $project),
+                ],
+                $this->invoicingWriteData($input, true)
+            ));
+
+            return $this->invoicingDetail($id, $payload);
+        });
+    }
+
+    public function invoicingEdit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+        $projectId = $this->requiredInput($input, 'projectId');
+
+        return Db::transaction(function () use ($id, $projectId, $input, $payload): array {
+            $current = $this->activeInvoicingForWrite($id, $payload, 'edit');
+            $project = $this->assertInvoicingProjectWritable($projectId, $payload, 'edit');
+            if ((string)$current['PROJECT_ID'] !== $projectId) {
+                $this->assertInvoicingProjectWritable((string)$current['PROJECT_ID'], $payload, 'edit');
+            }
+
+            $updates = array_merge(
+                [
+                    'PROJECT_ID' => $projectId,
+                    'TENANT_ID' => $this->tenantId($input, $payload, $project),
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+                ],
+                $this->invoicingWriteData($input, false)
+            );
+
+            if (array_key_exists('invoicingState', $input)) {
+                $updates['INVOICING_STATE'] = $this->normalizeInvoicingState((string)$input['invoicingState']);
+            }
+
+            $updated = Db::name('biz_sale_project_invoicing')
+                ->where('ID', $id)
+                ->update($updates);
+
+            return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    public function invoicingDelete(array $input, array $payload = []): array
+    {
+        $ids = $this->normalizeIdList($input['idList'] ?? $input['ids'] ?? $input['id'] ?? $input);
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $query = Db::name('biz_sale_project_invoicing')
+                ->alias('i')
+                ->leftJoin('biz_sale_project p', 'p.ID = i.PROJECT_ID')
+                ->whereIn('i.ID', $ids);
+            $this->whereNotDeleted($query, 'i.DELETE_FLAG');
+            $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+            $this->applyTenant($query, 'i', [], $payload);
+            $this->applyProjectScope($query, [], $payload, 'p');
+
+            $rows = $query->field('i.ID, i.PROJECT_ID')->select()->toArray();
+            if (count($rows) !== count($ids)) {
+                throw new RuntimeException('sale project invoicing not found', 404);
+            }
+
+            $updated = Db::name('biz_sale_project_invoicing')
+                ->whereIn('ID', $ids)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
+                ]);
+
+            return ['ids' => $ids, 'count' => $updated];
         });
     }
 
@@ -496,6 +596,56 @@ class SaleProjectBillingService
         $this->applyProjectScope($query, $filters, $payload, 'p');
 
         return $query;
+    }
+
+    private function activeInvoicingForWrite(string $id, array $payload, string $action): array
+    {
+        $row = $this->invoicingQuery(['id' => $id], $payload, false)
+            ->field('i.*')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('sale project invoicing not found', 404);
+        }
+
+        $this->assertInvoicingProjectWritable((string)$row['PROJECT_ID'], $payload, $action);
+
+        return $row;
+    }
+
+    private function assertInvoicingProjectWritable(string $projectId, array $payload, string $action): array
+    {
+        $query = Db::name('biz_sale_project')->where('ID', $projectId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $project = $query->find();
+        if (!is_array($project) || $project === []) {
+            throw new RuntimeException('sale project not found', 404);
+        }
+
+        if ($this->canSeeAll($payload)) {
+            return $project;
+        }
+
+        $projectOrg = trim((string)($project['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== []) {
+            if (!in_array($projectOrg, $scopeOrgIds, true)) {
+                throw new RuntimeException("no permission to {$action} this sale project invoicing", 403);
+            }
+
+            return $project;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId === '' || trim((string)($project['USER'] ?? '')) !== $userId) {
+            throw new RuntimeException("no permission to {$action} this sale project invoicing", 403);
+        }
+
+        return $project;
     }
 
     private function assertRateProjectWritable(string $projectId, array $payload, string $action): array
@@ -904,6 +1054,108 @@ class SaleProjectBillingService
         }
 
         return $value;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function invoicingWriteData(array $input, bool $isAdd): array
+    {
+        $data = [
+            'INVOICING_CATEGORY' => $this->normalizeInvoicingCategory($this->requiredInput($input, 'invoicingCategory')),
+            'PROCESS_ID' => $this->textInput($input, 'processId', true, 80),
+            'COMPANY_NAME' => $this->textInput($input, 'companyName', true, 80),
+            'CUSTOMER_COMPANY' => $this->textInput($input, 'customerCompany', true, 80),
+            'UNIT' => $this->textInput($input, 'unit', true, 80),
+            'PHONE' => $this->textInput($input, 'phone', !$isAdd, 50),
+            'TAXPAYER' => $this->textInput($input, 'taxpayer', true, 50),
+            'CORPORATE_ACCOUNT' => $this->textInput($input, 'corporateAccount', true, 80),
+            'BANK_NAME' => $this->textInput($input, 'bankName', true, 80),
+            'UNIT_ADDRESS' => $this->textInput($input, 'unitAddress', true, 80),
+            'HARVEST_ADDRESS' => $this->textInput($input, 'harvestAddress', !$isAdd, 80),
+        ];
+
+        foreach (['remark' => 'REMARK', 'unitPhone' => 'UNIT_PHONE'] as $key => $column) {
+            if ($isAdd || array_key_exists($key, $input)) {
+                $data[$column] = $this->textInput($input, $key, false, $key === 'unitPhone' ? 50 : 80);
+            }
+        }
+
+        if ($isAdd || array_key_exists('amount', $input)) {
+            $data['AMOUNT'] = $this->invoicingAmount($input['amount'] ?? null);
+        }
+
+        if (array_key_exists('extJson', $input)) {
+            $data['EXT_JSON'] = $this->jsonInput($input['extJson']);
+        }
+
+        return $data;
+    }
+
+    private function normalizeInvoicingState(string $state): string
+    {
+        $state = trim($state);
+        if (!in_array($state, self::INVOICING_STATES, true)) {
+            throw new RuntimeException('invalid invoicingState', 400);
+        }
+
+        return $state;
+    }
+
+    private function normalizeInvoicingCategory(string $category): string
+    {
+        $category = trim($category);
+        if (!in_array($category, self::INVOICING_CATEGORIES, true)) {
+            throw new RuntimeException('invalid invoicingCategory', 400);
+        }
+
+        return $category;
+    }
+
+    private function invoicingAmount(mixed $value): string
+    {
+        $amount = trim((string)$value);
+        if ($amount === '') {
+            throw new RuntimeException('missing amount', 400);
+        }
+
+        if (!is_numeric($amount) || (float)$amount <= 0) {
+            throw new RuntimeException('invalid amount', 400);
+        }
+
+        return number_format((float)$amount, 2, '.', '');
+    }
+
+    private function textInput(array $input, string $key, bool $required, int $maxLength): ?string
+    {
+        $value = trim((string)($input[$key] ?? ''));
+        if ($value === '') {
+            if ($required) {
+                throw new RuntimeException("missing {$key}", 400);
+            }
+
+            return null;
+        }
+
+        $length = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
+        if ($length > $maxLength) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return $value;
+    }
+
+    private function jsonInput(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_array($value)) {
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }
+
+        return (string)$value;
     }
 
     private function rateAmount(mixed $value): string

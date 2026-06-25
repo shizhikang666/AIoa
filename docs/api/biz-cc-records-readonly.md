@@ -37,14 +37,24 @@ All routes are protected by `AuthMiddleware`.
 - `/biz/ccrecords/delete` accepts Java-style `[{id: ...}]`, `idList`, `ids`, or single `id` payloads.
 - Delete preserves Java's current-user guard by requiring `USER` to equal the token user id; token tenant id is also enforced when present.
 - Delete uses `DELETE_FLAG = DELETED` instead of physical removal so imported data remains traceable during refactor testing.
+- `POST /biz/process/leave/start` now mirrors the CC-record row creation part of Java `CopyUserDelegate` for active `Process_ask_leave` starts: every submitted `copyUserIdList` user receives one `biz_cc_records` row for the new workflow instance.
+- Page/detail responses return clean frontend-facing camelCase fields without duplicate upper/lowercase JSON keys.
+
+## Workflow Copy Coverage
+
+Covered on 2026-06-22:
+
+- active `Process_ask_leave` leave starts generate `biz_cc_records` rows for `copyUserIdList`
+- generated rows include `TITLE`, `PROCESS_ID`, `INSTANCE_ID`, `PROMOTER_ID`, `CATEGORY = Process_ask_leave`, `USER`, `CREATE_USER`, `TENANT_ID`, and `DELETE_FLAG = NOT_DELETE`
+- generated rows are readable through `/biz/ccrecords/page` by the copied user
+- `scripts/workflow-leave-start-http-smoke.ps1` verifies generated-row creation, readback, and cleanup
 
 ## Deferred
 
 The following real behavior remains intentionally deferred:
 
-- workflow copy-user delegate writes
-- approval/reject/start/cancel workflow writes
-- file relation binding
+- workflow copy-user delegate writes outside active `Process_ask_leave` leave starts
+- copy/file delegate generation outside active leave start
 - notifications and data-change events
 - Java source changes
 - database schema changes

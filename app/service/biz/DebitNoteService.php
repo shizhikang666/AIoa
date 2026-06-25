@@ -13,7 +13,9 @@ use think\facade\Db;
 class DebitNoteService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const UNSETTLED = 'Unsettled';
     private const ALREADY_SETTLED = 'AlreadySettled';
+    private const LOAN_REPAYMENT_CATEGORY = 'LoanRepayment';
     private const NOTE_FIELDS = <<<SQL
 d.ID AS ID,
 d.EXPENDITURE_RECORD_ID AS EXPENDITURE_RECORD_ID,
@@ -59,6 +61,10 @@ SQL;
         'accountName' => 'a.ACCOUNT_NAME',
         'orgName' => 'org.NAME',
     ];
+
+    public function __construct(private readonly SettlementAccountService $settlementAccountService = new SettlementAccountService())
+    {
+    }
 
     public function page(array $filters = [], array $payload = []): array
     {
@@ -123,6 +129,147 @@ SQL;
                 ]);
 
             return ['id' => $id, 'count' => $updated];
+        });
+    }
+
+    public function batchRepayment(array $input, array $payload = []): array
+    {
+        $accountId = $this->requiredInput($input, 'accountId');
+        $payer = $this->requiredInput($input, 'payer');
+        $payerTime = $this->requiredTime($input, 'payerTime');
+        $remark = $this->nullableString($input['remark'] ?? null);
+        $items = $this->requiredBatchItems($input['items'] ?? null);
+
+        return Db::transaction(function () use ($items, $accountId, $payer, $payerTime, $remark, $payload): array {
+            $notes = $this->lockedNotes(array_column($items, 'id'), $payload);
+            $prepared = [];
+
+            foreach ($items as $item) {
+                $note = $this->assertNoteRowWritable($notes[$item['id']], $payload, 'repay this debit note');
+                $noteAmountCents = $this->moneyCents($note['AMOUNT'] ?? '0');
+                $settlementBeforeCents = $this->moneyCents($note['SETTLEMENT_AMOUNT'] ?? '0');
+                $settlementAfterCents = $settlementBeforeCents + $item['amountCents'];
+                if ($settlementAfterCents > $noteAmountCents) {
+                    throw new RuntimeException('debit note settlement amount exceeds debit note amount', 400);
+                }
+
+                $prepared[] = [
+                    'id' => $item['id'],
+                    'amount' => $item['amount'],
+                    'amountCents' => $item['amountCents'],
+                    'settlementBefore' => $this->moneyFromCents($settlementBeforeCents),
+                    'settlementAfter' => $this->moneyFromCents($settlementAfterCents),
+                    'playStatus' => $settlementAfterCents === $noteAmountCents ? self::ALREADY_SETTLED : self::UNSETTLED,
+                ];
+            }
+
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $results = [];
+            foreach ($prepared as $item) {
+                $payment = $this->settlementAccountService->paymentAdd([
+                    'targetId' => $accountId,
+                    'settlementCategory' => self::LOAN_REPAYMENT_CATEGORY,
+                    'objectId' => $item['id'],
+                    'payer' => $payer,
+                    'payerTime' => $payerTime,
+                    'amount' => $item['amount'],
+                    'remark' => $remark,
+                ], $payload);
+
+                $updated = Db::name('biz_debit_note')
+                    ->where('ID', $item['id'])
+                    ->update([
+                        'SETTLEMENT_AMOUNT' => $item['settlementAfter'],
+                        'PLAY_STATUS' => $item['playStatus'],
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $userId !== '' ? $userId : null,
+                        'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                    ]);
+
+                $results[] = [
+                    'id' => $item['id'],
+                    'amount' => $item['amount'],
+                    'settlementAmountBefore' => $item['settlementBefore'],
+                    'settlementAmountAfter' => $item['settlementAfter'],
+                    'playStatus' => $item['playStatus'],
+                    'paymentId' => $payment['id'] ?? null,
+                    'statementId' => $payment['statementId'] ?? null,
+                    'accountId' => $accountId,
+                    'accountCount' => $payment['accountCount'] ?? null,
+                    'debitNoteCount' => $updated,
+                ];
+            }
+
+            return [
+                'accountId' => $accountId,
+                'settlementCategory' => self::LOAN_REPAYMENT_CATEGORY,
+                'payerTime' => $payerTime,
+                'count' => count($results),
+                'items' => $results,
+            ];
+        });
+    }
+
+    public function historyAdd(array $input, array $payload = []): array
+    {
+        $accountId = $this->requiredInput($input, 'accountId');
+        $remark = $this->requiredInput($input, 'remark');
+        $createTime = $this->requiredTime($input, 'createTime');
+        $amountCents = $this->positiveMoneyCents($input['amount'] ?? null);
+        $historyAmountCents = $this->nonNegativeMoneyCents($input['historyAmount'] ?? null, 'historyAmount');
+        if ($historyAmountCents > $amountCents) {
+            throw new RuntimeException('debit note settlement amount exceeds debit note amount', 400);
+        }
+
+        return Db::transaction(function () use ($input, $payload, $accountId, $remark, $createTime, $amountCents, $historyAmountCents): array {
+            $account = $this->assertSettlementAccountRowWritable(
+                $this->activeSettlementAccount($accountId, $payload, true),
+                $payload,
+                'add debit note repayment history'
+            );
+            $tenantId = trim((string)($account['TENANT_ID'] ?? ''));
+            if ($tenantId === '') {
+                $tenantId = $this->tenantId($input, $payload);
+            }
+
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $id = $this->newId();
+            $amount = $this->moneyFromCents($amountCents);
+            $historyAmount = $this->moneyFromCents($historyAmountCents);
+            $playStatus = $historyAmountCents === $amountCents ? self::ALREADY_SETTLED : self::UNSETTLED;
+            $orgId = trim((string)($account['ORG'] ?? $account['org'] ?? ''));
+
+            $count = Db::name('biz_debit_note')->insert([
+                'ID' => $id,
+                'EXPENDITURE_RECORD_ID' => null,
+                'REMARK' => $remark,
+                'PLAY_STATUS' => $playStatus,
+                'AMOUNT' => $amount,
+                'SETTLEMENT_AMOUNT' => $historyAmount,
+                'HISTORY_AMOUNT' => $historyAmount,
+                'ORG' => $orgId !== '' ? $orgId : null,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $createTime,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'TENANT_ID' => $tenantId,
+                'VERSION' => 0,
+            ]);
+
+            return [
+                'id' => $id,
+                'accountId' => $accountId,
+                'amount' => $amount,
+                'historyAmount' => $historyAmount,
+                'settlementAmount' => $historyAmount,
+                'playStatus' => $playStatus,
+                'org' => $orgId,
+                'tenantId' => $tenantId,
+                'count' => (int)$count,
+            ];
         });
     }
 
@@ -191,6 +338,11 @@ SQL;
     private function assertNoteWritable(string $id, array $payload, string $action): array
     {
         $row = $this->activeNote($id, $payload);
+        return $this->assertNoteRowWritable($row, $payload, $action);
+    }
+
+    private function assertNoteRowWritable(array $row, array $payload, string $action): array
+    {
         if ($this->canSeeAll($payload)) {
             return $row;
         }
@@ -208,6 +360,50 @@ SQL;
         }
 
         throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<string, array<string, mixed>>
+     */
+    private function lockedNotes(array $ids, array $payload): array
+    {
+        $ids = array_values(array_unique(array_map(
+            static fn (string $id): string => trim($id),
+            $ids
+        )));
+        sort($ids, SORT_STRING);
+
+        $query = Db::name('biz_debit_note')
+            ->whereIn('ID', $ids)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field('ID,EXPENDITURE_RECORD_ID,CREATE_USER,TENANT_ID,ORG,AMOUNT,SETTLEMENT_AMOUNT,HISTORY_AMOUNT,PLAY_STATUS')
+            ->order('ID', 'asc')
+            ->lock(true)
+            ->select()
+            ->toArray();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(string)($row['ID'] ?? '')] = $row;
+        }
+
+        foreach ($ids as $id) {
+            if (!isset($map[$id])) {
+                throw new RuntimeException('debit note not found', 404);
+            }
+        }
+
+        return $map;
     }
 
     private function activeNote(string $id, array $payload): array
@@ -231,6 +427,54 @@ SQL;
         }
 
         return $row;
+    }
+
+    private function activeSettlementAccount(string $id, array $payload, bool $lock = false): array
+    {
+        $query = Db::name('settlement_account')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        if ($lock) {
+            $query->lock(true);
+        }
+
+        $row = $query
+            ->field('ID,CREATE_USER,TENANT_ID,org AS ORG')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('settlement account not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertSettlementAccountRowWritable(array $row, array $payload, string $action): array
+    {
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $accountOrg = trim((string)($row['ORG'] ?? $row['org'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $accountOrg !== '' && in_array($accountOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action} with this settlement account", 403);
     }
 
     private function applyTimeRange($query, array $filters, string $column, string $startKey, string $endKey): void
@@ -308,6 +552,13 @@ SQL;
         return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
     }
 
+    private function tenantId(array $input, array $payload): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
     /**
      * @return array<int, string>
      */
@@ -368,6 +619,116 @@ SQL;
         }
 
         return $value;
+    }
+
+    /**
+     * @return array<int, array{id: string, amount: string, amountCents: int}>
+     */
+    private function requiredBatchItems(mixed $items): array
+    {
+        if (!is_array($items) || $items === []) {
+            throw new RuntimeException('missing items', 400);
+        }
+
+        $seen = [];
+        $normalized = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                throw new RuntimeException('invalid items', 400);
+            }
+
+            $id = $this->requiredInput($item, 'id');
+            if (isset($seen[$id])) {
+                throw new RuntimeException('duplicate debit note item', 400);
+            }
+            $seen[$id] = true;
+
+            $amountCents = $this->positiveMoneyCents($item['amount'] ?? null);
+            $normalized[] = [
+                'id' => $id,
+                'amount' => $this->moneyFromCents($amountCents),
+                'amountCents' => $amountCents,
+            ];
+        }
+
+        return $normalized;
+    }
+
+    private function requiredTime(array $input, string $key): string
+    {
+        $value = $this->requiredInput($input, $key);
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException("invalid {$key}", 400);
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string)$value);
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function positiveMoneyCents(mixed $value): int
+    {
+        $cents = $this->moneyCents($value);
+        if ($cents <= 0) {
+            throw new RuntimeException('amount must be greater than 0', 400);
+        }
+
+        return $cents;
+    }
+
+    private function nonNegativeMoneyCents(mixed $value, string $key): int
+    {
+        $cents = $this->moneyCents($value);
+        if ($cents < 0) {
+            throw new RuntimeException("{$key} must be greater than or equal to 0", 400);
+        }
+
+        return $cents;
+    }
+
+    private function moneyCents(mixed $value): int
+    {
+        if ($value === null || $value === '') {
+            throw new RuntimeException('invalid amount', 400);
+        }
+
+        $normalized = trim((string)$value);
+        if (!preg_match('/^-?\d+(?:\.\d+)?$/', $normalized)) {
+            if (!is_numeric($value)) {
+                throw new RuntimeException('invalid amount', 400);
+            }
+            $normalized = number_format((float)$value, 2, '.', '');
+        }
+
+        $negative = str_starts_with($normalized, '-');
+        $normalized = ltrim($normalized, '-');
+        [$whole, $fraction] = array_pad(explode('.', $normalized, 2), 2, '0');
+        $cents = ((int)$whole * 100) + (int)str_pad(substr($fraction, 0, 2), 2, '0');
+
+        return $negative ? -$cents : $cents;
+    }
+
+    private function moneyFromCents(int $cents): string
+    {
+        $sign = $cents < 0 ? '-' : '';
+        $absolute = abs($cents);
+
+        return $sign . (string)intdiv($absolute, 100) . '.' . str_pad((string)($absolute % 100), 2, '0', STR_PAD_LEFT);
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function decimal(mixed $value): int|float|null

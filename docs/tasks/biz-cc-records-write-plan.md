@@ -36,8 +36,9 @@ Replace `/biz/ccrecords/add` and `/biz/ccrecords/edit` controlled-deferred wrapp
 ## Deliberate Exclusions
 
 - No workflow runtime start/approve/reject/cancel behavior.
-- No `CopyUserDelegate` equivalent and no automatic batch copy-user generation.
-- No file-relation binding, process-variable writes, notification push, data-change events, or cache mutation.
+- Manual add/edit remains current-user row maintenance. Active `Process_ask_leave` leave-start `copyUserIdList` generation is covered by the workflow runtime slice, not by these manual endpoints.
+- No copy-user generation for other process keys.
+- No file-relation binding, process-variable writes from manual CC maintenance, notification push, data-change events, or cache mutation.
 - No Java source, database schema, Composer/npm, frontend source, `.env`, or production data changes.
 
 ## Verification

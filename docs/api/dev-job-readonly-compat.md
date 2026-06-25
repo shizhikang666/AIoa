@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice adds authenticated query compatibility plus safe metadata add/edit/delete compatibility for Java scheduled-job endpoints.
+This slice adds authenticated query compatibility plus safe metadata add/edit/delete/action-status compatibility for Java scheduled-job endpoints.
 
 ## Java Reference
 
@@ -87,12 +87,14 @@ Supported sort fields are:
 - `add` and `edit` are narrow metadata maintenance endpoints. They require Java-style fields, validate `FRM`/`BIZ` category, validate Java-style cron text shape, require `actionClass` to come from the current ThinkPHP compatibility action-class list, reject duplicate active `ACTION_CLASS + CRON_EXPRESSION`, create new jobs as `STOPPED`, and preserve `CODE` plus `JOB_STATUS` on edit.
 - `edit` rejects active rows currently marked `RUNNING`.
 - `delete` accepts Java-style array payloads such as `[{ "id": "..." }]`, rejects malformed mixed payloads before any write, marks rows with `DELETE_FLAG = DELETED`, and returns `data = null`.
-- Java starts, stops, removes, and executes cron entries through Hutool/Spring runtime hooks. ThinkPHP does not yet run a scheduler, so these compatibility routes only change metadata and do not start, stop, register, remove, or execute jobs.
+- `stopJob` accepts `{ id }`, rejects jobs already marked `STOPPED`, and sets `JOB_STATUS = STOPPED`.
+- `runJob` accepts `{ id }`, rejects jobs already marked `RUNNING`, and sets `JOB_STATUS = RUNNING`.
+- `runJobNow` accepts `{ id }` and sets `JOB_STATUS = RUNNING` when the row is currently stopped.
+- Java starts, stops, removes, and executes cron entries through Hutool/Spring runtime hooks. ThinkPHP does not yet run a scheduler, so these compatibility routes only change status metadata and do not register, remove, schedule, or execute jobs.
 
 ## Deliberate Exclusions
 
-- `/dev/job/stopJob`, `/runJob`, and `/runJobNow` return controlled `code = 400` deferred responses.
-- Real scheduler stop, run, and run-now behavior remains deferred.
+- Real scheduler stop, run, and run-now lifecycle remains deferred beyond database status updates.
 - No scheduler is started or stopped.
 - No job class is executed.
 - No database schema or Java source files are changed.
@@ -128,3 +130,18 @@ The smoke asserts Java-style paging keys and action-class list shape. It intenti
 - cleanup of only temporary `CODEX_JOB_` rows.
 
 The write smoke intentionally does not call `stopJob`, `runJob`, `runJobNow`, scheduler registration/removal, job class execution, provider calls, notifications, cache invalidation, data-change events, Java source changes, or schema changes.
+
+## 2026-06-18 Action Status Smoke Coverage
+
+`scripts/dev-job-write-http-smoke.ps1` now also covers:
+
+- no-token rejection on `POST /dev/job/runJob`;
+- missing-id rejection on `runJob`;
+- already-running rejection on `runJob`;
+- successful `stopJob` status transition to `STOPPED`;
+- already-stopped rejection on `stopJob`;
+- successful `runJob` status transition to `RUNNING`;
+- successful `runJobNow` while already running;
+- successful `runJobNow` while stopped, including the Java-compatible transition back to `RUNNING`.
+
+The action-status smoke intentionally still does not register/remove scheduler jobs, execute PHP or Java task classes, call external providers, mutate cache, or start a scheduler runtime.

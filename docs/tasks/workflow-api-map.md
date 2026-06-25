@@ -21,15 +21,17 @@
 | `/sys/userCenter/process/config` | POST | frontend user-center compatibility | Existing frontend API wrapper calls this path |
 | `/sys/userCenter/process/config/edit` | POST | frontend user-center compatibility | Coordinate with user-agent |
 
-## Deferred Runtime Mutation Batch
+## Runtime Mutation Batch
 
-| Java Endpoint | Method | Reason Deferred |
+| Java Endpoint | Method | ThinkPHP status |
 | --- | --- | --- |
-| `/biz/task/approve` | POST | Needs side-effect dispatch and variable validation |
-| `/biz/task/reject` | POST | Needs task state/comment semantics |
-| `/biz/process/cancel` | POST | Needs runtime/historic consistency |
-| `/biz/process/*/start` | POST | Each start route has domain-specific validation and side effects |
-| `/biz/process/leave/edit` | POST | Needs editable task/form state support |
+| `/biz/process/leave/start` | POST | Covered as minimal `Process_ask_leave` runtime/history start |
+| `/biz/process/cancel` | POST | Covered only for active unapproved `Process_ask_leave` cancellation |
+| `/biz/process/leave/edit` | POST | Covered only for editable active `Process_ask_leave` variable update |
+| `/biz/task/approve` | POST | Covered only for `Process_ask_leave` `Activity_approval`, including leave-row creation and annual-leave deduction |
+| `/biz/task/reject` | POST | Covered only for `Process_ask_leave` `Activity_approval` rejection |
+| `/biz/process/*/start` except leave start | POST | Deferred; each start route has domain-specific validation and side effects |
+| `/biz/task/sse/stream` | GET | Deferred; copied frontend wrapper exists but Java controller does not expose this exact route |
 
 ## Route File Boundary
 

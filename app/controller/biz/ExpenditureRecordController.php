@@ -46,9 +46,9 @@ class ExpenditureRecordController extends BaseSysController
         return $this->guard(fn () => $this->expenditureRecordService->edit($this->body($request), $this->authPayload($request)));
     }
 
-    public function editAccount(): Response
+    public function editAccount(Request $request): Response
     {
-        return $this->deferredWrite('expenditure record account switch');
+        return $this->guard(fn () => $this->expenditureRecordService->editAccount($this->body($request), $this->authPayload($request)));
     }
 
     public function delete(): Response

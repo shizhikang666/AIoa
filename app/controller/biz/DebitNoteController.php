@@ -46,14 +46,14 @@ class DebitNoteController extends BaseSysController
         return $this->deferredWrite('debit note edit');
     }
 
-    public function batchRepayment(): Response
+    public function batchRepayment(Request $request): Response
     {
-        return $this->deferredWrite('debit note batch repayment');
+        return $this->guard(fn () => $this->debitNoteService->batchRepayment($this->body($request), $this->authPayload($request)));
     }
 
-    public function historyAdd(): Response
+    public function historyAdd(Request $request): Response
     {
-        return $this->deferredWrite('debit note repayment history add');
+        return $this->guard(fn () => $this->debitNoteService->historyAdd($this->body($request), $this->authPayload($request)));
     }
 
     public function delete(): Response

@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice covers protected payment-record read routes plus the narrow Java-compatible payer-time correction route.
+This slice covers protected payment-record read routes plus narrow Java-compatible payer-time correction and settlement-account switch routes.
 
 ## Routes
 
@@ -11,6 +11,7 @@ This slice covers protected payment-record read routes plus the narrow Java-comp
 - `GET /biz/bizpaymentrecord/list`
 - `GET /biz/bizpaymentrecord/detail`
 - `POST /biz/bizpaymentrecord/edit`
+- `POST /biz/bizpaymentrecord/edit/account`
 
 ## Java References
 
@@ -20,6 +21,7 @@ This slice covers protected payment-record read routes plus the narrow Java-comp
 - `vip.xiaonuo.biz.modular.bizpaymentrecord.param.BizPaymentRecordPageParam`
 - `vip.xiaonuo.biz.modular.bizpaymentrecord.param.BizPaymentRecordQueryParam`
 - `vip.xiaonuo.biz.modular.bizpaymentrecord.param.BizPaymentRecordEditParam`
+- `vip.xiaonuo.biz.modular.bizpaymentrecord.param.BizPaymentRecordEditAccountParam`
 
 ## Tables
 
@@ -66,11 +68,23 @@ This slice covers protected payment-record read routes plus the narrow Java-comp
 - Ignores client-submitted amount, account, object, process, category, user, organization, audit, and delete fields.
 - Does not update settlement account balances or create income/payment records.
 
+## Account Switch
+
+`POST /biz/bizpaymentrecord/edit/account` accepts Java-style `id`, `currentTargetId`, and `targetId`.
+
+- Rejects missing ids, same current/target account, mismatched payment-record current account, missing linked statement, missing accounts, tenant mismatch, or write-scope mismatch.
+- Runs in a transaction.
+- Uses the stored `biz_payment_record.AMOUNT`; client-submitted amount/object/serial/org/process/category fields are ignored.
+- Subtracts the stored amount from the current settlement account `CURRENT_AMOUNT`.
+- Adds the stored amount to the target settlement account `CURRENT_AMOUNT`.
+- Updates `biz_payment_record.TARGET_ID`, `ORG`, `UPDATE_TIME`, and `UPDATE_USER`.
+- Updates the linked `settlement_account_statement.ACCOUNT_ID`, `UPDATE_TIME`, and `UPDATE_USER`.
+- Does not create additional statements or payment rows.
+
 ## Explicit Exclusions
 
-- No `/biz/bizpaymentrecord/edit/account` route was added.
 - No `/biz/bizpaymentrecord/add` or `/biz/bizpaymentrecord/delete` behavior was added.
-- No payment-record creation/deletion, account switch, settlement-account transfer, balance update, data-change event, database schema change, Java source change, `.env`, Composer file, or public config change was added.
+- No payment-record creation/deletion, new statement creation, workflow, data-change event, database schema change, Java source change, `.env`, Composer file, npm file, frontend source, production data, Git push, or public config change was added.
 
 ## Verification
 
@@ -80,6 +94,7 @@ This slice covers protected payment-record read routes plus the narrow Java-comp
 - PHP syntax lint
 - Token smoke tests for page, listdetails, list, detail, and no-token 401.
 - `scripts/biz-payment-record-edit-http-smoke.ps1`
+- `scripts/biz-payment-record-edit-account-http-smoke.ps1`
 
 ## 2026-06-15 HTTP Smoke Coverage
 
@@ -103,4 +118,18 @@ The smoke checks Java-style paging keys and stable frontend-visible finance fiel
 - the linked statement `PAYER_TIME` is updated in the same transaction;
 - client-spoofed amount/account/object/process/category/user/org fields are ignored;
 - a missing linked statement returns `code=404` and leaves the payment row unchanged;
+- payment, statement, account, expenditure, receipt, and debit-note row counts stay unchanged after setup.
+
+## 2026-06-17 Account-Switch Smoke Coverage
+
+`scripts/biz-payment-record-edit-account-http-smoke.ps1` inserts temporary current/target settlement accounts, a payment record, and a linked statement, then verifies:
+
+- no-token account switch returns `code=401`;
+- missing `targetId`, same-account switch, and mismatched `currentTargetId` return `code=400`;
+- missing linked statement returns `code=404` and leaves account balances and record links unchanged;
+- valid switch returns `code=200`;
+- detail readback exposes the new `targetId` and target-account `org`;
+- current account balance is decreased and target account balance is increased by the stored payment amount only;
+- the linked statement `ACCOUNT_ID` is switched to the target account;
+- client-spoofed amount/object/serial/org fields are ignored;
 - payment, statement, account, expenditure, receipt, and debit-note row counts stay unchanged after setup.

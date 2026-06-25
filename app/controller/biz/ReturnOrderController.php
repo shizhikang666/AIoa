@@ -6,7 +6,6 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\ReturnOrderService;
-use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -31,26 +30,19 @@ class ReturnOrderController extends BaseSysController
         return $this->guard(fn () => $this->returnOrderService->detail($this->requiredString($request, 'id'), $this->authPayload($request)));
     }
 
-    public function add(): Response
+    public function add(Request $request): Response
     {
-        return $this->deferredWrite('return order add');
+        return $this->guard(fn () => $this->returnOrderService->add($this->body($request), $this->authPayload($request)));
     }
 
-    public function edit(): Response
+    public function edit(Request $request): Response
     {
-        return $this->deferredWrite('return order edit');
+        return $this->guard(fn () => $this->returnOrderService->edit($this->body($request), $this->authPayload($request)));
     }
 
-    public function delete(): Response
+    public function delete(Request $request): Response
     {
-        return $this->deferredWrite('return order delete');
-    }
-
-    private function deferredWrite(string $operation): Response
-    {
-        return ApiResponse::fail($operation . ' is deferred', 400, [
-            'operation' => $operation,
-        ]);
+        return $this->guard(fn () => $this->returnOrderService->delete($this->body($request), $this->authPayload($request)));
     }
 
     private function authPayload(Request $request): array
@@ -58,5 +50,29 @@ class ReturnOrderController extends BaseSysController
         $payload = $request->middleware('auth_payload', []);
 
         return is_array($payload) ? $payload : [];
+    }
+
+    private function body(Request $request): array
+    {
+        $input = $request->post();
+        if ($input !== []) {
+            return $input;
+        }
+
+        $raw = '';
+        if (method_exists($request, 'getContent')) {
+            $raw = trim((string)$request->getContent());
+        }
+        if ($raw === '' && method_exists($request, 'getInput')) {
+            $raw = trim((string)$request->getInput());
+        }
+        if ($raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $request->param();
     }
 }

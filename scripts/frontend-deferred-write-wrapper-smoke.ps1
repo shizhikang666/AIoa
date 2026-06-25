@@ -136,38 +136,20 @@ function Assert-DeferredResponse {
 $baseUrl = $BackendBaseUrl.TrimEnd('/')
 $paths = @(
     '/biz/bizpaymentrecord/add',
-    '/biz/bizpaymentrecord/edit/account',
     '/biz/bizpaymentrecord/delete',
     '/biz/bizexpenditurerecord/add',
-    '/biz/bizexpenditurerecord/edit/account',
     '/biz/bizexpenditurerecord/delete',
     '/biz/bizcollectionreceipt/add',
     '/biz/bizcollectionreceipt/edit',
-    '/biz/bizcollectionreceipt/batchExpenditure/edit',
     '/biz/bizcollectionreceipt/delete',
     '/biz/bizdebitnote/add',
     '/biz/bizdebitnote/edit',
-    '/biz/bizdebitnote/batchRepayment/edit',
-    '/biz/bizdebitnote/history/add',
     '/biz/bizdebitnote/delete',
     '/biz/bizpurchaseorder/add',
-    '/biz/bizpurchaseorder/edit',
-    '/biz/bizpurchaseorder/audit/edit',
-    '/biz/bizpurchaseorder/warehouse/add',
-    '/biz/bizpurchaseorder/warehouse/one/add',
-    '/biz/bizpurchaseorder/cancel',
     '/biz/bizpurchaseorder/delete',
-    '/biz/inventory/add',
     '/biz/inventory/delete',
-    '/biz/warehouses/delivery/add',
-    '/biz/settlementaccount/delete',
-    '/biz/settlementaccount/expenses/add',
-    '/biz/settlementaccount/payment/add',
-    '/biz/settlementaccount/transfer/add',
     '/biz/bizleaveapplication/add',
     '/biz/bizpayroll/add',
-    '/biz/bizpayroll/import',
-    '/biz/bizpayroll/generate/add',
     '/dev/email/sendLocalTxt',
     '/dev/email/sendLocalHtml',
     '/dev/email/sendAliyunTxt',
@@ -176,42 +158,10 @@ $paths = @(
     '/dev/email/sendTencentTxt',
     '/dev/email/sendTencentHtml',
     '/dev/email/sendTencentTmp',
-    '/dev/job/stopJob',
-    '/dev/job/runJob',
-    '/dev/job/runJobNow',
     '/gen/basic/execGenPro',
     '/gen/config/add',
-    '/biz/process/cancel',
-    '/biz/process/leave/edit',
-    '/biz/process/leave/start',
-    '/biz/process/makePayment/start',
-    '/biz/process/payment/start',
-    '/biz/process/procure/start',
-    '/biz/process/procure/warehouse/start',
-    '/biz/process/project/delivery/start',
-    '/biz/process/project/init/start',
-    '/biz/process/project/play/start',
     '/biz/process/project/reissue/start',
-    '/biz/process/project/return/start',
-    '/biz/process/reimbursement/start',
-    '/biz/saleproject/add',
-    '/biz/saleproject/amount/edit',
-    '/biz/saleproject/cancel',
-    '/biz/saleproject/deal/edit',
-    '/biz/saleproject/delete',
-    '/biz/saleproject/edit',
-    '/biz/saleproject/history/add',
-    '/biz/saleproject/repeal',
-    '/biz/saleproject/special/add',
-    '/biz/saleproject/visibility/edit',
-    '/biz/task/approve',
-    '/biz/task/reject',
-    '/biz/returnorder/add',
-    '/biz/returnorder/edit',
-    '/biz/returnorder/delete',
-    '/biz/saleprojectinvoicing/add',
-    '/biz/saleprojectinvoicing/edit',
-    '/biz/saleprojectinvoicing/delete'
+    '/biz/process/project/return/start'
 )
 
 foreach ($path in $paths) {
@@ -230,7 +180,7 @@ foreach ($path in $getPaths) {
     Write-Host "$path code=400"
 }
 
-foreach ($path in @('/biz/bizpaymentrecord/add', '/biz/bizexpenditurerecord/delete', '/biz/bizcollectionreceipt/delete', '/biz/bizdebitnote/history/add', '/biz/bizpurchaseorder/cancel', '/biz/inventory/delete', '/biz/settlementaccount/payment/add', '/biz/bizpayroll/import', '/dev/email/sendLocalTxt', '/dev/job/runJob', '/gen/basic/execGenPro', '/biz/process/cancel', '/biz/saleproject/delete', '/biz/task/approve', '/biz/returnorder/delete', '/biz/saleprojectinvoicing/delete')) {
+foreach ($path in @('/biz/bizpaymentrecord/add', '/biz/bizexpenditurerecord/delete', '/biz/bizcollectionreceipt/delete', '/biz/inventory/delete', '/biz/bizpayroll/add', '/dev/email/sendLocalTxt', '/gen/basic/execGenPro', '/biz/process/cancel')) {
     $json = Invoke-JsonPost -Url ($baseUrl + $path)
     if ([int]$json.code -ne 401) {
         throw "$path no-token expected code=401, got code=$($json.code)"

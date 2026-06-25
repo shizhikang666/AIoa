@@ -184,6 +184,64 @@ class JobService
     }
 
     /**
+     * @param array<string|int, mixed> $input
+     */
+    public function stopJob(array $input): ?array
+    {
+        $id = $this->jobId($input);
+
+        return Db::transaction(function () use ($id): ?array {
+            $existing = $this->activeJobRow($id);
+            $status = $this->jobStatus($existing);
+            if ($status === self::STATUS_STOPPED) {
+                throw new RuntimeException('job already stopped', 400);
+            }
+
+            $this->updateJobStatus($id, self::STATUS_STOPPED);
+
+            return null;
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     */
+    public function runJob(array $input): ?array
+    {
+        $id = $this->jobId($input);
+
+        return Db::transaction(function () use ($id): ?array {
+            $existing = $this->activeJobRow($id);
+            $status = $this->jobStatus($existing);
+            if ($status === self::STATUS_RUNNING) {
+                throw new RuntimeException('job already running', 400);
+            }
+
+            $this->updateJobStatus($id, self::STATUS_RUNNING);
+
+            return null;
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     */
+    public function runJobNow(array $input): ?array
+    {
+        $id = $this->jobId($input);
+
+        return Db::transaction(function () use ($id): ?array {
+            $existing = $this->activeJobRow($id);
+            $status = $this->jobStatus($existing);
+            if ($status === self::STATUS_STOPPED) {
+                $this->updateJobStatus($id, self::STATUS_RUNNING);
+            }
+
+            return null;
+        });
+    }
+
+    /**
      * @return array<int, string>
      */
     public function actionClasses(): array
@@ -351,6 +409,17 @@ class JobService
         return null;
     }
 
+    /**
+     * @param array<string|int, mixed> $input
+     */
+    private function jobId(array $input): string
+    {
+        $id = $this->requiredString($input, ['id', 'ID'], 'id');
+        $this->assertMaxLength($id, 'id', 20);
+
+        return $id;
+    }
+
     private function assertMaxLength(string $value, string $label, int $maxLength): void
     {
         if (strlen($value) > $maxLength) {
@@ -422,6 +491,28 @@ class JobService
         }
 
         return $row;
+    }
+
+    private function jobStatus(array $row): string
+    {
+        $status = (string)($row['JOB_STATUS'] ?? '');
+        if (!in_array($status, [self::STATUS_RUNNING, self::STATUS_STOPPED], true)) {
+            throw new RuntimeException('unsupported job status', 400);
+        }
+
+        return $status;
+    }
+
+    private function updateJobStatus(string $id, string $status): void
+    {
+        Db::name('dev_job')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->update([
+                'JOB_STATUS' => $status,
+            ]);
     }
 
     private function newId(): string
