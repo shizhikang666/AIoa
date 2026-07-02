@@ -77,6 +77,7 @@
 	import { layoutEnum } from '@/layout/enum/layoutEnum'
 	import { useRoute, useRouter } from 'vue-router'
 	import tool from '@/utils/tool'
+	import routerUtil from '@/utils/routerUtil'
 	import { message } from 'ant-design-vue'
 	import ClassicalMenu from '@/layout/menu/classicalMenu.vue'
 	import DoubleRowMenu from '@/layout/menu/doubleRowMenu.vue'
@@ -162,19 +163,22 @@
 			let active = route.meta.active || route.path
 			// 如果是目录，必须往下找
 			if (route.meta.type === 'catalog') {
-				active = traverseChild(pMenu.value.children, active).path
+				const activeMenu = routerUtil.getIndexMenu(pMenu.value.children || [])
+				if (activeMenu?.path) {
+					active = activeMenu.path
+				}
 			}
 			selectedKeys.value = new Array(active)
-			const pidKey = getParentKeys(pMenu.value.children, active)
+			const pidKey = getParentKeys(pMenu.value.children || [], active)
 			// 判断是隐藏的路由，找其上级
 			if (route.meta.hidden && pidKey) {
 				if (pidKey.length > 1) {
 					selectedKeys.value = new Array(pidKey[1])
 				}
 			}
-			const nextTickMenu = pMenu.value.children
+			const nextTickMenu = pMenu.value.children || []
 			if (pidKey) {
-				const modelPidKey = getParentKeys(moduleMenu.value, route.path)
+				const modelPidKey = getParentKeys(moduleMenu.value, route.path) || []
 				moduleMenu.value.forEach((item) => {
 					if (modelPidKey.includes(item.path)) {
 						tagSwitchModule(item.id)
@@ -183,9 +187,9 @@
 				const parentPath = pidKey[pidKey.length - 1]
 				if (layout.value === layoutEnum.DOUBLEROW) {
 					// 这一串操作下来只为取到最上面的路由的孩子们，最后成为双排菜单的第二排
-					const nextMenuTemp = nextTickMenu.filter((item) => item.path === parentPath)[0].children
+					const nextMenuTemp = nextTickMenu.find((item) => item.path === parentPath)?.children
 					if (nextMenuTemp) {
-						nextMenu.value = nextTickMenu.filter((item) => item.path === parentPath)[0].children
+						nextMenu.value = nextMenuTemp
 					}
 				}
 			}
@@ -207,12 +211,12 @@
 		// 防止切换一个无此应用的人
 		const module = router.getMenu().filter((item) => item.id === menuModuleId)
 		if (module.length > 0) {
-			menu.value = module[0].children
+			menu.value = Array.isArray(module[0]?.children) ? module[0].children : []
 		} else {
-			menu.value = router.getMenu()[0].children
+			menu.value = Array.isArray(router.getMenu()[0]?.children) ? router.getMenu()[0].children : []
 		}
 	} else {
-		menu.value = router.getMenu()[0].children
+		menu.value = Array.isArray(router.getMenu()[0]?.children) ? router.getMenu()[0].children : []
 	}
 	showThis()
 	onMounted(() => {
@@ -428,7 +432,7 @@
 
 	// 设置双排菜单下的首列默认选中
 	const setDoubleRowSelectedKey = () => {
-		const pidKey = getParentKeys(menu.value, selectedKeys.value.toString())
+		const pidKey = getParentKeys(menu.value, selectedKeys.value.toString()) || []
 		nextTick(() => {
 			const pidKeyArray = []
 			for (const key in pidKey) {
@@ -438,7 +442,7 @@
 		})
 		// 设置第一排选中的
 		menu.value.forEach((item) => {
-			if (pidKey !== undefined) {
+			if (pidKey.length > 0) {
 				if (pidKey[pidKey.length - 1].toString() === item.path) {
 					doublerowSelectedKey.value = [item.path]
 				}
@@ -463,8 +467,14 @@
 	// 获取上级keys
 	const getParentKeys = (data, val) => {
 		const traverse = (array, val) => {
+			if (!Array.isArray(array)) {
+				return undefined
+			}
 			// 递归父级key
 			for (const element of array) {
+				if (!element) {
+					continue
+				}
 				if (element.path === val) {
 					return [element.path]
 				}
@@ -527,12 +537,17 @@
 	const switchModule = (id) => {
 		if (moduleMenu.value.length > 0) {
 			showThis()
-			const menus = moduleMenu.value.filter((item) => item.id === id)[0].children
+			const targetModule = moduleMenu.value.find((item) => item.id === id)
+			const menus = Array.isArray(targetModule?.children) ? targetModule.children : []
 			if (menus.length > 0) {
 				// 正儿八百的菜单
 				menu.value = menus
-				const firstMenu = traverseChild(menu.value)
-				const path = firstMenu.path
+				const firstMenu = routerUtil.getIndexMenu(menu.value)
+				const path = firstMenu?.path
+				if (!path) {
+					message.warning('该模块下无可访问菜单')
+					return
+				}
 				// 如果是外链
 				if (firstMenu.menuType === 'LINK') {
 					window.open(path)
@@ -554,21 +569,8 @@
 		tool.data.set('SNOWY_MENU_MODULE_ID', id)
 		store.setModule(id)
 		// 正儿八百的菜单
-		menu.value = moduleMenu.value.filter((item) => item.id === id)[0].children
-	}
-	// 遍历获取子集
-	const traverseChild = (menu) => {
-		if (menu[0] && menu[0].children !== undefined) {
-			if (menu[0].children.length > 0) {
-				if (menu[0].children[0] && menu[0].children[0].meta.hidden && menu[0].children[0].meta.hidden === true) {
-					return menu[0]
-				} else {
-					return traverseChild(menu[0].children)
-				}
-			}
-		} else {
-			return menu[0]
-		}
+		const targetModule = moduleMenu.value.find((item) => item.id === id)
+		menu.value = Array.isArray(targetModule?.children) ? targetModule.children : []
 	}
 	// 退出最大化
 	const exitMaximize = () => {

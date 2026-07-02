@@ -10,39 +10,48 @@
  */
 import userRoutes from '@/config/route'
 
-// 获取第一个界面
-const getIndexMenu = (menu) => {
-	if (menu[0] && Array.isArray(menu[0].children) && menu[0].children.length > 0) {
-		let indexMenu = menu[0].children[0]
-		// 如果第一个菜单为目录，接着往下找
-		if (indexMenu.meta?.type === 'catalog') {
-			indexMenu = traverseChild(menu)
-		}
-		return indexMenu
-	} else if (!Array.isArray(menu) || menu.length === 0) {
-		return null
-	} else if (menu[0]?.path) {
-		return menu[0]
-	} else {
-		return userRoutes.menu[0]
-	}
+const isHidden = (menu) => menu?.meta?.hidden === true
+
+const isContainerMenu = (menu) => {
+	const type = menu?.meta?.type
+	return type === 'catalog' || type === 'module' || menu?.category === 'MODULE'
 }
-// 遍历进行判断，其中处理了被隐藏的
-const traverseChild = (menu) => {
-	if (menu[0] && menu[0].children !== undefined) {
-		if (menu[0].children.length > 0) {
-			if (menu[0].children[0] && menu[0].children[0].meta.hidden && menu[0].children[0].meta.hidden === true) {
-				return menu[0]
-			} else {
-				return traverseChild(menu[0].children)
+
+const findFirstAccessibleMenu = (menu) => {
+	if (!Array.isArray(menu)) {
+		return null
+	}
+
+	let fallback = null
+	for (const item of menu) {
+		if (!item || isHidden(item)) {
+			continue
+		}
+
+		const children = Array.isArray(item.children) ? item.children : []
+		if (children.length > 0) {
+			const child = findFirstAccessibleMenu(children)
+			if (child) {
+				return child
 			}
 		}
-		return menu[0]
-	} else {
-		return menu[0]
+
+		if (item.path) {
+			if (!isContainerMenu(item)) {
+				return item
+			}
+			fallback = fallback || item
+		}
 	}
+
+	return fallback
+}
+
+const getIndexMenu = (menu) => {
+	return findFirstAccessibleMenu(menu) || userRoutes.menu[0] || null
 }
 
 export default {
-	getIndexMenu
+	getIndexMenu,
+	findFirstAccessibleMenu
 }

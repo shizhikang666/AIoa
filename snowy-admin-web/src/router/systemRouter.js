@@ -18,7 +18,7 @@ const routes = [
 		name: 'layout',
 		path: '/',
 		component: () => import('@/layout/index.vue'),
-		redirect: tool.data.get('MENU') ? routerUtil.getIndexMenu(tool.data.get('MENU')).path : config.DASHBOARD_URL,
+		redirect: tool.data.get('MENU') ? routerUtil.getIndexMenu(tool.data.get('MENU'))?.path || config.DASHBOARD_URL : config.DASHBOARD_URL,
 		children: []
 	},
 	{

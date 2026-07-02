@@ -256,9 +256,9 @@
 	}
 
 	const module = router.getMenu()
-	const indexMenu = routerUtil.getIndexMenu(module).path
+	const indexMenu = routerUtil.getIndexMenu(module)?.path
 	// eslint-disable-next-line eqeqeq
-	const dashboardRoute = treeFind(module, (node) => node.path === indexMenu)
+	const dashboardRoute = indexMenu ? treeFind(module, (node) => node.path === indexMenu) : null
 	if (dashboardRoute) {
 		dashboardRoute.fullPath = dashboardRoute.path
 		addViewTags(dashboardRoute)
