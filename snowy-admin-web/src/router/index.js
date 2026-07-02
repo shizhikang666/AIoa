@@ -18,6 +18,7 @@ import whiteListRouters from './whiteList'
 import userRoutes from '@/config/route'
 import tool from '@/utils/tool'
 import { cloneDeep } from 'lodash-es'
+import userCenterApi from '@/api/sys/userCenterApi'
 const modules = import.meta.glob('/src/views/**/**.vue')
 import { globalStore, searchStore } from '@/store'
 
@@ -27,18 +28,25 @@ NProgress.configure({ showSpinner: false, speed: 500 })
 // 系统特殊路由
 const routes_404 = [
 	{
+		name: 'notFound',
 		path: '/:pathMatch(.*)*',
 		hidden: true,
 		component: () => import('@/layout/other/404.vue')
 	}
 ]
 // 系统路由
-const routes = [...systemRouter, ...whiteListRouters, ...routes_404]
+const routes = [...systemRouter, ...whiteListRouters]
 
 const router = createRouter({
 	history: createWebHistory(),
 	routes
 })
+
+const addNotFoundRoute = () => {
+	if (!router.hasRoute('notFound')) {
+		router.addRoute(routes_404[0])
+	}
+}
 
 // 设置标题
 // document.title = sysBaseConfig.SNOWY_SYS_NAME
@@ -53,6 +61,26 @@ const exportWhiteListFromRouter = (router) => {
 	return res
 }
 const whiteList = exportWhiteListFromRouter(whiteListRouters)
+
+const getAuthenticatedMenu = async () => {
+	let apiMenu = tool.data.get('MENU') || []
+	if (apiMenu.length > 0) {
+		return apiMenu
+	}
+
+	try {
+		apiMenu = await userCenterApi.userLoginMenu()
+		if (Array.isArray(apiMenu) && apiMenu.length > 0) {
+			tool.data.set('MENU', apiMenu)
+			tool.data.set('SNOWY_MENU_MODULE_ID', apiMenu[0].id)
+			return apiMenu
+		}
+	} catch (error) {
+		console.error(error)
+	}
+
+	return []
+}
 
 router.beforeEach(async (to, from, next) => {
 
@@ -109,10 +137,17 @@ router.beforeEach(async (to, from, next) => {
 
 	// 加载动态/静态路由
 	if (!isGetRouter.value) {
-		const apiMenu = tool.data.get('MENU') || []
+		const apiMenu = await getAuthenticatedMenu()
 		if (apiMenu.length === 0) {
-			// 创建默认模块，显示默认菜单
-			apiMenu[0] = cloneDeep(userRoutes.module[0])
+			tool.data.remove('TOKEN')
+			tool.data.remove('USER_INFO')
+			tool.data.remove('MENU')
+			tool.data.remove('PERMISSIONS')
+			next({
+				path: '/login',
+				replace: true
+			})
+			return false
 		}
 		const childrenApiMenu = apiMenu[0].children
 		apiMenu[0].children = [...(childrenApiMenu ? childrenApiMenu : []), ...userRoutes.menu]
@@ -125,9 +160,16 @@ router.beforeEach(async (to, from, next) => {
 		const search_store = searchStore()
 		search_store.init(menuRouter)
 		isGetRouter.value = true
-		next({ ...to, replace: true })
+		addNotFoundRoute()
+		next({
+			path: to.path,
+			query: to.query,
+			hash: to.hash,
+			replace: true
+		})
 		return false
 	}
+	addNotFoundRoute()
 	beforeEach(to, from)
 	next()
 })

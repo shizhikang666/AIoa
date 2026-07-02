@@ -71,7 +71,7 @@ All routes are protected by `AuthMiddleware`.
 
 The sale-project foundation routes and copied-form product-list mutation are implemented. Broader side effects still remain intentionally deferred until separate feature-closure plans map their Java ownership paths:
 
-- Direct standalone product-item add/edit/delete routes, delivery invoice/invoice item, payment, expenditure, settlement-account, delivery, inventory, reissue-order, workflow, file cleanup, notification, and Java data-change event side effects. Return-order master/detail writes and sale-project invoice-application row add/edit/delete are covered separately.
+- Standalone invoice item writes, payment, expenditure, settlement-account, delivery-record, inventory, workflow, file cleanup, notification, and Java data-change event side effects. Direct standalone product-item add/edit/delete, return-order master/detail writes, sale-project invoice-application row add/edit/delete, direct delivery-invoice add/edit/delete with reverse correction, and direct reissue-order add/edit/delete are covered separately.
 
 ## Test Commands
 

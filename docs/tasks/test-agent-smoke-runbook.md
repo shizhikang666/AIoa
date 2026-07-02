@@ -166,7 +166,31 @@ Start the ThinkPHP server separately, then run:
 .\scripts\return-order-write-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
 ```
 
-This authenticated smoke creates a temporary sale project, warehouse, products, and shipped project product items, verifies no-token and validation guards for `/biz/returnorder/add`, verifies invalid-add rollback, verifies add/page/query/detail readback, verifies project return-total recalculation, verifies invalid edit rollback, verifies valid edit with child-row replacement, blocks edit/delete when a linked `ReturnAndRefund` expenditure exists, verifies mixed delete rollback, verifies final master/detail logical delete, confirms project totals return to the original values, and checks delivery, inventory, payment, expenditure, and statement table counts stay stable. It reads the local account from ignored `.env` and does not print tokens or credentials.
+This authenticated smoke creates a temporary sale project, warehouse, settlement account, products, and shipped project product items, verifies no-token and validation guards for `/biz/returnorder/add`, verifies invalid-add rollback, verifies add/page/query/detail readback, verifies direct add creates one return IN delivery row and increments inventory, verifies edit/delete are blocked once delivery rows exist, verifies `ReturnAndRefund` expense settlement updates return-order state and sale-project return totals, verifies over-refund rollback, and confirms only the expected expenditure/statement rows are created. It reads the local account from ignored `.env` and does not print tokens or credentials.
+
+## Workflow Project Return Approve HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\workflow-project-return-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+```
+
+This authenticated smoke creates temporary sale projects, warehouse, products, shipped project product items, and an active settlement account, verifies no-token and validation guards for `/biz/process/project/return/start`, verifies cancel/reject close without return-order, inventory, or finance side effects, verifies approval creates return-order/item rows plus Java-compatible return IN delivery rows, verifies inventory increment, verifies account-backed automatic `ReturnAndRefund` expenditure/statement rows and settlement-account decrement, verifies the return order is `AlreadySettled`, and verifies sale-project return/refund totals are recalculated. It reads the local account from ignored `.env` and does not print tokens or credentials.
+
+## Sales Approval Reject Side-Effect Matrix
+
+Start the ThinkPHP server separately, then run the approval-smoke set:
+
+```powershell
+.\scripts\workflow-project-init-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+.\scripts\workflow-project-delivery-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+.\scripts\workflow-project-play-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+.\scripts\workflow-project-reissue-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+.\scripts\workflow-project-return-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+```
+
+This matrix covers the visible sales approval reject/cancel paths that have bounded downstream side-effect maps. Project init cancel/reject must roll the sale project back to `FOLLOW`, keep `PROCESS_ID` empty, create no `SALE_PROJECT` file relations, and create no invoicing rows. Delivery cancel/reject must avoid delivery invoice rows, invoice item rows, delivery records, inventory decrement, sale-project delivery totals, and product-item delivery quantities. Play reject paths must avoid payment, statement, settlement-account, and project-collection side effects. Reissue reject must avoid reissue-order, reissue item, product-item relation, and downstream delivery/inventory side effects. Return reject must avoid return-order, return item, return IN delivery, inventory, finance, refund, and statement side effects. Each script reads the local account from ignored `.env` and does not print tokens or credentials.
 
 ## Sale Project Product Item Mutation HTTP Smoke
 
@@ -177,6 +201,36 @@ Start the ThinkPHP server separately, then run:
 ```
 
 This authenticated smoke creates a temporary customer, products, a kit-product child relation, and sale project, verifies no-token and invalid-product rollback for `/biz/saleproject/add`, verifies product-list add with direct and kit rows, verifies detail/product readback, verifies `/biz/saleproject/edit` update/insert/logical-delete behavior, verifies `productList = null` preserves active rows, blocks deletion when an active return-order item references a product item, verifies rollback, then clears unreferenced rows. It reads the local account from ignored `.env` and does not print tokens or credentials.
+
+## Sale Project Product Item Standalone HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\sale-project-product-item-standalone-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+```
+
+This authenticated smoke creates a temporary customer, `FOLLOW` sale project, products, and kit-product child relation, verifies no-token and missing-product guards for `/biz/saleprojectproductitem/add`, verifies standalone add/edit/delete with child relation preservation, blocks protected edits/deletes when a return-order item references the project product item, verifies the non-`FOLLOW` project guard, and checks delivery, inventory, invoice, finance, and workflow table counts stay stable. It reads the local account from ignored `.env` and does not print tokens or credentials.
+
+## Sale Project Reissue Order Add HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\sale-project-reissue-order-add-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+```
+
+This authenticated smoke creates temporary customer, product, sale-project, and workflow-history rows, verifies no-token and validation guards for `/biz/saleprojectreissueorder/add|edit|delete`, verifies workflow-owned `processId` rejection, verifies successful direct reissue order creation with one `REISSUE_ORDER`/`WAIT_DELIVER` project-product item and one child relation row, verifies duplicate `processId` rejection, verifies edit-time master/product-list replacement and old row logical delete, verifies mixed-delete rollback and final order/product/relation logical delete, checks sale-project total/status correction and `/biz/saleprojectreissueorder/list/query` readback before and after delete, and confirms delivery, inventory, invoice, invoicing, finance, settlement, and workflow row counts stay stable. It reads the local account from ignored `.env` and does not print tokens or credentials.
+
+## Sale Project Invoice Add/Edit/Delete HTTP Smoke
+
+Start the ThinkPHP server separately, then run:
+
+```powershell
+.\scripts\sale-project-invoice-add-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82
+```
+
+This authenticated smoke creates temporary customer, product, warehouse, inventory, and sale-project rows, verifies no-token and validation guards for `/biz/saleprojectinvoice/add`, `/edit`, and `/delete`, verifies successful direct delivery-invoice creation and logistics-field edit, verifies duplicate `processId` and mixed-delete rollback guards, checks project-product `DELIVERY`/`STATE` correction plus delete-time reverse correction, verifies sale-project shipment-state recalculation and `/biz/saleprojectinvoice/list` plus `/biz/saleprojectinvoiceItem/page` readback before and after delete, and confirms delivery-record, inventory, invoicing, finance, settlement, and workflow row counts stay stable. It reads the local account from ignored `.env` and does not print tokens or credentials.
 
 ## Optional File Relation HTTP Smoke
 
@@ -333,7 +387,10 @@ Add these only when a backend and frontend browser session are already available
 - optional gen-config HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -GenConfigHttpSmoke`
 - optional sale-project invoicing HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SaleProjectInvoicingHttpSmoke`
 - sale-project invoicing write HTTP smoke through `.\scripts\sale-project-invoicing-write-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+- workflow project return approve HTTP smoke through `.\scripts\workflow-project-return-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+- sales approval reject side-effect matrix through `.\scripts\workflow-project-init-approve-http-smoke.ps1`, `.\scripts\workflow-project-delivery-approve-http-smoke.ps1`, `.\scripts\workflow-project-play-approve-http-smoke.ps1`, `.\scripts\workflow-project-reissue-approve-http-smoke.ps1`, and `.\scripts\workflow-project-return-approve-http-smoke.ps1`
 - sale-project product-item mutation HTTP smoke through `.\scripts\sale-project-product-item-mutation-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+- sale-project product-item standalone HTTP smoke through `.\scripts\sale-project-product-item-standalone-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
 - optional file-relation HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -FileRelationHttpSmoke`
 - optional sys-module HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysModuleHttpSmoke`
 - optional sys-menu HTTP smoke through `.\scripts\test-agent-smoke.ps1 -SkipComposer -BackendBaseUrl http://127.0.0.1:82 -SysMenuHttpSmoke`

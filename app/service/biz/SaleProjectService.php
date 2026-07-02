@@ -41,6 +41,7 @@ class SaleProjectService
     private const USER_STATUS_ENABLE = 'ENABLE';
     private const PRODUCT_STATUS_ENABLE = 'ENABLE';
     private const PRODUCT_ITEM_CATEGORY_INIT = 'INIT';
+    private const PRODUCT_ITEM_CATEGORY_REISSUE_ORDER = 'REISSUE_ORDER';
     private const PRODUCT_ITEM_STATE_WAIT_DELIVER = 'WAIT_DELIVER';
     private const KIT_PRODUCT = 'KIT_PRODUCT';
     private const KIT_PRODUCT_DATA = 'KIT_PRODUCT_DATA';
@@ -389,6 +390,833 @@ SQL;
             }
 
             return null;
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function addProductItem(array $input, array $payload = []): array
+    {
+        $projectId = $this->requiredInputString($input, ['projectId', 'PROJECT_ID'], 'projectId');
+        $this->assertMaxLength($projectId, 'projectId', 20);
+
+        return Db::transaction(function () use ($input, $payload, $projectId): array {
+            $project = $this->standaloneProjectForProductItemWrite($projectId, $payload);
+            if ((string)($project['PROJECT_STATE'] ?? '') !== self::FOLLOW_STATE) {
+                throw new RuntimeException('sale project state is not FOLLOW', 400);
+            }
+
+            $tenantId = $this->writeTenantId($input, $payload, $project);
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            $itemInput = $input;
+            unset($itemInput['id'], $itemInput['ID']);
+            $itemInput['projectId'] = $projectId;
+
+            $items = $this->normalizedProductItems([$itemInput], $tenantId, [], $payload);
+            $item = $items[0];
+            $itemId = $this->newId();
+            $this->insertProductItem($projectId, $itemId, $item, $tenantId, $now, $currentUserId);
+            $this->replaceProductItemRelations($itemId, $item['children'], $tenantId, $now, $currentUserId);
+
+            return [
+                'id' => $itemId,
+                'projectId' => $projectId,
+                'productId' => $item['productId'],
+                'relationCount' => count($item['children']),
+            ];
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function addDeliveryInvoice(array $input, array $payload = []): array
+    {
+        $projectId = $this->requiredInputString($input, ['projectId', 'PROJECT_ID', 'bizSaleProjectId'], 'projectId');
+        $this->assertMaxLength($projectId, 'projectId', 20);
+        $processId = $this->requiredInputString($input, ['processId', 'PROCESS_ID'], 'processId');
+        $this->assertMaxLength($processId, 'processId', 80);
+        $productItemList = $this->deliveryProductItemListInput($input);
+
+        return Db::transaction(function () use ($input, $payload, $projectId, $processId, $productItemList): array {
+            $project = $this->projectQuery(['id' => $projectId], $payload)
+                ->field(
+                    'p.ID AS ID,' .
+                    'p.PROJECT_STATE AS PROJECT_STATE,' .
+                    'p.PLAY_STATE AS PLAY_STATE,' .
+                    'p.TENANT_ID AS TENANT_ID'
+                )
+                ->lock(true)
+                ->find();
+            if (!is_array($project) || $project === []) {
+                throw new RuntimeException('sale project not found', 404);
+            }
+            if ((string)($project['PROJECT_STATE'] ?? '') === self::FOLLOW_STATE) {
+                throw new RuntimeException('sale project state is FOLLOW', 400);
+            }
+
+            $tenantId = $this->writeTenantId($input, $payload, $project);
+            $existingQuery = Db::name('biz_sale_project_invoice')->where('PROCESS_ID', $processId);
+            $this->whereNotDeleted($existingQuery, 'DELETE_FLAG');
+            if ($tenantId !== '') {
+                $existingQuery->where('TENANT_ID', $tenantId);
+            }
+            if ((int)$existingQuery->count() > 0) {
+                throw new RuntimeException('sale project invoice processId already exists', 400);
+            }
+
+            $items = $this->workflowDeliveryItems($projectId, $productItemList, $tenantId, true);
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            if ($currentUserId === '') {
+                $currentUserId = $this->optionalInputString($input, ['createdUser', 'CREATE_USER', 'createUser']) ?? '';
+            }
+
+            $operator = $this->requiredInputString($input, ['operator', 'OPERATOR'], 'operator');
+            $this->assertMaxLength($operator, 'operator', 20);
+            $freightTime = $this->workflowDate($this->inputValue($input, ['freightTime', 'FREIGHT_TIME']), 'freightTime');
+            $invoiceId = $this->newId();
+
+            Db::name('biz_sale_project_invoice')->insert([
+                'ID' => $invoiceId,
+                'PROJECT_ID' => $projectId,
+                'PROCESS_ID' => $processId,
+                'CONSIGNEE' => $this->workflowRequiredText($this->inputValue($input, ['consignee', 'CONSIGNEE']), 'consignee', 255),
+                'LOGISTICS_CATEGORY' => $this->workflowRequiredText($this->inputValue($input, ['logisticsCategory', 'LOGISTICS_CATEGORY']), 'logisticsCategory', 20),
+                'PHONE' => $this->workflowRequiredText($this->inputValue($input, ['phone', 'PHONE']), 'phone', 255),
+                'LOGISTICS_ID' => $this->workflowRequiredText($this->inputValue($input, ['logisticsId', 'LOGISTICS_ID']), 'logisticsId', 20),
+                'FREIGHT' => $this->workflowMoney($this->inputValue($input, ['freight', 'FREIGHT']), 'freight', false),
+                'FREIGHT_TIME' => $freightTime,
+                'FREIGHT_CATEGORY' => $this->workflowRequiredText($this->inputValue($input, ['freightCategory', 'FREIGHT_CATEGORY']), 'freightCategory', 20),
+                'UNIT' => $this->workflowRequiredText($this->inputValue($input, ['unit', 'UNIT']), 'unit', 100),
+                'ADDRESS' => $this->workflowRequiredText($this->inputValue($input, ['address', 'ADDRESS']), 'address', 100),
+                'REMARK' => $this->workflowOptionalText($this->inputValue($input, ['remark', 'REMARK']), 'remark', 4000),
+                'CREATE_TIME' => $now,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                'UPDATE_TIME' => null,
+                'EXT_JSON' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId !== '' ? $tenantId : (string)($project['TENANT_ID'] ?? '1'),
+                'OPERATOR' => $operator,
+            ]);
+
+            $invoiceItemRows = [];
+            foreach ($items as $item) {
+                $invoiceItemRows[] = [
+                    'ID' => $this->newId(),
+                    'INVOICE_ID' => $invoiceId,
+                    'PROJECT_PRODUCT_ITEM_ID' => $item['projectProductItemId'],
+                    'WAREHOUSES_ID' => $item['warehousesId'],
+                    'AMOUNT' => $item['amount'],
+                    'REMARK' => $item['remark'] ?? '',
+                    'CREATE_TIME' => $now,
+                    'DELETE_FLAG' => self::NOT_DELETE,
+                    'CREATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                    'UPDATE_TIME' => null,
+                    'EXT_JSON' => null,
+                    'UPDATE_USER' => null,
+                    'TENANT_ID' => $tenantId !== '' ? $tenantId : (string)($project['TENANT_ID'] ?? '1'),
+                ];
+            }
+            Db::name('biz_sale_project_invoice_item')->insertAll($invoiceItemRows);
+
+            foreach ($items as $item) {
+                $projectItem = $item['projectItem'];
+                $nextDelivery = (float)$projectItem['DELIVERY'] + (float)$item['amount'];
+                $number = (float)$projectItem['NUMBER'];
+                $nextState = abs($nextDelivery - $number) < 0.000001
+                    ? self::SHIPPED_PRODUCT_ITEM_STATE
+                    : self::PART_WAIT_DELIVER_PRODUCT_ITEM_STATE;
+
+                $itemUpdate = Db::name('biz_sale_project_product_item')
+                    ->where('ID', (string)$projectItem['ID'])
+                    ->where('PROJECT_ID', $projectId);
+                $this->whereNotDeleted($itemUpdate, 'DELETE_FLAG');
+                if ($tenantId !== '') {
+                    $itemUpdate->where('TENANT_ID', $tenantId);
+                }
+                $itemUpdate->update([
+                    'DELIVERY' => $this->decimalStorage($nextDelivery),
+                    'STATE' => $nextState,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                    'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                ]);
+            }
+
+            $projectState = $this->correctedProjectState(
+                (string)($project['PLAY_STATE'] ?? ''),
+                $this->allProductItemsShipped($projectId, $tenantId)
+            );
+            $projectUpdate = Db::name('biz_sale_project')->where('ID', $projectId);
+            $this->whereNotDeleted($projectUpdate, 'DELETE_FLAG');
+            if ($tenantId !== '') {
+                $projectUpdate->where('TENANT_ID', $tenantId);
+            }
+            $projectUpdate->update([
+                'PROJECT_STATE' => $projectState,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+            ]);
+
+            return [
+                'id' => $invoiceId,
+                'projectId' => $projectId,
+                'invoiceId' => $invoiceId,
+                'invoiceItemCount' => count($invoiceItemRows),
+                'projectState' => $projectState,
+            ];
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function editDeliveryInvoice(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInputString($input, ['id', 'ID'], 'id');
+        $this->assertMaxLength($id, 'id', 20);
+        $projectId = $this->requiredInputString($input, ['projectId', 'PROJECT_ID', 'bizSaleProjectId'], 'projectId');
+        $this->assertMaxLength($projectId, 'projectId', 20);
+        $processId = $this->requiredInputString($input, ['processId', 'PROCESS_ID'], 'processId');
+        $this->assertMaxLength($processId, 'processId', 80);
+
+        return Db::transaction(function () use ($input, $payload, $id, $projectId, $processId): array {
+            $invoice = $this->deliveryInvoiceForWrite($id, $payload);
+            if ((string)$invoice['PROJECT_ID'] !== $projectId) {
+                throw new RuntimeException('invalid projectId', 400);
+            }
+
+            $tenantId = $this->writeTenantId($input, $payload, $invoice);
+            $existingQuery = Db::name('biz_sale_project_invoice')
+                ->where('PROCESS_ID', $processId)
+                ->where('ID', '<>', $id);
+            $this->whereNotDeleted($existingQuery, 'DELETE_FLAG');
+            if ($tenantId !== '') {
+                $existingQuery->where('TENANT_ID', $tenantId);
+            }
+            if ((int)$existingQuery->count() > 0) {
+                throw new RuntimeException('sale project invoice processId already exists', 400);
+            }
+
+            $oldProcessId = (string)($invoice['PROCESS_ID'] ?? '');
+            if ($processId !== $oldProcessId && $this->invoiceHasDeliveryRecords($oldProcessId, $tenantId)) {
+                throw new RuntimeException('sale project invoice has delivery records', 400);
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            Db::name('biz_sale_project_invoice')
+                ->where('ID', $id)
+                ->update([
+                    'PROCESS_ID' => $processId,
+                    'CONSIGNEE' => $this->workflowRequiredText($this->inputValue($input, ['consignee', 'CONSIGNEE']), 'consignee', 255),
+                    'LOGISTICS_CATEGORY' => $this->workflowRequiredText($this->inputValue($input, ['logisticsCategory', 'LOGISTICS_CATEGORY']), 'logisticsCategory', 20),
+                    'PHONE' => $this->workflowRequiredText($this->inputValue($input, ['phone', 'PHONE']), 'phone', 255),
+                    'LOGISTICS_ID' => $this->workflowRequiredText($this->inputValue($input, ['logisticsId', 'LOGISTICS_ID']), 'logisticsId', 20),
+                    'FREIGHT' => $this->workflowMoney($this->inputValue($input, ['freight', 'FREIGHT']), 'freight', false),
+                    'FREIGHT_TIME' => $this->workflowDate($this->inputValue($input, ['freightTime', 'FREIGHT_TIME']), 'freightTime'),
+                    'FREIGHT_CATEGORY' => $this->workflowRequiredText($this->inputValue($input, ['freightCategory', 'FREIGHT_CATEGORY']), 'freightCategory', 20),
+                    'UNIT' => $this->workflowRequiredText($this->inputValue($input, ['unit', 'UNIT']), 'unit', 100),
+                    'ADDRESS' => $this->workflowRequiredText($this->inputValue($input, ['address', 'ADDRESS']), 'address', 100),
+                    'REMARK' => $this->workflowRequiredText($this->inputValue($input, ['remark', 'REMARK']), 'remark', 4000),
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                ]);
+
+            return [
+                'id' => $id,
+                'projectId' => $projectId,
+                'processId' => $processId,
+            ];
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function deleteDeliveryInvoice(array $input, array $payload = []): array
+    {
+        $ids = $this->deliveryInvoiceDeleteInput($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $invoicesById = $this->deliveryInvoiceRowsForWrite($ids, $payload);
+            $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+            foreach ($invoicesById as $invoice) {
+                $tenantId = trim((string)($invoice['TENANT_ID'] ?? $invoice['PROJECT_TENANT_ID'] ?? ''));
+                if ($payloadTenantId !== '' && $tenantId !== $payloadTenantId) {
+                    throw new RuntimeException('tenant mismatch', 403);
+                }
+                if ($this->invoiceHasDeliveryRecords((string)($invoice['PROCESS_ID'] ?? ''), $tenantId)) {
+                    throw new RuntimeException('sale project invoice has delivery records', 400);
+                }
+            }
+
+            $itemQuery = Db::name('biz_sale_project_invoice_item')
+                ->whereIn('INVOICE_ID', $ids)
+                ->field('ID, INVOICE_ID, PROJECT_PRODUCT_ITEM_ID, AMOUNT, TENANT_ID')
+                ->lock(true);
+            $this->whereNotDeleted($itemQuery, 'DELETE_FLAG');
+            if ($payloadTenantId !== '') {
+                $itemQuery->where('TENANT_ID', $payloadTenantId);
+            }
+            $invoiceItems = $itemQuery->select()->toArray();
+
+            $projectItemIds = [];
+            foreach ($invoiceItems as $item) {
+                $projectItemIds[] = (string)$item['PROJECT_PRODUCT_ITEM_ID'];
+            }
+            $projectItemIds = array_values(array_unique(array_filter($projectItemIds)));
+
+            $projectItemsById = [];
+            if ($projectItemIds !== []) {
+                $projectItemQuery = Db::name('biz_sale_project_product_item')
+                    ->whereIn('ID', $projectItemIds)
+                    ->field('ID, PROJECT_ID, NUMBER, DELIVERY, STATE, TENANT_ID, VERSION')
+                    ->lock(true);
+                $this->whereNotDeleted($projectItemQuery, 'DELETE_FLAG');
+                if ($payloadTenantId !== '') {
+                    $projectItemQuery->where('TENANT_ID', $payloadTenantId);
+                }
+                foreach ($projectItemQuery->select()->toArray() as $row) {
+                    $projectItemsById[(string)$row['ID']] = $row;
+                }
+                if (count($projectItemsById) !== count($projectItemIds)) {
+                    throw new RuntimeException('project product item not found', 404);
+                }
+            }
+
+            $reverseByProjectItemId = [];
+            $projectRowsById = [];
+            foreach ($invoicesById as $invoice) {
+                $projectRowsById[(string)$invoice['PROJECT_ID']] = $invoice;
+            }
+            foreach ($invoiceItems as $item) {
+                $invoiceId = (string)$item['INVOICE_ID'];
+                $invoice = $invoicesById[$invoiceId] ?? null;
+                if (!is_array($invoice)) {
+                    throw new RuntimeException('sale project invoice item not found', 404);
+                }
+                $projectItemId = (string)$item['PROJECT_PRODUCT_ITEM_ID'];
+                $projectItem = $projectItemsById[$projectItemId] ?? null;
+                if (!is_array($projectItem)) {
+                    throw new RuntimeException('project product item not found', 404);
+                }
+                if ((string)$projectItem['PROJECT_ID'] !== (string)$invoice['PROJECT_ID']) {
+                    throw new RuntimeException('invalid invoice item project product item', 400);
+                }
+
+                $reverseByProjectItemId[$projectItemId] = ($reverseByProjectItemId[$projectItemId] ?? 0.0) + (float)$item['AMOUNT'];
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            foreach ($reverseByProjectItemId as $projectItemId => $amount) {
+                $projectItem = $projectItemsById[$projectItemId];
+                $nextDelivery = (float)$projectItem['DELIVERY'] - (float)$amount;
+                if ($nextDelivery < -0.000001) {
+                    throw new RuntimeException('delivery reverse would underflow project product item', 400);
+                }
+                if ($nextDelivery < 0.000001) {
+                    $nextDelivery = 0.0;
+                }
+                $number = (float)$projectItem['NUMBER'];
+                if ($nextDelivery <= 0.000001) {
+                    $nextState = self::PRODUCT_ITEM_STATE_WAIT_DELIVER;
+                } elseif ($nextDelivery + 0.000001 >= $number) {
+                    $nextState = self::SHIPPED_PRODUCT_ITEM_STATE;
+                } else {
+                    $nextState = self::PART_WAIT_DELIVER_PRODUCT_ITEM_STATE;
+                }
+
+                Db::name('biz_sale_project_product_item')
+                    ->where('ID', $projectItemId)
+                    ->update([
+                        'DELIVERY' => $this->decimalStorage($nextDelivery),
+                        'STATE' => $nextState,
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                        'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                    ]);
+            }
+
+            Db::name('biz_sale_project_invoice_item')
+                ->whereIn('INVOICE_ID', $ids)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                ]);
+            Db::name('biz_sale_project_invoice')
+                ->whereIn('ID', $ids)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                ]);
+
+            $projectStates = [];
+            foreach ($projectRowsById as $projectId => $project) {
+                $tenantId = trim((string)($project['TENANT_ID'] ?? $project['PROJECT_TENANT_ID'] ?? ''));
+                $projectState = $this->correctedProjectStateAfterDeliveryCorrection(
+                    $projectId,
+                    $tenantId,
+                    (string)($project['PROJECT_PLAY_STATE'] ?? '')
+                );
+                $projectQuery = Db::name('biz_sale_project')->where('ID', $projectId);
+                $this->whereNotDeleted($projectQuery, 'DELETE_FLAG');
+                if ($tenantId !== '') {
+                    $projectQuery->where('TENANT_ID', $tenantId);
+                }
+                $projectQuery->update([
+                    'PROJECT_STATE' => $projectState,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                    'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                ]);
+                $projectStates[$projectId] = $projectState;
+            }
+
+            return [
+                'ids' => $ids,
+                'count' => count($ids),
+                'invoiceItemCount' => count($invoiceItems),
+                'projectStates' => $projectStates,
+            ];
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function addReissueOrder(array $input, array $payload = []): array
+    {
+        $projectId = $this->requiredInputString($input, ['projectId', 'PROJECT_ID', 'bizSaleProjectId'], 'projectId');
+        $this->assertMaxLength($projectId, 'projectId', 20);
+        $processId = $this->requiredInputString($input, ['processId', 'PROCESS_ID'], 'processId');
+        $this->assertMaxLength($processId, 'processId', 80);
+        $amount = $this->requiredMoneyString($input, ['amount', 'AMOUNT'], 'amount');
+        $this->assertMaxLength($amount, 'amount', 32);
+        $remark = $this->hasInputKey($input, ['remark', 'REMARK'])
+            ? $this->nullableText($this->inputValue($input, ['remark', 'REMARK']), 'remark', 255)
+            : null;
+        $productList = $this->submittedProductList($input);
+        if ($productList === null || $productList === []) {
+            throw new RuntimeException('missing productList', 400);
+        }
+
+        return Db::transaction(function () use ($input, $payload, $projectId, $processId, $amount, $remark, $productList): array {
+            $project = $this->projectQuery(['id' => $projectId], $payload)
+                ->field(
+                    'p.ID AS ID,' .
+                    'p.PROJECT_STATE AS PROJECT_STATE,' .
+                    'p.PLAY_STATE AS PLAY_STATE,' .
+                    'p.INIT_PRICE AS INIT_PRICE,' .
+                    'p.HISTORY_AMOUNT AS HISTORY_AMOUNT,' .
+                    'p.TOTAL_RETURN_AMOUNT AS TOTAL_RETURN_AMOUNT,' .
+                    'p.TOTAL_REFUND_AMOUNT AS TOTAL_REFUND_AMOUNT,' .
+                    'p.TENANT_ID AS TENANT_ID'
+                )
+                ->lock(true)
+                ->find();
+            if (!is_array($project) || $project === []) {
+                throw new RuntimeException('sale project not found', 404);
+            }
+            if ((string)($project['PROJECT_STATE'] ?? '') === self::FOLLOW_STATE) {
+                throw new RuntimeException('sale project state is FOLLOW', 400);
+            }
+
+            $tenantId = $this->writeTenantId($input, $payload, $project);
+            if ($this->workflowProcessExists($processId, $tenantId)) {
+                throw new RuntimeException('sale project reissue order has workflow records', 400);
+            }
+
+            $existingQuery = Db::name('biz_sale_project_reissue_order')->where('PROCESS_ID', $processId);
+            $this->whereNotDeleted($existingQuery, 'DELETE_FLAG');
+            if ($tenantId !== '') {
+                $existingQuery->where('TENANT_ID', $tenantId);
+            }
+            if ((int)$existingQuery->count() > 0) {
+                throw new RuntimeException('sale project reissue order processId already exists', 400);
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            if ($currentUserId === '') {
+                $currentUserId = $this->optionalInputString($input, ['createdUser', 'CREATE_USER', 'createUser']) ?? '';
+            }
+            $items = $this->normalizedProductItems($productList, $tenantId, [], $payload);
+            $reissueOrderId = $this->newId();
+
+            Db::name('biz_sale_project_reissue_order')->insert([
+                'ID' => $reissueOrderId,
+                'PROJECT_ID' => $projectId,
+                'AMOUNT' => $this->moneyFromCents($this->moneyCents($amount)),
+                'PROCESS_ID' => $processId,
+                'REMARK' => $remark,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId !== '' ? $tenantId : (string)($project['TENANT_ID'] ?? '1'),
+            ]);
+
+            $counts = $this->insertReissueProductItems(
+                $projectId,
+                $reissueOrderId,
+                $items,
+                $tenantId,
+                $now,
+                $currentUserId
+            );
+
+            $totalPriceCents = 0;
+            $totalRefundCents = 0;
+            $totalReturnCents = 0;
+            $statusFields = [];
+            try {
+                [$totalPriceCents, $totalRefundCents, $totalReturnCents] = $this->correctedProjectTotals(
+                    $projectId,
+                    $tenantId,
+                    $this->moneyCents($project['INIT_PRICE'] ?? '0'),
+                    $this->moneyCents($project['TOTAL_REFUND_AMOUNT'] ?? '0'),
+                    $this->moneyCents($project['TOTAL_RETURN_AMOUNT'] ?? '0')
+                );
+                $statusFields = $this->projectPaymentStatusFields(
+                    $projectId,
+                    $tenantId,
+                    $totalPriceCents,
+                    $this->moneyCents($project['HISTORY_AMOUNT'] ?? '0')
+                );
+            } catch (RuntimeException $exception) {
+                if ($exception->getMessage() !== 'amount collected exceeds sale project total price') {
+                    throw $exception;
+                }
+                $statusFields = [
+                    'AMOUNT_COLLECTED' => $this->moneyFromCents(
+                        $this->sumProjectPaymentRecordCents($projectId, $tenantId)
+                        + $this->moneyCents($project['HISTORY_AMOUNT'] ?? '0')
+                    ),
+                    'PLAY_STATE' => (string)($project['PLAY_STATE'] ?? self::UNPAID_PLAY_STATE),
+                    'PROJECT_STATE' => $this->correctedProjectState(
+                        (string)($project['PLAY_STATE'] ?? self::UNPAID_PLAY_STATE),
+                        $this->allProductItemsShipped($projectId, $tenantId)
+                    ),
+                ];
+            }
+
+            $projectUpdate = array_merge($statusFields, [
+                'TOTAL_RETURN_AMOUNT' => $this->moneyFromCents($totalReturnCents),
+                'TOTAL_REFUND_AMOUNT' => $this->moneyFromCents($totalRefundCents),
+                'TOTAL_PRICE' => $this->moneyFromCents($totalPriceCents),
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                'VERSION' => Db::raw('VERSION + 1'),
+            ]);
+            $projectUpdateQuery = Db::name('biz_sale_project')->where('ID', $projectId);
+            $this->whereNotDeleted($projectUpdateQuery, 'DELETE_FLAG');
+            if ($tenantId !== '') {
+                $projectUpdateQuery->where('TENANT_ID', $tenantId);
+            }
+            $projectUpdateQuery->update($projectUpdate);
+
+            return [
+                'id' => $reissueOrderId,
+                'projectId' => $projectId,
+                'reissueOrderId' => $reissueOrderId,
+                'productItemCount' => $counts['productItemCount'],
+                'relationCount' => $counts['relationCount'],
+                'projectState' => $projectUpdate['PROJECT_STATE'],
+                'playState' => $projectUpdate['PLAY_STATE'],
+                'totalPrice' => $projectUpdate['TOTAL_PRICE'],
+            ];
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function editReissueOrder(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInputString($input, ['id', 'ID'], 'id');
+        $this->assertMaxLength($id, 'id', 20);
+        $projectId = $this->requiredInputString($input, ['projectId', 'PROJECT_ID', 'bizSaleProjectId'], 'projectId');
+        $this->assertMaxLength($projectId, 'projectId', 20);
+        $processId = $this->requiredInputString($input, ['processId', 'PROCESS_ID'], 'processId');
+        $this->assertMaxLength($processId, 'processId', 80);
+        $amount = $this->requiredMoneyString($input, ['amount', 'AMOUNT'], 'amount');
+        $this->assertMaxLength($amount, 'amount', 32);
+        $remark = $this->hasInputKey($input, ['remark', 'REMARK'])
+            ? $this->nullableText($this->inputValue($input, ['remark', 'REMARK']), 'remark', 255)
+            : null;
+        $productList = $this->submittedProductList($input);
+        if ($productList === null || $productList === []) {
+            throw new RuntimeException('missing productList', 400);
+        }
+
+        return Db::transaction(function () use ($input, $payload, $id, $projectId, $processId, $amount, $remark, $productList): array {
+            $order = $this->reissueOrderForWrite($id, $payload);
+            if ((string)$order['PROJECT_ID'] !== $projectId) {
+                throw new RuntimeException('invalid projectId', 400);
+            }
+            if ((string)($order['PROJECT_STATE'] ?? '') === self::FOLLOW_STATE) {
+                throw new RuntimeException('sale project state is FOLLOW', 400);
+            }
+
+            $tenantId = $this->writeTenantId($input, $payload, $order);
+            $this->assertDirectReissueOrderWritable($order, $tenantId);
+            if ($processId !== (string)($order['PROCESS_ID'] ?? '') && $this->workflowProcessExists($processId, $tenantId)) {
+                throw new RuntimeException('sale project reissue order has workflow records', 400);
+            }
+
+            $existingQuery = Db::name('biz_sale_project_reissue_order')
+                ->where('PROCESS_ID', $processId)
+                ->where('ID', '<>', $id);
+            $this->whereNotDeleted($existingQuery, 'DELETE_FLAG');
+            if ($tenantId !== '') {
+                $existingQuery->where('TENANT_ID', $tenantId);
+            }
+            if ((int)$existingQuery->count() > 0) {
+                throw new RuntimeException('sale project reissue order processId already exists', 400);
+            }
+
+            $existingProductItems = $this->reissueProductItemsForOrderIds([$id], $tenantId);
+            $this->assertReissueProductItemsWritable($existingProductItems, $tenantId);
+            $existingItemIds = $this->stringList(array_column($existingProductItems, 'ID'));
+            $items = $this->normalizedProductItems($productList, $tenantId, [], $payload);
+
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            $orderUpdate = Db::name('biz_sale_project_reissue_order')
+                ->where('ID', $id)
+                ->where('PROJECT_ID', $projectId);
+            $this->whereNotDeleted($orderUpdate, 'DELETE_FLAG');
+            if ($tenantId !== '') {
+                $orderUpdate->where('TENANT_ID', $tenantId);
+            }
+            $orderUpdate->update([
+                'PROCESS_ID' => $processId,
+                'AMOUNT' => $this->moneyFromCents($this->moneyCents($amount)),
+                'REMARK' => $remark,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+            ]);
+
+            $this->softDeleteProductItemRelations($existingItemIds, $tenantId, $now, $currentUserId);
+            $this->softDeleteProductItems($existingItemIds, $tenantId, $now, $currentUserId);
+            $counts = $this->insertReissueProductItems($projectId, $id, $items, $tenantId, $now, $currentUserId);
+            $projectUpdate = $this->recalculateReissueProjectTotals($order, $projectId, $tenantId, $now, $currentUserId, false);
+
+            return [
+                'id' => $id,
+                'projectId' => $projectId,
+                'reissueOrderId' => $id,
+                'productItemCount' => $counts['productItemCount'],
+                'relationCount' => $counts['relationCount'],
+                'projectState' => $projectUpdate['PROJECT_STATE'],
+                'playState' => $projectUpdate['PLAY_STATE'],
+                'totalPrice' => $projectUpdate['TOTAL_PRICE'],
+            ];
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function deleteReissueOrder(array $input, array $payload = []): array
+    {
+        $ids = $this->reissueOrderDeleteInput($input);
+
+        return Db::transaction(function () use ($ids, $payload): array {
+            $ordersById = $this->reissueOrderRowsForWrite($ids, $payload);
+            $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+            $projectRowsById = [];
+            foreach ($ordersById as $order) {
+                $tenantId = trim((string)($order['TENANT_ID'] ?? $order['PROJECT_TENANT_ID'] ?? ''));
+                if ($payloadTenantId !== '' && $tenantId !== $payloadTenantId) {
+                    throw new RuntimeException('tenant mismatch', 403);
+                }
+                if ((string)($order['PROJECT_STATE'] ?? '') === self::FOLLOW_STATE) {
+                    throw new RuntimeException('sale project state is FOLLOW', 400);
+                }
+                $this->assertDirectReissueOrderWritable($order, $tenantId);
+                $projectRowsById[(string)$order['PROJECT_ID']] = $order;
+            }
+
+            $productItems = $this->reissueProductItemsForOrderIds($ids, $payloadTenantId);
+            $itemIds = $this->stringList(array_column($productItems, 'ID'));
+            $this->assertReissueProductItemsWritable($productItems, $payloadTenantId);
+            $relationCount = $this->reissueProductItemRelationCountByItemIds($itemIds, $payloadTenantId);
+
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            $this->softDeleteProductItemRelations($itemIds, $payloadTenantId, $now, $currentUserId);
+            $this->softDeleteProductItems($itemIds, $payloadTenantId, $now, $currentUserId);
+
+            $orderDelete = Db::name('biz_sale_project_reissue_order')->whereIn('ID', $ids);
+            $this->whereNotDeleted($orderDelete, 'DELETE_FLAG');
+            if ($payloadTenantId !== '') {
+                $orderDelete->where('TENANT_ID', $payloadTenantId);
+            }
+            $orderDelete->update([
+                'DELETE_FLAG' => self::DELETED,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+            ]);
+
+            $projectStates = [];
+            $projectUpdates = [];
+            foreach ($projectRowsById as $projectId => $project) {
+                $tenantId = trim((string)($project['TENANT_ID'] ?? $project['PROJECT_TENANT_ID'] ?? ''));
+                $projectUpdate = $this->recalculateReissueProjectTotals($project, $projectId, $tenantId, $now, $currentUserId, true);
+                $projectStates[$projectId] = $projectUpdate['PROJECT_STATE'];
+                $projectUpdates[$projectId] = [
+                    'projectState' => $projectUpdate['PROJECT_STATE'],
+                    'playState' => $projectUpdate['PLAY_STATE'],
+                    'totalPrice' => $projectUpdate['TOTAL_PRICE'],
+                ];
+            }
+
+            return [
+                'ids' => $ids,
+                'count' => count($ids),
+                'productItemCount' => count($itemIds),
+                'relationCount' => $relationCount,
+                'projectStates' => $projectStates,
+                'projects' => $projectUpdates,
+            ];
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function editProductItem(array $input, array $payload = []): array
+    {
+        $itemId = $this->requiredInputString($input, ['id', 'ID'], 'id');
+        $this->assertMaxLength($itemId, 'id', 20);
+
+        return Db::transaction(function () use ($input, $payload, $itemId): array {
+            $existing = $this->standaloneProductItemForWrite($itemId, $payload);
+            if ((string)($existing['PROJECT_STATE'] ?? '') !== self::FOLLOW_STATE) {
+                throw new RuntimeException('sale project state is not FOLLOW', 400);
+            }
+
+            $submittedProjectId = $this->optionalInputString($input, ['projectId', 'PROJECT_ID']);
+            $projectId = (string)($existing['PROJECT_ID'] ?? '');
+            if ($submittedProjectId !== null && $submittedProjectId !== $projectId) {
+                throw new RuntimeException('invalid projectId', 400);
+            }
+
+            $tenantId = $this->writeTenantId($input, $payload, $existing);
+            $productId = $this->optionalInputString($input, ['productId', 'PRODUCT_ID', 'targetId', 'TARGET_ID'])
+                ?? (string)($existing['PRODUCT_ID'] ?? '');
+            $productChanged = $productId !== (string)($existing['PRODUCT_ID'] ?? '');
+
+            $itemInput = [
+                'id' => $itemId,
+                'projectId' => $projectId,
+                'productId' => $productId,
+                'number' => $this->hasInputKey($input, ['number', 'NUMBER']) ? $this->inputValue($input, ['number', 'NUMBER']) : ($existing['NUMBER'] ?? null),
+                'unitPrice' => $this->hasInputKey($input, ['unitPrice', 'UNIT_PRICE']) ? $this->inputValue($input, ['unitPrice', 'UNIT_PRICE']) : ($existing['UNIT_PRICE'] ?? null),
+                'discountRate' => $this->hasInputKey($input, ['discountRate', 'DISCOUNT_RATE']) ? $this->inputValue($input, ['discountRate', 'DISCOUNT_RATE']) : ($existing['DISCOUNT_RATE'] ?? null),
+                'price' => $this->hasInputKey($input, ['price', 'PRICE']) ? $this->inputValue($input, ['price', 'PRICE']) : ($existing['PRICE'] ?? null),
+                'remark' => $this->hasInputKey($input, ['remark', 'REMARK']) ? $this->inputValue($input, ['remark', 'REMARK']) : ($existing['REMARK'] ?? null),
+            ];
+
+            if ($this->hasInputKey($input, ['children'])) {
+                $itemInput['children'] = $this->inputValue($input, ['children']);
+            } elseif (!$productChanged) {
+                $itemInput['children'] = $this->currentProductItemChildren($itemId, $tenantId);
+            }
+
+            $items = $this->normalizedProductItems([$itemInput], $tenantId, [$itemId => $existing], $payload);
+            $item = $items[0];
+            $referencedIds = $this->referencedProductItemIds([$itemId], $tenantId);
+            $hasDelivery = (float)($existing['DELIVERY'] ?? 0) > 0.000001;
+            $childrenChanged = $this->productItemChildrenChanged($itemId, $item['children'], $tenantId);
+            if ((isset($referencedIds[$itemId]) || $hasDelivery)
+                && ($this->protectedProductItemChanged($existing, $item) || $childrenChanged)) {
+                throw new RuntimeException('sale project product item is referenced', 400);
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            if (isset($referencedIds[$itemId]) || $hasDelivery) {
+                $this->updateProductItemRemarkOnly($itemId, $item, $tenantId, $now, $currentUserId);
+            } else {
+                $this->updateProductItem($itemId, $item, $tenantId, $now, $currentUserId);
+                $this->replaceProductItemRelations($itemId, $item['children'], $tenantId, $now, $currentUserId);
+            }
+
+            return [
+                'id' => $itemId,
+                'projectId' => $projectId,
+                'productId' => $item['productId'],
+                'relationCount' => count($item['children']),
+            ];
+        });
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    public function deleteProductItems(array $input, array $payload = []): array
+    {
+        $ids = $this->standaloneProductItemDeleteInput($input);
+
+        return Db::transaction(function () use ($input, $payload, $ids): array {
+            $rowsById = $this->standaloneProductItemsForWrite($ids, $payload);
+            $referencedIds = $this->referencedProductItemIds($ids, '');
+            $idsByTenant = [];
+            foreach ($ids as $id) {
+                $row = $rowsById[$id];
+                $this->writeTenantId($input, $payload, $row);
+                if ((string)($row['PROJECT_STATE'] ?? '') !== self::FOLLOW_STATE) {
+                    throw new RuntimeException('sale project state is not FOLLOW', 400);
+                }
+                if (isset($referencedIds[$id]) || (float)($row['DELIVERY'] ?? 0) > 0.000001) {
+                    throw new RuntimeException('sale project product item is referenced', 400);
+                }
+
+                $tenantId = trim((string)($row['TENANT_ID'] ?? ''));
+                $idsByTenant[$tenantId][] = $id;
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            foreach ($idsByTenant as $tenantId => $tenantIds) {
+                $this->softDeleteProductItemRelations($tenantIds, (string)$tenantId, $now, $currentUserId);
+                $this->softDeleteProductItems($tenantIds, (string)$tenantId, $now, $currentUserId);
+            }
+
+            return [
+                'count' => count($ids),
+                'ids' => $ids,
+            ];
         });
     }
 
@@ -1045,6 +1873,28 @@ SQL;
     }
 
     /**
+     * @param array<int, array<string, mixed>> $productList
+     * @return array<string, mixed>
+     */
+    public function workflowProjectReissueStartInfo(
+        string $projectId,
+        array $productList,
+        array $payload = [],
+        string $tenantId = ''
+    ): array {
+        $project = $this->workflowProjectStartInfo($projectId, $payload, $tenantId);
+        if ((string)($project['PROJECT_STATE'] ?? '') === self::FOLLOW_STATE) {
+            throw new RuntimeException('sale project state is FOLLOW', 400);
+        }
+
+        $effectiveTenantId = trim((string)($tenantId !== '' ? $tenantId : ($project['TENANT_ID'] ?? '')));
+        $items = $this->normalizedProductItems($productList, $effectiveTenantId, [], $payload);
+        $project['PRODUCT_ITEM_COUNT'] = count($items);
+
+        return $project;
+    }
+
+    /**
      * @param array<string, mixed> $variables
      * @return array<string, mixed>
      */
@@ -1077,6 +1927,87 @@ SQL;
                 'id' => $projectId,
                 'projectId' => $projectId,
                 'projectState' => $state,
+            ];
+        });
+    }
+
+    /**
+     * @param array<string, mixed> $variables
+     * @return array<string, mixed>
+     */
+    public function applyProjectReissueFromWorkflow(
+        array $variables,
+        string $processInstanceId,
+        string $tenantId = '',
+        string $currentUserId = ''
+    ): array {
+        $projectId = $this->workflowProjectId($variables);
+
+        return Db::transaction(function () use ($variables, $processInstanceId, $tenantId, $currentUserId, $projectId): array {
+            $project = $this->workflowProjectForUpdate($projectId, $tenantId);
+            if ((string)($project['PROJECT_STATE'] ?? '') === self::FOLLOW_STATE) {
+                throw new RuntimeException('sale project state is FOLLOW', 400);
+            }
+
+            $effectiveTenantId = trim((string)($tenantId !== '' ? $tenantId : ($project['TENANT_ID'] ?? '')));
+            $existingOrderQuery = Db::name('biz_sale_project_reissue_order')->where('PROCESS_ID', $processInstanceId);
+            $this->whereNotDeleted($existingOrderQuery, 'DELETE_FLAG');
+            if ($effectiveTenantId !== '') {
+                $existingOrderQuery->where('TENANT_ID', $effectiveTenantId);
+            }
+            $existingOrder = $existingOrderQuery->field('ID')->find();
+            if (is_array($existingOrder) && $existingOrder !== []) {
+                $reissueOrderId = (string)$existingOrder['ID'];
+
+                return [
+                    'id' => $reissueOrderId,
+                    'projectId' => $projectId,
+                    'reissueOrderId' => $reissueOrderId,
+                    'productItemCount' => $this->reissueProductItemCount($reissueOrderId, $projectId, $effectiveTenantId),
+                    'relationCount' => $this->reissueProductItemRelationCount($reissueOrderId, $projectId, $effectiveTenantId),
+                ];
+            }
+
+            $productList = $this->workflowList($variables['productList'] ?? null, 'productList');
+            if ($productList === []) {
+                throw new RuntimeException('missing productList', 400);
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $auditUser = $currentUserId !== '' ? $currentUserId : trim((string)($variables['initiator'] ?? ''));
+            $productPayload = $effectiveTenantId !== '' ? ['tenant_id' => $effectiveTenantId] : [];
+            $items = $this->normalizedProductItems($productList, $effectiveTenantId, [], $productPayload);
+            $reissueOrderId = $this->newId();
+
+            Db::name('biz_sale_project_reissue_order')->insert([
+                'ID' => $reissueOrderId,
+                'PROJECT_ID' => $projectId,
+                'AMOUNT' => $this->workflowMoney($variables['amount'] ?? null, 'amount', false),
+                'PROCESS_ID' => $processInstanceId,
+                'REMARK' => $this->workflowOptionalText($variables['remark'] ?? null, 'remark', 255),
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $auditUser !== '' ? $auditUser : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $effectiveTenantId !== '' ? $effectiveTenantId : (string)($project['TENANT_ID'] ?? '1'),
+            ]);
+
+            $counts = $this->insertReissueProductItems(
+                $projectId,
+                $reissueOrderId,
+                $items,
+                $effectiveTenantId,
+                $now,
+                $auditUser
+            );
+
+            return [
+                'id' => $reissueOrderId,
+                'projectId' => $projectId,
+                'reissueOrderId' => $reissueOrderId,
+                'productItemCount' => $counts['productItemCount'],
+                'relationCount' => $counts['relationCount'],
             ];
         });
     }
@@ -2121,6 +3052,412 @@ SQL)
     }
 
     /**
+     * @param array<string|int, mixed> $input
+     * @return array<int, array<string, mixed>>
+     */
+    private function deliveryProductItemListInput(array $input): array
+    {
+        if (!$this->hasInputKey($input, ['projectProductItemList', 'PROJECT_PRODUCT_ITEM_LIST', 'productItemList', 'productList'])) {
+            throw new RuntimeException('missing projectProductItemList', 400);
+        }
+
+        $items = $this->workflowList(
+            $this->inputValue($input, ['projectProductItemList', 'PROJECT_PRODUCT_ITEM_LIST', 'productItemList', 'productList']),
+            'projectProductItemList'
+        );
+        if ($items === []) {
+            throw new RuntimeException('missing projectProductItemList', 400);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @return array<int, string>
+     */
+    private function deliveryInvoiceDeleteInput(array $input): array
+    {
+        $source = null;
+        if ($this->isListArray($input)) {
+            $source = $input;
+        } elseif (isset($input['items']) && is_array($input['items'])) {
+            $source = $input['items'];
+        } elseif (isset($input['ids'])) {
+            $source = $input['ids'];
+        } elseif (isset($input['idList'])) {
+            $source = $input['idList'];
+        } elseif ($this->hasInputKey($input, ['id', 'ID'])) {
+            $source = [$input];
+        }
+
+        if (is_string($source)) {
+            $source = explode(',', $source);
+        }
+        if (!is_array($source)) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $ids = [];
+        foreach ($source as $item) {
+            if (is_array($item)) {
+                $id = $this->requiredInputString($item, ['id', 'ID'], 'id');
+            } else {
+                $id = trim((string)$item);
+                if ($id === '') {
+                    throw new RuntimeException('missing id', 400);
+                }
+            }
+            $this->assertMaxLength($id, 'id', 20);
+            $ids[] = $id;
+        }
+
+        $ids = array_values(array_unique($ids));
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function deliveryInvoiceForWrite(string $id, array $payload): array
+    {
+        $rows = $this->deliveryInvoiceRowsForWrite([$id], $payload);
+
+        return $rows[$id];
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<string, array<string, mixed>>
+     */
+    private function deliveryInvoiceRowsForWrite(array $ids, array $payload): array
+    {
+        $idList = array_values(array_unique(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $ids))));
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+        foreach ($idList as $id) {
+            $this->assertMaxLength($id, 'id', 20);
+        }
+
+        $query = Db::name('biz_sale_project_invoice')
+            ->alias('v')
+            ->join('biz_sale_project p', 'p.ID = v.PROJECT_ID', 'INNER')
+            ->whereIn('v.ID', $idList)
+            ->field(
+                'v.ID AS ID,' .
+                'v.PROJECT_ID AS PROJECT_ID,' .
+                'v.PROCESS_ID AS PROCESS_ID,' .
+                'v.TENANT_ID AS TENANT_ID,' .
+                'p.PROJECT_STATE AS PROJECT_STATE,' .
+                'p.PLAY_STATE AS PROJECT_PLAY_STATE,' .
+                'p.TENANT_ID AS PROJECT_TENANT_ID'
+            )
+            ->lock(true);
+        $this->whereNotDeleted($query, 'v.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('v.TENANT_ID', $tenantId);
+        }
+        $this->applyDataScope($query, [], $payload);
+
+        $rowsById = [];
+        foreach ($query->select()->toArray() as $row) {
+            $rowsById[(string)$row['ID']] = $row;
+        }
+        if (count($rowsById) !== count($idList)) {
+            throw new RuntimeException('sale project invoice not found', 404);
+        }
+
+        return $rowsById;
+    }
+
+    private function invoiceHasDeliveryRecords(string $processId, string $tenantId): bool
+    {
+        $processId = trim($processId);
+        if ($processId === '') {
+            return false;
+        }
+
+        $query = Db::name('delivery_record')->where('PROCESS_ID', $processId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return (int)$query->count() > 0;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @return array<int, string>
+     */
+    private function reissueOrderDeleteInput(array $input): array
+    {
+        $source = null;
+        if ($this->isListArray($input)) {
+            $source = $input;
+        } elseif (isset($input['items']) && is_array($input['items'])) {
+            $source = $input['items'];
+        } elseif (isset($input['ids'])) {
+            $source = $input['ids'];
+        } elseif (isset($input['idList'])) {
+            $source = $input['idList'];
+        } elseif ($this->hasInputKey($input, ['id', 'ID'])) {
+            $source = [$input];
+        }
+
+        if (is_string($source)) {
+            $source = explode(',', $source);
+        }
+        if (!is_array($source)) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $ids = [];
+        foreach ($source as $item) {
+            if (is_array($item)) {
+                $id = $this->requiredInputString($item, ['id', 'ID'], 'id');
+            } else {
+                $id = trim((string)$item);
+                if ($id === '') {
+                    throw new RuntimeException('missing id', 400);
+                }
+            }
+            $this->assertMaxLength($id, 'id', 20);
+            $ids[] = $id;
+        }
+
+        $ids = array_values(array_unique($ids));
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function reissueOrderForWrite(string $id, array $payload): array
+    {
+        $rows = $this->reissueOrderRowsForWrite([$id], $payload);
+
+        return $rows[$id];
+    }
+
+    /**
+     * @param array<int, string> $ids
+     * @return array<string, array<string, mixed>>
+     */
+    private function reissueOrderRowsForWrite(array $ids, array $payload): array
+    {
+        $idList = array_values(array_unique(array_filter(array_map(static fn (mixed $id): string => trim((string)$id), $ids))));
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+        foreach ($idList as $id) {
+            $this->assertMaxLength($id, 'id', 20);
+        }
+
+        $query = Db::name('biz_sale_project_reissue_order')
+            ->alias('o')
+            ->join('biz_sale_project p', 'p.ID = o.PROJECT_ID', 'INNER')
+            ->whereIn('o.ID', $idList)
+            ->field(
+                'o.ID AS ID,' .
+                'o.PROJECT_ID AS PROJECT_ID,' .
+                'o.PROCESS_ID AS PROCESS_ID,' .
+                'o.AMOUNT AS AMOUNT,' .
+                'o.TENANT_ID AS TENANT_ID,' .
+                'p.PROJECT_STATE AS PROJECT_STATE,' .
+                'p.PLAY_STATE AS PROJECT_PLAY_STATE,' .
+                'p.INIT_PRICE AS INIT_PRICE,' .
+                'p.HISTORY_AMOUNT AS HISTORY_AMOUNT,' .
+                'p.TOTAL_RETURN_AMOUNT AS TOTAL_RETURN_AMOUNT,' .
+                'p.TOTAL_REFUND_AMOUNT AS TOTAL_REFUND_AMOUNT,' .
+                'p.TENANT_ID AS PROJECT_TENANT_ID'
+            )
+            ->lock(true);
+        $this->whereNotDeleted($query, 'o.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('o.TENANT_ID', $tenantId);
+        }
+        $this->applyDataScope($query, [], $payload);
+
+        $rowsById = [];
+        foreach ($query->select()->toArray() as $row) {
+            $rowsById[(string)$row['ID']] = $row;
+        }
+        if (count($rowsById) !== count($idList)) {
+            throw new RuntimeException('sale project reissue order not found', 404);
+        }
+
+        return $rowsById;
+    }
+
+    private function workflowProcessExists(string $processId, string $tenantId): bool
+    {
+        $processId = trim($processId);
+        if ($processId === '') {
+            return false;
+        }
+
+        $query = Db::name('act_hi_procinst')->where('PROC_INST_ID_', $processId);
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID_', $tenantId);
+        }
+
+        return (int)$query->count() > 0;
+    }
+
+    /**
+     * @param array<string, mixed> $order
+     */
+    private function assertDirectReissueOrderWritable(array $order, string $tenantId): void
+    {
+        if ($this->workflowProcessExists((string)($order['PROCESS_ID'] ?? ''), $tenantId)) {
+            throw new RuntimeException('sale project reissue order has workflow records', 400);
+        }
+    }
+
+    /**
+     * @param array<int, string> $orderIds
+     * @return array<int, array<string, mixed>>
+     */
+    private function reissueProductItemsForOrderIds(array $orderIds, string $tenantId): array
+    {
+        $ids = $this->stringList($orderIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $query = Db::name('biz_sale_project_product_item')
+            ->whereIn('PROJECT_REISSUE_ORDER_ID', $ids)
+            ->field('ID,PROJECT_ID,PRODUCT_ID,CATEGORY,STATE,NUMBER,DELIVERY,TENANT_ID,PROJECT_REISSUE_ORDER_ID')
+            ->lock(true);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return $query->order('ID', 'asc')->select()->toArray();
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    private function assertReissueProductItemsWritable(array $items, string $tenantId): void
+    {
+        $itemIds = $this->stringList(array_column($items, 'ID'));
+        $referencedIds = $this->referencedProductItemIds($itemIds, $tenantId);
+        foreach ($items as $item) {
+            $itemId = (string)($item['ID'] ?? '');
+            if ((string)($item['CATEGORY'] ?? '') !== self::PRODUCT_ITEM_CATEGORY_REISSUE_ORDER
+                || (float)($item['DELIVERY'] ?? 0) > 0.000001
+                || (string)($item['STATE'] ?? '') !== self::PRODUCT_ITEM_STATE_WAIT_DELIVER
+                || isset($referencedIds[$itemId])) {
+                throw new RuntimeException('sale project reissue product item is referenced', 400);
+            }
+        }
+    }
+
+    /**
+     * @param array<int, string> $itemIds
+     */
+    private function reissueProductItemRelationCountByItemIds(array $itemIds, string $tenantId): int
+    {
+        $ids = $this->stringList($itemIds);
+        if ($ids === []) {
+            return 0;
+        }
+
+        $query = Db::name('sale_project_product_item_relation')->whereIn('OBJECT_ID', $ids);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return (int)$query->count();
+    }
+
+    /**
+     * @param array<string, mixed> $project
+     * @return array<string, string>
+     */
+    private function recalculateReissueProjectTotals(
+        array $project,
+        string $projectId,
+        string $tenantId,
+        string $now,
+        string $currentUserId,
+        bool $preferDeliveryCorrection
+    ): array {
+        $totalPriceCents = 0;
+        $totalRefundCents = 0;
+        $totalReturnCents = 0;
+        $statusFields = [];
+        try {
+            [$totalPriceCents, $totalRefundCents, $totalReturnCents] = $this->correctedProjectTotals(
+                $projectId,
+                $tenantId,
+                $this->moneyCents($project['INIT_PRICE'] ?? '0'),
+                $this->moneyCents($project['TOTAL_REFUND_AMOUNT'] ?? '0'),
+                $this->moneyCents($project['TOTAL_RETURN_AMOUNT'] ?? '0')
+            );
+            $statusFields = $this->projectPaymentStatusFields(
+                $projectId,
+                $tenantId,
+                $totalPriceCents,
+                $this->moneyCents($project['HISTORY_AMOUNT'] ?? '0')
+            );
+        } catch (RuntimeException $exception) {
+            if ($exception->getMessage() !== 'amount collected exceeds sale project total price') {
+                throw $exception;
+            }
+            $playState = (string)($project['PROJECT_PLAY_STATE'] ?? $project['PLAY_STATE'] ?? self::UNPAID_PLAY_STATE);
+            $statusFields = [
+                'AMOUNT_COLLECTED' => $this->moneyFromCents(
+                    $this->sumProjectPaymentRecordCents($projectId, $tenantId)
+                    + $this->moneyCents($project['HISTORY_AMOUNT'] ?? '0')
+                ),
+                'PLAY_STATE' => $playState,
+                'PROJECT_STATE' => $this->correctedProjectState($playState, $this->allProductItemsShipped($projectId, $tenantId)),
+            ];
+        }
+
+        if ($preferDeliveryCorrection) {
+            $statusFields['PROJECT_STATE'] = $this->hasActiveProjectProductItems($projectId, $tenantId)
+                ? $this->correctedProjectStateAfterDeliveryCorrection($projectId, $tenantId, $statusFields['PLAY_STATE'])
+                : self::WAIT_DELIVER_STATE;
+        }
+
+        $projectUpdate = array_merge($statusFields, [
+            'TOTAL_RETURN_AMOUNT' => $this->moneyFromCents($totalReturnCents),
+            'TOTAL_REFUND_AMOUNT' => $this->moneyFromCents($totalRefundCents),
+            'TOTAL_PRICE' => $this->moneyFromCents($totalPriceCents),
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+            'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+        ]);
+        $projectUpdateQuery = Db::name('biz_sale_project')->where('ID', $projectId);
+        $this->whereNotDeleted($projectUpdateQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $projectUpdateQuery->where('TENANT_ID', $tenantId);
+        }
+        $projectUpdateQuery->update($projectUpdate);
+
+        return $projectUpdate;
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $productList
      */
     private function syncProductItems(
@@ -2198,6 +3535,147 @@ SQL)
         }
 
         return $query->order('ID', 'asc')->select()->toArray();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function standaloneProjectForProductItemWrite(string $projectId, array $payload): array
+    {
+        $project = $this->projectQuery(['id' => $projectId], $payload)
+            ->field('p.ID AS ID, p.PROJECT_STATE AS PROJECT_STATE, p.TENANT_ID AS TENANT_ID')
+            ->lock(true)
+            ->find();
+        if (!is_array($project) || $project === []) {
+            throw new RuntimeException('sale project not found', 404);
+        }
+
+        return $project;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function standaloneProductItemForWrite(string $itemId, array $payload): array
+    {
+        $rows = $this->standaloneProductItemsForWrite([$itemId], $payload);
+
+        return $rows[$itemId];
+    }
+
+    /**
+     * @param array<int, string> $itemIds
+     * @return array<string, array<string, mixed>>
+     */
+    private function standaloneProductItemsForWrite(array $itemIds, array $payload): array
+    {
+        $ids = $this->stringList($itemIds);
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $query = Db::name('biz_sale_project_product_item')
+            ->alias('i')
+            ->join('biz_sale_project p', 'p.ID = i.PROJECT_ID', 'INNER')
+            ->whereIn('i.ID', $ids)
+            ->field('i.*, p.PROJECT_STATE AS PROJECT_STATE, p.TENANT_ID AS PROJECT_TENANT_ID')
+            ->lock(true);
+        $this->whereNotDeleted($query, 'i.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'p.DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('i.TENANT_ID', $tenantId);
+        }
+        $this->applyDataScope($query, [], $payload);
+
+        $rowsById = [];
+        foreach ($query->select()->toArray() as $row) {
+            $rowsById[(string)$row['ID']] = $row;
+        }
+        if (count($rowsById) !== count($ids)) {
+            throw new RuntimeException('sale project product item not found', 404);
+        }
+
+        return $rowsById;
+    }
+
+    /**
+     * @param array<string|int, mixed> $input
+     * @return array<int, string>
+     */
+    private function standaloneProductItemDeleteInput(array $input): array
+    {
+        $source = null;
+        if ($this->isListArray($input)) {
+            $source = $input;
+        } elseif (isset($input['items']) && is_array($input['items'])) {
+            $source = $input['items'];
+        } elseif (isset($input['ids'])) {
+            $source = $input['ids'];
+        } elseif (isset($input['idList'])) {
+            $source = $input['idList'];
+        } elseif ($this->hasInputKey($input, ['id', 'ID'])) {
+            $source = [$input];
+        }
+
+        if (is_string($source)) {
+            $source = explode(',', $source);
+        }
+        if (!is_array($source)) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        $ids = [];
+        foreach ($source as $item) {
+            if (is_array($item)) {
+                $id = $this->requiredInputString($item, ['id', 'ID'], 'id');
+            } else {
+                $id = trim((string)$item);
+                if ($id === '') {
+                    throw new RuntimeException('missing id', 400);
+                }
+            }
+
+            $this->assertMaxLength($id, 'id', 20);
+            $ids[] = $id;
+        }
+
+        $ids = array_values(array_unique($ids));
+        if ($ids === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array<int, array{productId: string, number: string, remark: ?string, mark: string}>
+     */
+    private function currentProductItemChildren(string $itemId, string $tenantId): array
+    {
+        $query = Db::name('sale_project_product_item_relation')
+            ->where('OBJECT_ID', $itemId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $children = [];
+        foreach ($query->order('ID', 'asc')->select()->toArray() as $row) {
+            $targetId = trim((string)($row['TARGET_ID'] ?? ''));
+            if ($targetId === '') {
+                continue;
+            }
+
+            $children[] = [
+                'productId' => $targetId,
+                'number' => $this->requiredPositiveIntegerString($row['NUMBER'] ?? null, 'children.number'),
+                'remark' => $row['REMARK'] === null ? null : (string)$row['REMARK'],
+                'mark' => (string)($row['MARK'] ?? ''),
+            ];
+        }
+
+        return $children;
     }
 
     /**
@@ -2471,6 +3949,93 @@ SQL)
             'PROJECT_REISSUE_ORDER_ID' => '',
             'MARK' => '',
         ]);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @return array{productItemCount: int, relationCount: int}
+     */
+    private function insertReissueProductItems(
+        string $projectId,
+        string $reissueOrderId,
+        array $items,
+        string $tenantId,
+        string $now,
+        string $currentUserId
+    ): array {
+        $productItemCount = 0;
+        $relationCount = 0;
+        foreach ($items as $item) {
+            $itemId = $this->newId();
+            Db::name('biz_sale_project_product_item')->insert([
+                'ID' => $itemId,
+                'PROJECT_ID' => $projectId,
+                'PRODUCT_ID' => $item['productId'],
+                'CATEGORY' => self::PRODUCT_ITEM_CATEGORY_REISSUE_ORDER,
+                'STATE' => self::PRODUCT_ITEM_STATE_WAIT_DELIVER,
+                'NUMBER' => $item['number'],
+                'DELIVERY' => '0',
+                'UNIT_PRICE' => $item['unitPrice'],
+                'DISCOUNT_RATE' => $item['discountRate'],
+                'PRICE' => $item['price'],
+                'REMARK' => $item['remark'],
+                'EXT_JSON' => null,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $currentUserId !== '' ? $currentUserId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId !== '' ? $tenantId : '1',
+                'VERSION' => 0,
+                'PROJECT_REISSUE_ORDER_ID' => $reissueOrderId,
+                'MARK' => '',
+            ]);
+
+            $this->replaceProductItemRelations($itemId, $item['children'], $tenantId, $now, $currentUserId);
+            $productItemCount++;
+            $relationCount += count($item['children']);
+        }
+
+        return [
+            'productItemCount' => $productItemCount,
+            'relationCount' => $relationCount,
+        ];
+    }
+
+    private function reissueProductItemCount(string $reissueOrderId, string $projectId, string $tenantId): int
+    {
+        $query = Db::name('biz_sale_project_product_item')
+            ->where('PROJECT_REISSUE_ORDER_ID', $reissueOrderId)
+            ->where('PROJECT_ID', $projectId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return (int)$query->count();
+    }
+
+    private function reissueProductItemRelationCount(string $reissueOrderId, string $projectId, string $tenantId): int
+    {
+        $itemQuery = Db::name('biz_sale_project_product_item')
+            ->where('PROJECT_REISSUE_ORDER_ID', $reissueOrderId)
+            ->where('PROJECT_ID', $projectId);
+        $this->whereNotDeleted($itemQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $itemQuery->where('TENANT_ID', $tenantId);
+        }
+        $itemIds = $this->stringList($itemQuery->column('ID'));
+        if ($itemIds === []) {
+            return 0;
+        }
+
+        $relationQuery = Db::name('sale_project_product_item_relation')->whereIn('OBJECT_ID', $itemIds);
+        $this->whereNotDeleted($relationQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $relationQuery->where('TENANT_ID', $tenantId);
+        }
+
+        return (int)$relationQuery->count();
     }
 
     /**
@@ -2978,11 +4543,11 @@ SQL)
                 $label . '.projectProductItemId',
                 80
             );
-            $productId = $this->workflowRequiredText(
+            $productId = $this->workflowOptionalText(
                 $item['productId'] ?? $item['PRODUCT_ID'] ?? null,
                 $label . '.productId',
                 20
-            );
+            ) ?? '';
             $warehouseId = $this->workflowRequiredText(
                 $item['warehousesId'] ?? $item['WAREHOUSES_ID'] ?? null,
                 $label . '.warehousesId',
@@ -3040,7 +4605,9 @@ SQL)
 
         foreach ($items as &$item) {
             $projectItem = $rowsById[$item['projectProductItemId']];
-            if ((string)$projectItem['PRODUCT_ID'] !== $item['productId']) {
+            if ($item['productId'] === '') {
+                $item['productId'] = (string)$projectItem['PRODUCT_ID'];
+            } elseif ((string)$projectItem['PRODUCT_ID'] !== $item['productId']) {
                 throw new RuntimeException('invalid projectProductItemList productId', 400);
             }
 
@@ -3274,6 +4841,30 @@ SQL)
         return self::PARTIALLY_SHIPPED_STATE;
     }
 
+    private function correctedProjectStateAfterDeliveryCorrection(string $projectId, string $tenantId, string $playState): string
+    {
+        if ($this->allProductItemsShipped($projectId, $tenantId)) {
+            return $this->correctedProjectState($playState, true);
+        }
+
+        if (!$this->anyProductItemsDelivered($projectId, $tenantId)) {
+            return self::WAIT_DELIVER_STATE;
+        }
+
+        return self::PARTIALLY_SHIPPED_STATE;
+    }
+
+    private function hasActiveProjectProductItems(string $projectId, string $tenantId): bool
+    {
+        $query = Db::name('biz_sale_project_product_item')->where('PROJECT_ID', $projectId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return (int)$query->count() > 0;
+    }
+
     private function allProductItemsShipped(string $projectId, string $tenantId): bool
     {
         $query = Db::name('biz_sale_project_product_item')
@@ -3285,6 +4876,19 @@ SQL)
         }
 
         return (int)$query->count() === 0;
+    }
+
+    private function anyProductItemsDelivered(string $projectId, string $tenantId): bool
+    {
+        $query = Db::name('biz_sale_project_product_item')
+            ->where('PROJECT_ID', $projectId)
+            ->where('DELIVERY', '>', 0);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return (int)$query->count() > 0;
     }
 
     private function sumProjectPaymentRecordCents(string $projectId, string $tenantId): int

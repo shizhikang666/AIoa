@@ -11,7 +11,7 @@ Status: implemented and DB-backed HTTP-smoke verified on 2026-06-22.
 - Allow `POST /biz/task/reject` for `Process_sale_project_init`; rejection closes workflow runtime/history and rolls the sale project back to `FOLLOW`.
 - Allow `POST /biz/task/approve` for `Process_sale_project_init`; approval writes bounded initial project side effects and closes workflow runtime/history.
 - On approval, write sale-project delivery/account/amount fields, product items, `SALE_PROJECT` file relations, optional invoicing rows, customer deal amount, and `PROCESS_ID = processInstanceId`.
-- Keep project reissue and return workflows deferred until their Java state changes and delegates are replaced explicitly. Project delivery is covered separately by `workflow-project-delivery-approve-plan.md`, and project play is covered separately by `workflow-project-play-approve-plan.md`.
+- Keep project return workflow deferred until its Java state changes and delegate is replaced explicitly. Project delivery is covered separately by `workflow-project-delivery-approve-plan.md`, project reissue is covered separately by `workflow-project-reissue-approve-plan.md`, and project play is covered separately by `workflow-project-play-approve-plan.md`.
 
 ## Validation Boundary
 

@@ -234,6 +234,7 @@ $missingProjectId = New-SmokeId -Prefix 'RSM'
 $missingItemId = New-SmokeId -Prefix 'RIM'
 $missingOrderId = New-SmokeId -Prefix 'ROM'
 $expenditureId = New-SmokeId -Prefix 'RER'
+$settlementAccountId = New-SmokeId -Prefix 'RSA'
 
 $safePrefix = $prefix.Replace("'", "\'")
 $safeProjectId = $projectId.Replace("'", "\'")
@@ -247,17 +248,25 @@ $safeUserId = $userId.Replace("'", "\'")
 $safeTenantId = $tenantId.Replace("'", "\'")
 $safeOrgId = $orgId.Replace("'", "\'")
 $safeExpenditureId = $expenditureId.Replace("'", "\'")
+$safeSettlementAccountId = $settlementAccountId.Replace("'", "\'")
 
 $cleanupCode = @"
 require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 `$orderIds = think\facade\Db::name('return_order')->where('PROJECT_ID', '$safeProjectId')->column('ID');
 if (`$orderIds) {
+    think\facade\Db::name('delivery_record')->whereIn('OBJECT_ID', `$orderIds)->delete();
     think\facade\Db::name('return_order_item')->whereIn('RETURN_ORDER_ID', `$orderIds)->delete();
+    think\facade\Db::name('biz_expenditure_record')->whereIn('OBJECT_ID', `$orderIds)->delete();
 }
 think\facade\Db::name('return_order_item')->whereIn('PROJECT_PRODUCT_ITEM_ID', ['$safeItemIdA', '$safeItemIdB'])->delete();
 think\facade\Db::name('return_order')->where('PROJECT_ID', '$safeProjectId')->delete();
 think\facade\Db::name('biz_expenditure_record')->where('PROCESS_ID', 'like', '$safePrefix%')->delete();
+think\facade\Db::name('settlement_account_statement')->where('PROCESS_ID', 'like', '$safePrefix%')->delete();
+think\facade\Db::name('settlement_account_statement')->where('ACCOUNT_ID', '$safeSettlementAccountId')->delete();
+think\facade\Db::name('delivery_record')->where('PROCESS_ID', 'like', '$safePrefix%')->delete();
+think\facade\Db::name('inventory')->where('WAREHOUSES_ID', '$safeWarehouseId')->delete();
+think\facade\Db::name('settlement_account')->where('ID', '$safeSettlementAccountId')->delete();
 think\facade\Db::name('biz_sale_project_product_item')->whereIn('ID', ['$safeItemIdA', '$safeItemIdB'])->delete();
 think\facade\Db::name('biz_product')->whereIn('ID', ['$safeProductIdA', '$safeProductIdB'])->delete();
 think\facade\Db::name('warehouses')->where('ID', '$safeWarehouseId')->delete();
@@ -321,6 +330,23 @@ think\facade\Db::name('warehouses')->insert([
     'CREATE_TIME' => `$now,
     'CREATE_USER' => '$safeUserId',
     'TENANT_ID' => '$safeTenantId',
+]);
+think\facade\Db::name('settlement_account')->insert([
+    'ID' => '$safeSettlementAccountId',
+    'ACCOUNT_NAME' => '$safePrefix refund account',
+    'ACCOUNT_NUMBER' => '$safePrefix refund no',
+    'INITIAL_AMOUNT' => '1000.00',
+    'CURRENT_AMOUNT' => '1000.00',
+    'ACCOUNT_STATUS' => 'ENABLE',
+    'SORT_CODE' => 1,
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => '$safeUserId',
+    'UPDATE_TIME' => `$now,
+    'UPDATE_USER' => '$safeUserId',
+    'TENANT_ID' => '$safeTenantId',
+    'VERSION' => 0,
+    'org' => '$safeOrgId',
 ]);
 think\facade\Db::name('biz_product')->insertAll([
     [
@@ -500,12 +526,14 @@ require getcwd() . '/vendor/autoload.php';
 `$order = think\facade\Db::name('return_order')->where('ID', '$safeOrderId')->find();
 `$itemCount = think\facade\Db::name('return_order_item')->where('RETURN_ORDER_ID', '$safeOrderId')->where('DELETE_FLAG', 'NOT_DELETE')->count();
 `$project = think\facade\Db::name('biz_sale_project')->where('ID', '$safeProjectId')->find();
-`$deliveryCount = think\facade\Db::name('delivery_record')->where('PROCESS_ID', 'like', '$safePrefix%')->count();
+`$deliveryRows = think\facade\Db::name('delivery_record')->where('OBJECT_ID', '$safeOrderId')->select()->toArray();
+`$inventory = think\facade\Db::name('inventory')->where('WAREHOUSES_ID', '$safeWarehouseId')->where('PRODUCT_ID', '$safeProductIdA')->find();
 echo json_encode([
     'order' => `$order,
     'itemCount' => `$itemCount,
     'project' => `$project,
-    'deliveryCount' => `$deliveryCount,
+    'deliveryRows' => `$deliveryRows,
+    'inventory' => `$inventory,
 ], JSON_UNESCAPED_SLASHES);
 "@
     if ([string]$afterAddDb.order.DELETE_FLAG -ne 'NOT_DELETE' -or [decimal]$afterAddDb.order.AMOUNT -ne [decimal]'120.00' -or [int]$afterAddDb.itemCount -ne 1) {
@@ -514,8 +542,19 @@ echo json_encode([
     if ([decimal]$afterAddDb.project.TOTAL_REFUND_AMOUNT -ne [decimal]'120.00' -or [decimal]$afterAddDb.project.TOTAL_RETURN_AMOUNT -ne [decimal]'0.00' -or [decimal]$afterAddDb.project.TOTAL_PRICE -ne [decimal]'880.00') {
         throw "return order add project totals failed: $($afterAddDb | ConvertTo-Json -Compress)"
     }
-    if ([int]$afterAddDb.deliveryCount -ne 0) {
-        throw 'return order direct add unexpectedly created delivery records'
+    $deliveryRows = @($afterAddDb.deliveryRows)
+    if ($deliveryRows.Count -ne 1) {
+        throw "return order add expected one delivery record: $($afterAddDb | ConvertTo-Json -Compress)"
+    }
+    $delivery = $deliveryRows[0]
+    if ([string]$delivery.CATEGORY -ne 'IN' -or [string]$delivery.PROCESS_CATEGORY -ne 'Process_sale_project_product_return' -or [string]$delivery.PROCESS_ID -ne "$prefix-add" -or [string]$delivery.PRODUCT_ID -ne $productIdA) {
+        throw "return order delivery verification failed: $($delivery | ConvertTo-Json -Compress)"
+    }
+    if ([decimal]$delivery.AMOUNT -ne [decimal]'2' -or [string]$delivery.OBJECT_ID -ne $orderId -or [string]$delivery.WAREHOUSES_ID -ne $warehouseId) {
+        throw "return order delivery amount/object verification failed: $($delivery | ConvertTo-Json -Compress)"
+    }
+    if ([string]$afterAddDb.inventory.DELETE_FLAG -ne 'NOT_DELETE' -or [decimal]$afterAddDb.inventory.CURRENT_COUNT -ne [decimal]'2') {
+        throw "return order add inventory verification failed: $($afterAddDb.inventory | ConvertTo-Json -Compress)"
     }
 
     $invalidEdit = Invoke-RawPostJson -Url "$baseUrl/biz/returnorder/edit" -Token $token -Data @{
@@ -525,21 +564,89 @@ echo json_encode([
         warehousesId = $warehouseId
         productList = @(@{ projectProductItemId = $itemIdA; amount = '999' })
     }
-    Assert-Code -Json $invalidEdit -Expected 400 -Name 'return order edit invalid product amount'
+    Assert-Code -Json $invalidEdit -Expected 400 -Name 'return order edit invalid product amount rollback'
 
     $afterInvalidEdit = Invoke-RawGet -Url "$baseUrl/biz/returnorder/detail?id=$(Enc $orderId)" -Token $token
     Assert-Code -Json $afterInvalidEdit -Expected 200 -Name 'return order detail after invalid edit'
     Assert-PathEquals -Json $afterInvalidEdit -Path 'data.productList.0.projectProductItemId' -Expected $itemIdA -Name 'return order detail after invalid edit'
 
+    $refundBasePayload = @{
+        objectId = $orderId
+        targetId = $settlementAccountId
+        settlementCategory = 'ReturnAndRefund'
+        payer = "$prefix payer"
+        bankName = "$prefix bank"
+        bankAccount = "$prefix account"
+        payerTime = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+    }
+
+    $firstRefund = Invoke-RawPostJson -Url "$baseUrl/biz/settlementaccount/expenses/add" -Token $token -Data ($refundBasePayload + @{
+        amount = '60.00'
+        remark = "$prefix first refund"
+    })
+    Assert-Code -Json $firstRefund -Expected 200 -Name 'return refund first expense'
+    Assert-PathEquals -Json $firstRefund -Path 'data.returnRefund.state' -Expected 'Unsettled' -Name 'return refund first state'
+    Assert-PathEquals -Json $firstRefund -Path 'data.returnRefund.refundAmount' -Expected '60.00' -Name 'return refund first amount'
+
+    $overRefund = Invoke-RawPostJson -Url "$baseUrl/biz/settlementaccount/expenses/add" -Token $token -Data ($refundBasePayload + @{
+        amount = '70.00'
+        remark = "$prefix over refund"
+    })
+    Assert-Code -Json $overRefund -Expected 400 -Name 'return refund over amount rollback'
+
+    $secondRefund = Invoke-RawPostJson -Url "$baseUrl/biz/settlementaccount/expenses/add" -Token $token -Data ($refundBasePayload + @{
+        amount = '60.00'
+        remark = "$prefix second refund"
+    })
+    Assert-Code -Json $secondRefund -Expected 200 -Name 'return refund second expense'
+    Assert-PathEquals -Json $secondRefund -Path 'data.returnRefund.state' -Expected 'AlreadySettled' -Name 'return refund settled state'
+    Assert-PathEquals -Json $secondRefund -Path 'data.returnRefund.refundAmount' -Expected '120.00' -Name 'return refund settled amount'
+
+    $finalDb = Invoke-PhpJson -Code @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$order = think\facade\Db::name('return_order')->where('ID', '$safeOrderId')->find();
+`$project = think\facade\Db::name('biz_sale_project')->where('ID', '$safeProjectId')->find();
+`$account = think\facade\Db::name('settlement_account')->where('ID', '$safeSettlementAccountId')->find();
+`$deliveryCount = think\facade\Db::name('delivery_record')->where('OBJECT_ID', '$safeOrderId')->count();
+`$inventory = think\facade\Db::name('inventory')->where('WAREHOUSES_ID', '$safeWarehouseId')->where('PRODUCT_ID', '$safeProductIdA')->find();
+`$expenditureCount = think\facade\Db::name('biz_expenditure_record')->where('OBJECT_ID', '$safeOrderId')->where('SETTLEMENT_CATEGORY', 'ReturnAndRefund')->count();
+`$statementCount = think\facade\Db::name('settlement_account_statement')->where('ACCOUNT_ID', '$safeSettlementAccountId')->count();
+echo json_encode([
+    'order' => `$order,
+    'project' => `$project,
+    'account' => `$account,
+    'deliveryCount' => `$deliveryCount,
+    'inventory' => `$inventory,
+    'expenditureCount' => `$expenditureCount,
+    'statementCount' => `$statementCount,
+], JSON_UNESCAPED_SLASHES);
+"@
+    if ([string]$finalDb.order.STATE -ne 'AlreadySettled' -or [string]$finalDb.order.DELETE_FLAG -ne 'NOT_DELETE') {
+        throw "return order refund state verification failed: $($finalDb.order | ConvertTo-Json -Compress)"
+    }
+    if ([decimal]$finalDb.project.TOTAL_REFUND_AMOUNT -ne [decimal]'120.00' -or [decimal]$finalDb.project.TOTAL_RETURN_AMOUNT -ne [decimal]'120.00' -or [decimal]$finalDb.project.TOTAL_PRICE -ne [decimal]'880.00') {
+        throw "return refund project totals failed: $($finalDb.project | ConvertTo-Json -Compress)"
+    }
+    if ([decimal]$finalDb.account.CURRENT_AMOUNT -ne [decimal]'880.00') {
+        throw "return refund account balance failed: $($finalDb.account | ConvertTo-Json -Compress)"
+    }
+    if ([int]$finalDb.deliveryCount -ne 1 -or [decimal]$finalDb.inventory.CURRENT_COUNT -ne [decimal]'2') {
+        throw "return delivery/inventory final verification failed: $($finalDb | ConvertTo-Json -Compress)"
+    }
+    if ([int]$finalDb.expenditureCount -ne 2 -or [int]$finalDb.statementCount -ne 2) {
+        throw "return refund rollback count verification failed: $($finalDb | ConvertTo-Json -Compress)"
+    }
+
     $edit = Invoke-RawPostJson -Url "$baseUrl/biz/returnorder/edit" -Token $token -Data @{
         id = $orderId
         projectId = $projectId
-        amount = '150.00'
+        amount = '80.00'
         warehousesId = $warehouseId
         processId = "$prefix-edit"
-        logisticsCategory = 'EXPRESS'
+        logisticsCategory = 'EDITED'
         logisticsId = "$prefix-logistics-b"
-        remark = "$prefix edit"
+        remark = "$prefix edited"
         productList = @(
             @{
                 projectProductItemId = $itemIdB
@@ -552,132 +659,111 @@ echo json_encode([
             step = 'edit'
         }
     }
-    Assert-Code -Json $edit -Expected 200 -Name 'return order edit'
-    Assert-PathEquals -Json $edit -Path 'data.id' -Expected $orderId -Name 'return order edit'
-    Assert-PathEquals -Json $edit -Path 'data.productList.0.projectProductItemId' -Expected $itemIdB -Name 'return order edit'
+    Assert-Code -Json $edit -Expected 200 -Name 'return order edit with reverse stock and refund'
+    Assert-PathEquals -Json $edit -Path 'data.id' -Expected $orderId -Name 'return order edit id'
+    Assert-PathEquals -Json $edit -Path 'data.amount' -Expected '80' -Name 'return order edit amount'
+    Assert-PathEquals -Json $edit -Path 'data.state' -Expected 'Unsettled' -Name 'return order edit state after refund reverse'
+    Assert-PathEquals -Json $edit -Path 'data.productList.0.projectProductItemId' -Expected $itemIdB -Name 'return order edit product item'
 
     $afterEditDb = Invoke-PhpJson -Code @"
 require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 `$order = think\facade\Db::name('return_order')->where('ID', '$safeOrderId')->find();
-`$activeOldItems = think\facade\Db::name('return_order_item')->where('RETURN_ORDER_ID', '$safeOrderId')->where('PROJECT_PRODUCT_ITEM_ID', '$safeItemIdA')->where('DELETE_FLAG', 'NOT_DELETE')->count();
-`$deletedOldItems = think\facade\Db::name('return_order_item')->where('RETURN_ORDER_ID', '$safeOrderId')->where('PROJECT_PRODUCT_ITEM_ID', '$safeItemIdA')->where('DELETE_FLAG', 'DELETED')->count();
-`$activeNewItems = think\facade\Db::name('return_order_item')->where('RETURN_ORDER_ID', '$safeOrderId')->where('PROJECT_PRODUCT_ITEM_ID', '$safeItemIdB')->where('DELETE_FLAG', 'NOT_DELETE')->count();
+`$activeItems = think\facade\Db::name('return_order_item')->where('RETURN_ORDER_ID', '$safeOrderId')->where('DELETE_FLAG', 'NOT_DELETE')->select()->toArray();
 `$project = think\facade\Db::name('biz_sale_project')->where('ID', '$safeProjectId')->find();
+`$account = think\facade\Db::name('settlement_account')->where('ID', '$safeSettlementAccountId')->find();
+`$activeDeliveryRows = think\facade\Db::name('delivery_record')->where('OBJECT_ID', '$safeOrderId')->where('DELETE_FLAG', 'NOT_DELETE')->select()->toArray();
+`$oldInventory = think\facade\Db::name('inventory')->where('WAREHOUSES_ID', '$safeWarehouseId')->where('PRODUCT_ID', '$safeProductIdA')->find();
+`$newInventory = think\facade\Db::name('inventory')->where('WAREHOUSES_ID', '$safeWarehouseId')->where('PRODUCT_ID', '$safeProductIdB')->find();
+`$activeExpenditureCount = think\facade\Db::name('biz_expenditure_record')->where('OBJECT_ID', '$safeOrderId')->where('SETTLEMENT_CATEGORY', 'ReturnAndRefund')->where('DELETE_FLAG', 'NOT_DELETE')->count();
+`$activeStatementCount = think\facade\Db::name('settlement_account_statement')->where('ACCOUNT_ID', '$safeSettlementAccountId')->where('SETTLEMENT_CATEGORY', 'ReturnAndRefund')->where('DELETE_FLAG', 'NOT_DELETE')->count();
+`$deletedExpenditureCount = think\facade\Db::name('biz_expenditure_record')->where('OBJECT_ID', '$safeOrderId')->where('SETTLEMENT_CATEGORY', 'ReturnAndRefund')->where('DELETE_FLAG', 'DELETED')->count();
+`$deletedDeliveryCount = think\facade\Db::name('delivery_record')->where('OBJECT_ID', '$safeOrderId')->where('DELETE_FLAG', 'DELETED')->count();
 echo json_encode([
     'order' => `$order,
-    'activeOldItems' => `$activeOldItems,
-    'deletedOldItems' => `$deletedOldItems,
-    'activeNewItems' => `$activeNewItems,
+    'activeItems' => `$activeItems,
     'project' => `$project,
+    'account' => `$account,
+    'activeDeliveryRows' => `$activeDeliveryRows,
+    'oldInventory' => `$oldInventory,
+    'newInventory' => `$newInventory,
+    'activeExpenditureCount' => `$activeExpenditureCount,
+    'activeStatementCount' => `$activeStatementCount,
+    'deletedExpenditureCount' => `$deletedExpenditureCount,
+    'deletedDeliveryCount' => `$deletedDeliveryCount,
 ], JSON_UNESCAPED_SLASHES);
 "@
-    if ([decimal]$afterEditDb.order.AMOUNT -ne [decimal]'150.00' -or [string]$afterEditDb.order.LOGISTICS_CATEGORY -ne 'EXPRESS' -or [int]$afterEditDb.activeOldItems -ne 0 -or [int]$afterEditDb.deletedOldItems -lt 1 -or [int]$afterEditDb.activeNewItems -ne 1) {
-        throw "return order edit database verification failed: $($afterEditDb | ConvertTo-Json -Compress)"
+    $activeItems = @($afterEditDb.activeItems)
+    $activeDeliveryRows = @($afterEditDb.activeDeliveryRows)
+    if ([string]$afterEditDb.order.STATE -ne 'Unsettled' -or [decimal]$afterEditDb.order.AMOUNT -ne [decimal]'80.00' -or [string]$afterEditDb.order.PROCESS_ID -ne "$prefix-edit") {
+        throw "return order edit master verification failed: $($afterEditDb.order | ConvertTo-Json -Compress)"
     }
-    if ([decimal]$afterEditDb.project.TOTAL_REFUND_AMOUNT -ne [decimal]'150.00' -or [decimal]$afterEditDb.project.TOTAL_PRICE -ne [decimal]'850.00') {
-        throw "return order edit project totals failed: $($afterEditDb | ConvertTo-Json -Compress)"
+    if ($activeItems.Count -ne 1 -or [string]$activeItems[0].PROJECT_PRODUCT_ITEM_ID -ne $itemIdB -or [decimal]$activeItems[0].AMOUNT -ne [decimal]'3') {
+        throw "return order edit item replacement failed: $($activeItems | ConvertTo-Json -Compress)"
     }
-
-    $insertExpenditureCode = @"
-require getcwd() . '/vendor/autoload.php';
-`$app = (new think\App(getcwd()))->initialize();
-`$now = date('Y-m-d H:i:s');
-think\facade\Db::name('biz_expenditure_record')->insert([
-    'ID' => '$safeExpenditureId',
-    'OBJECT_ID' => '$safeOrderId',
-    'TARGET_ID' => '$safeProjectId',
-    'SERIAL_ID' => '$safePrefix-serial',
-    'PROCESS_ID' => '$safePrefix-exp',
-    'SETTLEMENT_CATEGORY' => 'ReturnAndRefund',
-    'PAYER' => '$safePrefix payer',
-    'BANK_NAME' => '$safePrefix bank',
-    'BANK_ACCOUNT' => '$safePrefix account',
-    'REMARK' => '$safePrefix blocking refund',
-    'PAYER_TIME' => `$now,
-    'AMOUNT' => '10.00',
-    'DELETE_FLAG' => 'NOT_DELETE',
-    'CREATE_TIME' => `$now,
-    'CREATE_USER' => '$safeUserId',
-    'TENANT_ID' => '$safeTenantId',
-    'USER' => '$safeUserId',
-    'ORG' => '$safeOrgId',
-]);
-"@
-    Invoke-Php -Code $insertExpenditureCode | Out-Null
-
-    $blockedEdit = Invoke-RawPostJson -Url "$baseUrl/biz/returnorder/edit" -Token $token -Data @{
-        id = $orderId
-        projectId = $projectId
-        amount = '151.00'
-        warehousesId = $warehouseId
+    if ([decimal]$afterEditDb.project.TOTAL_REFUND_AMOUNT -ne [decimal]'80.00' -or [decimal]$afterEditDb.project.TOTAL_RETURN_AMOUNT -ne [decimal]'0.00' -or [decimal]$afterEditDb.project.TOTAL_PRICE -ne [decimal]'920.00') {
+        throw "return order edit project totals failed: $($afterEditDb.project | ConvertTo-Json -Compress)"
     }
-    Assert-Code -Json $blockedEdit -Expected 400 -Name 'return order edit blocked by refund expenditure'
-
-    $blockedDelete = Invoke-RawPostJson -Url "$baseUrl/biz/returnorder/delete" -Token $token -Data @{
-        idList = @($orderId)
+    if ([decimal]$afterEditDb.account.CURRENT_AMOUNT -ne [decimal]'1000.00') {
+        throw "return order edit account refund reverse failed: $($afterEditDb.account | ConvertTo-Json -Compress)"
     }
-    Assert-Code -Json $blockedDelete -Expected 400 -Name 'return order delete blocked by refund expenditure'
-
-    $afterBlockedDb = Invoke-PhpJson -Code @"
-require getcwd() . '/vendor/autoload.php';
-`$app = (new think\App(getcwd()))->initialize();
-`$order = think\facade\Db::name('return_order')->where('ID', '$safeOrderId')->find();
-think\facade\Db::name('biz_expenditure_record')->where('ID', '$safeExpenditureId')->delete();
-echo json_encode(`$order, JSON_UNESCAPED_SLASHES);
-"@
-    if ([decimal]$afterBlockedDb.AMOUNT -ne [decimal]'150.00' -or [string]$afterBlockedDb.DELETE_FLAG -ne 'NOT_DELETE') {
-        throw "return order blocked mutation rollback failed: $($afterBlockedDb | ConvertTo-Json -Compress)"
+    if ($activeDeliveryRows.Count -ne 1 -or [string]$activeDeliveryRows[0].PRODUCT_ID -ne $productIdB -or [decimal]$activeDeliveryRows[0].AMOUNT -ne [decimal]'3' -or [string]$activeDeliveryRows[0].PROCESS_ID -ne "$prefix-edit") {
+        throw "return order edit delivery replacement failed: $($activeDeliveryRows | ConvertTo-Json -Compress)"
+    }
+    if ([decimal]$afterEditDb.oldInventory.CURRENT_COUNT -ne [decimal]'0' -or [decimal]$afterEditDb.newInventory.CURRENT_COUNT -ne [decimal]'3') {
+        throw "return order edit inventory reverse/rebuild failed: $($afterEditDb | ConvertTo-Json -Compress)"
+    }
+    if ([int]$afterEditDb.activeExpenditureCount -ne 0 -or [int]$afterEditDb.activeStatementCount -ne 0 -or [int]$afterEditDb.deletedExpenditureCount -ne 2 -or [int]$afterEditDb.deletedDeliveryCount -ne 1) {
+        throw "return order edit side-effect reverse counts failed: $($afterEditDb | ConvertTo-Json -Compress)"
     }
 
-    $deleteRollback = Invoke-RawPostJson -Url "$baseUrl/biz/returnorder/delete" -Token $token -Data @{
-        idList = @($orderId, $missingOrderId)
-    }
-    Assert-Code -Json $deleteRollback -Expected 404 -Name 'return order delete mixed rollback'
-
-    $afterDeleteRollback = Invoke-RawGet -Url "$baseUrl/biz/returnorder/detail?id=$(Enc $orderId)" -Token $token
-    Assert-Code -Json $afterDeleteRollback -Expected 200 -Name 'return order detail after delete rollback'
+    $editedRefund = Invoke-RawPostJson -Url "$baseUrl/biz/settlementaccount/expenses/add" -Token $token -Data ($refundBasePayload + @{
+        amount = '80.00'
+        remark = "$prefix edited refund"
+    })
+    Assert-Code -Json $editedRefund -Expected 200 -Name 'return refund edited expense'
+    Assert-PathEquals -Json $editedRefund -Path 'data.returnRefund.state' -Expected 'AlreadySettled' -Name 'return refund edited settled state'
+    Assert-PathEquals -Json $editedRefund -Path 'data.returnRefund.refundAmount' -Expected '80.00' -Name 'return refund edited amount'
 
     $delete = Invoke-RawPostJson -Url "$baseUrl/biz/returnorder/delete" -Token $token -Data @{
         idList = @($orderId)
     }
-    Assert-Code -Json $delete -Expected 200 -Name 'return order delete'
-    Assert-PathEquals -Json $delete -Path 'data.count' -Expected '1' -Name 'return order delete'
+    Assert-Code -Json $delete -Expected 200 -Name 'return order delete with reverse stock and refund'
+    Assert-PathEquals -Json $delete -Path 'data.count' -Expected '1' -Name 'return order delete count'
 
-    $afterDeleteDetail = Invoke-RawGet -Url "$baseUrl/biz/returnorder/detail?id=$(Enc $orderId)" -Token $token
-    Assert-Code -Json $afterDeleteDetail -Expected 404 -Name 'return order detail after delete'
-
-    $finalDb = Invoke-PhpJson -Code @"
+    $afterDeleteDb = Invoke-PhpJson -Code @"
 require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 `$order = think\facade\Db::name('return_order')->where('ID', '$safeOrderId')->find();
-`$activeItems = think\facade\Db::name('return_order_item')->where('RETURN_ORDER_ID', '$safeOrderId')->where('DELETE_FLAG', 'NOT_DELETE')->count();
-`$deletedItems = think\facade\Db::name('return_order_item')->where('RETURN_ORDER_ID', '$safeOrderId')->where('DELETE_FLAG', 'DELETED')->count();
+`$activeItemCount = think\facade\Db::name('return_order_item')->where('RETURN_ORDER_ID', '$safeOrderId')->where('DELETE_FLAG', 'NOT_DELETE')->count();
 `$project = think\facade\Db::name('biz_sale_project')->where('ID', '$safeProjectId')->find();
-`$deliveryCount = think\facade\Db::name('delivery_record')->where('PROCESS_ID', 'like', '$safePrefix%')->count();
+`$account = think\facade\Db::name('settlement_account')->where('ID', '$safeSettlementAccountId')->find();
+`$activeDeliveryCount = think\facade\Db::name('delivery_record')->where('OBJECT_ID', '$safeOrderId')->where('DELETE_FLAG', 'NOT_DELETE')->count();
+`$newInventory = think\facade\Db::name('inventory')->where('WAREHOUSES_ID', '$safeWarehouseId')->where('PRODUCT_ID', '$safeProductIdB')->find();
+`$activeExpenditureCount = think\facade\Db::name('biz_expenditure_record')->where('OBJECT_ID', '$safeOrderId')->where('SETTLEMENT_CATEGORY', 'ReturnAndRefund')->where('DELETE_FLAG', 'NOT_DELETE')->count();
+`$activeStatementCount = think\facade\Db::name('settlement_account_statement')->where('ACCOUNT_ID', '$safeSettlementAccountId')->where('SETTLEMENT_CATEGORY', 'ReturnAndRefund')->where('DELETE_FLAG', 'NOT_DELETE')->count();
 echo json_encode([
     'order' => `$order,
-    'activeItems' => `$activeItems,
-    'deletedItems' => `$deletedItems,
+    'activeItemCount' => `$activeItemCount,
     'project' => `$project,
-    'deliveryCount' => `$deliveryCount,
+    'account' => `$account,
+    'activeDeliveryCount' => `$activeDeliveryCount,
+    'newInventory' => `$newInventory,
+    'activeExpenditureCount' => `$activeExpenditureCount,
+    'activeStatementCount' => `$activeStatementCount,
 ], JSON_UNESCAPED_SLASHES);
 "@
-    if ([string]$finalDb.order.DELETE_FLAG -ne 'DELETED' -or [int]$finalDb.activeItems -ne 0 -or [int]$finalDb.deletedItems -lt 1) {
-        throw "return order delete database verification failed: $($finalDb | ConvertTo-Json -Compress)"
+    if ([string]$afterDeleteDb.order.DELETE_FLAG -ne 'DELETED' -or [int]$afterDeleteDb.activeItemCount -ne 0) {
+        throw "return order delete logical delete failed: $($afterDeleteDb | ConvertTo-Json -Compress)"
     }
-    if ([decimal]$finalDb.project.TOTAL_REFUND_AMOUNT -ne [decimal]'0.00' -or [decimal]$finalDb.project.TOTAL_RETURN_AMOUNT -ne [decimal]'0.00' -or [decimal]$finalDb.project.TOTAL_PRICE -ne [decimal]'1000.00') {
-        throw "return order delete project totals failed: $($finalDb | ConvertTo-Json -Compress)"
+    if ([decimal]$afterDeleteDb.project.TOTAL_REFUND_AMOUNT -ne [decimal]'0.00' -or [decimal]$afterDeleteDb.project.TOTAL_RETURN_AMOUNT -ne [decimal]'0.00' -or [decimal]$afterDeleteDb.project.TOTAL_PRICE -ne [decimal]'1000.00') {
+        throw "return order delete project totals restore failed: $($afterDeleteDb.project | ConvertTo-Json -Compress)"
     }
-    if ([int]$finalDb.deliveryCount -ne 0) {
-        throw 'return order write unexpectedly created delivery records'
+    if ([decimal]$afterDeleteDb.account.CURRENT_AMOUNT -ne [decimal]'1000.00' -or [int]$afterDeleteDb.activeExpenditureCount -ne 0 -or [int]$afterDeleteDb.activeStatementCount -ne 0) {
+        throw "return order delete finance reverse failed: $($afterDeleteDb | ConvertTo-Json -Compress)"
     }
-
-    $after = Invoke-PhpJson -Code $sideEffectCountCode
-    foreach ($key in @('delivery', 'inventory', 'expenditure', 'payment', 'statement')) {
-        if ([int]$after.$key -ne [int]$before.$key) {
-            throw "return order unexpectedly changed side-effect table count: $key"
-        }
+    if ([int]$afterDeleteDb.activeDeliveryCount -ne 0 -or [decimal]$afterDeleteDb.newInventory.CURRENT_COUNT -ne [decimal]'0') {
+        throw "return order delete inventory reverse failed: $($afterDeleteDb | ConvertTo-Json -Compress)"
     }
 
     Write-Host 'return order write HTTP smoke passed'

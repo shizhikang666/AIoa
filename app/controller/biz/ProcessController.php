@@ -181,14 +181,20 @@ class ProcessController extends BaseWorkflowController
         ));
     }
 
-    public function projectReissueStart(): Response
+    public function projectReissueStart(Request $request): Response
     {
-        return $this->deferredWrite('project reissue process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startProjectReissueProcess(
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
-    public function projectReturnStart(): Response
+    public function projectReturnStart(Request $request): Response
     {
-        return $this->deferredWrite('project return process start');
+        return $this->guard(fn () => $this->workflowRuntimeService->startProjectReturnProcess(
+            $this->body($request),
+            $this->authPayload($request)
+        ));
     }
 
     public function reimbursementStart(Request $request): Response

@@ -35,7 +35,7 @@ class FileController extends BaseSysController
 
     public function download(Request $request): Response
     {
-        return $this->downloadGuard(fn () => $this->fileService->download($this->requiredString($request, 'id')));
+        return $this->downloadGuard($request, fn () => $this->fileService->download($this->requiredString($request, 'id')));
     }
 
     public function uploadDynamicReturnId(Request $request): Response
@@ -254,10 +254,10 @@ class FileController extends BaseSysController
         return [];
     }
 
-    private function downloadGuard(callable $callback): Response
+    private function downloadGuard(Request $request, callable $callback): Response
     {
         try {
-            return $this->downloadResponse($callback());
+            return $this->downloadResponse($callback(), $request);
         } catch (RuntimeException $exception) {
             return ApiResponse::fail($exception->getMessage(), 500);
         } catch (Throwable) {
@@ -268,19 +268,26 @@ class FileController extends BaseSysController
     /**
      * @param array{filename:string, content:string, contentType?:string} $file
      */
-    private function downloadResponse(array $file): Response
+    private function downloadResponse(array $file, Request $request): Response
     {
         $filename = (string)($file['filename'] ?? 'download');
         $content = (string)($file['content'] ?? '');
         $contentType = (string)($file['contentType'] ?? 'application/octet-stream;charset=UTF-8');
         $encodedFilename = rawurlencode($filename);
 
-        return Response::create($content, 'html', 200)->header([
+        $headers = [
             'Content-Type' => $contentType,
             'Content-Disposition' => 'attachment;filename=' . $encodedFilename,
             'Content-Length' => (string)strlen($content),
-            'Access-Control-Allow-Origin' => '*',
             'Access-Control-Expose-Headers' => 'Content-Disposition',
-        ]);
+        ];
+
+        $origin = trim((string)$request->header('origin', ''));
+        if ($origin !== '' && preg_match('/^https:\/\/([a-z0-9-]+\.)*fucity\.cn(?::[0-9]+)?$/i', $origin) === 1) {
+            $headers['Access-Control-Allow-Origin'] = $origin;
+            $headers['Vary'] = 'Origin';
+        }
+
+        return Response::create($content, 'html', 200)->header($headers);
     }
 }

@@ -358,7 +358,12 @@ SQL;
                     'UPDATE_USER' => $userId !== '' ? $userId : null,
                 ]);
 
-            return [
+            $returnRefund = null;
+            if ($settlementCategory === 'ReturnAndRefund' && $objectId !== null && $objectId !== '') {
+                $returnRefund = (new ReturnOrderService())->applyReturnRefundExpenditure($objectId, $tenantId, $userId);
+            }
+
+            $result = [
                 'id' => $expenditureId,
                 'statementId' => $statementId,
                 'accountId' => $targetId,
@@ -367,6 +372,11 @@ SQL;
                 'afterAmount' => $afterAmount,
                 'accountCount' => $accountUpdated,
             ];
+            if ($returnRefund !== null) {
+                $result['returnRefund'] = $returnRefund;
+            }
+
+            return $result;
         });
     }
 

@@ -6,7 +6,6 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\ExpenditureRecordService;
-use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -36,9 +35,9 @@ class ExpenditureRecordController extends BaseSysController
         return $this->guard(fn () => $this->expenditureRecordService->detail($this->requiredString($request, 'id'), $this->authPayload($request)));
     }
 
-    public function add(): Response
+    public function add(Request $request): Response
     {
-        return $this->deferredWrite('expenditure record add');
+        return $this->guard(fn () => $this->expenditureRecordService->add($this->body($request), $this->authPayload($request)));
     }
 
     public function edit(Request $request): Response
@@ -51,16 +50,13 @@ class ExpenditureRecordController extends BaseSysController
         return $this->guard(fn () => $this->expenditureRecordService->editAccount($this->body($request), $this->authPayload($request)));
     }
 
-    public function delete(): Response
+    public function delete(Request $request): Response
     {
-        return $this->deferredWrite('expenditure record delete');
-    }
+        return $this->guard(function () use ($request): array {
+            $input = $this->body($request);
 
-    private function deferredWrite(string $operation): Response
-    {
-        return ApiResponse::fail($operation . ' is deferred', 400, [
-            'operation' => $operation,
-        ]);
+            return $this->expenditureRecordService->delete($this->deleteIds($request, $input), $this->authPayload($request));
+        });
     }
 
     private function authPayload(Request $request): array
@@ -92,5 +88,20 @@ class ExpenditureRecordController extends BaseSysController
         }
 
         return $request->param();
+    }
+
+    private function deleteIds(Request $request, array $input): array
+    {
+        if (isset($input[0])) {
+            return $input;
+        }
+
+        foreach (['idList', 'ids', 'id'] as $key) {
+            if (array_key_exists($key, $input)) {
+                return is_array($input[$key]) ? $input[$key] : [(string)$input[$key]];
+            }
+        }
+
+        return $this->idList($request);
     }
 }

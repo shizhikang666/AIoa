@@ -13,6 +13,9 @@ use think\facade\Db;
 class PaymentRecordService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
+    private const PROCESS_SYS = 'Process_sys';
+    private const TRANSFER_CATEGORY = 'dealings';
     private const RECORD_FIELDS = <<<SQL
 r.ID AS ID,
 r.OBJECT_ID AS OBJECT_ID,
@@ -58,6 +61,10 @@ SQL;
         'accountName' => 'a.ACCOUNT_NAME',
         'orgName' => 'org.NAME',
     ];
+
+    public function __construct(private readonly SettlementAccountService $settlementAccountService = new SettlementAccountService())
+    {
+    }
 
     public function page(array $filters = [], array $payload = []): array
     {
@@ -116,6 +123,11 @@ SQL;
         }
 
         return $this->recordRows([$row])[0];
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        return $this->settlementAccountService->paymentAdd($input, $payload);
     }
 
     public function edit(array $input, array $payload = []): array
@@ -236,6 +248,87 @@ SQL;
         });
     }
 
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = array_values(array_unique($this->stringList($ids)));
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $records = [];
+            $statementIds = [];
+            $targetIds = [];
+            foreach ($idList as $id) {
+                $record = $this->assertRecordWritable($id, $payload, 'delete this payment record', true);
+                $this->assertDirectDeleteAllowed($record);
+
+                $statementId = trim((string)($record['SERIAL_ID'] ?? ''));
+                if ($statementId === '') {
+                    throw new RuntimeException('payment record statement missing', 404);
+                }
+                $statement = $this->activeStatement($statementId, $payload, true);
+                $this->assertStatementMatchesRecord($record, $statement);
+
+                $records[] = $record;
+                $statementIds[] = $statementId;
+                $targetIds[] = trim((string)($record['TARGET_ID'] ?? ''));
+            }
+
+            $accounts = $this->activeSettlementAccounts($targetIds, $payload);
+            foreach ($accounts as $account) {
+                $this->assertSettlementAccountWritable($account, $payload, 'delete from');
+            }
+
+            $accountAmountCents = [];
+            foreach ($accounts as $accountId => $account) {
+                $accountAmountCents[$accountId] = $this->moneyCents($account['CURRENT_AMOUNT'] ?? '0');
+            }
+            foreach ($records as $record) {
+                $accountId = trim((string)($record['TARGET_ID'] ?? ''));
+                if ($accountId === '' || !array_key_exists($accountId, $accountAmountCents)) {
+                    throw new RuntimeException('settlement account not found', 404);
+                }
+                $accountAmountCents[$accountId] -= $this->moneyCents($record['AMOUNT'] ?? null);
+            }
+
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $deleteData = [
+                'DELETE_FLAG' => self::DELETED,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+            ];
+
+            $recordUpdated = Db::name('biz_payment_record')
+                ->whereIn('ID', $idList)
+                ->update($deleteData);
+            $statementUpdated = Db::name('settlement_account_statement')
+                ->whereIn('ID', array_values(array_unique($statementIds)))
+                ->update($deleteData);
+
+            foreach ($accountAmountCents as $accountId => $amountCents) {
+                Db::name('settlement_account')
+                    ->where('ID', $accountId)
+                    ->update([
+                        'CURRENT_AMOUNT' => $this->moneyFromCents($amountCents),
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    ]);
+            }
+
+            return [
+                'ids' => $idList,
+                'count' => $recordUpdated,
+                'statementCount' => $statementUpdated,
+                'accountUpdateCount' => count($accountAmountCents),
+            ];
+        });
+    }
+
     private function recordQuery(array $filters, array $payload, bool $prefixSettlementCategory)
     {
         $query = Db::name('biz_payment_record')
@@ -316,9 +409,9 @@ SQL;
         return $query;
     }
 
-    private function assertRecordWritable(string $id, array $payload, string $action): array
+    private function assertRecordWritable(string $id, array $payload, string $action, bool $lock = false): array
     {
-        $row = $this->activeRecord($id, $payload);
+        $row = $this->activeRecord($id, $payload, $lock);
         if ($this->canSeeAll($payload)) {
             return $row;
         }
@@ -339,7 +432,49 @@ SQL;
         throw new RuntimeException("no permission to {$action}", 403);
     }
 
-    private function activeRecord(string $id, array $payload): array
+    private function assertDirectDeleteAllowed(array $record): void
+    {
+        $processId = trim((string)($record['PROCESS_ID'] ?? ''));
+        if ($processId !== self::PROCESS_SYS) {
+            throw new RuntimeException('linked payment records cannot be deleted directly', 400);
+        }
+
+        $category = trim((string)($record['SETTLEMENT_CATEGORY'] ?? ''));
+        if ($category === self::TRANSFER_CATEGORY) {
+            throw new RuntimeException('transfer payment records cannot be deleted directly', 400);
+        }
+    }
+
+    private function assertStatementMatchesRecord(array $record, array $statement): void
+    {
+        $recordTargetId = trim((string)($record['TARGET_ID'] ?? ''));
+        $statementAccountId = trim((string)($statement['ACCOUNT_ID'] ?? ''));
+        if ($recordTargetId === '' || $statementAccountId !== $recordTargetId) {
+            throw new RuntimeException('payment record statement account mismatch', 400);
+        }
+
+        if (trim((string)($statement['SETTLEMENT_TYPE'] ?? '')) !== 'INCOME') {
+            throw new RuntimeException('payment record statement type mismatch', 400);
+        }
+
+        $recordCategory = trim((string)($record['SETTLEMENT_CATEGORY'] ?? ''));
+        $statementCategory = trim((string)($statement['SETTLEMENT_CATEGORY'] ?? ''));
+        if ($statementCategory !== '' && $recordCategory !== $statementCategory) {
+            throw new RuntimeException('payment record statement category mismatch', 400);
+        }
+
+        $recordProcessId = trim((string)($record['PROCESS_ID'] ?? ''));
+        $statementProcessId = trim((string)($statement['PROCESS_ID'] ?? ''));
+        if ($statementProcessId !== '' && $recordProcessId !== $statementProcessId) {
+            throw new RuntimeException('payment record statement process mismatch', 400);
+        }
+
+        if ($this->moneyCents($record['AMOUNT'] ?? null) !== $this->moneyCents($statement['AMOUNT'] ?? null)) {
+            throw new RuntimeException('payment record statement amount mismatch', 400);
+        }
+    }
+
+    private function activeRecord(string $id, array $payload, bool $lock = false): array
     {
         $query = Db::name('biz_payment_record')
             ->where('ID', $id)
@@ -352,6 +487,10 @@ SQL;
             $query->where('TENANT_ID', $tenantId);
         }
 
+        if ($lock) {
+            $query->lock(true);
+        }
+
         $row = $query
             ->field('ID,OBJECT_ID,TARGET_ID,SERIAL_ID,PROCESS_ID,SETTLEMENT_CATEGORY,PAYER_TIME,AMOUNT,TENANT_ID,ORG,CREATE_USER,`USER` AS USER_ID')
             ->find();
@@ -362,7 +501,7 @@ SQL;
         return $row;
     }
 
-    private function activeStatement(string $id, array $payload): array
+    private function activeStatement(string $id, array $payload, bool $lock = false): array
     {
         $query = Db::name('settlement_account_statement')
             ->where('ID', $id)
@@ -375,7 +514,11 @@ SQL;
             $query->where('TENANT_ID', $tenantId);
         }
 
-        $row = $query->field('ID,TENANT_ID,ACCOUNT_ID')->find();
+        if ($lock) {
+            $query->lock(true);
+        }
+
+        $row = $query->field('ID,TENANT_ID,ACCOUNT_ID,PROCESS_ID,AMOUNT,SETTLEMENT_TYPE,SETTLEMENT_CATEGORY,PROCESS_CATEGORY')->find();
         if (!is_array($row) || $row === []) {
             throw new RuntimeException('payment record statement not found', 404);
         }

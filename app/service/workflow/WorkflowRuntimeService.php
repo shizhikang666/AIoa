@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\service\workflow;
 
 use app\service\biz\PurchaseOrderService;
+use app\service\biz\ReturnOrderService;
 use app\service\biz\SaleProjectService;
 use app\service\biz\SettlementAccountService;
 use RuntimeException;
@@ -24,6 +25,8 @@ class WorkflowRuntimeService
     private const PROCESS_SALE_PROJECT_INIT = 'Process_sale_project_init';
     private const PROCESS_SALE_PROJECT_DELIVERY = 'Process_sale_project_delivery';
     private const PROCESS_SALE_PROJECT_PLAY = 'Process_sale_project_play';
+    private const PROCESS_PROJECT_REISSUE_PRODUCT = 'Process_project_reissue_product';
+    private const PROCESS_SALE_PROJECT_PRODUCT_RETURN = 'Process_sale_project_product_return';
     private const ACTIVITY_APPROVAL = 'Activity_approval';
     private const ACTIVITY_PROCURE_APPROVAL = 'Activity_procure_approval';
     private const ACTIVITY_APPROVAL_PROCURE = 'Activity_approval_procure';
@@ -56,7 +59,8 @@ class WorkflowRuntimeService
     public function __construct(
         private readonly PurchaseOrderService $purchaseOrderService = new PurchaseOrderService(),
         private readonly SettlementAccountService $settlementAccountService = new SettlementAccountService(),
-        private readonly SaleProjectService $saleProjectService = new SaleProjectService()
+        private readonly SaleProjectService $saleProjectService = new SaleProjectService(),
+        private readonly ReturnOrderService $returnOrderService = new ReturnOrderService()
     ) {
     }
 
@@ -78,6 +82,8 @@ class WorkflowRuntimeService
         self::PROCESS_SALE_PROJECT_INIT => 'StartEvent_1',
         self::PROCESS_SALE_PROJECT_DELIVERY => 'StartEvent_1',
         self::PROCESS_SALE_PROJECT_PLAY => 'StartEvent_1',
+        self::PROCESS_PROJECT_REISSUE_PRODUCT => 'StartEvent_1',
+        self::PROCESS_SALE_PROJECT_PRODUCT_RETURN => 'Event_09dguuq',
     ];
 
     private const PROCESS_END_EVENTS = [
@@ -90,6 +96,8 @@ class WorkflowRuntimeService
         self::PROCESS_SALE_PROJECT_INIT => self::LEAVE_END_EVENT,
         self::PROCESS_SALE_PROJECT_DELIVERY => self::LEAVE_END_EVENT,
         self::PROCESS_SALE_PROJECT_PLAY => 'Event_1q6ckfm',
+        self::PROCESS_PROJECT_REISSUE_PRODUCT => self::LEAVE_END_EVENT,
+        self::PROCESS_SALE_PROJECT_PRODUCT_RETURN => 'Event_1q6ckfm',
     ];
 
     public function startLeaveProcess(array $input, array $payload = []): array
@@ -425,6 +433,146 @@ class WorkflowRuntimeService
                 'projectId' => $projectId,
                 'projectState' => (string)($project['PROJECT_STATE'] ?? ''),
                 'projectProductItemCount' => (int)($project['PROJECT_PRODUCT_ITEM_COUNT'] ?? count($projectProductItemList)),
+            ]
+        );
+    }
+
+    public function startProjectReissueProcess(array $input, array $payload = []): array
+    {
+        $currentUserId = $this->requiredCurrentUserId($payload);
+        $starter = $this->userRow($currentUserId);
+        $tenantId = $this->tenantId($input, $payload, $starter);
+        $orgId = $this->orgId($payload, $starter);
+        $projectId = $this->requiredProjectIdInput($input);
+        $approveUserIds = $this->requiredStringList($input['approveUserIdList'] ?? $input['approveUsers'] ?? []);
+        $copyUserIds = $this->stringList($input['copyUserIdList'] ?? $input['copyUsers'] ?? []);
+        $fileIds = $this->stringList($input['fileIdList'] ?? []);
+        $productList = $this->decodedArrayList($input['productList'] ?? null, 'productList');
+        $this->assertUsers($approveUserIds, $tenantId, 'approve user not found');
+        $this->assertUsers($copyUserIds, $tenantId, 'copy user not found');
+        $amount = $this->requiredNonNegativeInputDecimal($input, 'amount');
+
+        $project = $this->saleProjectService->workflowProjectReissueStartInfo(
+            $projectId,
+            $productList,
+            $payload,
+            $tenantId
+        );
+        $assignee = $approveUserIds[0];
+        $starterName = trim((string)($starter['NAME'] ?? $payload['name'] ?? $currentUserId));
+        $projectName = trim((string)($project['PROJECT_NAME'] ?? $projectId));
+        $title = $starterName . "\u{53d1}\u{8d77}\u{7684}" . $projectName . "\u{9879}\u{76ee}\u{8865}\u{8d27}\u{7533}\u{8bf7}";
+        $variables = $this->generalProcessVariables(array_merge($input, [
+            'projectId' => $projectId,
+            'bizSaleProjectId' => $projectId,
+            'objectId' => $projectId,
+            'productList' => $productList,
+            'amount' => $amount,
+        ]));
+        $variables = array_merge($variables, [
+            'initiator' => $currentUserId,
+            'approveUserIdList' => $approveUserIds,
+            'copyUserIdList' => $copyUserIds,
+            'fileIdList' => $fileIds === [] ? null : $fileIds,
+            'org' => $orgId,
+            'approval' => true,
+            'title' => $title,
+            'tenantId' => $tenantId,
+            'status' => self::STATUS_PROGRESS,
+            'nrOfInstances' => count($approveUserIds),
+            'nrOfCompletedInstances' => 0,
+            'nrOfActiveInstances' => 1,
+            'loopCounter' => 0,
+            'user' => $assignee,
+        ]);
+
+        return $this->startInitialApprovalProcess(
+            self::PROCESS_PROJECT_REISSUE_PRODUCT,
+            $currentUserId,
+            $tenantId,
+            $approveUserIds,
+            $copyUserIds,
+            $fileIds,
+            $assignee,
+            $title,
+            $variables,
+            self::TASK_NAME_APPROVAL,
+            [
+                'projectId' => $projectId,
+                'projectState' => (string)($project['PROJECT_STATE'] ?? ''),
+                'productItemCount' => (int)($project['PRODUCT_ITEM_COUNT'] ?? count($productList)),
+            ]
+        );
+    }
+
+    public function startProjectReturnProcess(array $input, array $payload = []): array
+    {
+        $currentUserId = $this->requiredCurrentUserId($payload);
+        $starter = $this->userRow($currentUserId);
+        $tenantId = $this->tenantId($input, $payload, $starter);
+        $orgId = $this->orgId($payload, $starter);
+        $projectId = $this->requiredProjectIdInput($input);
+        $warehouseId = $this->requiredInputString($input, 'warehousesId');
+        $approveUserIds = $this->requiredStringList($input['approveUserIdList'] ?? $input['approveUsers'] ?? []);
+        $copyUserIds = $this->stringList($input['copyUserIdList'] ?? $input['copyUsers'] ?? []);
+        $fileIds = $this->stringList($input['fileIdList'] ?? []);
+        $productList = $this->decodedArrayList($input['productList'] ?? null, 'productList');
+        $this->assertUsers($approveUserIds, $tenantId, 'approve user not found');
+        $this->assertUsers($copyUserIds, $tenantId, 'copy user not found');
+        $amount = $this->requiredNonNegativeInputDecimal($input, 'amount');
+
+        $project = $this->returnOrderService->workflowProjectReturnStartInfo(
+            $projectId,
+            $warehouseId,
+            $productList,
+            $payload,
+            $tenantId
+        );
+        $assignee = $approveUserIds[0];
+        $starterName = trim((string)($starter['NAME'] ?? $payload['name'] ?? $currentUserId));
+        $projectName = trim((string)($project['PROJECT_NAME'] ?? $projectId));
+        $title = $starterName . "\u{53d1}\u{8d77}\u{7684}" . $projectName . "\u{9879}\u{76ee}\u{9000}\u{8d27}\u{7533}\u{8bf7}";
+        $variables = $this->generalProcessVariables(array_merge($input, [
+            'projectId' => $projectId,
+            'bizSaleProjectId' => $projectId,
+            'objectId' => $projectId,
+            'productList' => $productList,
+            'amount' => $amount,
+            'warehousesId' => $warehouseId,
+        ]));
+        $variables = array_merge($variables, [
+            'initiator' => $currentUserId,
+            'approveUserIdList' => $approveUserIds,
+            'copyUserIdList' => $copyUserIds,
+            'fileIdList' => $fileIds === [] ? null : $fileIds,
+            'org' => $orgId,
+            'approval' => true,
+            'title' => $title,
+            'tenantId' => $tenantId,
+            'status' => self::STATUS_PROGRESS,
+            'nrOfInstances' => count($approveUserIds),
+            'nrOfCompletedInstances' => 0,
+            'nrOfActiveInstances' => 1,
+            'loopCounter' => 0,
+            'user' => $assignee,
+        ]);
+
+        return $this->startInitialApprovalProcess(
+            self::PROCESS_SALE_PROJECT_PRODUCT_RETURN,
+            $currentUserId,
+            $tenantId,
+            $approveUserIds,
+            $copyUserIds,
+            $fileIds,
+            $assignee,
+            $title,
+            $variables,
+            self::TASK_NAME_APPROVAL,
+            [
+                'projectId' => $projectId,
+                'projectState' => (string)($project['PROJECT_STATE'] ?? ''),
+                'warehouseId' => $warehouseId,
+                'productItemCount' => (int)($project['PRODUCT_ITEM_COUNT'] ?? count($productList)),
             ]
         );
     }
@@ -851,6 +999,8 @@ class WorkflowRuntimeService
             || $processKey === self::PROCESS_SALE_PROJECT_INIT
             || $processKey === self::PROCESS_SALE_PROJECT_DELIVERY
             || $processKey === self::PROCESS_SALE_PROJECT_PLAY
+            || $processKey === self::PROCESS_PROJECT_REISSUE_PRODUCT
+            || $processKey === self::PROCESS_SALE_PROJECT_PRODUCT_RETURN
             || in_array($processKey, self::NON_PROJECT_START_KEYS, true);
     }
 
@@ -1307,6 +1457,8 @@ class WorkflowRuntimeService
             self::PROCESS_SALE_PROJECT_INIT,
             self::PROCESS_SALE_PROJECT_DELIVERY,
             self::PROCESS_SALE_PROJECT_PLAY,
+            self::PROCESS_PROJECT_REISSUE_PRODUCT,
+            self::PROCESS_SALE_PROJECT_PRODUCT_RETURN,
         ], true);
     }
 
@@ -1823,6 +1975,18 @@ class WorkflowRuntimeService
             ];
         }
 
+        if ($definitionKey === self::PROCESS_PROJECT_REISSUE_PRODUCT) {
+            return [
+                'saleProjectReissue' => $this->approveProjectReissue($processInstanceId, $tenantId, $currentUserId),
+            ];
+        }
+
+        if ($definitionKey === self::PROCESS_SALE_PROJECT_PRODUCT_RETURN) {
+            return [
+                'saleProjectReturn' => $this->approveProjectReturn($processInstanceId, $tenantId, $currentUserId),
+            ];
+        }
+
         if ($definitionKey === self::PROCESS_PAYMENT) {
             return [
                 'payment' => $this->approvePayment($processInstanceId, $tenantId),
@@ -1863,6 +2027,38 @@ class WorkflowRuntimeService
         $effectiveTenantId = $tenantId !== '' ? $tenantId : trim((string)($variables['tenantId'] ?? ''));
 
         return $this->saleProjectService->applyProjectDeliveryFromWorkflow(
+            $variables,
+            $processInstanceId,
+            $effectiveTenantId,
+            $currentUserId
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function approveProjectReissue(string $processInstanceId, string $tenantId, string $currentUserId): array
+    {
+        $variables = $this->historyVariableValues($processInstanceId);
+        $effectiveTenantId = $tenantId !== '' ? $tenantId : trim((string)($variables['tenantId'] ?? ''));
+
+        return $this->saleProjectService->applyProjectReissueFromWorkflow(
+            $variables,
+            $processInstanceId,
+            $effectiveTenantId,
+            $currentUserId
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function approveProjectReturn(string $processInstanceId, string $tenantId, string $currentUserId): array
+    {
+        $variables = $this->historyVariableValues($processInstanceId);
+        $effectiveTenantId = $tenantId !== '' ? $tenantId : trim((string)($variables['tenantId'] ?? ''));
+
+        return $this->returnOrderService->applyProjectReturnFromWorkflow(
             $variables,
             $processInstanceId,
             $effectiveTenantId,

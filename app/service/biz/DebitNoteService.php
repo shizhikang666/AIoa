@@ -13,6 +13,7 @@ use think\facade\Db;
 class DebitNoteService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const UNSETTLED = 'Unsettled';
     private const ALREADY_SETTLED = 'AlreadySettled';
     private const LOAN_REPAYMENT_CATEGORY = 'LoanRepayment';
@@ -110,6 +111,171 @@ SQL;
         }
 
         return $this->noteRows([$row])[0];
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $expenditureRecordId = $this->requiredInput($input, 'expenditureRecordId');
+        $amountCents = $this->positiveMoneyCents($input['amount'] ?? null);
+        $settlementAmountCents = array_key_exists('settlementAmount', $input)
+            ? $this->nonNegativeMoneyCents($input['settlementAmount'], 'settlementAmount')
+            : 0;
+        if ($settlementAmountCents > $amountCents) {
+            throw new RuntimeException('debit note settlement amount exceeds debit note amount', 400);
+        }
+        $remark = $this->nullableString($input['remark'] ?? null);
+
+        return Db::transaction(function () use ($input, $payload, $expenditureRecordId, $amountCents, $settlementAmountCents, $remark): array {
+            $expenditureRecord = $this->assertExpenditureRecordWritable(
+                $this->activeExpenditureRecord($expenditureRecordId, $payload, true),
+                $payload,
+                'add debit note'
+            );
+            $this->assertExpenditureRecordUnbound($expenditureRecordId, null, $payload);
+
+            $recordAmountCents = $this->moneyCents($expenditureRecord['AMOUNT'] ?? '0');
+            if ($amountCents > $recordAmountCents) {
+                throw new RuntimeException('debit note amount exceeds expenditure record amount', 400);
+            }
+
+            $accountId = trim((string)($expenditureRecord['TARGET_ID'] ?? ''));
+            $account = $this->activeSettlementAccount($accountId, $payload);
+            $tenantId = trim((string)($expenditureRecord['TENANT_ID'] ?? ''));
+            if ($tenantId === '') {
+                $tenantId = $this->tenantId($input, $payload);
+            }
+            $orgId = trim((string)($account['ORG'] ?? $account['org'] ?? $expenditureRecord['ORG'] ?? ''));
+            $userId = $this->currentUserId($payload);
+            $now = date('Y-m-d H:i:s');
+            $id = $this->newId();
+
+            $count = Db::name('biz_debit_note')->insert([
+                'ID' => $id,
+                'EXPENDITURE_RECORD_ID' => $expenditureRecordId,
+                'REMARK' => $remark,
+                'PLAY_STATUS' => $this->playStatusFor($settlementAmountCents, $amountCents),
+                'AMOUNT' => $this->moneyFromCents($amountCents),
+                'SETTLEMENT_AMOUNT' => $this->moneyFromCents($settlementAmountCents),
+                'HISTORY_AMOUNT' => '0.00',
+                'ORG' => $orgId !== '' ? $orgId : null,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'TENANT_ID' => $tenantId,
+                'VERSION' => 0,
+            ]);
+
+            return [
+                'id' => $id,
+                'expenditureRecordId' => $expenditureRecordId,
+                'amount' => $this->moneyFromCents($amountCents),
+                'settlementAmount' => $this->moneyFromCents($settlementAmountCents),
+                'historyAmount' => '0.00',
+                'playStatus' => $this->playStatusFor($settlementAmountCents, $amountCents),
+                'org' => $orgId,
+                'count' => (int)$count,
+            ];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $note = $this->assertNoteWritable($id, $payload, 'edit this debit note', true);
+            $currentAmountCents = $this->moneyCents($note['AMOUNT'] ?? '0');
+            $amountChanged = array_key_exists('amount', $input);
+            $amountCents = $amountChanged
+                ? $this->positiveMoneyCents($input['amount'])
+                : $currentAmountCents;
+            $currentSettlementCents = $this->moneyCents($note['SETTLEMENT_AMOUNT'] ?? '0');
+            $settlementChanged = array_key_exists('settlementAmount', $input);
+            $settlementAmountCents = $settlementChanged
+                ? $this->nonNegativeMoneyCents($input['settlementAmount'], 'settlementAmount')
+                : $currentSettlementCents;
+            if ($settlementAmountCents > $amountCents) {
+                throw new RuntimeException('debit note settlement amount exceeds debit note amount', 400);
+            }
+
+            $historyAmountCents = $this->moneyCents($note['HISTORY_AMOUNT'] ?? '0');
+            $markedSettled = trim((string)($note['PLAY_STATUS'] ?? '')) === self::ALREADY_SETTLED;
+            $moneyChanged = $amountCents !== $currentAmountCents || $settlementAmountCents !== $currentSettlementCents;
+            if (($currentSettlementCents > 0 || $historyAmountCents > 0 || $markedSettled) && $moneyChanged) {
+                throw new RuntimeException('settled debit note can only edit remark', 400);
+            }
+
+            $playStatus = $moneyChanged
+                ? $this->playStatusFor($settlementAmountCents, $amountCents)
+                : trim((string)($note['PLAY_STATUS'] ?? ''));
+            if ($playStatus === '') {
+                $playStatus = $this->playStatusFor($settlementAmountCents, $amountCents);
+            }
+            $remark = array_key_exists('remark', $input)
+                ? $this->nullableString($input['remark'])
+                : $this->nullableString($note['REMARK'] ?? null);
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('biz_debit_note')
+                ->where('ID', $id)
+                ->update([
+                    'REMARK' => $remark,
+                    'PLAY_STATUS' => $playStatus,
+                    'AMOUNT' => $this->moneyFromCents($amountCents),
+                    'SETTLEMENT_AMOUNT' => $this->moneyFromCents($settlementAmountCents),
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                ]);
+
+            return [
+                'id' => $id,
+                'expenditureRecordId' => $note['EXPENDITURE_RECORD_ID'] ?? null,
+                'amount' => $this->moneyFromCents($amountCents),
+                'settlementAmount' => $this->moneyFromCents($settlementAmountCents),
+                'historyAmount' => $this->moneyFromCents($historyAmountCents),
+                'playStatus' => $playStatus,
+                'count' => $updated,
+            ];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = array_values(array_unique($this->stringList($ids)));
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $notes = $this->lockedNotes($idList, $payload);
+            foreach ($idList as $id) {
+                $note = $this->assertNoteRowWritable($notes[$id], $payload, 'delete this debit note');
+                if (
+                    $this->moneyCents($note['SETTLEMENT_AMOUNT'] ?? '0') > 0
+                    || $this->moneyCents($note['HISTORY_AMOUNT'] ?? '0') > 0
+                    || trim((string)($note['PLAY_STATUS'] ?? '')) === self::ALREADY_SETTLED
+                ) {
+                    throw new RuntimeException('settled debit note cannot be deleted directly', 400);
+                }
+            }
+
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('biz_debit_note')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
     }
 
     public function markSuccess(array $input, array $payload = []): array
@@ -335,9 +501,9 @@ SQL;
         return $query;
     }
 
-    private function assertNoteWritable(string $id, array $payload, string $action): array
+    private function assertNoteWritable(string $id, array $payload, string $action, bool $lock = false): array
     {
-        $row = $this->activeNote($id, $payload);
+        $row = $this->activeNote($id, $payload, $lock);
         return $this->assertNoteRowWritable($row, $payload, $action);
     }
 
@@ -369,7 +535,7 @@ SQL;
     private function lockedNotes(array $ids, array $payload): array
     {
         $ids = array_values(array_unique(array_map(
-            static fn (string $id): string => trim($id),
+            static fn (mixed $id): string => trim((string)$id),
             $ids
         )));
         sort($ids, SORT_STRING);
@@ -386,7 +552,7 @@ SQL;
         }
 
         $rows = $query
-            ->field('ID,EXPENDITURE_RECORD_ID,CREATE_USER,TENANT_ID,ORG,AMOUNT,SETTLEMENT_AMOUNT,HISTORY_AMOUNT,PLAY_STATUS')
+            ->field('ID,EXPENDITURE_RECORD_ID,REMARK,CREATE_USER,TENANT_ID,ORG,AMOUNT,SETTLEMENT_AMOUNT,HISTORY_AMOUNT,PLAY_STATUS')
             ->order('ID', 'asc')
             ->lock(true)
             ->select()
@@ -406,7 +572,7 @@ SQL;
         return $map;
     }
 
-    private function activeNote(string $id, array $payload): array
+    private function activeNote(string $id, array $payload, bool $lock = false): array
     {
         $query = Db::name('biz_debit_note')
             ->where('ID', $id)
@@ -419,14 +585,91 @@ SQL;
             $query->where('TENANT_ID', $tenantId);
         }
 
+        if ($lock) {
+            $query->lock(true);
+        }
+
         $row = $query
-            ->field('ID,CREATE_USER,TENANT_ID,ORG')
+            ->field('ID,EXPENDITURE_RECORD_ID,REMARK,CREATE_USER,TENANT_ID,ORG,AMOUNT,SETTLEMENT_AMOUNT,HISTORY_AMOUNT,PLAY_STATUS')
             ->find();
         if (!is_array($row) || $row === []) {
             throw new RuntimeException('debit note not found', 404);
         }
 
         return $row;
+    }
+
+    private function activeExpenditureRecord(string $id, array $payload, bool $lock = false): array
+    {
+        $query = Db::name('biz_expenditure_record')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        if ($lock) {
+            $query->lock(true);
+        }
+
+        $row = $query
+            ->field('ID,TARGET_ID,TENANT_ID,ORG,CREATE_USER,`USER` AS USER_ID,AMOUNT')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('expenditure record not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertExpenditureRecordWritable(array $row, array $payload, string $action): array
+    {
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $recordOrg = trim((string)($row['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $recordOrg !== '' && in_array($recordOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $recordUser = trim((string)($row['USER_ID'] ?? ''));
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && ($recordUser === $currentUserId || $createUser === $currentUserId)) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action} with this expenditure record", 403);
+    }
+
+    private function assertExpenditureRecordUnbound(string $expenditureRecordId, ?string $ignoreId, array $payload): void
+    {
+        $query = Db::name('biz_debit_note')
+            ->where('EXPENDITURE_RECORD_ID', $expenditureRecordId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+        if ($query->count() > 0) {
+            throw new RuntimeException('expenditure record is already bound to a debit note', 400);
+        }
+    }
+
+    private function playStatusFor(int $settlementAmountCents, int $amountCents): string
+    {
+        return $settlementAmountCents === $amountCents ? self::ALREADY_SETTLED : self::UNSETTLED;
     }
 
     private function activeSettlementAccount(string $id, array $payload, bool $lock = false): array
@@ -588,6 +831,22 @@ SQL;
             static fn (mixed $id): string => trim((string)$id),
             $ids
         ))));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
     }
 
     private function canSeeAll(array $payload): bool

@@ -1,7 +1,7 @@
 # Biz Leave Application Compatibility
 
 Date: 2026-06-12
-Updated: 2026-06-22
+Updated: 2026-06-27
 
 Agent: api-agent / merge-agent
 
@@ -30,7 +30,7 @@ Java `BizLeaveApplicationServiceImpl`:
 - sorts by requested field when present, otherwise by `id` ascending
 - exposes `edit` with Java `BizLeaveApplicationEditParam` fields: `id`, `userId`, `processId`, `category`, `amount`, `remark`, `startTime`, and `endTime`
 - exposes `delete` with Java `BizLeaveApplicationIdParam` ids
-- keeps `add` commented out in the Java controller; leave creation remains workflow-owned. ThinkPHP workflow approval now creates `Process_ask_leave` records for approved leave processes.
+- keeps `add` commented out in the Java controller; ThinkPHP exposes a bounded direct-maintenance add for the copied frontend form, while workflow approval continues to create `Process_ask_leave` records for approved leave processes.
 
 ## Added Routes
 
@@ -39,7 +39,7 @@ Java `BizLeaveApplicationServiceImpl`:
 | GET | `/biz/bizleaveapplication/page` | `BizLeaveApplicationController::page` | Paged list with data-scope fallback. |
 | GET | `/biz/bizleaveapplication/my/page` | `BizLeaveApplicationController::myPage` | Paged list restricted to current user. |
 | GET | `/biz/bizleaveapplication/detail` | `BizLeaveApplicationController::detail` | Detail by `id`. |
-| POST | `/biz/bizleaveapplication/add` | `BizLeaveApplicationController::add` | Controlled deferred wrapper; direct leave creation remains workflow-owned. |
+| POST | `/biz/bizleaveapplication/add` | `BizLeaveApplicationController::add` | Direct manual leave row add with overlap and vacation-balance guards. |
 | POST | `/biz/bizleaveapplication/edit` | `BizLeaveApplicationController::edit` | Updates only Java edit-param fields plus update audit fields. |
 | POST | `/biz/bizleaveapplication/delete` | `BizLeaveApplicationController::delete` | Logical delete with full-batch validation before update. |
 
@@ -69,6 +69,10 @@ Rows include:
 
 ## Write Behavior
 
+- `add` requires Java add-param fields `userId`, `processId`, `category`, `amount`, `startTime`, and `endTime`, with optional `remark` and `objectId`.
+- `add` validates the active target user, tenant/data-scope write permission, non-overlapping active leave range for the same user, process/category/object field lengths, and valid start/end ordering.
+- `add` writes one active `biz_leave_application` row with audit fields and `DELETE_FLAG = NOT_DELETE`.
+- `add` deducts current-year `annualLeave` from locked `biz_user_vacation.USED_AMOUNT` in the same transaction. Missing balances, insufficient remaining days, invalid ranges, or overlap failures roll back the whole insert.
 - `edit` requires all Java edit fields and writes only `USER_ID`, `PROCESS_ID`, `category`, `AMOUNT`, `REMARK`, `START_TIME`, `END_TIME`, `UPDATE_TIME`, and `UPDATE_USER`.
 - `edit` preserves `OBJECT_ID`, `TENANT_ID`, `CREATE_TIME`, `CREATE_USER`, and delete state.
 - `edit` adjusts current-year `biz_user_vacation.USED_AMOUNT` when the old or new row category is `annualLeave`.
@@ -77,16 +81,12 @@ Rows include:
 - `delete` restores current-year `annualLeave` amounts before logically deleting rows.
 - Non-admin writes are guarded by data-scope organization, current applicant, or creator ownership.
 - Direct `edit` and `delete` do not run workflow, payroll, notification, or data-change side effects.
-
-## Controlled Deferred Write
-
-`POST /biz/bizleaveapplication/add` returns a controlled `code = 400` deferred response. It does not directly create leave records, start workflow, deduct annual leave, automatically rewrite existing payroll rows, emit notifications, change database schema, or modify Java source.
+- Direct `add` does not start workflow, create tasks, automatically rewrite existing payroll rows, emit notifications, or emit data-change events.
 
 ## Deferred
 
 The following remain intentionally deferred:
 
-- real `POST /biz/bizleaveapplication/add` behavior
 - copy-user generation outside active leave-start runtime
 - annual-leave/vacation generation
 - automatic existing-payroll row recalculation
@@ -111,6 +111,7 @@ php -l route\app.php
 composer dump-autoload
 php think
 php think route:list
+.\scripts\hr-payroll-direct-maintenance-http-smoke.ps1
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 git diff --check
 ```
@@ -139,3 +140,7 @@ The smoke asserts Java-style paging keys and frontend-visible applicant, organiz
 ## 2026-06-22 Vacation Adjustment HTTP Smoke
 
 `scripts/biz-leave-application-vacation-adjustment-http-smoke.ps1` covers direct edit/delete annual-leave balance deltas, category restoration, insufficient-balance rollback, delete restoration, and temporary row cleanup.
+
+## 2026-06-27 Direct Add HTTP Smoke
+
+`scripts/hr-payroll-direct-maintenance-http-smoke.ps1` covers authenticated direct leave add together with payroll direct add by creating a temporary user and vacation balance, checking no-token/missing-body guards, inserting one annual-leave row, verifying vacation deduction, rejecting overlap, and cleaning temporary rows.

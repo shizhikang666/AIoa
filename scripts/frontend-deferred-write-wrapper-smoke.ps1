@@ -135,21 +135,6 @@ function Assert-DeferredResponse {
 
 $baseUrl = $BackendBaseUrl.TrimEnd('/')
 $paths = @(
-    '/biz/bizpaymentrecord/add',
-    '/biz/bizpaymentrecord/delete',
-    '/biz/bizexpenditurerecord/add',
-    '/biz/bizexpenditurerecord/delete',
-    '/biz/bizcollectionreceipt/add',
-    '/biz/bizcollectionreceipt/edit',
-    '/biz/bizcollectionreceipt/delete',
-    '/biz/bizdebitnote/add',
-    '/biz/bizdebitnote/edit',
-    '/biz/bizdebitnote/delete',
-    '/biz/bizpurchaseorder/add',
-    '/biz/bizpurchaseorder/delete',
-    '/biz/inventory/delete',
-    '/biz/bizleaveapplication/add',
-    '/biz/bizpayroll/add',
     '/dev/email/sendLocalTxt',
     '/dev/email/sendLocalHtml',
     '/dev/email/sendAliyunTxt',
@@ -159,9 +144,7 @@ $paths = @(
     '/dev/email/sendTencentHtml',
     '/dev/email/sendTencentTmp',
     '/gen/basic/execGenPro',
-    '/gen/config/add',
-    '/biz/process/project/reissue/start',
-    '/biz/process/project/return/start'
+    '/gen/config/add'
 )
 
 foreach ($path in $paths) {
@@ -180,7 +163,7 @@ foreach ($path in $getPaths) {
     Write-Host "$path code=400"
 }
 
-foreach ($path in @('/biz/bizpaymentrecord/add', '/biz/bizexpenditurerecord/delete', '/biz/bizcollectionreceipt/delete', '/biz/inventory/delete', '/biz/bizpayroll/add', '/dev/email/sendLocalTxt', '/gen/basic/execGenPro', '/biz/process/cancel')) {
+foreach ($path in @('/dev/email/sendLocalTxt', '/gen/basic/execGenPro', '/gen/config/add', '/biz/process/cancel')) {
     $json = Invoke-JsonPost -Url ($baseUrl + $path)
     if ([int]$json.code -ne 401) {
         throw "$path no-token expected code=401, got code=$($json.code)"

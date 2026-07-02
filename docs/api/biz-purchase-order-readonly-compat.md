@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice adds protected ThinkPHP purchase-order read routes plus narrow cancel, edit, audit-edit, single-order warehouse stock-in, and batch warehouse stock-in routes compatible with the Java purchase-order controller and the existing Vue API module.
+This slice adds protected ThinkPHP purchase-order read routes plus bounded direct add/delete, narrow cancel, edit, audit-edit, single-order warehouse stock-in, and batch warehouse stock-in routes compatible with the Java purchase-order controller and the existing Vue API module.
 
 ## Routes
 
@@ -10,11 +10,13 @@ This slice adds protected ThinkPHP purchase-order read routes plus narrow cancel
 - `GET /biz/bizpurchaseorder/detail/list`
 - `GET /biz/bizpurchaseorder/list`
 - `GET /biz/bizpurchaseorder/detail`
+- `POST /biz/bizpurchaseorder/add`
 - `POST /biz/bizpurchaseorder/cancel`
 - `POST /biz/bizpurchaseorder/edit`
 - `POST /biz/bizpurchaseorder/audit/edit`
 - `POST /biz/bizpurchaseorder/warehouse/one/add`
 - `POST /biz/bizpurchaseorder/warehouse/add`
+- `POST /biz/bizpurchaseorder/delete`
 
 ## Java References
 
@@ -142,7 +144,7 @@ The route implements the Java single purchase-order stock-in path:
 - updates the purchase order and its items to `STORAGE_STATUS = IN_WAREHOUSE`;
 - refreshes audit fields and increments `VERSION` on changed order, item, and inventory rows.
 
-This route intentionally does not implement batch stock-in selection, purchase-order creation/deletion, expenditure creation, settlement-account statements, workflow start/approval, Java data-change event publishing, Java source, `.env`, Composer config, or frontend source changes.
+This route intentionally does not implement batch stock-in selection, expenditure creation, settlement-account statements, workflow start/approval, Java data-change event publishing, Java source, `.env`, Composer config, or frontend source changes.
 
 ## Purchase Order Warehouse Add Route
 
@@ -162,16 +164,59 @@ The route implements the Java batch stock-in path:
 
 If no completed not-in-warehouse purchase orders are visible, the route returns success with `count = 0` and performs no stock movement.
 
-This route intentionally does not implement purchase-order creation/deletion, expenditure creation, settlement-account statements, workflow start/approval, Java data-change event publishing, Java source, `.env`, Composer config, or frontend source changes.
+This route intentionally does not implement expenditure creation, settlement-account statements, workflow start/approval, Java data-change event publishing, Java source, `.env`, Composer config, or frontend source changes.
 
-## Controlled Deferred Writes
+## Purchase Order Direct Add Route
 
-These protected copied-frontend write paths now return Java-style `code = 400` deferred responses:
+`POST /biz/bizpurchaseorder/add` accepts the Java/frontend purchase-order payload:
 
-- `POST /biz/bizpurchaseorder/add`
-- `POST /biz/bizpurchaseorder/delete`
+- `title`
+- `supplier`
+- optional `supplierId`
+- optional `instanceId`; defaults to `Process_sys` for direct/manual creation
+- `desirePurchaseDate`
+- optional `amount`; when omitted it is derived from submitted item amounts
+- optional `remark`
+- optional `org`; defaults from the current token organization when available
+- `productList`
 
-They do not create purchase orders, audit records, create expenditure records, start workflow, mutate data-change events, change database schema, modify Java source, edit `.env`, or change Composer/public config files.
+Each `productList` item accepts:
+
+- `productId`
+- `amount`
+- `number`
+- `unitAmount`
+- optional `discountRate`
+- optional `remark`
+
+The route:
+
+- validates supplier payload shape and active supplier id when supplied;
+- rejects duplicate product ids;
+- validates referenced product rows in the current tenant;
+- enforces admin/data-scope/current-user create permission;
+- creates one active `biz_purchase_order` row with `SETTLEMENT_STATUS = NOT_COMPLETED` and `STORAGE_STATUS = NOT_IN_WAREHOUSE`;
+- creates one active `biz_purchase_order_item` row per submitted product with `STORAGE_STATUS = NOT_IN_WAREHOUSE`;
+- writes no expenditure, settlement statement, delivery, inventory, workflow, notification, or Java data-change rows.
+
+## Purchase Order Direct Delete Route
+
+`POST /biz/bizpurchaseorder/delete` accepts Java-style delete payloads:
+
+- `[{"id":"..."}]`
+- `{"idList":["..."]}`
+- `{"ids":["..."]}`
+- `{"id":"..."}`
+
+The route locks each active order and its active items, requires admin/data-scope/current-user write permission, then logically deletes the order and active item rows only when all protective guards pass:
+
+- `SETTLEMENT_STATUS` is not `COMPLETED`;
+- `STORAGE_STATUS` is not `IN_WAREHOUSE`;
+- no active goods expenditure rows exist for the order;
+- no active delivery rows exist for the order;
+- no active item is already `IN_WAREHOUSE`.
+
+This is not a stock/finance rollback delete. Orders with warehouse, expenditure, or delivery side effects must be corrected by the dedicated side-effect paths.
 
 ## Verification
 
@@ -179,7 +224,7 @@ They do not create purchase orders, audit records, create expenditure records, s
 - `php think`
 - `php think route:list`
 - PHP syntax lint
-- Token smoke tests for page, list, detail/list, detail, cancel status, edit, audit edit, warehouse one add, warehouse batch add, and no-token 401.
+- Token smoke tests for page, list, detail/list, detail, add/delete route registration, cancel status, edit, audit edit, warehouse one add, warehouse batch add, and no-token 401.
 
 ## 2026-06-15 HTTP Smoke Coverage
 

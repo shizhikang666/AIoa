@@ -13,8 +13,13 @@ param(
     [switch]$SkipSettlementAccountPaymentRead,
     [switch]$SkipSettlementAccountRead,
     [switch]$SkipSettlementAccountDelete,
+    [switch]$SkipSettlementAccountExpensesAdd,
     [switch]$SkipSupplierWarehouseRead,
     [switch]$SkipProductRead,
+    [switch]$SkipSaleProjectProductItemStandalone,
+    [switch]$SkipSaleProjectInvoiceAdd,
+    [switch]$SkipSaleProjectReissueOrderAdd,
+    [switch]$SkipReturnOrderWrite,
     [switch]$SkipHrRead,
     [switch]$SkipTeamProjectRead,
     [switch]$SkipDatareportRead,
@@ -34,6 +39,8 @@ param(
     [switch]$SkipWorkflowProcureWarehouseApprove,
     [switch]$SkipWorkflowProjectInitApprove,
     [switch]$SkipWorkflowProjectDeliveryApprove,
+    [switch]$SkipWorkflowProjectReissueApprove,
+    [switch]$SkipWorkflowProjectReturnApprove,
     [switch]$SkipWorkflowProjectPlayApprove,
     [switch]$SkipWorkflowTaskTransition,
     [switch]$SkipWorkflowProcessCancelEdit,
@@ -146,6 +153,12 @@ if (-not $SkipSettlementAccountDelete) {
     }
 }
 
+if (-not $SkipSettlementAccountExpensesAdd) {
+    Invoke-Step 'Settlement Account Expenses Add HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'settlement-account-expenses-add-http-smoke.ps1')
+    }
+}
+
 if (-not $SkipSupplierWarehouseRead) {
     Invoke-Step 'Supplier/Warehouse Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'supplier-warehouse-read-http-smoke.ps1')
@@ -155,6 +168,30 @@ if (-not $SkipSupplierWarehouseRead) {
 if (-not $SkipProductRead) {
     Invoke-Step 'Product Read HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'product-read-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipSaleProjectProductItemStandalone) {
+    Invoke-Step 'Sale Project Product Item Standalone HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'sale-project-product-item-standalone-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipSaleProjectInvoiceAdd) {
+    Invoke-Step 'Sale Project Invoice Add/Edit/Delete HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'sale-project-invoice-add-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipSaleProjectReissueOrderAdd) {
+    Invoke-Step 'Sale Project Reissue Order Add/Edit/Delete HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'sale-project-reissue-order-add-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipReturnOrderWrite) {
+    Invoke-Step 'Return Order Write HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'return-order-write-http-smoke.ps1')
     }
 }
 
@@ -269,6 +306,18 @@ if (-not $SkipWorkflowProjectInitApprove) {
 if (-not $SkipWorkflowProjectDeliveryApprove) {
     Invoke-Step 'Workflow Project Delivery Approve HTTP Smoke' {
         & (Join-Path $PSScriptRoot 'workflow-project-delivery-approve-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowProjectReissueApprove) {
+    Invoke-Step 'Workflow Project Reissue Approve HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-project-reissue-approve-http-smoke.ps1')
+    }
+}
+
+if (-not $SkipWorkflowProjectReturnApprove) {
+    Invoke-Step 'Workflow Project Return Approve HTTP Smoke' {
+        & (Join-Path $PSScriptRoot 'workflow-project-return-approve-http-smoke.ps1')
     }
 }
 

@@ -312,7 +312,7 @@ Agent: merge-agent / api-agent / test-agent / docs-agent
 ### Frontend Notes
 
 - Payment-record form save can now use `/biz/bizpaymentrecord/edit` only for payer-time correction.
-- `/biz/bizpaymentrecord/add` and `/biz/bizpaymentrecord/delete` remain controlled-deferred and should not be treated as implemented business writes.
+- `/biz/bizpaymentrecord/add` and `/biz/bizpaymentrecord/delete` moved to bounded direct manual writes on 2026-06-26; see the payment/expenditure direct add-delete note below.
 - `scripts/biz-payment-record-edit-http-smoke.ps1` covers no-token rejection, missing-field rejection, detail readback, linked-statement sync, ignored client-spoofed fields, missing-statement rollback, and unchanged related-table counts.
 
 ## 2026-06-17 Payment Record Account Switch
@@ -327,7 +327,7 @@ Agent: merge-agent / api-agent / test-agent / docs-agent
 
 - Payment-record account switch controls can now call `/biz/bizpaymentrecord/edit/account` for stored-amount account reassignment.
 - The backend ignores client-spoofed amount, object, serial, process, category, user, org, audit, and delete fields.
-- `/biz/bizpaymentrecord/add` and `/biz/bizpaymentrecord/delete` remain controlled-deferred.
+- `/biz/bizpaymentrecord/add` and `/biz/bizpaymentrecord/delete` moved to bounded direct manual writes on 2026-06-26; see the payment/expenditure direct add-delete note below.
 - `scripts/biz-payment-record-edit-account-http-smoke.ps1` covers no-token rejection, missing target, same-account rejection, current-account mismatch, missing-statement rollback, detail readback, balance movement, statement account sync, ignored spoofed fields, and unchanged related-table counts.
 
 ## 2026-06-16 Expenditure Record Correction
@@ -343,7 +343,7 @@ Agent: merge-agent / api-agent / test-agent / docs-agent
 - The settlement-account detail expenditure tab can save payer-time corrections through the existing expenditure-record API wrapper.
 - The expenditure-record list/category form can save allowed `settlementCategory` corrections through the same route.
 - Object-linked expenditure records and protected category transitions are rejected by the backend.
-- `/biz/bizexpenditurerecord/add` and `/biz/bizexpenditurerecord/delete` remain controlled-deferred and should not be treated as implemented business writes.
+- `/biz/bizexpenditurerecord/add` and `/biz/bizexpenditurerecord/delete` moved to bounded direct manual writes on 2026-06-26; see the payment/expenditure direct add-delete note below.
 - `scripts/biz-expenditure-record-edit-http-smoke.ps1` covers no-token and missing-id rejection, detail readback, linked-statement sync, category guard rejection, object guard rejection, missing-statement rollback, ignored client-spoofed fields, and unchanged related-table counts.
 
 ## 2026-06-17 Expenditure Record Account Switch
@@ -359,8 +359,40 @@ Agent: merge-agent / api-agent / test-agent / docs-agent
 - Expenditure-record account switch controls can now call `/biz/bizexpenditurerecord/edit/account` for stored-amount account reassignment.
 - The backend ignores client-spoofed amount, object, serial, process, category, user, org, audit, and delete fields.
 - The expenditure record `org` is preserved during account switch, matching Java's record update behavior.
-- `/biz/bizexpenditurerecord/add` and `/biz/bizexpenditurerecord/delete` remain controlled-deferred.
+- `/biz/bizexpenditurerecord/add` and `/biz/bizexpenditurerecord/delete` moved to bounded direct manual writes on 2026-06-26; see the payment/expenditure direct add-delete note below.
 - `scripts/biz-expenditure-record-edit-account-http-smoke.ps1` covers no-token rejection, missing target, same-account rejection, current-account mismatch, missing-statement rollback, detail readback, balance movement, statement account sync, ignored spoofed fields, and unchanged related-table counts.
+
+## 2026-06-26 Payment/Expenditure Direct Add-Delete
+
+Agent: merge-agent / api-agent / docs-agent
+
+### Scope
+
+`/biz/bizpaymentrecord/add`, `/biz/bizpaymentrecord/delete`, `/biz/bizexpenditurerecord/add`, and `/biz/bizexpenditurerecord/delete` are now active as bounded product behavior after explicit user approval. This is not Java-public route parity; Java exposes read/edit/edit-account, while the ThinkPHP direct CRUD route exists to support copied frontend maintenance controls.
+
+### Frontend Notes
+
+- Payment add delegates to settlement-account quick income creation, writing one settlement statement, one payment record, and increasing the settlement account balance.
+- Expenditure add delegates to settlement-account quick expense creation, writing one settlement statement, one expenditure record, and decreasing the settlement account balance.
+- Payment delete only accepts guarded manual `Process_sys` rows, rejects transfer rows, marks the payment record and linked income statement deleted, and subtracts the stored amount from the settlement account.
+- Expenditure delete only accepts guarded manual `Process_sys` rows, rejects transfer/refund/purchase/repayment/travel/customer-rebate categories, marks the expenditure record and linked expense statement deleted, and adds the stored amount back to the settlement account.
+- Workflow-owned, transfer-owned, refund-owned, and other linked finance rows remain protected from direct delete.
+
+## 2026-06-26 Collection/Debit Direct CRUD
+
+Agent: merge-agent / api-agent / docs-agent
+
+### Scope
+
+`/biz/bizcollectionreceipt/add`, `/edit`, `/delete`, `/biz/bizdebitnote/add`, `/edit`, and `/delete` are now active as bounded product behavior after explicit user approval. This is not Java-public route parity; Java comments out these CRUD controller mappings, while the ThinkPHP routes exist to support copied frontend maintenance controls.
+
+### Frontend Notes
+
+- No frontend source change is required for the existing copied API wrappers.
+- Collection-receipt add/edit accept payment-record binding, amount, optional settlement amount, and remark. Delete accepts Java-style array payloads, `idList`, `ids`, or `id`.
+- Debit-note add accepts expenditure-record binding, amount, optional settlement amount, and remark. Edit updates note fields only; delete accepts Java-style array payloads, `idList`, `ids`, or `id`.
+- The backend rejects over-amount and over-settlement values, duplicate active bindings, and direct deletion of settled rows.
+- Direct collection/debit CRUD does not create settlement-account statements or change account balances. Repayment/loan-repayment side effects stay under `/biz/bizcollectionreceipt/batchExpenditure/edit` and `/biz/bizdebitnote/batchRepayment/edit`.
 
 ## 2026-06-17 Settlement Account Payment Add
 
@@ -1301,6 +1333,29 @@ This slice supports the copied inventory page registration action:
 ### Deferred
 
 - Inventory delete, stock movement, delivery records, purchase-order warehouse entry, workflow behavior, Java data-change event publishing, and warehouse stock side effects remain out of scope.
+
+## 2026-06-26 Purchase Order Add/Delete And Inventory Delete
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports the copied purchase-order and inventory write wrappers after explicit product approval:
+
+- `snowy-admin-web/src/api/biz/bizPurchaseOrderApi.js`
+- `snowy-admin-web/src/api/biz/inventoryApi.js`
+
+### Result
+
+- `/biz/bizpurchaseorder/add` now creates one direct purchase order plus submitted item rows with `NOT_COMPLETED` settlement and `NOT_IN_WAREHOUSE` storage state.
+- Purchase add accepts the existing frontend/Java `supplier`, `supplierId`, `desirePurchaseDate`, `amount`, `remark`, `org`, and `productList` shape, defaulting direct `instanceId` to `Process_sys`.
+- `/biz/bizpurchaseorder/delete` now logically deletes only orders and item rows that have no completed settlement, warehouse state, goods expenditure records, delivery rows, or warehoused items.
+- `/biz/inventory/delete` now logically deletes only active zero-count inventory rows after warehouse/product write-scope checks.
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1` no longer treats these three routes as deferred wrappers.
+
+### Deferred
+
+- Purchase-order delete with stock or finance rollback, purchase expenditure creation, settlement-account statements, nonzero inventory deletion, inventory stock rollback, workflow hooks, Java data-change event publishing, frontend source changes, Java source changes, database schema changes, Composer/npm changes, `.env` changes, and production data sync remain out of scope.
 
 ## 2026-06-18 Delivery Record Add Stocktake Compatibility
 

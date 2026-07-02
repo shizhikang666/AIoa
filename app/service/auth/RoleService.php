@@ -33,6 +33,7 @@ class RoleService
         'SCOPE_SELF',
         'SCOPE_ORG',
         'SCOPE_ORG_CHILD',
+        'SCOPE_COMPANY_CHILD',
         'SCOPE_ORG_DEFINE',
     ];
 
@@ -52,14 +53,14 @@ class RoleService
             ->select()
             ->toArray();
 
-        return $this->pageResult($records, $total, $page, $limit);
+        return $this->pageResult(array_map(fn (array $row): array => $this->roleRow($row), $records), $total, $page, $limit);
     }
 
     public function detail(string $id): ?array
     {
         $role = $this->roleQuery(['id' => $id])->find();
 
-        return is_array($role) && $role !== [] ? $role : null;
+        return is_array($role) && $role !== [] ? $this->roleRow($role) : null;
     }
 
     /**
@@ -87,7 +88,7 @@ class RoleService
 
         Db::name('sys_role')->insert($row);
 
-        return $this->activeRoleRow((string)$row['ID']);
+        return $this->roleRow($this->activeRoleRow((string)$row['ID']));
     }
 
     /**
@@ -96,7 +97,7 @@ class RoleService
      */
     public function edit(array $input, mixed $payload = []): array
     {
-        $id = $this->requiredInput($input, 'id');
+        $id = $this->requiredInput($input, ['id', 'ID', 'roleId', 'role_id']);
         $payload = is_array($payload) ? $payload : [];
         $existing = $this->activeRoleRow($id);
         if ($this->isBuiltInRole($existing)) {
@@ -117,7 +118,7 @@ class RoleService
             ->where('DELETE_FLAG', self::NOT_DELETE)
             ->update($update);
 
-        return $this->activeRoleRow($id);
+        return $this->roleRow($this->activeRoleRow($id));
     }
 
     /**
@@ -248,13 +249,10 @@ class RoleService
 
     public function grantUser(array $input): array
     {
-        $id = $this->requiredInput($input, 'id');
-        if (!array_key_exists('grantInfoList', $input)) {
-            throw new RuntimeException('missing grantInfoList', 400);
-        }
+        $id = $this->requiredInput($input, ['id', 'ID', 'roleId', 'role_id']);
 
         $role = $this->activeRoleRow($id);
-        $userIds = $this->stringList($input['grantInfoList']);
+        $userIds = $this->stringList($this->requiredGrantInfoList($input));
         if ($userIds === [] && $this->isBuiltInRole($role)) {
             throw new RuntimeException('built-in role must keep at least one user', 400);
         }
@@ -331,15 +329,15 @@ class RoleService
         $page = $this->page($filters);
         $page['records'] = array_map(static function (array $row): array {
             return [
-                'id' => $row['ID'] ?? null,
-                'value' => $row['ID'] ?? null,
-                'label' => $row['NAME'] ?? $row['CODE'] ?? null,
-                'title' => $row['NAME'] ?? $row['CODE'] ?? null,
-                'orgId' => $row['ORG_ID'] ?? null,
-                'name' => $row['NAME'] ?? null,
-                'code' => $row['CODE'] ?? null,
-                'category' => $row['CATEGORY'] ?? null,
-                'sortCode' => $row['SORT_CODE'] ?? null,
+                'id' => $row['id'] ?? null,
+                'value' => $row['id'] ?? null,
+                'label' => $row['name'] ?? $row['code'] ?? null,
+                'title' => $row['name'] ?? $row['code'] ?? null,
+                'orgId' => $row['orgId'] ?? null,
+                'name' => $row['name'] ?? null,
+                'code' => $row['code'] ?? null,
+                'category' => $row['category'] ?? null,
+                'sortCode' => $row['sortCode'] ?? null,
             ];
         }, $page['records']);
 
@@ -383,6 +381,32 @@ class RoleService
     }
 
     /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function roleRow(array $row): array
+    {
+        return [
+            'id' => (string)($row['ID'] ?? ''),
+            'value' => (string)($row['ID'] ?? ''),
+            'label' => (string)($row['NAME'] ?? $row['CODE'] ?? ''),
+            'title' => (string)($row['NAME'] ?? $row['CODE'] ?? ''),
+            'orgId' => $row['ORG_ID'] ?? null,
+            'name' => (string)($row['NAME'] ?? ''),
+            'code' => (string)($row['CODE'] ?? ''),
+            'category' => (string)($row['CATEGORY'] ?? ''),
+            'sortCode' => isset($row['SORT_CODE']) ? (int)$row['SORT_CODE'] : null,
+            'extJson' => $row['EXT_JSON'] ?? null,
+            'deleteFlag' => $row['DELETE_FLAG'] ?? null,
+            'createTime' => $row['CREATE_TIME'] ?? null,
+            'createUser' => $row['CREATE_USER'] ?? null,
+            'updateTime' => $row['UPDATE_TIME'] ?? null,
+            'updateUser' => $row['UPDATE_USER'] ?? null,
+            'tenantId' => $row['TENANT_ID'] ?? null,
+        ];
+    }
+
+    /**
      * @return array<int, array<string, mixed>>
      */
     private function grantInfoList(string $id, string $category, string $targetKey): array
@@ -408,7 +432,7 @@ class RoleService
      */
     private function saveGrant(array $input, string $category, array $grantInfoList, string $targetKey, callable $validator): array
     {
-        $id = $this->requiredInput($input, 'id');
+        $id = $this->requiredInput($input, ['id', 'ID', 'roleId', 'role_id']);
         $role = $this->activeRoleRow($id);
         $validator($role, $grantInfoList);
 
@@ -447,26 +471,50 @@ class RoleService
         });
     }
 
-    private function requiredInput(array $input, string $key): string
+    /**
+     * @param array<string|int, mixed> $input
+     * @param string|array<int, string> $keys
+     */
+    private function requiredInput(array $input, string|array $keys): string
     {
-        $value = trim((string)($input[$key] ?? ''));
-        if ($value === '') {
-            throw new RuntimeException("missing {$key}", 400);
+        foreach ((array)$keys as $key) {
+            if (!array_key_exists($key, $input)) {
+                continue;
+            }
+
+            $value = trim((string)$input[$key]);
+            if ($value !== '') {
+                return $value;
+            }
         }
 
-        return $value;
+        $label = (string)((array)$keys)[0];
+        throw new RuntimeException("missing {$label}", 400);
     }
 
     private function requiredGrantInfoList(array $input): array
     {
-        if (!array_key_exists('grantInfoList', $input)) {
+        $value = null;
+        foreach (['grantInfoList', 'grant_info_list', 'grantInfos', 'grantInfoJson'] as $key) {
+            if (array_key_exists($key, $input)) {
+                $value = $input[$key];
+                break;
+            }
+        }
+
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            $value = is_array($decoded) ? $decoded : null;
+        }
+
+        if ($value === null) {
             throw new RuntimeException('missing grantInfoList', 400);
         }
-        if (!is_array($input['grantInfoList'])) {
+        if (!is_array($value)) {
             throw new RuntimeException('invalid grantInfoList', 400);
         }
 
-        return $input['grantInfoList'];
+        return $value;
     }
 
     private function activeRoleRow(string $id): array
@@ -510,8 +558,8 @@ class RoleService
      */
     private function roleWriteData(array $input): array
     {
-        $name = $this->requiredInput($input, 'name');
-        $category = $this->requiredInput($input, 'category');
+        $name = $this->requiredInput($input, ['name', 'NAME']);
+        $category = strtoupper($this->requiredInput($input, ['category', 'CATEGORY']));
         if (!in_array($category, [self::ROLE_CATEGORY_GLOBAL, self::ROLE_CATEGORY_ORG], true)) {
             throw new RuntimeException('unsupported role category', 400);
         }
@@ -529,19 +577,33 @@ class RoleService
 
         $orgId = null;
         if ($category === self::ROLE_CATEGORY_ORG) {
-            $orgId = $this->requiredInput($input, 'orgId');
+            $orgId = $this->requiredInput($input, ['orgId', 'ORG_ID', 'org', 'ORG']);
             $this->activeOrgRow($orgId);
         }
 
-        $extJson = $input['extJson'] ?? $input['EXT_JSON'] ?? null;
+        $extJson = $this->normalizeJsonInput($input['extJson'] ?? $input['EXT_JSON'] ?? null);
 
         return [
             'ORG_ID' => $orgId,
             'NAME' => $name,
             'CATEGORY' => $category,
             'SORT_CODE' => (int)$sortCodeValue,
-            'EXT_JSON' => $extJson === null || trim((string)$extJson) === '' ? null : (string)$extJson,
+            'EXT_JSON' => $extJson,
         ];
+    }
+
+    private function normalizeJsonInput(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (is_string($value)) {
+            $value = trim($value);
+
+            return $value === '' ? null : $value;
+        }
+
+        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: null;
     }
 
     private function assertDuplicateRoleName(?string $orgId, string $name, ?string $ignoreId): void
@@ -632,9 +694,6 @@ class RoleService
             $menuId = trim((string)($item['menuId'] ?? $item['menu_id'] ?? $item['id'] ?? ''));
             if ($menuId === '') {
                 throw new RuntimeException('missing menuId', 400);
-            }
-            if (!array_key_exists('buttonInfo', $item) && !array_key_exists('button_info', $item)) {
-                throw new RuntimeException('missing buttonInfo', 400);
             }
 
             $buttonInfo = $this->stringList($item['buttonInfo'] ?? $item['button_info'] ?? []);

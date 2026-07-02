@@ -117,6 +117,79 @@ SQL;
         return $this->leaveRows([$row])[0];
     }
 
+    public function add(array $input, array $payload = []): array
+    {
+        $userId = $this->requiredInput($input, 'userId');
+        $processId = $this->requiredInput($input, 'processId');
+        $category = $this->requiredInput($input, 'category');
+        $amount = $this->decimalAmount($input['amount'] ?? null);
+        $startTime = $this->requiredTime($input, 'startTime');
+        $endTime = $this->requiredTime($input, 'endTime');
+        $this->assertValidTimeRange($startTime, $endTime);
+        $objectId = trim((string)($input['objectId'] ?? ''));
+        if (strlen($processId) > 80) {
+            throw new RuntimeException('processId is too long', 400);
+        }
+        if (strlen($category) > 50) {
+            throw new RuntimeException('category is too long', 400);
+        }
+        if (strlen($objectId) > 20) {
+            throw new RuntimeException('objectId is too long', 400);
+        }
+
+        return Db::transaction(function () use ($payload, $userId, $processId, $category, $amount, $startTime, $endTime, $objectId, $input): array {
+            $targetUser = $this->activeTargetUser($userId, $payload);
+            $this->assertTargetUserWritable($userId, $payload);
+
+            $tenantId = $this->tenantId($payload);
+            if ($tenantId === '') {
+                $tenantId = trim((string)($targetUser['TENANT_ID'] ?? ''));
+            }
+            if ($tenantId === '') {
+                $tenantId = '1';
+            }
+
+            $this->assertNoOverlappingLeave($userId, $startTime, $endTime, $tenantId);
+
+            $id = $this->newId();
+            $now = date('Y-m-d H:i:s');
+            $operatorId = $this->currentUserId($payload);
+            $row = [
+                'ID' => $id,
+                'USER_ID' => $userId,
+                'PROCESS_ID' => $processId,
+                'category' => $category,
+                'AMOUNT' => $amount,
+                'REMARK' => trim((string)($input['remark'] ?? '')),
+                'START_TIME' => $startTime,
+                'END_TIME' => $endTime,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId,
+            ];
+
+            if ($this->leaveHasObjectIdColumn()) {
+                $row['OBJECT_ID'] = $objectId;
+            }
+
+            $adjustments = $this->applyAnnualLeaveBalanceDeltas(
+                $this->annualLeaveAddDeltas($row),
+                $now,
+                $operatorId
+            );
+            Db::name('biz_leave_application')->insert($row);
+
+            return [
+                'id' => $id,
+                'count' => 1,
+                'vacationAdjustments' => $adjustments,
+            ];
+        });
+    }
+
     public function edit(array $input, array $payload = []): array
     {
         $id = $this->requiredInput($input, 'id');
@@ -329,6 +402,49 @@ SQL;
         return $result;
     }
 
+    private function activeTargetUser(string $userId, array $payload): array
+    {
+        $query = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->field('ID,ORG_ID,TENANT_ID');
+
+        $tenantId = $this->tenantId($payload);
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->lock(true)->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('target user not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertNoOverlappingLeave(string $userId, string $startTime, string $endTime, string $tenantId): void
+    {
+        $query = Db::name('biz_leave_application')
+            ->where('USER_ID', $userId)
+            ->whereRaw(
+                '((START_TIME BETWEEN ? AND ?) OR (END_TIME BETWEEN ? AND ?) OR (START_TIME <= ? AND END_TIME >= ?))',
+                [$startTime, $endTime, $startTime, $endTime, $startTime, $endTime]
+            )
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $existing = $query->field('ID')->lock(true)->find();
+        if (is_array($existing) && $existing !== []) {
+            throw new RuntimeException('user already has leave application in range', 400);
+        }
+    }
+
     private function assertTargetUserWritable(string $userId, array $payload): void
     {
         if ($this->canSeeAll($payload)) {
@@ -382,6 +498,25 @@ SQL;
         $row['UPDATE_USER'] = $userId !== '' ? $userId : null;
 
         return $row;
+    }
+
+    /**
+     * @return array<string, array{userId: string, tenantId: string, delta: float}>
+     */
+    private function annualLeaveAddDeltas(array $row): array
+    {
+        $deltas = [];
+        if ($this->isAnnualLeaveCategory($row['category'] ?? $row['CATEGORY'] ?? null)) {
+            $this->appendAnnualLeaveDelta(
+                $deltas,
+                (string)($row['USER_ID'] ?? ''),
+                (string)($row['TENANT_ID'] ?? ''),
+                (float)$this->decimalAmount($row['AMOUNT'] ?? null),
+                $row
+            );
+        }
+
+        return $deltas;
     }
 
     /**
@@ -780,6 +915,11 @@ SQL;
         return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
     }
 
+    private function tenantId(array $payload): string
+    {
+        return trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+    }
+
     private function canSeeAll(array $payload): bool
     {
         $account = strtolower((string)($payload['account'] ?? ''));
@@ -832,6 +972,33 @@ SQL;
         }
 
         return date('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function assertValidTimeRange(string $startTime, string $endTime): void
+    {
+        $startTimestamp = strtotime($startTime);
+        $endTimestamp = strtotime($endTime);
+        if ($startTimestamp === false || $endTimestamp === false || $endTimestamp < $startTimestamp) {
+            throw new RuntimeException('invalid leave time range', 400);
+        }
+    }
+
+    private function leaveHasObjectIdColumn(): bool
+    {
+        static $hasColumn = null;
+        if ($hasColumn !== null) {
+            return $hasColumn;
+        }
+
+        $columns = Db::query("SHOW COLUMNS FROM `biz_leave_application` LIKE 'OBJECT_ID'");
+        $hasColumn = $columns !== [];
+
+        return $hasColumn;
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function decimal(mixed $value): int|float|null

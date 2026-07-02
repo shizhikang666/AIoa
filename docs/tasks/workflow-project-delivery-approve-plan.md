@@ -44,6 +44,6 @@ Status: implemented and DB-backed HTTP-smoke verified.
 
 ## Deferred
 
-- Project reissue and return workflows.
+- Project return workflow. Project reissue is covered separately by `workflow-project-reissue-approve-plan.md`.
 - Task SSE, notifications, Java data-change events, file cleanup, and production data sync.
 - Java source changes, schema changes, `.env` changes, and commits.

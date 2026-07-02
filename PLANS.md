@@ -1,5 +1,977 @@
 ﻿锘块敇鍧楁晣閸ф鏅ｉ柛褎顨嗛弲? PLANS.md
 
+## Plan: api-agent/test-agent - HR/Payroll Direct Maintenance
+
+Status: implemented on 2026-06-27 as a bounded product-approved direct-maintenance slice.
+
+### Scope
+
+- Replace `/biz/bizleaveapplication/add` controlled-deferred behavior with one guarded manual leave-row insert.
+- Validate target user, tenant/data-scope permission, time range, overlapping active leave rows, and schema-sized identifiers.
+- Deduct current-year `annualLeave` balance in the same transaction as leave add.
+- Replace `/biz/bizpayroll/add` controlled-deferred behavior with one guarded manual payroll-row insert for an active user/org pair.
+- Update the deferred-wrapper smoke list and add a focused HR/payroll HTTP smoke script.
+
+### Non-Goals
+
+- Do not start workflow, create tasks, recalculate existing payroll, run salary generation, emit notifications, emit Java data-change events, edit Java source, edit `.env`, or change schema.
+
+### Verification
+
+- PHP syntax lint passed for touched controllers/services and `route/app.php`.
+- `php think route:list` lists both POST routes.
+- `scripts/frontend-api-route-gap-smoke.ps1 -FailOnReadMissing` passes with 560/560 covered endpoints.
+- No-token HTTP POST to both routes returns `401`.
+- After starting the local runtime bundle, `scripts/hr-payroll-direct-maintenance-http-smoke.ps1` and `scripts/frontend-deferred-write-wrapper-smoke.ps1` both passed.
+
+## Plan: api-agent/test-agent - Environment Template Cleanup
+
+Status: implemented on 2026-06-26 as a separate template-cleanup slice after the readiness guard exposed missing template keys.
+
+### Scope
+
+- Update `.example.env` only; do not copy values from ignored `.env`.
+- Document required deployment/cache/Redis/URL keys checked by `-CheckEnvTemplatePolicy`.
+- Use release-safe `APP_DEBUG=false` guidance and placeholder secret values.
+- Keep runtime config, server config, database rows, and production data untouched.
+
+### Non-Goals
+
+- Do not edit real `.env`, print secret values, change current local smoke behavior, contact Redis, run migrations, edit Nginx/PHP-FPM config, or create deployment artifacts.
+
+### Verification
+
+- `.\scripts\deployment-readiness.ps1 -CheckEnvTemplatePolicy -SkipThinkBoot`: passed with 0 failures and 2 local warnings.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed.
+- Git Bash `scripts/deployment-readiness.sh --check-env-template-policy --skip-think-boot`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `git diff --check -- .example.env`: passed.
+
+## Plan: api-agent/test-agent - CORS Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-body CORS source and preflight readiness guard.
+
+### Scope
+
+- Add PowerShell and Bash readiness checks for CORS source/config signals.
+- Scan for global CORS middleware signals, wildcard `Access-Control-Allow-Origin`, and wildcard-origin plus credential risks.
+- Inspect the frontend production API prefix shape to distinguish same-origin `/api` deployment from cross-origin API deployment.
+- Support optional live `OPTIONS` preflight checks through `PublicBaseUrl` plus `CorsProbeOrigin` without printing response bodies.
+- Enable the guard through `-CheckCorsPolicy` / `--check-cors-policy`, and automatically in production mode.
+- Pass the same options through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not inject CORS headers, edit app/server/frontend/backend config, choose final domains, edit `.env`, reload/restart services, write database rows, touch production data, or change Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckCorsPolicy -SkipThinkBoot`: passed with 0 failures and 5 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --check-cors-policy --skip-think-boot`: passed with 0 failures and 7 expected Windows-host/local warnings.
+- Local TCP CORS fixture with reflected origin, `Vary: Origin`, allowed `GET`, and allowed `Authorization, Content-Type`: PowerShell passed with 0 failures and 4 local warnings, Git Bash passed with 0 failures and 6 expected Windows-host/local warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckCorsPolicy -PublicBaseUrl <temporary CORS fixture> -CorsProbeOrigin https://oa.example.com -HttpProbeTimeoutSeconds 2 -Lean`: passed and confirmed passthrough.
+- Temporary PHP public-root CORS preflight passed with 0 failures and reported expected missing CORS response-header warnings.
+
+## Plan: api-agent/test-agent - HTTP Security Headers Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-body HTTP security-header readiness guard.
+
+### Scope
+
+- Add PowerShell and Bash readiness checks for `PublicBaseUrl` entry response security headers.
+- Check HSTS, `X-Content-Type-Options: nosniff`, `X-Frame-Options` or CSP `frame-ancestors`, CSP, `Referrer-Policy`, and `Permissions-Policy`.
+- Enable the guard through `-CheckSecurityHeadersPolicy` / `--check-security-headers-policy`, and automatically in production mode.
+- Keep probes non-destructive and avoid printing response bodies.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+- Document staging/production usage and stop conditions.
+
+### Non-Goals
+
+- Do not capture or store HTTP response bodies, inject headers, edit Nginx/PHP-FPM/frontend/backend config, reload/restart services, edit `.env`, write database rows, touch production data, or change Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckSecurityHeadersPolicy -SkipThinkBoot`: passed with 0 failures and 3 local deployment warnings; empty `PublicBaseUrl` was reported.
+- Git Bash `scripts/deployment-readiness.sh --check-security-headers-policy --skip-think-boot`: passed with 0 failures and 5 expected Windows-host/local warnings; empty `PublicBaseUrl` was reported.
+- Temporary PHP public-root server security-header probe passed in PowerShell with 0 failures and 7 local warnings; HSTS was skipped for local HTTP, and missing `X-Content-Type-Options`, frame protection, CSP, `Referrer-Policy`, and `Permissions-Policy` were reported.
+- Temporary PHP public-root server security-header probe passed in Git Bash with 0 failures and 9 expected Windows-host/local warnings.
+- Local TCP security-header fixture with release headers passed in PowerShell with 0 failures and 2 local warnings, and in Git Bash with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckSecurityHeadersPolicy -PublicBaseUrl <temporary public server> -HttpProbeTimeoutSeconds 1 -Lean`: passed and confirmed passthrough.
+
+## Plan: api-agent/test-agent - Web Server Syntax Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-mutating Nginx/PHP-FPM command and syntax guard.
+
+### Scope
+
+- Add PowerShell readiness checks for Nginx/PHP-FPM command availability and optional syntax validation.
+- Add Bash `--check-web-server-policy` so command availability can be explicitly requested alongside existing syntax flags.
+- Enable production mode to fail when web-server command availability cannot be confirmed.
+- Support `-NginxBinary` / `-PhpFpmBinary` and `--nginx-bin` / `--php-fpm-bin` for host-specific binary paths.
+- Pass the same options through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not print full Nginx/PHP-FPM config dumps, edit vhosts, reload/restart services, mutate server processes, edit `.env`, write database rows, touch production data, or change Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckWebServerPolicy -CheckNginxSyntax -CheckPhpFpmSyntax -SkipThinkBoot`: passed with 0 failures and 4 local deployment warnings; local Windows host does not expose `nginx` or `php-fpm`, so syntax checks were not run.
+- Git Bash `scripts/deployment-readiness.sh --check-web-server-policy --check-nginx-syntax --check-php-fpm-syntax --skip-think-boot`: passed with 0 failures and 4 expected Windows-host/local warnings; local Git Bash host does not expose `nginx` or `php-fpm`, so syntax checks were not run.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckWebServerPolicy -CheckNginxSyntax -CheckPhpFpmSyntax -Lean`: passed and confirmed passthrough.
+
+## Plan: api-agent/test-agent - Runtime Permission Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-mutating runtime permission and path-scope guard.
+
+### Scope
+
+- Add optional readiness checks for sensitive file path scope, runtime writable path scope, backup path placement/existence, and Unix mode policy.
+- Enable the guard through `-CheckRuntimePermissionPolicy` / `--check-runtime-permission-policy`, and automatically in production mode.
+- Verify `.env`, critical config files, and Composer manifests resolve outside `public`.
+- Verify non-public runtime paths stay outside `public`, while `public/storage` remains the intended public upload/download path.
+- On non-Windows hosts, report Unix modes that allow group/other write on sensitive files or other-read access to `.env`.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not run `chmod`/`chown`, create backup directories, delete files, clean artifacts, edit `.env`, write database rows, touch production data, or change Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckRuntimePermissionPolicy -SkipThinkBoot`: passed with 0 failures and 3 local deployment warnings; sensitive path scope and runtime path scope were OK, `runtime/backup` was reported missing, and Unix mode checks were skipped on Windows.
+- Git Bash `scripts/deployment-readiness.sh --check-runtime-permission-policy --skip-think-boot`: passed with 0 failures and 5 expected Windows-host/local warnings; path-scope checks matched PowerShell and Unix mode checks were skipped on Git Bash/Windows.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckRuntimePermissionPolicy -Lean`: passed and confirmed passthrough.
+
+## Plan: api-agent/test-agent - Environment Template Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-mutating `.example.env` coverage guard.
+
+### Scope
+
+- Add optional readiness checks for environment template coverage and placeholder policy.
+- Enable the guard through `-CheckEnvTemplatePolicy` / `--check-env-template-policy`, and automatically in production mode.
+- Verify `.example.env` parseability, required runtime/cache/URL key coverage, non-local `.env` key documentation, release-safe `APP_DEBUG` guidance, DB port shape, and secret-placeholder policy.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not print env values, edit `.env`, edit `.example.env`, write database rows, touch production data, or change Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckEnvTemplatePolicy -SkipThinkBoot`: passed with 0 failures and 5 local deployment warnings; `.example.env` baseline keys were detected, and missing deployment/cache/Redis/APP_HOST template keys plus release-unsafe `APP_DEBUG` default guidance were reported.
+- Git Bash `scripts/deployment-readiness.sh --check-env-template-policy --skip-think-boot`: passed with 0 failures and 8 expected Windows-host/local warnings; `.example.env` baseline keys were detected with PHP dotenv parsing for CR-only files.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckEnvTemplatePolicy -Lean`: passed and confirmed passthrough.
+
+## Plan: api-agent/test-agent - Release Package Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-building release package include/exclude guard.
+
+### Scope
+
+- Add optional readiness checks for an assembled release package root.
+- Enable the guard through `-CheckReleasePackagePolicy` / `--check-release-package-policy`, and automatically in production mode.
+- Support `-ReleaseRoot` / `--release-root` so the guard can inspect a clean release directory instead of the working source checkout.
+- Verify required backend entries, Composer vendor metadata, public entry files, frontend `dist` index/assets/manifest, excluded secret/source-control/frontend-source/dependency entries, runtime artifacts, and public-root source/config exposure.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not create archives, copy files, delete files, clean artifacts, run frontend builds, run Composer install/update/autoload-dump/vendor-publish commands, edit `.env`, write database rows, perform production data operations, or change Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckReleasePackagePolicy -SkipThinkBoot`: passed with 0 failures and 4 local deployment warnings; release package policy confirmed required backend/frontend entries and public-root exposure, and reported current source-root entries/runtime artifacts that must be excluded from a final release package.
+- Git Bash `scripts/deployment-readiness.sh --check-release-package-policy --skip-think-boot`: passed with 0 failures and 6 expected Windows-host/local warnings; release package policy confirmed required backend/frontend entries and public-root exposure, and reported source-root entries that must be excluded from a final release package.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckReleasePackagePolicy -Lean`: passed and confirmed passthrough.
+
+## Plan: api-agent/test-agent - Composer Dependency Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-installing Composer deployment guard.
+
+### Scope
+
+- Add optional readiness checks for backend PHP dependency and autoload release policy.
+- Enable the guard through `-CheckComposerPolicy` / `--check-composer-policy`, and automatically in production mode.
+- Verify `composer.json`/`composer.lock`, required ThinkPHP packages, autoload mappings, post-autoload scripts, vendor/composer metadata, known `require-dev` packages installed in `vendor`, and read-only `composer validate`.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not run `composer install`, `composer update`, `composer dump-autoload`, vendor publish commands, dependency cleanup, `.env` edits, database writes, production data operations, or Java source changes.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckComposerPolicy -SkipThinkBoot`: passed with 0 failures and 3 local deployment warnings; Composer policy confirmed manifest/lock parseability, required ThinkPHP packages, autoload mappings, post-autoload scripts, vendor metadata, and read-only `composer validate`, with local `require-dev` packages reported in `vendor`.
+- Git Bash `scripts/deployment-readiness.sh --check-composer-policy --skip-think-boot`: passed with 0 failures and 5 expected Windows-host/local warnings; Composer policy confirmed manifest/lock parseability, required ThinkPHP packages, autoload mappings, post-autoload scripts, vendor metadata, and read-only `composer validate`, with local `require-dev` packages reported in `vendor`.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckComposerPolicy -Lean`: passed and confirmed passthrough.
+
+## Plan: api-agent/test-agent - Frontend Build Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-building frontend deployment guard.
+
+### Scope
+
+- Add optional readiness checks for the Vite frontend production build policy.
+- Enable the guard through `-CheckFrontendBuildPolicy` / `--check-frontend-build-policy`, and automatically in production mode.
+- Verify the production build script, package lock policy, `.env.production` shape, Vite build settings, `dist` output completeness, `dist` source/config exposure, and temporary frontend build artifacts.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not run `npm install`, `npm run build`, dependency updates, frontend cleanup, artifact deletion, `.env` edits, database writes, production data operations, or Java source changes.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckFrontendBuildPolicy -SkipThinkBoot`: passed with 0 failures and 3 local deployment warnings; frontend build policy confirmed package-lock, production env shape, Vite build settings, and dist output, with 5 frontend temporary build artifacts reported.
+- Git Bash `scripts/deployment-readiness.sh --check-frontend-build-policy --skip-think-boot`: passed with 0 failures and 5 expected Windows-host/local warnings; frontend build policy confirmed package-lock, production env shape, Vite build settings, and dist output, with 5 frontend temporary build artifacts reported.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckFrontendBuildPolicy -Lean`: passed and confirmed passthrough.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - Deployment Artifact Hygiene Readiness
+
+Status: implemented on 2026-06-26 as an optional non-mutating deployment artifact hygiene guard.
+
+### Scope
+
+- Add optional readiness checks for release-sensitive local/test artifacts.
+- Enable the guard through `-CheckArtifactPolicy` / `--check-artifact-policy`, and automatically in production mode.
+- Check source metadata directories, frontend dependency directories, and runtime smoke/import/build artifacts without deleting files.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not delete, move, archive, or clean artifacts; this slice only reports whether they are present.
+- Do not change `.env`, production files, database rows, dependency folders, runtime files, or Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckArtifactPolicy -SkipThinkBoot`: passed with 0 failures and 5 local deployment warnings; artifact hygiene reported local-only `.git/.codex`, `snowy-admin-web/node_modules`, and 30 runtime artifact matches.
+- Git Bash `scripts/deployment-readiness.sh --check-artifact-policy --skip-think-boot`: passed with 0 failures and 7 expected Windows-host/local warnings; artifact hygiene reported local-only `.git/.codex`, `snowy-admin-web/node_modules`, and 30 runtime artifact matches.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckArtifactPolicy -Lean`: passed and confirmed passthrough.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - Database Schema Readiness
+
+Status: implemented on 2026-06-26 as an optional read-only database schema deployment guard.
+
+### Scope
+
+- Add optional readiness checks for database schema availability.
+- Enable the guard through `-CheckDatabaseSchema` / `--check-database-schema`, and automatically in production mode.
+- Verify ThinkPHP database boot, `SELECT 1`, table count, curated critical table presence, and curated critical columns with read-only schema queries.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not run migrations, import SQL, perform DDL, insert/update/delete rows, change `.env`, print secrets, touch production data, or change Java source files.
+- Do not enforce an exact table count; the guard requires the baseline to be present and allows extra staging/production tables.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckDatabaseSchema -SkipThinkBoot`: passed with 0 failures and 2 local deployment warnings; schema readiness confirmed `SELECT 1`, 121 tables, 57 curated required tables, and 38 curated column groups.
+- Git Bash `scripts/deployment-readiness.sh --check-database-schema --skip-think-boot`: passed with 0 failures and 4 expected Windows-host/local warnings; schema readiness confirmed `SELECT 1`, 121 tables, 57 curated required tables, and 38 curated column groups.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckDatabaseSchema -Lean`: passed and confirmed passthrough.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - Provider Deferred Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-sending provider deployment guard.
+
+### Scope
+
+- Add optional readiness checks for provider/deferred-send policy.
+- Enable the guard through `-CheckProviderPolicy` / `--check-provider-policy`, and automatically in production mode.
+- Verify Email/SMS/WebPush/OAuth/cloud-upload deferred documentation, source/route deferred signals, known provider SDK package signals, and `SNOWY_SYS_DEFAULT_FILE_ENGINE`.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not send Email/SMS/WebPush messages, redirect to OAuth providers, upload to cloud storage, validate provider credentials, change `.env`, edit provider config, touch database rows except the read-only default file-engine lookup, touch production data, or change Java source files.
+- Do not enable real providers in this slice.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckProviderPolicy -SkipThinkBoot`: passed with 0 failures and 2 local deployment warnings; provider/deferred-send policy checks were OK and default dynamic file engine remained `LOCAL`.
+- Git Bash `scripts/deployment-readiness.sh --check-provider-policy --skip-think-boot`: passed with 0 failures and 4 expected Windows-host/local warnings; provider/deferred-send policy checks were OK and default dynamic file engine remained `LOCAL`.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckProviderPolicy -Lean`: passed and confirmed passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - File Storage Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-mutating storage deployment guard.
+
+### Scope
+
+- Add optional readiness checks for ThinkPHP filesystem disk policy and DevFile local upload root.
+- Enable the guard through `-CheckStoragePolicy` / `--check-storage-policy`, and automatically in production mode.
+- Verify configured `local` and `public` disks, disk roots, public disk URL/visibility, and DevFile local root exposure without uploading, deleting, or writing files.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not upload files, delete files, create storage files, change `.env`, edit `config/filesystem.php`, edit server config, touch database rows, touch production data, or change Java source files.
+- Do not validate cloud storage/provider credentials in this slice.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -CheckStoragePolicy -SkipThinkBoot`: passed with 0 failures and 2 local deployment warnings; filesystem and DevFile storage policy checks were OK.
+- Git Bash `scripts/deployment-readiness.sh --check-storage-policy --skip-think-boot`: passed with 0 failures and 4 expected Windows-host/local warnings; filesystem and DevFile storage policy checks were OK.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckStoragePolicy -Lean`: passed and confirmed passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - URL/HTTPS Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional URL/HTTPS deployment guard.
+
+### Scope
+
+- Add optional readiness checks for `APP_HOST` and public base URL format.
+- Enable the guard through `-CheckUrlPolicy` / `--check-url-policy`, and automatically in production mode.
+- Allow localhost HTTP for local smoke, but fail production readiness when configured non-local URLs are not HTTPS.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not edit `.env`, Nginx/PHP-FPM vhosts, TLS certificates, DNS/domain settings, CORS policy, production data, or Java source files.
+- Do not choose the final production domain in this slice.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\deployment-readiness.ps1 -CheckUrlPolicy -SkipThinkBoot`: passed with 0 failures and local URL/HTTPS policy warnings for empty `APP_HOST` and `PublicBaseUrl`.
+- Git Bash `scripts/deployment-readiness.sh --check-url-policy --skip-think-boot`: passed with 0 failures and expected Windows-host/local URL/HTTPS policy warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckUrlPolicy -Lean`: passed and confirmed passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - Cookie/Session Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional cookie/session hardening guard.
+
+### Scope
+
+- Add optional readiness checks for ThinkPHP cookie/session production policy.
+- Enable the guard through `-CheckCookiePolicy` / `--check-cookie-policy`, and automatically in production mode.
+- Check cookie secure, HttpOnly, SameSite, path, session name, session type, and session expiry without editing config files.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not edit `config/cookie.php`, `config/session.php`, `.env`, server TLS config, database rows, production data, or Java source files.
+- Do not decide final cross-site cookie behavior for the production domain in this slice.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\deployment-readiness.ps1 -CheckCookiePolicy -SkipThinkBoot`: passed with 0 failures and expected local cookie/session policy warnings.
+- Git Bash `scripts/deployment-readiness.sh --check-cookie-policy --skip-think-boot`: passed with 0 failures and expected Windows-host/local cookie/session policy warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckCookiePolicy -Lean`: passed and confirmed passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - Cache/Redis Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-mutating cache runtime guard.
+
+### Scope
+
+- Add optional readiness checks for cache/Redis runtime policy.
+- Enable the guard through `-CheckCachePolicy` / `--check-cache-policy`, and automatically in production mode.
+- Check `CACHE_DRIVER`, Redis host, port, database, timeout, password-policy signals, and TCP reachability without writing cache data or printing secrets.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not write cache keys, flush Redis, change `.env`, edit Redis/server config, touch production data, or change Java source files.
+- Do not validate real Redis credentials beyond safe presence checks and TCP reachability in this slice.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\deployment-readiness.ps1 -CheckCachePolicy -SkipThinkBoot`: passed with 0 failures and 2 local deployment warnings; local Redis TCP reachability passed.
+- Git Bash `scripts/deployment-readiness.sh --check-cache-policy --skip-think-boot`: passed with 0 failures and 4 expected Windows-host/local warnings; local Redis TCP reachability passed.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckCachePolicy -Lean`: passed and confirmed passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - Scheduler/Queue Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional non-executing deployment guard.
+
+### Scope
+
+- Add optional readiness checks for scheduler/queue worker policy.
+- Enable the guard through `-CheckSchedulerPolicy` / `--check-scheduler-policy`, and automatically in production mode.
+- Verify a scheduler/queue policy document exists before production worker/job signals are accepted.
+- Inspect ThinkPHP console commands, app command class files, known queue/worker Composer dependency signals, and dev-job runtime controls without executing jobs.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not start workers, run jobs, call `dev/job` run/stop/run-now endpoints, edit crontab/Supervisor/systemd, change `.env`, touch production data, or change Java source files.
+- Do not implement a real scheduler loop or queue worker in this slice.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed when run through `C:\Program Files\Git\bin\bash.exe`.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\deployment-readiness.ps1 -CheckSchedulerPolicy -SkipThinkBoot`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --check-scheduler-policy --skip-think-boot`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckSchedulerPolicy -Lean`: passed and confirmed passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/scheduler-queue-policy.md docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - PHP OPcache Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional PHP runtime performance guard.
+
+### Scope
+
+- Add optional readiness checks for PHP OPcache production policy.
+- Enable the guard through `-CheckOpcachePolicy` / `--check-opcache-policy`, and automatically in production mode.
+- Fail production readiness when OPcache is unavailable or disabled.
+- Warn on OPcache tuning and deploy/reload behavior that should be confirmed per host.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not edit `php.ini`, PHP-FPM pool config, Nginx config, `.env`, server state, production data, backups, or Java source files.
+- Do not implement OPcache reset/warmup automation or deploy reload hooks in this slice.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\deployment-readiness.ps1 -CheckOpcachePolicy -SkipThinkBoot`: passed with 0 failures and expected local OPcache warnings.
+- Git Bash `scripts/deployment-readiness.sh --check-opcache-policy --skip-think-boot`: passed with 0 failures and expected local OPcache warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckOpcachePolicy -Lean`: passed and confirmed passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - PHP Error Log Policy Readiness
+
+Status: implemented on 2026-06-26 as an optional PHP runtime hardening guard.
+
+### Scope
+
+- Add optional readiness checks for PHP error display and logging policy.
+- Enable the guard through `-CheckErrorLogPolicy` / `--check-error-log-policy`, and automatically in production mode.
+- Fail production readiness when public error display/header exposure settings are enabled.
+- Fail production readiness when PHP error logging is disabled.
+- Warn when `error_log` is empty so PHP-FPM/web-server log routing is explicitly confirmed.
+- Pass the same option through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not edit `php.ini`, PHP-FPM pool config, Nginx config, `.env`, server state, production data, backups, or Java source files.
+- Do not inspect real PHP-FPM/web-server log paths until a target host is confirmed.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\deployment-readiness.ps1 -CheckErrorLogPolicy -SkipThinkBoot`: passed with 0 failures and expected local PHP error/log policy warnings.
+- Git Bash `scripts/deployment-readiness.sh --check-error-log-policy --skip-think-boot`: passed with 0 failures and expected local PHP error/log policy warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckErrorLogPolicy -Lean`: passed and confirmed passthrough.
+- `.\scripts\deployment-readiness.ps1 -Production -SkipThinkBoot`: expected local production gate failure, including PHP error display, `APP_DEBUG`, and backup readiness failures.
+- Git Bash `scripts/deployment-readiness.sh --production --skip-think-boot`: expected local production gate failure, including PHP error display, `APP_DEBUG`, and backup readiness failures.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - Backup Tool Readiness
+
+Status: implemented on 2026-06-26 as an optional backup/restore deployment guard.
+
+### Scope
+
+- Add optional readiness checks for database backup and restore commands.
+- Enable the guard through `-CheckBackupTools` / `--check-backup-tools`, and automatically in production mode.
+- Verify backup DB `.env` inputs without printing values.
+- Verify the configured backup directory exists and is writable by the current user.
+- Pass the same options through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not run `mysqldump`, restore data, install server packages, edit `.env`, create production backup directories, touch production data, or change Java source files.
+- Do not implement backup retention or uploaded-file backup automation in this slice.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\deployment-readiness.ps1 -CheckBackupTools -SkipThinkBoot`: passed with 0 failures and expected local backup readiness warnings.
+- Git Bash `scripts/deployment-readiness.sh --check-backup-tools --skip-think-boot`: passed with 0 failures and expected local backup readiness warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -CheckBackupTools -Lean`: passed and confirmed passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - HTTP Public Exposure Readiness
+
+Status: implemented on 2026-06-26 as an optional HTTP deployment guard.
+
+### Scope
+
+- Add optional readiness probes for sensitive project paths over HTTP.
+- Enable the probe only when a staging/public base URL is explicitly supplied.
+- Fail when sensitive paths return 2xx.
+- Warn when sensitive paths redirect or cannot be probed.
+- Keep response bodies and secrets out of readiness output.
+- Pass the same probe options through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not edit Nginx/PHP-FPM config, `.env`, server state, production data, backups, or Java source files.
+- Do not follow redirects or inspect live domains until a real target URL is confirmed.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- Temporary PHP public-root server HTTP probe with `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public -PublicBaseUrl <temporary-url> -SkipThinkBoot`: passed with 0 failures.
+- Temporary PHP public-root server HTTP probe with Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public --public-base-url <temporary-url> --skip-think-boot`: passed with 0 failures.
+- `.\scripts\project-progress.ps1 -CheckDeploy -ExpectedPublicRoot .\public -PublicBaseUrl <temporary-url> -Lean`: passed and confirmed passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - PHP Upload Limit Readiness
+
+Status: implemented on 2026-06-26 as a local deployment runtime guard.
+
+### Scope
+
+- Add readiness checks for PHP upload/body limits.
+- Fail when PHP file uploads are disabled or `max_file_uploads` is invalid.
+- Warn when `upload_max_filesize`, `post_max_size`, or `memory_limit` are too low or internally inconsistent.
+- Make upload/body thresholds configurable in both PowerShell and Bash readiness scripts.
+- Pass the same thresholds through `scripts/project-progress.ps1 -CheckDeploy`.
+
+### Non-Goals
+
+- Do not edit `php.ini`, PHP-FPM pool config, Nginx config, `.env`, server state, production data, backups, or Java source files.
+- Do not infer final business upload limits beyond the default local readiness recommendation.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 2 local deployment warnings.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 4 expected Windows-host/local warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -ExpectedPublicRoot .\public -Lean`: passed.
+- `.\scripts\project-progress.ps1 -CheckDeploy -ExpectedPublicRoot .\public -MinUploadMaxFilesize 2M -MinPostMaxSize 8M -Lean`: passed and confirmed threshold passthrough.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - Git Secret Ignore Readiness
+
+Status: implemented on 2026-06-26 as a local source-control hygiene guard.
+
+### Scope
+
+- Add a default readiness guard for Git-managed workspaces.
+- Fail readiness when `.env` is tracked.
+- Warn when `.env`, `vendor`, `runtime`, or `public/storage` artifact paths are not ignored.
+- Keep the check non-destructive and secret-safe.
+
+### Non-Goals
+
+- Do not scrub Git history or rotate secrets in this slice.
+- Do not edit `.env`, server config, production data, backups, or Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 1 local deployment warning.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 3 expected Windows-host warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -ExpectedPublicRoot .\public -Lean`: passed.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - Public Web Exposure Readiness
+
+Status: implemented on 2026-06-26 as a local deployment safety guard.
+
+### Scope
+
+- Add a default readiness guard that checks the `public` directory for sensitive project entries.
+- Fail readiness if source/config/dependency/status entries such as `.env`, `vendor`, `app`, `config`, `route`, `docs`, or `scripts` are present under `public`.
+- Keep the check non-destructive and secret-safe.
+
+### Non-Goals
+
+- Do not probe a live domain or inspect server-generated vhost output in this slice.
+- Do not edit `.env`, server config, production data, backups, or Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- Git Bash `bash -n scripts/deployment-readiness.sh`: passed.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 1 local deployment warning.
+- Git Bash `scripts/deployment-readiness.sh --expected-public-root ./public`: passed with 0 failures and 3 expected Windows-host warnings.
+- `.\scripts\project-progress.ps1 -CheckDeploy -ExpectedPublicRoot .\public -Lean`: passed.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+- `rg -n "[ \t]+$" scripts/deployment-readiness.ps1 scripts/deployment-readiness.sh scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with no matches.
+
+## Plan: api-agent/test-agent - PowerShell Public Root Readiness
+
+Status: implemented on 2026-06-26 as a deployment-readiness parity guard.
+
+### Scope
+
+- Add an explicit `-ExpectedPublicRoot` check to `scripts/deployment-readiness.ps1`.
+- Verify that the supplied document-root path resolves to this project's `public` directory.
+- Pass the same expected-root check through `scripts/project-progress.ps1 -CheckDeploy`.
+- Match the already available Linux `--expected-public-root` rehearsal guard without touching server config or production data.
+
+### Non-Goals
+
+- Do not inspect or edit live Nginx/PHP-FPM config in this slice.
+- Do not change `.env`, secrets, runtime services, backups, production data, or Java source files.
+
+### Verification
+
+- PowerShell parser checks for `scripts\deployment-readiness.ps1` and `scripts\project-progress.ps1`: passed.
+- `.\scripts\deployment-readiness.ps1`: passed with 0 failures and 1 local deployment warning.
+- `.\scripts\deployment-readiness.ps1 -ExpectedPublicRoot .\public`: passed with 0 failures and 1 local deployment warning.
+- `.\scripts\project-progress.ps1 -CheckDeploy -ExpectedPublicRoot .\public -Lean`: passed.
+- `git diff --check -- scripts/deployment-readiness.ps1 scripts/project-progress.ps1 docs/tasks/deployment-runtime-readiness-plan.md docs/tasks/deployment-server-checklist.md docs/tasks/refactor-progress-dashboard.md PLANS.md IMPLEMENT.md STATUS.md`: passed with existing LF/CRLF warnings only.
+
+## Plan: api-agent/test-agent - Deployment Runtime Readiness
+
+Status: implemented on 2026-06-25 as a deployment-hardening preflight script and documentation slice.
+
+### Scope
+
+- Add a repeatable script that checks deployment prerequisites without modifying local config, database rows, runtime services, or production data.
+- Verify required ThinkPHP files, `.env` presence, Composer autoload, PHP/Composer availability, key PHP extensions, safe `.env` key presence, writable runtime/storage paths, and `php think route:list` boot.
+- Keep strict production rules opt-in through `-Production` and `-Strict` so local smoke work can still run with development settings.
+- Keep writable directory creation explicit through `-CreateMissingWritableDirs`; default readiness remains non-mutating.
+- Keep `public/storage` present for the public filesystem disk while ignoring uploaded artifacts.
+- Add a Linux `bash` readiness counterpart for staging/production hosts.
+- Expose the check from `scripts/project-progress.ps1 -CheckDeploy`.
+- Keep route-gap next-step guidance aligned so deployment/runtime hardening remains a valid continuation when copied-wrapper candidates are not Java-public work.
+- Add a server-side Nginx/PHP-FPM checklist without editing any host configuration until the target host and vhost path are confirmed.
+
+### Verification Plan
+
+- PowerShell parser checks for `scripts/deployment-readiness.ps1` and `scripts/project-progress.ps1`
+- Bash syntax check for `scripts/deployment-readiness.sh`
+- `.\scripts\deployment-readiness.ps1`
+- `.\scripts\deployment-readiness.ps1 -CreateMissingWritableDirs`
+- `bash scripts/deployment-readiness.sh --skip-think-boot --skip-writable-probe`
+- `bash scripts/deployment-readiness.sh`
+- `.\scripts\project-progress.ps1 -CheckDeploy -Lean`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Remaining Deferred Route Parity Audit
+
+Status: completed on 2026-06-25 after Java/PHP/frontend route review and documentation updates.
+
+### Scope
+
+- Review the suggested post-return candidates before opening another write block.
+- Keep controlled-deferred wrappers in place when Java does not expose the route or the copied Vue caller is inactive.
+- Reclassify no-account return auto-refund as not a Java-parity target. Treat it as a new product behavior only if the user explicitly requests it.
+- Keep collection-receipt CRUD, debit-note CRUD, task SSE, gen-config add, and non-`FOLLOW` sale-project product-item mutation deferred by design unless explicitly opened as product behavior. Superseding note: the user explicitly opened finance direct CRUD on 2026-06-26, and payment/expenditure add-delete plus collection/debit direct CRUD are now implemented as bounded product behavior.
+
+### Verification Plan
+
+- Documentation-only audit; no runtime test required.
+
+## Plan: api-agent/test-agent - Return Order Reverse Stock/Finance Correction
+
+Status: implemented and focused DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Replace direct return-order edit/delete delivery/refund guards with transactional reverse correction.
+- Reject direct add/edit/delete for workflow-owned process ids by checking `act_hi_procinst.PROC_INST_ID_`.
+- On edit, validate the new master/product payload first, reverse active `ReturnAndRefund` expenditure/statement/account effects, reverse active return IN delivery/inventory effects, update master/detail rows, rebuild return IN delivery/inventory rows, and recalculate affected sale-project totals.
+- On delete, validate the whole selected batch first, reverse active refund finance and return IN inventory side effects, logically delete orders/items, and recalculate sale-project totals.
+- Keep notifications, Java data-change events, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred. No-account auto-refund is not a Java-parity target unless requested as new product behavior.
+
+### Verification Plan
+
+- `php -l app\service\biz\ReturnOrderService.php`
+- PowerShell parser check for `scripts\return-order-write-http-smoke.ps1`
+- `.\scripts\return-order-write-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+- Workflow project-return approval and settlement-account expenses regression smokes
+- Frontend route/method/deferred-wrapper smokes
+- `.\scripts\project-progress.ps1 -Lean`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Sale Project Reissue Order Direct Edit/Delete
+
+Status: implemented and focused DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Add protected `POST /biz/saleprojectreissueorder/edit` and `/delete`.
+- Keep edit limited to direct reissue order master fields plus replacement `productList` for undelivered, unreferenced `REISSUE_ORDER` items.
+- Keep delete transactional: logical-delete selected reissue orders, linked reissue product items, and child relation rows, then correct sale-project totals and status.
+- Reject direct add/edit/delete for workflow-owned process ids by checking `act_hi_procinst.PROC_INST_ID_`.
+- Keep delivery/invoice/stock/finance/workflow/file cleanup/notification side effects, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+### Verification Plan
+
+- `php -l app\controller\biz\SaleProjectReissueOrderController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l route\app.php`
+- PowerShell parser checks for `scripts\sale-project-reissue-order-add-http-smoke.ps1`, `scripts\project-preflight.ps1`, and `scripts\project-progress.ps1`
+- `.\scripts\sale-project-reissue-order-add-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+- Workflow project-reissue approval regression smoke
+- Frontend route/method/deferred-wrapper smokes
+- `.\scripts\project-progress.ps1 -Lean`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Sale Project Invoice Direct Edit/Delete
+
+Status: implemented and focused DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Add protected `POST /biz/saleprojectinvoice/edit` and `/delete`.
+- Keep edit limited to invoice master/logistics fields and preserve invoice items.
+- Keep delete transactional: logical-delete invoice and invoice items, reverse linked sale-project product-item `DELIVERY`, correct product-item `STATE`, and correct sale-project shipment state.
+- Reject direct edit/delete for invoices backed by active `delivery_record` rows, leaving workflow-owned delivery invoices to the workflow/project-delivery path.
+- Keep standalone invoice-item writes, delivery-record deletion, inventory restoration, finance, workflow, notifications, file cleanup, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+### Verification Plan
+
+- `php -l app\controller\biz\SaleProjectInvoiceController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l route\app.php`
+- PowerShell parser checks for `scripts\sale-project-invoice-add-http-smoke.ps1`, `scripts\project-preflight.ps1`, and `scripts\project-progress.ps1`
+- `.\scripts\sale-project-invoice-add-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+- Workflow project-delivery approval and direct reissue-order regression smokes
+- Frontend route/method/deferred-wrapper smokes
+- `.\scripts\project-progress.ps1 -Lean`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Sale Project Invoice Direct Add
+
+Status: implemented and focused DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Add protected `POST /biz/saleprojectinvoice/add`.
+- Create one delivery invoice plus linked invoice-item rows for active non-`FOLLOW` sale projects.
+- Mirror Java's invoice-item add event by incrementing linked sale-project product-item `DELIVERY`, updating product-item `STATE`, and correcting sale-project shipment state in one transaction.
+- Keep direct invoice edit/delete, `delivery_record`, inventory decrement, finance, workflow, notifications, file cleanup, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+### Verification Plan
+
+- `php -l app\controller\biz\SaleProjectInvoiceController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l route\app.php`
+- PowerShell parser checks for `scripts\sale-project-invoice-add-http-smoke.ps1`, `scripts\project-preflight.ps1`, and `scripts\project-progress.ps1`
+- `.\scripts\sale-project-invoice-add-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+- Workflow project-delivery approval regression smoke
+- Frontend route/method/deferred-wrapper smokes
+- `.\scripts\project-progress.ps1 -Lean`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Sale Project Reissue Order Direct Add
+
+Status: implemented and focused DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Add protected `POST /biz/saleprojectreissueorder/add`.
+- Create one reissue order plus linked `REISSUE_ORDER` product-item and child-relation rows for active non-`FOLLOW` sale projects.
+- Recalculate sale-project total, return/refund totals, payment state, and shipment state in the same transaction.
+- Keep direct reissue edit/delete, delivery/invoice/stock/finance/workflow/file cleanup/notification side effects, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+### Verification Plan
+
+- `php -l app\controller\biz\SaleProjectReissueOrderController.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- PowerShell parser checks for `scripts\sale-project-reissue-order-add-http-smoke.ps1`, `scripts\project-preflight.ps1`, and `scripts\project-progress.ps1`
+- `.\scripts\sale-project-reissue-order-add-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+- Workflow reissue and standalone product-item regression smokes
+- Frontend route/method/deferred-wrapper smokes
+- `.\scripts\project-progress.ps1 -Lean`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Workflow Project Return Auto Refund
+
+Status: implemented and focused DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Extend approved `Process_sale_project_product_return` side effects after the return order, return items, IN delivery rows, and inventory increments are written.
+- If `biz_sale_project.ACCOUNT_ID` is configured, create one automatic `ReturnAndRefund` expenditure and settlement-account statement through `SettlementAccountService::expensesFromWorkflow()`.
+- Decrement the selected settlement account, mark the return order `AlreadySettled`, and recalculate sale-project return totals in the same transaction.
+- Keep approval idempotent by `return_order.PROCESS_ID`.
+- Keep no-account auto-refund, notifications, Java data-change events, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred. Direct return-order edit/delete reverse correction is covered by the later Return Order Reverse Stock/Finance Correction plan.
+
+### Verification Plan
+
+- `php -l app\service\biz\ReturnOrderService.php`
+- PowerShell parser check for `scripts\workflow-project-return-approve-http-smoke.ps1`
+- `.\scripts\workflow-project-return-approve-http-smoke.ps1`
+- Regression smokes for direct return-order and settlement-account expenses paths
+- Frontend route/method/deferred-wrapper smokes
+- `.\scripts\project-progress.ps1 -Lean`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Return Order Inventory And Refund Settlement
+
+Status: implemented and focused DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Extend direct `POST /biz/returnorder/add` with return IN delivery records and inventory increments.
+- Extend `Process_sale_project_product_return` approval with inventory increments for its return IN delivery records.
+- Extend settlement-account quick expense with `ReturnAndRefund` correction for return-order state and sale-project return totals.
+- This slice originally protected direct return-order edit/delete after delivery or refund side effects; direct reverse correction is covered by the later Return Order Reverse Stock/Finance Correction plan.
+- Keep automatic refund creation when the sale project has no configured settlement account, notifications, Java data-change events, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+### Verification Plan
+
+- `php -l app\service\biz\ReturnOrderService.php`
+- `php -l app\service\biz\SettlementAccountService.php`
+- PowerShell parser checks for `scripts\return-order-write-http-smoke.ps1`, `scripts\workflow-project-return-approve-http-smoke.ps1`, and `scripts\project-preflight.ps1`
+- `.\scripts\return-order-write-http-smoke.ps1`
+- `.\scripts\workflow-project-return-approve-http-smoke.ps1`
+- `.\scripts\settlement-account-expenses-add-http-smoke.ps1`
+- Frontend route/method/deferred-wrapper smokes
+- `.\scripts\project-progress.ps1 -Lean`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Sale Project Product Item Standalone
+
+Status: implemented and DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Add protected `POST /biz/saleprojectproductitem/add`, `/edit`, and `/delete` routes.
+- Reuse the existing normal sale-project product-list validation rules for enabled products, kit child relation writes, and logical delete.
+- Limit standalone mutation to visible `FOLLOW` sale projects.
+- Preserve child relations on edit when `children` is omitted and the product is unchanged.
+- Block protected edits/deletes when active invoice/return references or delivered quantities exist.
+- Keep non-`FOLLOW` product-item mutation, delivery/invoice/stock/project-state side effects, finance, workflow, notifications, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred.
+
+### Verification Plan
+
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l app\service\biz\SaleProjectProductItemService.php`
+- `php -l app\controller\biz\SaleProjectProductItemController.php`
+- `php -l route\app.php`
+- PowerShell parser checks for `scripts\sale-project-product-item-standalone-http-smoke.ps1`, `scripts\project-preflight.ps1`, and `scripts\project-progress.ps1`
+- `.\scripts\sale-project-product-item-standalone-http-smoke.ps1`
+- `php think route:list | Select-String "biz/saleprojectproductitem/(add|edit|delete|mark/edit)"`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Workflow Project Return Approval
+
+Status: implemented and focused DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Replace `POST /biz/process/project/return/start` controlled-deferred behavior with a bounded `Process_sale_project_product_return` runtime start.
+- Create minimal first-step runtime/history rows, one active `Activity_approval` task, runtime/history variables, CC rows, and workflow file relations.
+- Validate the sale project, approvers/copy users, return warehouse, non-negative refund amount, and submitted return `productList` against shipped project-product items.
+- Allow cancel/reject to close workflow rows without return-order, delivery, inventory, finance, invoice, or project-status side effects.
+- Allow approval to write one `return_order` row, linked `return_order_item` rows, Java-compatible IN `delivery_record` rows, optional `ReturnAndRefund` expenditure/statement rows when the project has a configured settlement account, and recalculated sale-project return totals.
+- Keep automatic refund creation when the sale project has no configured settlement account, direct standalone reissue writes, non-leave edit behavior, task SSE, notifications, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred. Direct return-order edit/delete reverse correction is covered by the later Return Order Reverse Stock/Finance Correction plan.
+
+### Verification Plan
+
+- `php -l app\service\workflow\WorkflowRuntimeService.php`
+- `php -l app\service\biz\ReturnOrderService.php`
+- `php -l app\controller\biz\ProcessController.php`
+- PowerShell parser checks for `scripts\workflow-project-return-approve-http-smoke.ps1`, `scripts\project-preflight.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-progress.ps1`
+- `.\scripts\workflow-project-return-approve-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+- `git diff --check`
+
+## Plan: api-agent/test-agent - Workflow Project Reissue Approval
+
+Status: implemented and DB-backed HTTP-smoke verified on 2026-06-25.
+
+### Scope
+
+- Replace `POST /biz/process/project/reissue/start` controlled-deferred behavior with a bounded `Process_project_reissue_product` runtime start.
+- Create minimal first-step runtime/history rows, one active `Activity_approval` task, runtime/history variables, CC rows, and workflow file relations.
+- Validate the sale project, approvers/copy users, amount, and submitted reissue `productList` including child product relations.
+- Allow cancel/reject to close workflow rows without reissue-order, stock, finance, invoice, or sale-project amount/status side effects.
+- Allow approval to write one `biz_sale_project_reissue_order` row and appended `biz_sale_project_product_item` rows with `CATEGORY = REISSUE_ORDER`, `STATE = WAIT_DELIVER`, and `PROJECT_REISSUE_ORDER_ID`.
+- Keep direct standalone reissue writes, non-leave edit behavior, task SSE, notifications, Java source changes, schema changes, `.env` changes, production data operations, and commits deferred. Project return is covered by the Workflow Project Return Approval plan above.
+
+### Verification Plan
+
+- `php -l app\service\workflow\WorkflowRuntimeService.php`
+- `php -l app\service\biz\SaleProjectService.php`
+- `php -l app\controller\biz\ProcessController.php`
+- PowerShell parser checks for `scripts\workflow-project-reissue-approve-http-smoke.ps1`, `scripts\project-preflight.ps1`, `scripts\frontend-deferred-write-wrapper-smoke.ps1`, and `scripts\project-progress.ps1`
+- `.\scripts\workflow-project-reissue-approve-http-smoke.ps1`
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1`
+- `.\scripts\frontend-api-route-gap-smoke.ps1`
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+- `git diff --check`
+
 ## Plan: api-agent/test-agent - Workflow Project Delivery Approval
 
 Status: implemented and DB-backed HTTP-smoke verified on 2026-06-22.
@@ -11264,3 +12236,32 @@ Implement only the Java `BizDebitNoteServiceImpl.add(BizDebitNoteHistoryAddParam
 ### 4. Forbidden Scope
 
 - Do not implement debit-note add/edit/delete, settlement-account balance changes, payment/expenditure/statement creation, collection-receipt writes, Java event bus, workflow/data-change events, Java source edits, schema changes, `.env`, Composer/npm/frontend source changes, production data operations, or Git push behavior.
+
+## Completed Plan: api-agent - Purchase Order Add/Delete And Inventory Delete
+
+Status: completed on 2026-06-26 after replacing `/biz/bizpurchaseorder/add`, `/biz/bizpurchaseorder/delete`, and `/biz/inventory/delete` controlled-deferred behavior with bounded direct CRUD behavior.
+
+### 1. Current Goal
+
+Implement the explicitly requested purchase/inventory direct CRUD slice without adding finance, workflow, stock rollback, or Java data-change side effects.
+
+### 2. Involved Files
+
+- `app/controller/biz/PurchaseOrderController.php`
+- `app/service/biz/PurchaseOrderService.php`
+- `app/controller/biz/InventoryController.php`
+- `app/service/biz/InventoryService.php`
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1`
+- purchase/inventory API docs and progress docs
+
+### 3. Acceptance Criteria
+
+- Purchase-order add creates one direct `NOT_COMPLETED` and `NOT_IN_WAREHOUSE` order plus item rows from submitted supplier/product data.
+- Purchase-order delete logically deletes only orders/items with no completed settlement, warehouse state, goods expenditure rows, delivery rows, or warehoused items.
+- Inventory delete logically deletes only active zero-count rows after warehouse/product write-scope checks.
+- The three routes are removed from the generic deferred-wrapper smoke list.
+- PHP lint, route-list, frontend route-gap, deferred-wrapper script parse, and diff checks pass.
+
+### 4. Forbidden Scope
+
+- Do not implement purchase expenditure creation, settlement statements, stock/finance rollback delete, nonzero inventory delete, workflow hooks, Java data-change events, Java source edits, schema changes, `.env`, Composer/npm/frontend source changes, production data operations, or Git push behavior.

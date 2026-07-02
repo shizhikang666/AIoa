@@ -110,7 +110,13 @@ class UserDirectoryService
             ->select()
             ->toArray();
 
-        return $this->sanitizeUserRows($rows);
+        $rows = $this->sanitizeUserRows($rows);
+
+        return array_map(static fn (array $row): array => array_merge($row, [
+            'value' => $row['id'] ?? null,
+            'label' => $row['name'] ?? $row['account'] ?? null,
+            'title' => $row['name'] ?? $row['account'] ?? null,
+        ]), $rows);
     }
 
     /**
@@ -1392,7 +1398,13 @@ class UserDirectoryService
             ->select()
             ->toArray();
 
-        return $this->sanitizeUserRows($rows);
+        $rows = $this->sanitizeUserRows($rows);
+
+        return array_map(static fn (array $row): array => array_merge($row, [
+            'value' => $row['id'] ?? null,
+            'label' => $row['name'] ?? $row['account'] ?? null,
+            'title' => $row['name'] ?? $row['account'] ?? null,
+        ]), $rows);
     }
 
     /**
@@ -1414,8 +1426,12 @@ class UserDirectoryService
 
         return array_map(static fn (array $row): array => array_merge($row, [
             'id' => $row['ID'] ?? null,
+            'value' => $row['ID'] ?? null,
+            'label' => $row['NAME'] ?? $row['CODE'] ?? null,
+            'title' => $row['NAME'] ?? $row['CODE'] ?? null,
             'parentId' => $row['PARENT_ID'] ?? null,
             'name' => $row['NAME'] ?? null,
+            'code' => $row['CODE'] ?? null,
             'category' => $row['CATEGORY'] ?? null,
             'sortCode' => $row['SORT_CODE'] ?? null,
         ]), $rows);
@@ -1440,8 +1456,12 @@ class UserDirectoryService
 
         return array_map(static fn (array $row): array => array_merge($row, [
             'id' => $row['ID'] ?? null,
+            'value' => $row['ID'] ?? null,
+            'label' => $row['NAME'] ?? $row['CODE'] ?? null,
+            'title' => $row['NAME'] ?? $row['CODE'] ?? null,
             'orgId' => $row['ORG_ID'] ?? null,
             'name' => $row['NAME'] ?? null,
+            'code' => $row['CODE'] ?? null,
             'category' => $row['CATEGORY'] ?? null,
             'sortCode' => $row['SORT_CODE'] ?? null,
         ]), $rows);
@@ -1458,11 +1478,23 @@ class UserDirectoryService
             return [];
         }
 
-        return SysRole::where('DELETE_FLAG', self::NOT_DELETE)
+        $rows = SysRole::where('DELETE_FLAG', self::NOT_DELETE)
             ->whereIn('ID', $ids)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->select()
             ->toArray();
+
+        return array_map(static fn (array $row): array => array_merge($row, [
+            'id' => $row['ID'] ?? null,
+            'value' => $row['ID'] ?? null,
+            'label' => $row['NAME'] ?? $row['CODE'] ?? null,
+            'title' => $row['NAME'] ?? $row['CODE'] ?? null,
+            'name' => $row['NAME'] ?? null,
+            'code' => $row['CODE'] ?? null,
+            'category' => $row['CATEGORY'] ?? null,
+            'orgId' => $row['ORG_ID'] ?? null,
+            'sortCode' => $row['SORT_CODE'] ?? null,
+        ]), $rows);
     }
 
     /**

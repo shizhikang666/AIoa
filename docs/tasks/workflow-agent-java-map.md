@@ -50,15 +50,17 @@ Main process routes:
 | POST | `/biz/process/leave/start` | Start leave/travel process | Process `Process_ask_leave` |
 | POST | `/biz/process/leave/edit` | Edit editable leave process variables | Only when `isEdit` is true |
 
-ThinkPHP coverage as of 2026-06-22:
+ThinkPHP coverage as of 2026-06-25:
 
 - `leave/start`, `leave/edit`, leave approve/reject, and initial leave cancel are covered through bounded PHP runtime writes.
 - `payment/start`, `reimbursement/start`, `makePayment/start`, `procure/start`, and `procure/warehouse/start` are covered as first-step runtime/history starts plus initial cancel.
 - `Process_procure` approve now replaces `BizProcureApproveDelegate` through staged procurement confirmation, optional general-office approval, and PHP purchase-order creation.
 - `Process_procure_in_warehouse` approve now replaces `BizProcureInWareHouseJavaDelegate` through the PHP purchase-order warehouse-in service.
 - `Process_sale_project_init` start/approve now replaces the project-init state delegate for the bounded initial-order path; cancel/reject rolls the sale project back to `FOLLOW`.
+- `Process_project_reissue_product` start/approve now replaces the reissue delegate for the bounded reissue-order path; cancel/reject close without reissue rows.
+- `Process_sale_project_product_return` start/approve now replaces the return delegate for the bounded return-order path; cancel/reject close without return rows, and approval writes IN delivery records without inventory/refund settlement.
 - `Process_sale_project_play` start/approve now replaces the project collection delegate for the bounded collection path; first approval advances to `Activity_payment_approval`, finance approval writes collection statement/payment rows, and cancel/reject close without finance side effects.
-- Project delivery/reissue/return approve/reject completion and remaining Java delegate side effects remain deferred.
+- Remaining Java delegate side effects outside the bounded workflow paths remain deferred.
 
 ### `BizProcessProjectController.java`
 
@@ -138,7 +140,7 @@ Business side effects:
 - Delivery validates warehouse and product item amounts.
 - Project payment/reissue/return processes call business delegates after approval.
 
-ThinkPHP now covers project init start/approval/cancel/reject through `Process_sale_project_init`, project delivery start/approval/cancel/reject through `Process_sale_project_delivery`, and project play start/approval/cancel/reject through `Process_sale_project_play`. Project reissue and return starts remain controlled-deferred until their Java state changes and delegates are replaced explicitly.
+ThinkPHP now covers project init start/approval/cancel/reject through `Process_sale_project_init`, project delivery start/approval/cancel/reject through `Process_sale_project_delivery`, project reissue start/approval/cancel/reject through `Process_project_reissue_product`, and project play start/approval/cancel/reject through `Process_sale_project_play`. Project return start remains controlled-deferred until its Java state changes and delegate behavior is replaced explicitly.
 
 ### `BizTaskServiceImpl`
 
@@ -199,8 +201,8 @@ Mapped from `BizProcessCategoryEnums` and BPMN IDs:
 | `BizPaymentApproveDelegate` | Payment-in result | Covered: create payment record and settlement-account serial flow |
 | `BizSaleProjectInitStateApproveDelegate` | Project init result | Update sale project state |
 | `BizSaleProjectPlayStateApproveDelegate` | Project collection result | Covered: create sale project payment record and recalculate payment status |
-| `BizSaleProjectDeliveryApproveDelegate` | Delivery result | Update delivery/warehouse/product state |
-| `BizSaleProjectReissueProductApproveDelegate` | Reissue result | Create reissue order |
+| `BizSaleProjectDeliveryApproveDelegate` | Delivery result | Covered: update delivery/warehouse/product state |
+| `BizSaleProjectReissueProductApproveDelegate` | Reissue result | Covered: create reissue order |
 | `BizSaleProjectReturnProductApproveDelegate` | Return result | Create return-related records |
 | `LeaveApproveDelegate` | Leave process result | Create leave application |
 

@@ -89,8 +89,8 @@ function Assert-Code {
 
 function Assert-Equal {
     param(
-        [Parameter(Mandatory = $true)][string]$Actual,
-        [Parameter(Mandatory = $true)][string]$Expected,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Actual,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Expected,
         [Parameter(Mandatory = $true)][string]$Name
     )
 
@@ -500,6 +500,8 @@ echo json_encode([
     $state = Get-State -ProcessInstanceIds $processIds -ProjectIds @($projectCancelId, $projectRejectId, $projectApproveId) -CustomerId $customerId
     Assert-Equal -Actual ([string]$state.projects.$projectCancelId.PROJECT_STATE) -Expected 'FOLLOW' -Name 'cancel project rollback'
     Assert-Equal -Actual ([string]$state.projects.$projectRejectId.PROJECT_STATE) -Expected 'FOLLOW' -Name 'reject project rollback'
+    Assert-Equal -Actual ([string]$state.projects.$projectCancelId.PROCESS_ID) -Expected '' -Name 'cancel project process id remains empty'
+    Assert-Equal -Actual ([string]$state.projects.$projectRejectId.PROCESS_ID) -Expected '' -Name 'reject project process id remains empty'
     Assert-Equal -Actual ([string]$state.projects.$projectApproveId.PROJECT_STATE) -Expected 'WAIT_DELIVER' -Name 'approve project state'
     Assert-Equal -Actual ([string]$state.projects.$projectApproveId.PROCESS_ID) -Expected $approvePid -Name 'approve project process id'
     Assert-DecimalEqual -Actual ([string]$state.projects.$projectApproveId.INIT_PRICE) -Expected 27.00 -Name 'approve project init price'
@@ -525,11 +527,16 @@ echo json_encode([
     Assert-IntEqual -Actual $rejectedItems.Count -Expected 0 -Name 'cancel reject no product items'
 
     $processRelations = @($state.relations | Where-Object { [string]$_.OBJECT_ID -eq $approvePid -and [string]$_.CATEGORY -eq 'Process_sale_project_init' })
-    $projectRelations = @($state.relations | Where-Object { [string]$_.OBJECT_ID -eq $projectApproveId -and [string]$_.CATEGORY -eq 'SALE_PROJECT' })
+    $projectRelations = @($state.relations | Where-Object { [string]$_.CATEGORY -eq 'SALE_PROJECT' })
+    $cancelRejectProjectRelations = @($projectRelations | Where-Object { [string]$_.OBJECT_ID -eq $projectCancelId -or [string]$_.OBJECT_ID -eq $projectRejectId })
     Assert-IntEqual -Actual $processRelations.Count -Expected 1 -Name 'process file relation count'
     Assert-IntEqual -Actual $projectRelations.Count -Expected 1 -Name 'sale project file relation count'
+    Assert-IntEqual -Actual $cancelRejectProjectRelations.Count -Expected 0 -Name 'cancel reject no sale project file relations'
 
     $invoiceRows = @($state.invoicing | Where-Object { [string]$_.PROJECT_ID -eq $projectApproveId })
+    $cancelRejectInvoiceRows = @($state.invoicing | Where-Object { [string]$_.PROJECT_ID -eq $projectCancelId -or [string]$_.PROJECT_ID -eq $projectRejectId })
+    Assert-IntEqual -Actual $state.invoicing.Count -Expected 1 -Name 'workflow invoicing total count'
+    Assert-IntEqual -Actual $cancelRejectInvoiceRows.Count -Expected 0 -Name 'cancel reject no workflow invoicing'
     Assert-IntEqual -Actual $invoiceRows.Count -Expected 1 -Name 'workflow invoicing count'
     Assert-Equal -Actual ([string]$invoiceRows[0].PROCESS_ID) -Expected $approvePid -Name 'workflow invoicing process'
     Assert-Equal -Actual ([string]$invoiceRows[0].INVOICING_STATE) -Expected 'INVOICING_STATE_WAIT' -Name 'workflow invoicing state'

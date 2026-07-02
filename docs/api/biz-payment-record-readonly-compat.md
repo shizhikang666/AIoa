@@ -2,7 +2,7 @@
 
 ## Scope
 
-This slice covers protected payment-record read routes plus narrow Java-compatible payer-time correction and settlement-account switch routes.
+This slice covers protected payment-record read routes, narrow Java-compatible payer-time correction and settlement-account switch routes, and the 2026-06-26 product-approved direct manual add/delete behavior.
 
 ## Routes
 
@@ -10,8 +10,10 @@ This slice covers protected payment-record read routes plus narrow Java-compatib
 - `GET /biz/bizpaymentrecord/listdetails`
 - `GET /biz/bizpaymentrecord/list`
 - `GET /biz/bizpaymentrecord/detail`
+- `POST /biz/bizpaymentrecord/add`
 - `POST /biz/bizpaymentrecord/edit`
 - `POST /biz/bizpaymentrecord/edit/account`
+- `POST /biz/bizpaymentrecord/delete`
 
 ## Java References
 
@@ -81,10 +83,16 @@ This slice covers protected payment-record read routes plus narrow Java-compatib
 - Updates the linked `settlement_account_statement.ACCOUNT_ID`, `UPDATE_TIME`, and `UPDATE_USER`.
 - Does not create additional statements or payment rows.
 
+## Direct Add/Delete
+
+`POST /biz/bizpaymentrecord/add` delegates to settlement-account quick income creation, creating one settlement statement, one payment record, and increasing the target account balance.
+
+`POST /biz/bizpaymentrecord/delete` is bounded product behavior rather than Java-public route parity. It only deletes guarded manual `Process_sys` payment rows, rejects transfer rows, validates the linked income statement account/type/process/amount, logically deletes the payment record and statement, and subtracts the stored amount from the settlement account balance.
+
 ## Explicit Exclusions
 
-- No `/biz/bizpaymentrecord/add` or `/biz/bizpaymentrecord/delete` behavior was added.
-- No payment-record creation/deletion, new statement creation, workflow, data-change event, database schema change, Java source change, `.env`, Composer file, npm file, frontend source, production data, Git push, or public config change was added.
+- No workflow-owned, transfer-owned, refund-owned, or other linked payment rows can be directly deleted.
+- No workflow, data-change event, database schema change, Java source change, `.env`, Composer file, npm file, frontend source, production data, Git push, or public config change was added.
 
 ## Verification
 
@@ -95,6 +103,8 @@ This slice covers protected payment-record read routes plus narrow Java-compatib
 - Token smoke tests for page, listdetails, list, detail, and no-token 401.
 - `scripts/biz-payment-record-edit-http-smoke.ps1`
 - `scripts/biz-payment-record-edit-account-http-smoke.ps1`
+- PHP syntax lint for `PaymentRecordController` and `PaymentRecordService`
+- `php think route:list` payment-record route check
 
 ## 2026-06-15 HTTP Smoke Coverage
 

@@ -62,6 +62,18 @@ export default {
 	userSelector(data) {
 		return request('userSelector', data, 'get')
 	},
+	userMigrationPreview(data) {
+		return request('migration/preview', data)
+	},
+	userMigrationExecute(data) {
+		return request('migration/execute', data)
+	},
+	userMigrationLogPage(data) {
+		return request('migration/log/page', data, 'get')
+	},
+	userMigrationLogDetail(data) {
+		return request('migration/log/detail', data, 'get')
+	},
 	// 用户拥有角色
 	userOwnRole(data) {
 		return request('ownRole', data, 'get')

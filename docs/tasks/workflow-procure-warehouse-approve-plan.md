@@ -17,7 +17,7 @@ Status: implemented and DB-backed HTTP-smoke verified on 2026-06-22.
 ## Guardrails
 
 - This slice moves `Process_procure_in_warehouse` out of non-leave approve-through deferred behavior.
-- Reimbursement and make-payment approval are covered by `workflow-payment-out-approve-plan.md`; procurement-order creation is covered by `workflow-procure-approve-plan.md`; project init is covered by `workflow-project-init-approve-plan.md`; project delivery is covered by `workflow-project-delivery-approve-plan.md`; project play is covered by `workflow-project-play-approve-plan.md`; project reissue/return workflows and delegates remain deferred. Payment approval is covered by `workflow-payment-approve-plan.md`.
+- Reimbursement and make-payment approval are covered by `workflow-payment-out-approve-plan.md`; procurement-order creation is covered by `workflow-procure-approve-plan.md`; project init is covered by `workflow-project-init-approve-plan.md`; project delivery is covered by `workflow-project-delivery-approve-plan.md`; project reissue is covered by `workflow-project-reissue-approve-plan.md`; project play is covered by `workflow-project-play-approve-plan.md`; project return workflow and delegate remain deferred. Payment approval is covered by `workflow-payment-approve-plan.md`.
 - The side effect is transaction-coupled with workflow completion; if order, warehouse, item, product, inventory, or stock-in validation fails, the active task remains active.
 - No Java source, schema, `.env`, production data, notification, task SSE, or Java data-change event changes are included.
 

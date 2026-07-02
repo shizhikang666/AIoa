@@ -23,6 +23,7 @@ ThinkPHP outputs:
 - `GET /biz/inventory/list`
 - `GET /biz/inventory/detail`
 - `POST /biz/inventory/add`
+- `POST /biz/inventory/delete`
 - `POST /biz/warehouses/delivery/add`
 
 ## Behavior
@@ -48,6 +49,23 @@ For existing active warehouse/product rows, it preserves `CURRENT_COUNT`, sets `
 
 The inventory add slice deliberately does not implement stock-in/stock-out movement, batch movement helpers, delivery records, purchase-order warehouse entry, Java data-change event publishing, schema changes, or Java source changes.
 
+## Inventory Delete
+
+`POST /biz/inventory/delete` now implements bounded logical deletion for copied inventory delete callers.
+
+The route accepts Java-style delete payloads:
+
+- `[{"id":"..."}]`
+- `{"idList":["..."]}`
+- `{"ids":["..."]}`
+- `{"id":"..."}`
+
+It locks active inventory rows in the current tenant, requires the linked warehouse and product to be writable by admin-compatible role, matching data-scope organization, or matching owner/creator, and only allows deletion when `CURRENT_COUNT = 0`.
+
+Rows are not physically removed. The route sets `DELETE_FLAG = DELETED`, updates audit fields, and increments `VERSION`.
+
+This route deliberately does not implement stock movement, nonzero inventory deletion, delivery records, purchase-order warehouse entry, workflow hooks, Java data-change event publishing, schema changes, or Java source changes.
+
 ## Delivery Add Stocktake
 
 `POST /biz/warehouses/delivery/add` implements Java-compatible system stocktake behavior for an existing warehouse/product inventory row.
@@ -63,11 +81,6 @@ The route accepts:
 Submitted `amount` is treated as the desired final inventory count. The route locks the active inventory row, computes movement from the current count, writes one system `IN` or `OUT` `delivery_record` row when the movement is non-zero, updates `inventory.CURRENT_COUNT` to the target amount, and increments `VERSION`.
 
 This slice deliberately does not implement purchase-order warehouse entry, broader stock workflows, finance, workflow, Java event bus/data-change publishing, schema changes, or Java source changes.
-
-## Controlled Deferred Writes
-
-- `POST /biz/inventory/delete` returns a controlled `code = 400` deferred response.
-- No inventory deletion behavior is executed by the wrapper.
 
 ## Notes
 

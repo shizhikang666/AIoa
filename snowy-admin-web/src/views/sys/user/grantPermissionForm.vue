@@ -355,7 +355,9 @@
 	}
 	// 截取api串中的中文及括号
 	const subStrApi = (api) => {
-		return api.substring(0, api.indexOf('['))
+		const apiText = String(api || '').trim()
+		const splitIndex = apiText.indexOf('[')
+		return splitIndex > -1 ? apiText.substring(0, splitIndex) : apiText
 	}
 	// 验证并提交数据
 	const onSubmit = () => {

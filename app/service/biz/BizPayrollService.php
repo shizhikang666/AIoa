@@ -109,6 +109,35 @@ class BizPayrollService
         'publicAccount' => 'PUBLIC_ACCOUNT',
         'privateAccount' => 'PRIVATE_ACCOUNT',
     ];
+    private const ADD_NUMERIC_FIELDS = [
+        'senioritySalary' => 'SENIORITY_SALARY',
+        'performanceSalary' => 'PERFORMANCE_SALARY',
+        'workSalary' => 'WORK_SALARY',
+        'basicSalary' => 'BASIC_SALARY',
+        'postWage' => 'POST_WAGE',
+        'rentSubsidies' => 'RENT_SUBSIDIES',
+        'mealAllowance' => 'MEAL_ALLOWANCE',
+        'dormitoryRent' => 'DORMITORY_RENT',
+        'baseAmount' => 'BASE_AMOUNT',
+        'transactionVolume' => 'TRANSACTION_VOLUME',
+        'receivedAmount' => 'RECEIVED_AMOUNT',
+        'taxFreight' => 'TAX_FREIGHT',
+        'monthlyCommission' => 'MONTHLY_COMMISSION',
+        'beforeReceivedAmount' => 'BEFORE_RECEIVED_AMOUNT',
+        'beforeCommission' => 'BEFORE_COMMISSION',
+        'rateCommission' => 'RATE_COMMISSION',
+        'totalCommission' => 'TOTAL_COMMISSION',
+        'meritBonuses' => 'MERIT_BONUSES',
+        'vacation' => 'VACATION',
+        'vacationSubAmount' => 'VACATION_SUB_AMOUNT',
+        'yearEndBonus' => 'YEAR_END_BONUS',
+        'payableAmount' => 'PAYABLE_AMOUNT',
+        'personalIncomeTax' => 'PERSONAL_INCOME_TAX',
+        'socialSecurity' => 'SOCIAL_SECURITY',
+        'actualAmount' => 'ACTUAL_AMOUNT',
+        'publicAccount' => 'PUBLIC_ACCOUNT',
+        'privateAccount' => 'PRIVATE_ACCOUNT',
+    ];
     private const FIELDS = <<<SQL
 p.ID AS ID,
 p.SENIORITY_SALARY AS SENIORITY_SALARY,
@@ -233,6 +262,59 @@ SQL;
         }
 
         return $this->payrollRows([$row])[0];
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $userId = $this->requiredInputAny($input, ['user', 'userId', 'USER', 'USER_ID'], 'user');
+        $orgId = $this->requiredInputAny($input, ['org', 'orgId', 'ORG', 'ORG_ID'], 'org');
+        $salaryTime = $this->requiredDateTimeAny($input, ['salaryTime', 'SALARY_TIME'], 'salaryTime');
+
+        return Db::transaction(function () use ($input, $payload, $userId, $orgId, $salaryTime): array {
+            $users = $this->activeGenerateUsers([$userId], $payload);
+            if (!isset($users[$userId])) {
+                throw new RuntimeException('payroll user not found', 404);
+            }
+
+            $user = $users[$userId];
+            $this->assertGenerateUserWritable($user, $payload);
+            $userOrgId = trim((string)($user['ORG_ID'] ?? ''));
+            if ($userOrgId === '' || $userOrgId !== $orgId) {
+                throw new RuntimeException('payroll user org mismatch', 400);
+            }
+
+            $tenantId = trim((string)($user['TENANT_ID'] ?? $this->tenantId($payload)));
+            if ($tenantId === '') {
+                $tenantId = '1';
+            }
+
+            $id = $this->newId();
+            $now = date('Y-m-d H:i:s');
+            $operatorId = $this->currentUserId($payload);
+            $row = [
+                'ID' => $id,
+                'SALARY_TIME' => $salaryTime,
+                'USER' => $userId,
+                'ORG' => $orgId,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId,
+                'REMARK' => trim((string)($input['remark'] ?? $input['REMARK'] ?? '')),
+            ];
+
+            foreach (self::ADD_NUMERIC_FIELDS as $field => $column) {
+                if (array_key_exists($field, $input)) {
+                    $row[$column] = $this->decimalAmount($input[$field]);
+                }
+            }
+
+            Db::name('biz_payroll')->insert($row);
+
+            return ['id' => $id, 'count' => 1];
+        });
     }
 
     /**
@@ -1514,6 +1596,37 @@ SQL;
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<int, string> $keys
+     */
+    private function requiredInputAny(array $input, array $keys, string $name): string
+    {
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $input)) {
+                $value = trim((string)$input[$key]);
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        throw new RuntimeException("missing {$name}", 400);
+    }
+
+    /**
+     * @param array<int, string> $keys
+     */
+    private function requiredDateTimeAny(array $input, array $keys, string $name): string
+    {
+        $value = $this->requiredInputAny($input, $keys, $name);
+        $timestamp = strtotime($value);
+        if ($timestamp === false) {
+            throw new RuntimeException("invalid {$name}", 400);
+        }
+
+        return date('Y-m-d H:i:s', $timestamp);
     }
 
     private function requiredDateTime(array $input, string $key): string

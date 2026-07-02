@@ -7,6 +7,7 @@ namespace app\controller\sys;
 use app\service\user\OrgService;
 use app\service\user\PositionService;
 use app\service\user\UserDirectoryService;
+use app\service\user\UserOrgMigrationService;
 use app\support\ApiResponse;
 use RuntimeException;
 use Throwable;
@@ -18,7 +19,8 @@ class UserController extends BaseSysController
     public function __construct(
         private readonly UserDirectoryService $userDirectoryService = new UserDirectoryService(),
         private readonly OrgService $orgService = new OrgService(),
-        private readonly PositionService $positionService = new PositionService()
+        private readonly PositionService $positionService = new PositionService(),
+        private readonly UserOrgMigrationService $userOrgMigrationService = new UserOrgMigrationService()
     ) {
     }
 
@@ -275,6 +277,38 @@ class UserController extends BaseSysController
     public function userSelector(Request $request): Response
     {
         return $this->guard(fn () => $this->userDirectoryService->userSelector($request->get()));
+    }
+
+    public function migrationPreview(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userOrgMigrationService->preview(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
+    public function migrationExecute(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userOrgMigrationService->execute(
+            $this->bodyInput($request),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
+    public function migrationLogPage(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userOrgMigrationService->logPage(
+            $request->get(),
+            $request->middleware('auth_payload', [])
+        ));
+    }
+
+    public function migrationLogDetail(Request $request): Response
+    {
+        return $this->guard(fn () => $this->userOrgMigrationService->logDetail(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     /**

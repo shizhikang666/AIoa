@@ -15,6 +15,21 @@ class SaleProjectProductItemController extends BaseSysController
     {
     }
 
+    public function add(Request $request): Response
+    {
+        return $this->guard(fn () => $this->itemService->add($this->body($request), $this->authPayload($request)));
+    }
+
+    public function edit(Request $request): Response
+    {
+        return $this->guard(fn () => $this->itemService->edit($this->body($request), $this->authPayload($request)));
+    }
+
+    public function delete(Request $request): Response
+    {
+        return $this->guard(fn () => $this->itemService->delete($this->body($request), $this->authPayload($request)));
+    }
+
     public function editMark(Request $request): Response
     {
         return $this->guard(fn () => $this->itemService->editMark($this->body($request), $this->authPayload($request)));

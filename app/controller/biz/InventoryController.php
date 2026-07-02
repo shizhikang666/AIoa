@@ -6,7 +6,6 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\InventoryService;
-use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -36,16 +35,11 @@ class InventoryController extends BaseSysController
         return $this->guard(fn () => $this->inventoryService->add($this->body($request), $this->authPayload($request)));
     }
 
-    public function delete(): Response
+    public function delete(Request $request): Response
     {
-        return $this->deferredWrite('inventory delete');
-    }
+        $input = $this->body($request);
 
-    private function deferredWrite(string $operation): Response
-    {
-        return ApiResponse::fail($operation . ' is deferred', 400, [
-            'operation' => $operation,
-        ]);
+        return $this->guard(fn () => $this->inventoryService->delete($this->deleteIds($request, $input), $this->authPayload($request)));
     }
 
     private function authPayload(Request $request): array
@@ -77,5 +71,20 @@ class InventoryController extends BaseSysController
         }
 
         return $request->param();
+    }
+
+    private function deleteIds(Request $request, array $input): array
+    {
+        if (array_is_list($input)) {
+            return $input;
+        }
+
+        foreach (['idList', 'ids', 'id'] as $key) {
+            if (array_key_exists($key, $input)) {
+                return is_array($input[$key]) ? $input[$key] : [$input[$key]];
+            }
+        }
+
+        return $this->idList($request);
     }
 }

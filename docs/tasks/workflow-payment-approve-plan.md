@@ -17,7 +17,7 @@ Status: implemented and DB-backed HTTP-smoke verified on 2026-06-22.
 ## Guardrails
 
 - Only `Process_payment` moves out of non-leave approve-through deferred behavior in this slice.
-- Reimbursement and make-payment approval are covered by `workflow-payment-out-approve-plan.md`; procurement-order creation is covered by `workflow-procure-approve-plan.md`; project init is covered by `workflow-project-init-approve-plan.md`; project delivery is covered by `workflow-project-delivery-approve-plan.md`; project play is covered by `workflow-project-play-approve-plan.md`; project reissue/return workflows and delegates remain deferred.
+- Reimbursement and make-payment approval are covered by `workflow-payment-out-approve-plan.md`; procurement-order creation is covered by `workflow-procure-approve-plan.md`; project init is covered by `workflow-project-init-approve-plan.md`; project delivery is covered by `workflow-project-delivery-approve-plan.md`; project reissue is covered by `workflow-project-reissue-approve-plan.md`; project play is covered by `workflow-project-play-approve-plan.md`; project return workflow and delegate remain deferred.
 - The side effect is transaction-coupled with workflow completion; if account or payment validation fails, the active task remains active.
 - Existing start payloads that provide `treasurer` but not `payer` remain compatible; workflow payment approval falls back to `treasurer`/initiator for `PAYER`.
 - No Java source, schema, `.env`, production data, notification, task SSE, or Java data-change event changes are included.

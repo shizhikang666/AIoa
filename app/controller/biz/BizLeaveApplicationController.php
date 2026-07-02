@@ -6,7 +6,6 @@ namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
 use app\service\biz\BizLeaveApplicationService;
-use app\support\ApiResponse;
 use think\Request;
 use think\Response;
 
@@ -31,9 +30,9 @@ class BizLeaveApplicationController extends BaseSysController
         return $this->guard(fn () => $this->leaveApplicationService->detail($this->requiredString($request, 'id'), $this->authPayload($request)));
     }
 
-    public function add(): Response
+    public function add(Request $request): Response
     {
-        return $this->deferredWrite('leave application add');
+        return $this->guard(fn () => $this->leaveApplicationService->add($this->body($request), $this->authPayload($request)));
     }
 
     public function edit(Request $request): Response
@@ -44,13 +43,6 @@ class BizLeaveApplicationController extends BaseSysController
     public function delete(Request $request): Response
     {
         return $this->guard(fn () => $this->leaveApplicationService->delete($this->body($request), $this->authPayload($request)));
-    }
-
-    private function deferredWrite(string $operation): Response
-    {
-        return ApiResponse::fail($operation . ' is deferred', 400, [
-            'operation' => $operation,
-        ]);
     }
 
     private function authPayload(Request $request): array

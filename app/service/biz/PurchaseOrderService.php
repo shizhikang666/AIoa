@@ -13,6 +13,7 @@ use think\facade\Db;
 class PurchaseOrderService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const SETTLEMENT_NOT_COMPLETED = 'NOT_COMPLETED';
     private const SETTLEMENT_COMPLETED = 'COMPLETED';
     private const SETTLEMENT_CANCELED = 'Canceled';
@@ -158,6 +159,167 @@ SQL;
             'bizPurchaseOrderItemList' => $this->itemRowsByOrderId($id, $payload),
             'bizExpenditureRecordList' => $this->expenditureRows($id, $payload),
         ];
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $title = $this->workflowRequiredString($input['title'] ?? null, 'title', 40);
+        $supplier = $this->workflowObject($input['supplier'] ?? null, 'supplier');
+        $supplierId = $this->workflowOptionalString($input['supplierId'] ?? $supplier['id'] ?? $supplier['ID'] ?? null, 20) ?? '';
+        $processInstanceId = $this->workflowOptionalString($input['instanceId'] ?? null, 40) ?? self::PROCESS_SYS;
+        $desirePurchaseDate = $this->workflowDate($input['desirePurchaseDate'] ?? null, 'desirePurchaseDate');
+        $productList = $this->workflowPurchaseProductList($input['productList'] ?? null);
+        $productIds = array_values(array_unique(array_map(static fn (array $item): string => $item['productId'], $productList)));
+        if (count($productIds) !== count($productList)) {
+            throw new RuntimeException('duplicate productId', 400);
+        }
+        $amount = array_key_exists('amount', $input)
+            ? $this->nonNegativeDecimal($input['amount'], 'amount')
+            : $this->productAmountTotal($productList);
+        $remark = $this->workflowOptionalString($input['remark'] ?? null, 65535);
+        $org = $this->workflowOptionalString($input['org'] ?? null, 20) ?? $this->defaultOrgId($payload);
+        $tenantId = $this->tenantId($input, $payload);
+
+        return Db::transaction(function () use ($title, $supplier, $supplierId, $processInstanceId, $desirePurchaseDate, $amount, $remark, $org, $productList, $productIds, $tenantId, $payload): array {
+            $this->assertCreateOrgWritable($org, $payload, 'add purchase order');
+            $this->assertProductsExist($productIds, $tenantId);
+            if ($supplierId !== '') {
+                $this->assertSupplierWritable($this->activeSupplier($supplierId, $tenantId), $payload, 'use supplier');
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $orderId = $this->newId();
+
+            Db::name('biz_purchase_order')->insert([
+                'ID' => $orderId,
+                'TITLE' => $title,
+                'SETTLEMENT_STATUS' => self::SETTLEMENT_NOT_COMPLETED,
+                'STORAGE_STATUS' => self::STORAGE_NOT_IN_WAREHOUSE,
+                'SUPPLIER_ID' => $supplierId,
+                'INSTANCE_ID' => $processInstanceId,
+                'DESIRE_PURCHASE_DATE' => $desirePurchaseDate,
+                'AMOUNT' => $amount,
+                'REMARK' => $remark,
+                'EXT_JSON' => json_encode(['supplier' => $supplier], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId,
+                'VERSION' => 0,
+                'ORG' => $org,
+            ]);
+
+            $itemRows = [];
+            foreach ($productList as $item) {
+                $itemRows[] = [
+                    'ID' => $this->newId(),
+                    'PURCHASE_ORDER_ID' => $orderId,
+                    'STORAGE_STATUS' => self::STORAGE_NOT_IN_WAREHOUSE,
+                    'PRODUCT_ID' => $item['productId'],
+                    'AMOUNT' => $item['amount'],
+                    'NUMBER' => $item['number'],
+                    'UNIT_AMOUNT' => $item['unitAmount'],
+                    'DISCOUNT_RATE' => $item['discountRate'],
+                    'REMARK' => $item['remark'],
+                    'EXT_JSON' => null,
+                    'DELETE_FLAG' => self::NOT_DELETE,
+                    'CREATE_TIME' => $now,
+                    'CREATE_USER' => $userId !== '' ? $userId : null,
+                    'UPDATE_TIME' => null,
+                    'UPDATE_USER' => null,
+                    'TENANT_ID' => $tenantId,
+                    'VERSION' => 0,
+                    'FREIGHT_SHARE_AMOUNT' => '0',
+                    'UNIT_COST_WITH_FREIGHT' => '0',
+                ];
+            }
+            Db::name('biz_purchase_order_item')->insertAll($itemRows);
+
+            return [
+                'id' => $orderId,
+                'instanceId' => $processInstanceId,
+                'settlementStatus' => self::SETTLEMENT_NOT_COMPLETED,
+                'storageStatus' => self::STORAGE_NOT_IN_WAREHOUSE,
+                'amount' => $this->decimal($amount),
+                'supplierId' => $supplierId,
+                'itemCount' => count($itemRows),
+                'count' => 1,
+            ];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->stringList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $now = date('Y-m-d H:i:s');
+            $userId = $this->currentUserId($payload);
+            $deletedItems = 0;
+
+            foreach ($idList as $id) {
+                $order = $this->assertOrderWritable($id, $payload, 'delete this purchase order');
+                $tenantId = trim((string)($order['TENANT_ID'] ?? ''));
+                $settlementStatus = trim((string)($order['SETTLEMENT_STATUS'] ?? ''));
+                $storageStatus = trim((string)($order['STORAGE_STATUS'] ?? ''));
+
+                if ($settlementStatus === self::SETTLEMENT_COMPLETED) {
+                    throw new RuntimeException('settled purchase order cannot be deleted', 400);
+                }
+                if ($storageStatus === self::STORAGE_IN_WAREHOUSE) {
+                    throw new RuntimeException('warehoused purchase order cannot be deleted', 400);
+                }
+                if ($this->goodsExpenditureAmount($id, $tenantId) > 0) {
+                    throw new RuntimeException('purchase order has expenditure records', 409);
+                }
+                if ($this->activeDeliveryCountForOrder($id, $tenantId) > 0) {
+                    throw new RuntimeException('purchase order has delivery records', 409);
+                }
+
+                $items = $this->activeItemsByOrderForUpdate($id, $tenantId);
+                foreach ($items as $item) {
+                    if (trim((string)($item['STORAGE_STATUS'] ?? '')) === self::STORAGE_IN_WAREHOUSE) {
+                        throw new RuntimeException('warehoused purchase order item cannot be deleted', 400);
+                    }
+                }
+
+                $deletedItems += Db::name('biz_purchase_order_item')
+                    ->where('PURCHASE_ORDER_ID', $id)
+                    ->where(function ($query): void {
+                        $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                    })
+                    ->update([
+                        'DELETE_FLAG' => self::DELETED,
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $userId !== '' ? $userId : null,
+                        'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                    ]);
+
+                Db::name('biz_purchase_order')
+                    ->where('ID', $id)
+                    ->update([
+                        'DELETE_FLAG' => self::DELETED,
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $userId !== '' ? $userId : null,
+                        'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                    ]);
+            }
+
+            return [
+                'ids' => $idList,
+                'count' => count($idList),
+                'deletedItems' => $deletedItems,
+            ];
+        });
     }
 
     public function cancel(array $input, array $payload = []): array
@@ -813,6 +975,83 @@ SQL;
         return (float)$query->sum('AMOUNT');
     }
 
+    private function activeDeliveryCountForOrder(string $orderId, string $tenantId): int
+    {
+        $query = Db::name('delivery_record')
+            ->where('OBJECT_ID', $orderId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return (int)$query->count();
+    }
+
+    private function activeSupplier(string $supplierId, string $tenantId): array
+    {
+        $query = Db::name('supplier')
+            ->where('ID', $supplierId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->field('ID,CREATE_USER,TENANT_ID,org,STATUS,NAME')->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('supplier not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertSupplierWritable(array $supplier, array $payload, string $action): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $supplierOrg = trim((string)($supplier['org'] ?? $supplier['ORG'] ?? ''));
+        if ($scopeOrgIds !== [] && $supplierOrg !== '' && in_array($supplierOrg, $scopeOrgIds, true)) {
+            return;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $createUser = trim((string)($supplier['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && $createUser === $currentUserId) {
+            return;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
+    private function assertCreateOrgWritable(?string $org, array $payload, string $action): void
+    {
+        if ($this->canSeeAll($payload)) {
+            return;
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $orgId = trim((string)$org);
+        if ($scopeOrgIds !== []) {
+            if ($orgId !== '' && in_array($orgId, $scopeOrgIds, true)) {
+                return;
+            }
+
+            throw new RuntimeException("no permission to {$action}", 403);
+        }
+
+        if ($this->currentUserId($payload) !== '') {
+            return;
+        }
+
+        throw new RuntimeException("no permission to {$action}", 403);
+    }
+
     /**
      * @param array<int, array<string, mixed>> $productList
      * @return array<string, array<string, mixed>>
@@ -1412,6 +1651,55 @@ SQL;
         }
 
         return $value;
+    }
+
+    private function tenantId(array $input, array $payload): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
+    private function defaultOrgId(array $payload): ?string
+    {
+        $orgId = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? $payload['org'] ?? ''));
+
+        return $orgId !== '' ? $orgId : null;
+    }
+
+    /**
+     * @param array<int, array{amount: string}> $productList
+     */
+    private function productAmountTotal(array $productList): string
+    {
+        $total = 0.0;
+        foreach ($productList as $item) {
+            $total += (float)$item['amount'];
+        }
+
+        return number_format($total, 2, '.', '');
+    }
+
+    /**
+     * @param array<int, mixed> $source
+     * @return array<int, string>
+     */
+    private function stringList(array $source): array
+    {
+        $values = [];
+        foreach ($source as $entry) {
+            if (is_array($entry)) {
+                $entry = $entry['id'] ?? $entry['ID'] ?? '';
+            }
+            foreach (explode(',', (string)$entry) as $part) {
+                $value = trim($part);
+                if ($value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return array_values(array_unique($values));
     }
 
     /**

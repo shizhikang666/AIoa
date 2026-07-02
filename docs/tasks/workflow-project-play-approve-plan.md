@@ -12,7 +12,7 @@ Status: implemented and DB-backed HTTP-smoke verified on 2026-06-22.
 - Allow finance approval to replace `BizSaleProjectPlayStateApproveDelegate` for the bounded project collection path.
 - On finance approval, write one `settlement_account_statement` and one `biz_payment_record` with `PROCESS_ID = processInstanceId`, `PROCESS_CATEGORY = Process_sale_project_play`, `SETTLEMENT_CATEGORY = PROJECT_PLAY`, and `OBJECT_ID = projectId`.
 - Recalculate sale-project `AMOUNT_COLLECTED`, `PLAY_STATE`, and `PROJECT_STATE` after the project collection payment is written.
-- Keep project reissue and return workflows deferred until their Java state changes and delegates are replaced explicitly. Project delivery is covered separately by `workflow-project-delivery-approve-plan.md`.
+- Keep project return workflow deferred until its Java state changes and delegate is replaced explicitly. Project delivery is covered separately by `workflow-project-delivery-approve-plan.md`, and project reissue is covered separately by `workflow-project-reissue-approve-plan.md`.
 
 ## Validation Boundary
 

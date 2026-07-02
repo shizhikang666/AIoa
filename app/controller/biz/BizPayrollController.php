@@ -38,9 +38,9 @@ class BizPayrollController extends BaseSysController
         return $this->downloadGuard(fn () => $this->payrollService->downloadImportTemplate());
     }
 
-    public function add(): Response
+    public function add(Request $request): Response
     {
-        return $this->deferredWrite('payroll add');
+        return $this->guard(fn () => $this->payrollService->add($this->body($request), $this->authPayload($request)));
     }
 
     public function importExcel(Request $request): Response

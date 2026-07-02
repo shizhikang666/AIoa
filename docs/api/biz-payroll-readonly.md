@@ -1,6 +1,7 @@
 # Biz Payroll API Compatibility
 
 Date: 2026-06-18
+Updated: 2026-06-27
 
 Agent: api-agent / merge-agent
 
@@ -23,7 +24,7 @@ Java reference inputs:
 | GET | `/biz/bizpayroll/detail` | `biz.BizPayrollController/detail` | `BizPayrollController.detail` |
 | GET | `/biz/bizpayroll/downloadImportTemplate` | `biz.BizPayrollController/downloadImportTemplate` | `BizPayrollController.download` |
 | GET | `/biz/bizpayroll/export` | `biz.BizPayrollController/export` | `BizPayrollController.export` |
-| POST | `/biz/bizpayroll/add` | `biz.BizPayrollController/add` | Controlled deferred wrapper |
+| POST | `/biz/bizpayroll/add` | `biz.BizPayrollController/add` | Direct manual payroll row add |
 | POST | `/biz/bizpayroll/import` | `biz.BizPayrollController/importExcel` | `BizPayrollController.importUser` |
 | POST | `/biz/bizpayroll/generate/add` | `biz.BizPayrollController/generateAdd` | `BizPayrollController.generateAdd` |
 | POST | `/biz/bizpayroll/edit` | `biz.BizPayrollController/edit` | `BizPayrollController.edit` |
@@ -82,6 +83,8 @@ The write guards are tenant-scoped. Admin-compatible users may write all current
 
 The write slice intentionally preserves fields that Java `BizPayrollEditParam` does not expose, including `POST_WAGE`, `YEAR_END_BONUS`, `PUBLIC_ACCOUNT`, `PRIVATE_ACCOUNT`, `REMARK`, `USER`, `ORG`, and `SALARY_TIME`.
 
+`POST /biz/bizpayroll/add` now creates one manual `biz_payroll` row. It requires an active target `user`, matching `org`, and valid `salaryTime`, enforces tenant/data-scope visibility through the same target-user guard used by payroll generation, accepts the frontend-visible salary numeric fields plus `remark`, writes audit fields and `DELETE_FLAG = NOT_DELETE`, and intentionally does not run salary generation, project/payment/leave aggregation, workflow, notification, or data-change side effects. Duplicate user/month prevention is still not added, matching the existing Java generation behavior.
+
 `POST /biz/bizpayroll/generate/add` accepts Java-style `{ user: string[], salaryTime, socialSecurity }` payloads. It validates selected active users under tenant/data-scope rules, then writes one `biz_payroll` row per user in a transaction. The generated values follow the Java service:
 
 - `BASIC_SALARY` comes from `sys_user.BASIC_SALARY`; salary allowances, commissions, tax, year-end, public/private account, and manual salary fields start at `0.00`.
@@ -129,17 +132,9 @@ The Java route uses EasyExcel to write multi-level `.xlsx` headers and merged or
 
 The export reuses the existing payroll query filters and data-scope behavior. When no sort field is supplied, it sorts by organization to match the Java export's organization grouping intent. Empty result sets return a JSON failure envelope with `code = 400` and message `无数据可导出`.
 
-## Controlled Deferred Writes
-
-The following frontend route now returns a controlled `code = 400` deferred response:
-
-- `/biz/bizpayroll/add`
-
-The add wrapper does not manually create payroll rows, start workflow, write provider output, change database schema, modify Java source, edit `.env`, or touch Composer files.
-
 ## Explicit Exclusions
 
-Payroll add logic, EasyExcel-style xlsx export rendering, merged-cell styling, automatic rewrites of existing payroll rows on workflow approval, Java data-change events, and broader business side effects remain deferred.
+EasyExcel-style xlsx export rendering, merged-cell styling, automatic rewrites of existing payroll rows on workflow approval, Java data-change events, and broader business side effects remain deferred. Direct payroll add is limited to one manual row insert.
 
 ## Verification
 
@@ -153,6 +148,7 @@ php think
 php think route:list
 .\scripts\biz-payroll-import-http-smoke.ps1
 .\scripts\biz-payroll-generate-add-http-smoke.ps1
+.\scripts\hr-payroll-direct-maintenance-http-smoke.ps1
 ```
 
 Focused DB smoke on 2026-06-12 inserted temporary `biz_payroll` rows, then verified:
@@ -195,3 +191,7 @@ The smoke asserts Java-style paging keys and frontend-visible identity/display/s
 ## 2026-06-18 Import HTTP Smoke Coverage
 
 `scripts/biz-payroll-import-http-smoke.ps1` is ready to cover authenticated payroll import by inserting a temporary user, generating a minimal `.xlsx` payroll file, checking no-token, missing-file, bad-month, and partial-success import behavior, verifying imported payroll field values, and cleaning temporary rows/files. DB-backed execution is pending until local MySQL is available.
+
+## 2026-06-27 Direct Add HTTP Smoke Coverage
+
+`scripts/hr-payroll-direct-maintenance-http-smoke.ps1` covers authenticated payroll direct add together with leave direct add by creating a temporary user, checking no-token/missing-body guards, rejecting org mismatch, inserting one payroll row, verifying representative salary fields, and cleaning temporary rows.

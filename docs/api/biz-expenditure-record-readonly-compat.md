@@ -2,7 +2,7 @@
 
 ## Scope
 
-This document tracks protected ThinkPHP routes compatible with the Java expenditure-record controller and the existing Vue API module.
+This document tracks protected ThinkPHP routes compatible with the Java expenditure-record controller and the existing Vue API module, plus the 2026-06-26 product-approved direct manual add/delete behavior.
 
 ## Routes
 
@@ -10,8 +10,10 @@ This document tracks protected ThinkPHP routes compatible with the Java expendit
 - `GET /biz/bizexpenditurerecord/listDetails`
 - `GET /biz/bizexpenditurerecord/list`
 - `GET /biz/bizexpenditurerecord/detail`
+- `POST /biz/bizexpenditurerecord/add`
 - `POST /biz/bizexpenditurerecord/edit`
 - `POST /biz/bizexpenditurerecord/edit/account`
+- `POST /biz/bizexpenditurerecord/delete`
 
 ## Java References
 
@@ -98,11 +100,16 @@ The linked statement category, account id, amount, object/process ids, target id
 - Updates the linked `settlement_account_statement.ACCOUNT_ID`, `UPDATE_TIME`, and `UPDATE_USER`.
 - Does not create additional statements or expenditure rows.
 
+## Direct Add/Delete
+
+`POST /biz/bizexpenditurerecord/add` delegates to settlement-account quick expense creation, creating one settlement statement, one expenditure record, and decreasing the target account balance.
+
+`POST /biz/bizexpenditurerecord/delete` is bounded product behavior rather than Java-public route parity. It only deletes guarded manual `Process_sys` expenditure rows, rejects transfer/refund/purchase/repayment/travel/customer-rebate categories, validates the linked expense statement account/type/process/amount, logically deletes the expenditure record and statement, and adds the stored amount back to the settlement account balance.
+
 ## Explicit Exclusions
 
-- No `/biz/bizexpenditurerecord/add` route was added.
-- No `/biz/bizexpenditurerecord/delete` route was added.
-- No expenditure-record add/delete, new statement creation, statement category mutation, workflow/data-change event, database schema change, Java source change, `.env`, Composer file, npm file, frontend source, production data, Git push, or public config change was added.
+- No workflow-owned, transfer-owned, refund-owned, purchase-owned, repayment-owned, travel-owned, customer-rebate, or other linked expenditure rows can be directly deleted.
+- No statement category mutation, workflow/data-change event, database schema change, Java source change, `.env`, Composer file, npm file, frontend source, production data, Git push, or public config change was added.
 
 ## Verification
 
@@ -110,6 +117,7 @@ The linked statement category, account id, amount, object/process ids, target id
 - `php think`
 - `php think route:list`
 - PHP syntax lint
+- PHP syntax lint for `ExpenditureRecordController` and `ExpenditureRecordService`
 - Token smoke tests for page, listDetails, list, detail, and no-token 401.
 - `scripts/biz-expenditure-record-edit-http-smoke.ps1`
 - `scripts/biz-expenditure-record-edit-account-http-smoke.ps1`

@@ -13,6 +13,7 @@ use think\facade\Db;
 class CollectionReceiptService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const UNSETTLED = 'Unsettled';
     private const ALREADY_SETTLED = 'AlreadySettled';
     private const REPAYMENT_CATEGORY = 'repayment';
@@ -105,6 +106,180 @@ SQL;
         }
 
         return $this->receiptRows([$row])[0];
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        $paymentRecordId = $this->requiredInput($input, 'paymentRecordId');
+        $amountCents = $this->positiveMoneyCents($input['amount'] ?? null);
+        $settlementAmountCents = array_key_exists('settlementAmount', $input)
+            ? $this->nonNegativeMoneyCents($input['settlementAmount'], 'settlementAmount')
+            : 0;
+        if ($settlementAmountCents > $amountCents) {
+            throw new RuntimeException('collection receipt settlement amount exceeds receipt amount', 400);
+        }
+        $remark = $this->nullableString($input['remark'] ?? null);
+
+        return Db::transaction(function () use ($input, $payload, $paymentRecordId, $amountCents, $settlementAmountCents, $remark): array {
+            $paymentRecord = $this->assertPaymentRecordWritable(
+                $this->activePaymentRecord($paymentRecordId, $payload, true),
+                $payload,
+                'add collection receipt'
+            );
+            $this->assertPaymentRecordUnbound($paymentRecordId, null, $payload);
+
+            $paymentAmountCents = $this->moneyCents($paymentRecord['AMOUNT'] ?? '0');
+            if ($amountCents > $paymentAmountCents) {
+                throw new RuntimeException('collection receipt amount exceeds payment record amount', 400);
+            }
+
+            $userId = $this->currentUserId($payload);
+            $tenantId = trim((string)($paymentRecord['TENANT_ID'] ?? ''));
+            if ($tenantId === '') {
+                $tenantId = $this->tenantId($input, $payload);
+            }
+            $now = date('Y-m-d H:i:s');
+            $id = $this->newId();
+
+            $count = Db::name('biz_collection_receipt')->insert([
+                'ID' => $id,
+                'PAYMENT_RECORD_ID' => $paymentRecordId,
+                'REMARK' => $remark,
+                'PLAY_STATUS' => $this->playStatusFor($settlementAmountCents, $amountCents),
+                'AMOUNT' => $this->moneyFromCents($amountCents),
+                'SETTLEMENT_AMOUNT' => $this->moneyFromCents($settlementAmountCents),
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $userId !== '' ? $userId : null,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'TENANT_ID' => $tenantId,
+                'VERSION' => 0,
+            ]);
+
+            return [
+                'id' => $id,
+                'paymentRecordId' => $paymentRecordId,
+                'amount' => $this->moneyFromCents($amountCents),
+                'settlementAmount' => $this->moneyFromCents($settlementAmountCents),
+                'playStatus' => $this->playStatusFor($settlementAmountCents, $amountCents),
+                'count' => (int)$count,
+            ];
+        });
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $receipt = $this->assertReceiptWritable($id, $payload, 'edit this collection receipt', true);
+            $currentPaymentRecordId = trim((string)($receipt['PAYMENT_RECORD_ID'] ?? ''));
+            $paymentRecordId = array_key_exists('paymentRecordId', $input)
+                ? $this->requiredInput($input, 'paymentRecordId')
+                : $currentPaymentRecordId;
+            $currentAmountCents = $this->moneyCents($receipt['AMOUNT'] ?? '0');
+            $amountChanged = array_key_exists('amount', $input);
+            $amountCents = $amountChanged
+                ? $this->positiveMoneyCents($input['amount'])
+                : $currentAmountCents;
+            $currentSettlementCents = $this->moneyCents($receipt['SETTLEMENT_AMOUNT'] ?? '0');
+            $settlementChanged = array_key_exists('settlementAmount', $input);
+            $settlementAmountCents = $settlementChanged
+                ? $this->nonNegativeMoneyCents($input['settlementAmount'], 'settlementAmount')
+                : $currentSettlementCents;
+            if ($settlementAmountCents > $amountCents) {
+                throw new RuntimeException('collection receipt settlement amount exceeds receipt amount', 400);
+            }
+
+            $markedSettled = trim((string)($receipt['PLAY_STATUS'] ?? '')) === self::ALREADY_SETTLED;
+            if (($currentSettlementCents > 0 || $markedSettled) && (
+                $paymentRecordId !== $currentPaymentRecordId
+                || $amountCents !== $currentAmountCents
+                || $settlementAmountCents !== $currentSettlementCents
+            )) {
+                throw new RuntimeException('settled collection receipt can only edit remark', 400);
+            }
+
+            $paymentRecord = $this->assertPaymentRecordWritable(
+                $this->activePaymentRecord($paymentRecordId, $payload, true),
+                $payload,
+                'edit collection receipt'
+            );
+            $this->assertPaymentRecordUnbound($paymentRecordId, $id, $payload);
+            if ($amountCents > $this->moneyCents($paymentRecord['AMOUNT'] ?? '0')) {
+                throw new RuntimeException('collection receipt amount exceeds payment record amount', 400);
+            }
+
+            $remark = array_key_exists('remark', $input)
+                ? $this->nullableString($input['remark'])
+                : $this->nullableString($receipt['REMARK'] ?? null);
+            $moneyChanged = $amountCents !== $currentAmountCents || $settlementAmountCents !== $currentSettlementCents;
+            $playStatus = $moneyChanged
+                ? $this->playStatusFor($settlementAmountCents, $amountCents)
+                : trim((string)($receipt['PLAY_STATUS'] ?? ''));
+            if ($playStatus === '') {
+                $playStatus = $this->playStatusFor($settlementAmountCents, $amountCents);
+            }
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('biz_collection_receipt')
+                ->where('ID', $id)
+                ->update([
+                    'PAYMENT_RECORD_ID' => $paymentRecordId,
+                    'REMARK' => $remark,
+                    'PLAY_STATUS' => $playStatus,
+                    'AMOUNT' => $this->moneyFromCents($amountCents),
+                    'SETTLEMENT_AMOUNT' => $this->moneyFromCents($settlementAmountCents),
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                ]);
+
+            return [
+                'id' => $id,
+                'paymentRecordId' => $paymentRecordId,
+                'amount' => $this->moneyFromCents($amountCents),
+                'settlementAmount' => $this->moneyFromCents($settlementAmountCents),
+                'playStatus' => $playStatus,
+                'count' => $updated,
+            ];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = array_values(array_unique($this->stringList($ids)));
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $receipts = $this->lockedReceipts($idList, $payload);
+            foreach ($idList as $id) {
+                $receipt = $this->assertReceiptRowWritable($receipts[$id], $payload, 'delete this collection receipt');
+                if (
+                    $this->moneyCents($receipt['SETTLEMENT_AMOUNT'] ?? '0') > 0
+                    || trim((string)($receipt['PLAY_STATUS'] ?? '')) === self::ALREADY_SETTLED
+                ) {
+                    throw new RuntimeException('settled collection receipt cannot be deleted directly', 400);
+                }
+            }
+
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('biz_collection_receipt')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                ]);
+
+            return ['ids' => $idList, 'count' => $updated];
+        });
     }
 
     public function markSuccess(array $input, array $payload = []): array
@@ -258,9 +433,9 @@ SQL;
         return $query;
     }
 
-    private function assertReceiptWritable(string $id, array $payload, string $action): array
+    private function assertReceiptWritable(string $id, array $payload, string $action, bool $lock = false): array
     {
-        $row = $this->activeReceipt($id, $payload);
+        $row = $this->activeReceipt($id, $payload, $lock);
         return $this->assertReceiptRowWritable($row, $payload, $action);
     }
 
@@ -292,7 +467,7 @@ SQL;
     private function lockedReceipts(array $ids, array $payload): array
     {
         $ids = array_values(array_unique(array_map(
-            static fn (string $id): string => trim($id),
+            static fn (mixed $id): string => trim((string)$id),
             $ids
         )));
         sort($ids, SORT_STRING);
@@ -311,7 +486,7 @@ SQL;
         }
 
         $rows = $query
-            ->field('c.ID,c.PAYMENT_RECORD_ID,c.CREATE_USER,c.TENANT_ID,c.AMOUNT,c.SETTLEMENT_AMOUNT,c.PLAY_STATUS,p.ORG AS PAYMENT_ORG')
+            ->field('c.ID,c.PAYMENT_RECORD_ID,c.REMARK,c.CREATE_USER,c.TENANT_ID,c.AMOUNT,c.SETTLEMENT_AMOUNT,c.PLAY_STATUS,p.ORG AS PAYMENT_ORG')
             ->order('c.ID', 'asc')
             ->lock(true)
             ->select()
@@ -331,7 +506,7 @@ SQL;
         return $map;
     }
 
-    private function activeReceipt(string $id, array $payload): array
+    private function activeReceipt(string $id, array $payload, bool $lock = false): array
     {
         $query = Db::name('biz_collection_receipt')
             ->alias('c')
@@ -346,14 +521,91 @@ SQL;
             $query->where('c.TENANT_ID', $tenantId);
         }
 
+        if ($lock) {
+            $query->lock(true);
+        }
+
         $row = $query
-            ->field('c.ID,c.CREATE_USER,c.TENANT_ID,p.ORG AS PAYMENT_ORG')
+            ->field('c.ID,c.PAYMENT_RECORD_ID,c.REMARK,c.CREATE_USER,c.TENANT_ID,c.AMOUNT,c.SETTLEMENT_AMOUNT,c.PLAY_STATUS,p.ORG AS PAYMENT_ORG')
             ->find();
         if (!is_array($row) || $row === []) {
             throw new RuntimeException('collection receipt not found', 404);
         }
 
         return $row;
+    }
+
+    private function activePaymentRecord(string $id, array $payload, bool $lock = false): array
+    {
+        $query = Db::name('biz_payment_record')
+            ->where('ID', $id)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        if ($lock) {
+            $query->lock(true);
+        }
+
+        $row = $query
+            ->field('ID,TENANT_ID,ORG,CREATE_USER,`USER` AS USER_ID,AMOUNT')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('payment record not found', 404);
+        }
+
+        return $row;
+    }
+
+    private function assertPaymentRecordWritable(array $row, array $payload, string $action): array
+    {
+        if ($this->canSeeAll($payload)) {
+            return $row;
+        }
+
+        $recordOrg = trim((string)($row['ORG'] ?? ''));
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if ($scopeOrgIds !== [] && $recordOrg !== '' && in_array($recordOrg, $scopeOrgIds, true)) {
+            return $row;
+        }
+
+        $currentUserId = $this->currentUserId($payload);
+        $recordUser = trim((string)($row['USER_ID'] ?? ''));
+        $createUser = trim((string)($row['CREATE_USER'] ?? ''));
+        if ($currentUserId !== '' && ($recordUser === $currentUserId || $createUser === $currentUserId)) {
+            return $row;
+        }
+
+        throw new RuntimeException("no permission to {$action} with this payment record", 403);
+    }
+
+    private function assertPaymentRecordUnbound(string $paymentRecordId, ?string $ignoreId, array $payload): void
+    {
+        $query = Db::name('biz_collection_receipt')
+            ->where('PAYMENT_RECORD_ID', $paymentRecordId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if ($ignoreId !== null && $ignoreId !== '') {
+            $query->where('ID', '<>', $ignoreId);
+        }
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+        if ($query->count() > 0) {
+            throw new RuntimeException('payment record is already bound to a collection receipt', 400);
+        }
+    }
+
+    private function playStatusFor(int $settlementAmountCents, int $amountCents): string
+    {
+        return $settlementAmountCents === $amountCents ? self::ALREADY_SETTLED : self::UNSETTLED;
     }
 
     private function applySort($query, array $filters)
@@ -420,6 +672,13 @@ SQL;
         return trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
     }
 
+    private function tenantId(array $input, array $payload): string
+    {
+        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+
+        return $tenantId !== '' ? $tenantId : '1';
+    }
+
     /**
      * @return array<int, string>
      */
@@ -480,6 +739,22 @@ SQL;
         }
 
         return $value;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(static fn (mixed $item): string => trim((string)$item), $value)));
     }
 
     /**
@@ -547,6 +822,16 @@ SQL;
         return $cents;
     }
 
+    private function nonNegativeMoneyCents(mixed $value, string $key): int
+    {
+        $cents = $this->moneyCents($value);
+        if ($cents < 0) {
+            throw new RuntimeException("{$key} must be greater than or equal to 0", 400);
+        }
+
+        return $cents;
+    }
+
     private function moneyCents(mixed $value): int
     {
         if ($value === null || $value === '') {
@@ -575,6 +860,11 @@ SQL;
         $absolute = abs($cents);
 
         return $sign . (string)intdiv($absolute, 100) . '.' . str_pad((string)($absolute % 100), 2, '0', STR_PAD_LEFT);
+    }
+
+    private function newId(): string
+    {
+        return (string)((int)floor(microtime(true) * 1000)) . (string)random_int(100000, 999999);
     }
 
     private function decimal(mixed $value): int|float|null

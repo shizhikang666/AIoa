@@ -72,35 +72,39 @@ Return-order rows include:
 - requires `projectId`, `amount >= 0`, `warehousesId`, and nonempty `productList`;
 - validates the project through tenant/data-scope guards and requires a returnable project state: `PARTIALLY_SHIPPED`, `SHIPPED`, or `COMPLETED`;
 - validates the warehouse through tenant and write-scope guards;
+- rejects submitted `processId` values that already exist in `act_hi_procinst`;
 - validates each project product item belongs to the project, is active, is `SHIPPED`, and does not make cumulative returned quantity exceed the original project product item quantity;
 - writes `return_order` and `return_order_item` rows in one transaction;
+- writes Java-compatible return IN `delivery_record` rows and increments matching `inventory` rows;
 - sets `STATE = AlreadySettled` when `amount <= 0`, otherwise `STATE = Unsettled`;
 - recalculates the owning sale project's `TOTAL_REFUND_AMOUNT`, `TOTAL_RETURN_AMOUNT`, and `TOTAL_PRICE`.
 
-`edit` performs bounded row maintenance:
+`edit` performs bounded row maintenance plus reverse correction:
 
 - requires `id`;
-- rejects editing when an active `biz_expenditure_record` with `SETTLEMENT_CATEGORY = ReturnAndRefund` already points to the return order;
+- rejects workflow-owned rows whose current or submitted process id exists in `act_hi_procinst`;
 - supports updating the master fields and, when `productList` is submitted, replaces active child rows by logical deletion plus fresh child inserts;
 - requires a submitted `productList` when changing `projectId`;
 - reruns the same project, warehouse, product-item, cumulative quantity, tenant, and data-scope checks as `add`;
+- reverses active `ReturnAndRefund` expenditure/statement/account effects before applying the edit;
+- reverses active return IN delivery/inventory effects before applying the edit;
+- rebuilds return IN delivery/inventory rows for the edited order contents;
 - recalculates affected sale-project totals.
 
-`delete` performs full-batch logical deletion:
+`delete` performs full-batch logical deletion plus reverse correction:
 
 - accepts Java-style `[{ id }]`, `idList`, `ids`, or a single `id`;
 - validates every id before writing;
-- rejects deletion when active `ReturnAndRefund` expenditure rows exist;
+- rejects workflow-owned rows whose process id exists in `act_hi_procinst`;
+- reverses active `ReturnAndRefund` expenditure/statement/account effects;
+- reverses active return IN delivery/inventory effects;
 - sets `return_order.DELETE_FLAG = DELETED` and active child `return_order_item.DELETE_FLAG = DELETED`;
 - recalculates affected sale-project totals.
 
 ## Deliberately Deferred
 
 - workflow/process start and approval behavior;
-- delivery-record creation;
-- inventory stock mutation;
-- refund/expenditure creation or deletion;
-- settlement-account statement creation;
+- no-account automatic refund creation;
 - Java event bus publishing and notification side effects;
 - Java source changes;
 - database schema or field changes.
@@ -129,11 +133,7 @@ Write guards use tenant checks plus project/warehouse/order ownership or scoped 
 - validation failures for missing project, missing warehouse, empty product list, missing project row, and missing project product item;
 - invalid-add rollback with no master/detail rows;
 - valid add with detail/page/query readback;
-- project total recalculation after add;
+- project total recalculation after add and settlement-account `ReturnAndRefund` expenses;
 - invalid edit rollback;
-- valid edit with child-row replacement;
-- edit/delete rejection when linked `ReturnAndRefund` expenditure exists;
-- mixed delete rollback;
-- final logical delete of master/detail rows;
-- project total recalculation after delete;
-- no delivery/inventory/payment/statement side-effect row creation.
+- valid edit after delivery/refund side effects, including refund/account reverse correction, delivery/inventory reverse correction, child-row replacement, rebuilt return IN delivery rows, and project total recalculation;
+- valid delete after edited refund side effects, including account restoration, active delivery/expenditure/statement cleanup, inventory restoration, master/detail logical delete, and project total restoration.

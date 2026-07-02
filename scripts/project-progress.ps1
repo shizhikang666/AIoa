@@ -5,6 +5,42 @@ param(
     [switch]$IncludeWorktreeSummary,
     [switch]$CheckRuntime,
     [switch]$CheckWeb,
+    [switch]$CheckDeploy,
+    [switch]$CheckErrorLogPolicy,
+    [switch]$CheckOpcachePolicy,
+    [switch]$CheckBackupTools,
+    [switch]$CheckSchedulerPolicy,
+    [switch]$CheckCachePolicy,
+    [switch]$CheckCookiePolicy,
+    [switch]$CheckUrlPolicy,
+    [switch]$CheckStoragePolicy,
+    [switch]$CheckProviderPolicy,
+    [switch]$CheckEnvTemplatePolicy,
+    [switch]$CheckRuntimePermissionPolicy,
+    [switch]$CheckWebServerPolicy,
+    [switch]$CheckSecurityHeadersPolicy,
+    [switch]$CheckCorsPolicy,
+    [switch]$CheckNginxSyntax,
+    [switch]$CheckPhpFpmSyntax,
+    [switch]$CheckDatabaseSchema,
+    [switch]$CheckArtifactPolicy,
+    [switch]$CheckFrontendBuildPolicy,
+    [switch]$CheckComposerPolicy,
+    [switch]$CheckReleasePackagePolicy,
+    [string]$MysqlDumpBinary = '',
+    [string]$MysqlClientBinary = '',
+    [string]$NginxBinary = '',
+    [string]$PhpFpmBinary = '',
+    [string]$BackupDirectory = '',
+    [string]$ReleaseRoot = '',
+    [string]$SchedulerPolicyDocument = '',
+    [int]$CacheTcpTimeoutSeconds = 2,
+    [string]$ExpectedPublicRoot = '',
+    [string]$PublicBaseUrl = '',
+    [string]$CorsProbeOrigin = '',
+    [int]$HttpProbeTimeoutSeconds = 5,
+    [string]$MinUploadMaxFilesize = '',
+    [string]$MinPostMaxSize = '',
     [switch]$SkipStatusTail,
     [switch]$Lean
 )
@@ -92,6 +128,18 @@ function Show-DashboardLean {
     }
 
     $notePatterns = @(
+        '^- 2026-06-26 environment template cleanup:',
+        '^- 2026-06-26 CORS policy readiness:',
+        '^- 2026-06-26 HTTP security headers policy readiness:',
+        '^- 2026-06-26 web-server syntax policy readiness:',
+        '^- 2026-06-26 runtime permission policy readiness:',
+        '^- 2026-06-26 environment template policy readiness:',
+        '^- 2026-06-26 release package policy readiness:',
+        '^- 2026-06-26 Composer dependency policy readiness:',
+        '^- 2026-06-25 sale-project invoice direct add/edit/delete:',
+        '^- 2026-06-25 sale-project reissue-order direct add/edit/delete:',
+        '^- 2026-06-25 deployment runtime readiness:',
+        '^- 2026-06-25 sale-project standalone product item:',
         '^- 2026-06-22 workflow payment approval:',
         '^- 2026-06-22 workflow payment-out approval:',
         '^- 2026-06-22 workflow procure approval:',
@@ -234,6 +282,114 @@ if ($CheckWeb) {
     & (Join-Path $PSScriptRoot 'web-ready.ps1')
 }
 
+if ($CheckDeploy) {
+    Write-Section 'Deployment Readiness'
+    $deployArgs = @{}
+    if ($CheckErrorLogPolicy) {
+        $deployArgs.CheckErrorLogPolicy = $true
+    }
+    if ($CheckOpcachePolicy) {
+        $deployArgs.CheckOpcachePolicy = $true
+    }
+    if ($CheckBackupTools) {
+        $deployArgs.CheckBackupTools = $true
+    }
+    if ($CheckSchedulerPolicy) {
+        $deployArgs.CheckSchedulerPolicy = $true
+    }
+    if ($CheckCachePolicy) {
+        $deployArgs.CheckCachePolicy = $true
+        $deployArgs.CacheTcpTimeoutSeconds = $CacheTcpTimeoutSeconds
+    }
+    if ($CheckCookiePolicy) {
+        $deployArgs.CheckCookiePolicy = $true
+    }
+    if ($CheckUrlPolicy) {
+        $deployArgs.CheckUrlPolicy = $true
+    }
+    if ($CheckStoragePolicy) {
+        $deployArgs.CheckStoragePolicy = $true
+    }
+    if ($CheckProviderPolicy) {
+        $deployArgs.CheckProviderPolicy = $true
+    }
+    if ($CheckEnvTemplatePolicy) {
+        $deployArgs.CheckEnvTemplatePolicy = $true
+    }
+    if ($CheckRuntimePermissionPolicy) {
+        $deployArgs.CheckRuntimePermissionPolicy = $true
+    }
+    if ($CheckWebServerPolicy) {
+        $deployArgs.CheckWebServerPolicy = $true
+    }
+    if ($CheckSecurityHeadersPolicy) {
+        $deployArgs.CheckSecurityHeadersPolicy = $true
+    }
+    if ($CheckCorsPolicy) {
+        $deployArgs.CheckCorsPolicy = $true
+    }
+    if ($CheckNginxSyntax) {
+        $deployArgs.CheckNginxSyntax = $true
+    }
+    if ($CheckPhpFpmSyntax) {
+        $deployArgs.CheckPhpFpmSyntax = $true
+    }
+    if ($CheckDatabaseSchema) {
+        $deployArgs.CheckDatabaseSchema = $true
+    }
+    if ($CheckArtifactPolicy) {
+        $deployArgs.CheckArtifactPolicy = $true
+    }
+    if ($CheckFrontendBuildPolicy) {
+        $deployArgs.CheckFrontendBuildPolicy = $true
+    }
+    if ($CheckComposerPolicy) {
+        $deployArgs.CheckComposerPolicy = $true
+    }
+    if ($CheckReleasePackagePolicy) {
+        $deployArgs.CheckReleasePackagePolicy = $true
+    }
+    if (-not [string]::IsNullOrWhiteSpace($MysqlDumpBinary)) {
+        $deployArgs.MysqlDumpBinary = $MysqlDumpBinary
+    }
+    if (-not [string]::IsNullOrWhiteSpace($MysqlClientBinary)) {
+        $deployArgs.MysqlClientBinary = $MysqlClientBinary
+    }
+    if (-not [string]::IsNullOrWhiteSpace($NginxBinary)) {
+        $deployArgs.NginxBinary = $NginxBinary
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PhpFpmBinary)) {
+        $deployArgs.PhpFpmBinary = $PhpFpmBinary
+    }
+    if (-not [string]::IsNullOrWhiteSpace($BackupDirectory)) {
+        $deployArgs.BackupDirectory = $BackupDirectory
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ReleaseRoot)) {
+        $deployArgs.ReleaseRoot = $ReleaseRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($SchedulerPolicyDocument)) {
+        $deployArgs.SchedulerPolicyDocument = $SchedulerPolicyDocument
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedPublicRoot)) {
+        $deployArgs.ExpectedPublicRoot = $ExpectedPublicRoot
+    }
+    if (-not [string]::IsNullOrWhiteSpace($PublicBaseUrl)) {
+        $deployArgs.PublicBaseUrl = $PublicBaseUrl
+        $deployArgs.HttpProbeTimeoutSeconds = $HttpProbeTimeoutSeconds
+    }
+    if (-not [string]::IsNullOrWhiteSpace($CorsProbeOrigin)) {
+        $deployArgs.CorsProbeOrigin = $CorsProbeOrigin
+    }
+    if (-not [string]::IsNullOrWhiteSpace($MinUploadMaxFilesize)) {
+        $deployArgs.MinUploadMaxFilesize = $MinUploadMaxFilesize
+    }
+    if (-not [string]::IsNullOrWhiteSpace($MinPostMaxSize)) {
+        $deployArgs.MinPostMaxSize = $MinPostMaxSize
+    }
+
+    & (Join-Path $PSScriptRoot 'deployment-readiness.ps1') @deployArgs
+}
+
 if (-not $SkipStatusTail) {
     Write-Section 'Latest STATUS Tail'
     Show-FileTail -Path 'STATUS.md' -Lines $StatusTail
@@ -289,9 +445,35 @@ Write-Host '.\scripts\project-progress.ps1 -SkipStatusTail'
 Write-Host '.\scripts\project-progress.ps1 -IncludeWorktreeSummary'
 Write-Host '.\scripts\project-progress.ps1 -CheckRuntime -Lean'
 Write-Host '.\scripts\project-progress.ps1 -CheckRuntime -CheckWeb -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckErrorLogPolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckOpcachePolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckBackupTools -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckSchedulerPolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckCachePolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckCookiePolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckUrlPolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckStoragePolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckProviderPolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckEnvTemplatePolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckRuntimePermissionPolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckWebServerPolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckWebServerPolicy -CheckNginxSyntax -CheckPhpFpmSyntax -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckSecurityHeadersPolicy -PublicBaseUrl https://oa.example.com -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckCorsPolicy -PublicBaseUrl https://api.example.com -CorsProbeOrigin https://oa.example.com -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckDatabaseSchema -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckArtifactPolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckFrontendBuildPolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckComposerPolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -CheckReleasePackagePolicy -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -ExpectedPublicRoot .\public -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -ExpectedPublicRoot .\public -PublicBaseUrl http://127.0.0.1:82 -Lean'
+Write-Host '.\scripts\project-progress.ps1 -CheckDeploy -MinUploadMaxFilesize 8M -MinPostMaxSize 8M -Lean'
 Write-Host '.\scripts\project-preflight.ps1'
 Write-Host '.\scripts\runtime-ready.ps1'
 Write-Host '.\scripts\web-ready.ps1'
+Write-Host '.\scripts\deployment-readiness.ps1'
+Write-Host 'bash ./scripts/deployment-readiness.sh'
 Write-Host '.\scripts\frontend-api-method-smoke.ps1'
 Write-Host '.\scripts\frontend-api-route-gap-smoke.ps1'
 Write-Host '.\scripts\frontend-deferred-write-wrapper-smoke.ps1'
@@ -318,7 +500,10 @@ Write-Host '.\scripts\sale-project-delete-http-smoke.ps1'
 Write-Host '.\scripts\sale-project-repeal-http-smoke.ps1'
 Write-Host '.\scripts\sale-project-cancel-http-smoke.ps1'
 Write-Host '.\scripts\sale-project-invoicing-write-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-invoice-add-http-smoke.ps1'
 Write-Host '.\scripts\sale-project-product-item-mutation-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-product-item-standalone-http-smoke.ps1'
+Write-Host '.\scripts\sale-project-reissue-order-add-http-smoke.ps1'
 Write-Host '.\scripts\return-order-write-http-smoke.ps1'
 Write-Host '.\scripts\settlement-account-expenses-add-http-smoke.ps1'
 Write-Host '.\scripts\settlement-account-payment-add-http-smoke.ps1'
@@ -343,6 +528,8 @@ Write-Host '.\scripts\workflow-payment-out-approve-http-smoke.ps1'
 Write-Host '.\scripts\workflow-procure-approve-http-smoke.ps1'
 Write-Host '.\scripts\workflow-procure-warehouse-approve-http-smoke.ps1'
 Write-Host '.\scripts\workflow-project-delivery-approve-http-smoke.ps1'
+Write-Host '.\scripts\workflow-project-reissue-approve-http-smoke.ps1'
+Write-Host '.\scripts\workflow-project-return-approve-http-smoke.ps1'
 Write-Host '.\scripts\workflow-project-play-approve-http-smoke.ps1'
 Write-Host '.\scripts\team-project-read-http-smoke.ps1'
 Write-Host '.\scripts\team-project-task-write-http-smoke.ps1'

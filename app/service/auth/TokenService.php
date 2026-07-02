@@ -30,6 +30,7 @@ class TokenService
             'mobile_button_codes' => $authContext['mobile_button_codes'] ?? [],
             'permission_codes' => $authContext['permission_codes'] ?? [],
             'menu_ids' => $authContext['menu_ids'] ?? [],
+            'data_scopes' => $authContext['data_scopes'] ?? [],
             'login_at' => $now,
             'expires_at' => $expiresAt,
             'token_hash' => $this->tokenHash($token),

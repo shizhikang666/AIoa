@@ -2,6 +2,7 @@
 
 namespace app\service\auth;
 
+use app\service\user\UserDirectoryService;
 use RuntimeException;
 use think\facade\Cache;
 use think\facade\Db;
@@ -16,6 +17,7 @@ class AuthService
         private readonly TokenService $tokenService = new TokenService(),
         private readonly RbacService $rbacService = new RbacService(),
         private readonly PasswordService $passwordService = new PasswordService(),
+        private readonly UserDirectoryService $userDirectoryService = new UserDirectoryService(),
     ) {
     }
 
@@ -88,11 +90,10 @@ class AuthService
     {
         $payload = $this->currentPayload($request);
         $user = $this->currentUserRecord($payload);
+        $userInfo = $this->userDirectoryService->detail((string)($user['ID'] ?? '')) ?? [];
 
-        unset($user['PASSWORD']);
-
-        return [
-            'user' => $user,
+        return array_merge($userInfo, [
+            'user' => $userInfo,
             'tenantId' => $payload['tenant_id'] ?? null,
             'roleCodeList' => $payload['role_codes'] ?? [],
             'buttonCodeList' => $payload['button_codes'] ?? [],
@@ -100,7 +101,7 @@ class AuthService
             'permissionCodeList' => $payload['permission_codes'] ?? [],
             'menuIdList' => $payload['menu_ids'] ?? [],
             'dataScopeList' => $payload['data_scopes'] ?? [],
-        ];
+        ]);
     }
 
     public function openSafe(array $input, Request $request): string

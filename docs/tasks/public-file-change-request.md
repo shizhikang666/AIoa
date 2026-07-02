@@ -1962,8 +1962,8 @@ The copied Vue sale-project, invoicing, delivery invoice, reissue-order, and pro
 - No `/biz/saleprojectinvoicing/add` route was added.
 - No `/biz/saleprojectinvoicing/edit` route was added.
 - No `/biz/saleprojectinvoicing/complete` route was added.
-- No `/biz/saleprojectinvoice/add`, `/edit`, `/delete`, or delivery mutation route was added.
-- No `/biz/saleprojectreissueorder/add` or workflow start route was added.
+- At this read-only step, `/biz/saleprojectinvoice/add`, `/edit`, `/delete`, and delivery mutation routes were intentionally not added.
+- At this read-only step, `/biz/saleprojectreissueorder/add` and workflow start routes were intentionally not added.
 - No `/biz/projectrate/add`, `/edit`, `/delete`, or rating mutation route was added.
 - No workflow mutation, inventory stock mutation, finance settlement mutation, database schema change, Java source change, frontend change, `.env`, Composer file, or public config change was added.
 

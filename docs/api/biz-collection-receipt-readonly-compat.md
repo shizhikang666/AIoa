@@ -25,8 +25,11 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizcollectionreceipt/page` | Paginated collection-receipt list. |
 | GET | `/biz/bizcollectionreceipt/list` | Non-paginated collection-receipt list. |
 | GET | `/biz/bizcollectionreceipt/detail` | Read-only detail lookup for old frontend compatibility. |
+| POST | `/biz/bizcollectionreceipt/add` | Creates one standalone collection-receipt row linked to an active payment record. |
+| POST | `/biz/bizcollectionreceipt/edit` | Updates collection-receipt amount, settlement amount, linked payment record, and remark with settled-row guards. |
 | POST | `/biz/bizcollectionreceipt/mark/success/edit` | Marks one collection receipt as settled. |
 | POST | `/biz/bizcollectionreceipt/batchExpenditure/edit` | Creates repayment expenditure rows for selected collection receipts. |
+| POST | `/biz/bizcollectionreceipt/delete` | Logically deletes unsettled collection receipts. |
 
 ## Write Compatibility
 
@@ -62,13 +65,32 @@ The ThinkPHP implementation follows Java `BizCollectionReceiptServiceImpl.batchE
 - sets `PLAY_STATUS = AlreadySettled` when the receipt is fully settled, otherwise `Unsettled`;
 - increments `VERSION`.
 
-## Explicitly Deferred Routes
+`POST /biz/bizcollectionreceipt/add` accepts:
 
-These Java/frontend routes remain deferred:
+- `paymentRecordId`
+- `amount`
+- optional `settlementAmount`
+- optional `remark`
 
-- `POST /biz/bizcollectionreceipt/add`
-- `POST /biz/bizcollectionreceipt/edit`
-- `POST /biz/bizcollectionreceipt/delete`
+`POST /biz/bizcollectionreceipt/edit` accepts:
+
+- `id`
+- optional `paymentRecordId`
+- optional `amount`
+- optional `settlementAmount`
+- optional `remark`
+
+`POST /biz/bizcollectionreceipt/delete` accepts Java-style `[{ id }]`, `idList`, `ids`, or `id` payloads.
+
+Direct collection-receipt CRUD is intentionally bounded product behavior opened on 2026-06-26:
+
+- active payment records are locked and checked against tenant/data-scope/create-user permissions;
+- a payment record can be bound to only one active collection receipt;
+- receipt amount cannot exceed the linked payment-record amount;
+- `settlementAmount` must be nonnegative and cannot exceed `amount`;
+- settled rows can only edit `remark`;
+- delete is logical (`DELETE_FLAG = DELETED`) and rejects rows with a positive settlement amount or `PLAY_STATUS = AlreadySettled`;
+- direct CRUD does not create expenditure records, settlement-account statements, or settlement-account balance changes.
 
 ## Query Compatibility
 
@@ -120,7 +142,7 @@ Rows return frontend-friendly camelCase fields:
 
 ## Notes
 
-- The Java controller comments out add, edit, delete, and detail mappings. The old frontend still has a `detail` wrapper, so ThinkPHP exposes only a protected read-only detail endpoint.
+- The Java controller comments out add, edit, delete, and detail mappings. The old frontend still has wrappers for these routes; direct CRUD is now explicit ThinkPHP product behavior, not Java-public route parity.
 - Java's batch-expenditure flow creates expenditure data and account-side settlement records. ThinkPHP implements this as a narrow transaction and explicitly applies the collection-receipt settlement correction that Java would normally trigger through its event handler.
 - This compatibility work does not modify Java source, database schema, Composer files, or `.env`; the only collection-receipt finance side-effect route currently implemented here is the narrow batch-expenditure flow described above.
 
@@ -145,3 +167,13 @@ The smoke checks Java-style paging keys and stable frontend-visible fields such 
 - target settlement-account balance decrease;
 - `biz_collection_receipt.SETTLEMENT_AMOUNT`, `PLAY_STATUS`, and `VERSION` update;
 - unrelated payment/account/collection/debit counts stay stable except for the expected expenditure and statement rows.
+
+## 2026-06-26 Direct CRUD Coverage
+
+Focused verification currently covers PHP syntax and route registration for direct collection-receipt CRUD:
+
+- `POST /biz/bizcollectionreceipt/add`
+- `POST /biz/bizcollectionreceipt/edit`
+- `POST /biz/bizcollectionreceipt/delete`
+
+DB-backed HTTP smoke is pending local runtime availability.

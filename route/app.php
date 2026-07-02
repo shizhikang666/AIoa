@@ -143,6 +143,10 @@ Route::group('sys/user', function () {
     Route::get('positionSelector', 'sys.UserController/positionSelector');
     Route::get('roleSelector', 'sys.UserController/roleSelector');
     Route::get('userSelector', 'sys.UserController/userSelector');
+    Route::post('migration/preview', 'sys.UserController/migrationPreview');
+    Route::post('migration/execute', 'sys.UserController/migrationExecute');
+    Route::get('migration/log/page', 'sys.UserController/migrationLogPage');
+    Route::get('migration/log/detail', 'sys.UserController/migrationLogDetail');
 })->middleware(AuthMiddleware::class);
 
 Route::group('sys/role', function () {
@@ -640,6 +644,9 @@ Route::group('biz/saleprojectinvoicing', function () {
 Route::group('biz/saleprojectinvoice', function () {
     Route::get('page', 'biz.SaleProjectInvoiceController/page');
     Route::get('list', 'biz.SaleProjectInvoiceController/list');
+    Route::post('add', 'biz.SaleProjectInvoiceController/add');
+    Route::post('edit', 'biz.SaleProjectInvoiceController/edit');
+    Route::post('delete', 'biz.SaleProjectInvoiceController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/saleprojectinvoiceItem', function () {
@@ -648,6 +655,9 @@ Route::group('biz/saleprojectinvoiceItem', function () {
 
 Route::group('biz/saleprojectreissueorder', function () {
     Route::get('list/query', 'biz.SaleProjectReissueOrderController/listQuery');
+    Route::post('add', 'biz.SaleProjectReissueOrderController/add');
+    Route::post('edit', 'biz.SaleProjectReissueOrderController/edit');
+    Route::post('delete', 'biz.SaleProjectReissueOrderController/delete');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/saleprojectproductinfo', function () {
@@ -665,6 +675,9 @@ Route::group('biz/saleprojectproductitemrelation', function () {
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/saleprojectproductitem', function () {
+    Route::post('add', 'biz.SaleProjectProductItemController/add');
+    Route::post('edit', 'biz.SaleProjectProductItemController/edit');
+    Route::post('delete', 'biz.SaleProjectProductItemController/delete');
     Route::post('mark/edit', 'biz.SaleProjectProductItemController/editMark');
 })->middleware(AuthMiddleware::class);
 

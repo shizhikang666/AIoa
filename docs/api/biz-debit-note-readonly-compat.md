@@ -25,9 +25,12 @@ All routes are protected by `AuthMiddleware`.
 | GET | `/biz/bizdebitnote/page` | Paginated debit-note list. |
 | GET | `/biz/bizdebitnote/list` | Non-paginated debit-note list. |
 | GET | `/biz/bizdebitnote/detail` | Read-only detail lookup. |
+| POST | `/biz/bizdebitnote/add` | Creates one standalone debit-note row linked to an active expenditure record. |
+| POST | `/biz/bizdebitnote/edit` | Updates debit-note amount, settlement amount, and remark with settled/history guards. |
 | POST | `/biz/bizdebitnote/mark/success/edit` | Marks one debit note as settled. |
 | POST | `/biz/bizdebitnote/batchRepayment/edit` | Creates loan-repayment payment rows for selected debit notes. |
 | POST | `/biz/bizdebitnote/history/add` | Creates one historical debit note from a selected settlement account. |
+| POST | `/biz/bizdebitnote/delete` | Logically deletes debit notes that have no settlement or history amount. |
 
 ## Write Compatibility
 
@@ -81,13 +84,32 @@ The ThinkPHP implementation follows Java `BizDebitNoteServiceImpl.add(BizDebitNo
 - does not create payment records, expenditure records, or settlement-account statements;
 - does not change settlement-account balances.
 
-## Explicitly Deferred Routes
+`POST /biz/bizdebitnote/add` accepts:
 
-These Java/frontend routes remain deferred:
+- `expenditureRecordId`
+- `amount`
+- optional `settlementAmount`
+- optional `remark`
 
-- `POST /biz/bizdebitnote/add`
-- `POST /biz/bizdebitnote/edit`
-- `POST /biz/bizdebitnote/delete`
+`POST /biz/bizdebitnote/edit` accepts:
+
+- `id`
+- optional `amount`
+- optional `settlementAmount`
+- optional `remark`
+
+`POST /biz/bizdebitnote/delete` accepts Java-style `[{ id }]`, `idList`, `ids`, or `id` payloads.
+
+Direct debit-note CRUD is intentionally bounded product behavior opened on 2026-06-26:
+
+- active expenditure records are locked and checked against tenant/data-scope/create-user permissions;
+- an expenditure record can be bound to only one active debit note;
+- debit-note amount cannot exceed the linked expenditure-record amount;
+- `settlementAmount` must be nonnegative and cannot exceed `amount`;
+- `add` derives organization from the linked expenditure record's target settlement account, matching Java service behavior;
+- settled or historical rows can only edit `remark`;
+- delete is logical (`DELETE_FLAG = DELETED`) and rejects rows with positive `SETTLEMENT_AMOUNT`, positive `HISTORY_AMOUNT`, or `PLAY_STATUS = AlreadySettled`;
+- direct CRUD does not create payment records, expenditure records, settlement-account statements, or settlement-account balance changes.
 
 ## Query Compatibility
 
@@ -148,6 +170,7 @@ Rows return frontend-friendly camelCase fields:
 - Java page/list conditionally joins expenditure records for account/category filters. This ThinkPHP read query always uses left joins for display enrichment.
 - Java batch-repayment can change payment records, settlement-account data, and debit-note settlement amounts. ThinkPHP implements batch repayment as a narrow transaction and explicitly applies the debit-note settlement correction that Java would normally trigger through its event handler.
 - Java history-add creates a debit-note row with historical settlement amount. ThinkPHP implements it as a debit-note-only insert and intentionally does not create payment/expenditure/statement rows or account-balance changes.
+- Java controller CRUD routes are commented out. Direct add/edit/delete is now explicit ThinkPHP product behavior, not Java-public route parity.
 - This compatibility work does not modify Java source, database schema, Composer files, or `.env`.
 
 ## 2026-06-15 HTTP Smoke Coverage
@@ -182,3 +205,13 @@ The smoke checks Java-style paging keys and stable frontend-visible fields such 
 - `biz_debit_note.EXPENDITURE_RECORD_ID`, `AMOUNT`, `HISTORY_AMOUNT`, `SETTLEMENT_AMOUNT`, `PLAY_STATUS`, `ORG`, `TENANT_ID`, `DELETE_FLAG`, `VERSION`, and `CREATE_TIME` values;
 - settlement-account balance/version preservation;
 - payment, statement, account, expenditure, collection, and debit counts stay stable except for the expected single debit-note row.
+
+## 2026-06-26 Direct CRUD Coverage
+
+Focused verification currently covers PHP syntax and route registration for direct debit-note CRUD:
+
+- `POST /biz/bizdebitnote/add`
+- `POST /biz/bizdebitnote/edit`
+- `POST /biz/bizdebitnote/delete`
+
+DB-backed HTTP smoke is pending local runtime availability.

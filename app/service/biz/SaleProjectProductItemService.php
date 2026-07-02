@@ -14,6 +14,28 @@ class SaleProjectProductItemService
 {
     private const NOT_DELETE = 'NOT_DELETE';
 
+    private SaleProjectService $saleProjectService;
+
+    public function __construct(?SaleProjectService $saleProjectService = null)
+    {
+        $this->saleProjectService = $saleProjectService ?? new SaleProjectService();
+    }
+
+    public function add(array $input, array $payload = []): array
+    {
+        return $this->saleProjectService->addProductItem($input, $payload);
+    }
+
+    public function edit(array $input, array $payload = []): array
+    {
+        return $this->saleProjectService->editProductItem($input, $payload);
+    }
+
+    public function delete(array $input, array $payload = []): array
+    {
+        return $this->saleProjectService->deleteProductItems($input, $payload);
+    }
+
     public function editMark(array $input, array $payload = []): array
     {
         $id = $this->requiredString($input, 'id');

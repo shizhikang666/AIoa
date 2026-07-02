@@ -29,7 +29,7 @@ class AuthController extends BaseController
 
     public function doLogin(Request $request): Response
     {
-        return $this->guard(fn () => ApiResponse::ok($this->authService->login($request->post())));
+        return $this->guard(fn () => ApiResponse::ok($this->authService->login($this->payload($request))));
     }
 
     public function doLoginByPhone(): Response
@@ -56,7 +56,41 @@ class AuthController extends BaseController
 
     public function openSafe(Request $request): Response
     {
-        return $this->guard(fn () => ApiResponse::ok($this->authService->openSafe($request->post(), $request)));
+        return $this->guard(fn () => ApiResponse::ok($this->authService->openSafe($this->payload($request), $request)));
+    }
+
+    private function payload(Request $request): array
+    {
+        $payload = $request->post();
+        if (!is_array($payload)) {
+            $payload = [];
+        }
+
+        $rawInput = trim($request->getInput());
+        if ($rawInput === '') {
+            $rawInput = trim((string)file_get_contents('php://input'));
+        }
+        if ($rawInput !== '') {
+            $jsonPayload = json_decode($rawInput, true);
+            if (is_array($jsonPayload)) {
+                $payload = array_merge($payload, $jsonPayload);
+            }
+        }
+
+        $params = $request->param();
+        if (is_array($params)) {
+            $payload = array_merge($params, $payload);
+        }
+
+        $tenantId = trim((string)($payload['tenantId'] ?? $payload['tenant_id'] ?? ''));
+        if ($tenantId === '') {
+            $headerTenantId = trim((string)($request->header('tenantId', $request->header('tenantid', ''))));
+            if ($headerTenantId !== '') {
+                $payload['tenantId'] = $headerTenantId;
+            }
+        }
+
+        return $payload;
     }
 
     private function guard(callable $callback): Response

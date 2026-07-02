@@ -13,6 +13,7 @@ use think\facade\Db;
 class InventoryService
 {
     private const NOT_DELETE = 'NOT_DELETE';
+    private const DELETED = 'DELETED';
     private const ENABLE = 'ENABLE';
     private const INVENTORY_FIELDS = <<<SQL
 i.ID AS ID,
@@ -172,6 +173,55 @@ SQL;
                 'inserted' => count($insertedIds),
                 'updated' => $updated,
                 'ids' => $insertedIds,
+            ];
+        });
+    }
+
+    /**
+     * @param array<int, mixed> $ids
+     */
+    public function delete(array $ids, array $payload = []): array
+    {
+        $idList = $this->stringList($ids);
+        if ($idList === []) {
+            throw new RuntimeException('missing idList', 400);
+        }
+
+        return Db::transaction(function () use ($idList, $payload): array {
+            $rows = $this->activeInventoryRowsByIds($idList, $payload);
+            if (count($rows) !== count($idList)) {
+                throw new RuntimeException('inventory not found', 404);
+            }
+
+            foreach ($idList as $id) {
+                $row = $rows[$id] ?? null;
+                if ($row === null) {
+                    throw new RuntimeException('inventory not found', 404);
+                }
+
+                if (abs((float)($row['CURRENT_COUNT'] ?? 0)) > 0.000001) {
+                    throw new RuntimeException('inventory with current count cannot be deleted', 400);
+                }
+
+                $warehouse = $this->activeWarehouse((string)$row['WAREHOUSES_ID'], $payload);
+                $this->assertWarehouseWritable($warehouse, $payload, 'delete inventory');
+                $product = $this->activeProductForDelete((string)$row['PRODUCT_ID'], trim((string)($row['TENANT_ID'] ?? '')));
+                $this->assertProductWritable($product, $payload, 'delete inventory');
+            }
+
+            $userId = $this->currentUserId($payload);
+            $updated = Db::name('inventory')
+                ->whereIn('ID', $idList)
+                ->update([
+                    'DELETE_FLAG' => self::DELETED,
+                    'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                    'UPDATE_USER' => $userId !== '' ? $userId : null,
+                    'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                ]);
+
+            return [
+                'ids' => $idList,
+                'count' => $updated,
             ];
         });
     }
@@ -412,6 +462,50 @@ SQL;
             ->toArray();
     }
 
+    /**
+     * @param array<int, string> $ids
+     * @return array<string, array<string, mixed>>
+     */
+    private function activeInventoryRowsByIds(array $ids, array $payload): array
+    {
+        $query = Db::name('inventory')->whereIn('ID', $ids);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field('ID,WAREHOUSES_ID,PRODUCT_ID,CURRENT_COUNT,TENANT_ID,VERSION')
+            ->lock(true)
+            ->select()
+            ->toArray();
+
+        $indexed = [];
+        foreach ($rows as $row) {
+            $indexed[(string)$row['ID']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    private function activeProductForDelete(string $productId, string $tenantId): array
+    {
+        $query = Db::name('biz_product')->where('ID', $productId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $row = $query->field('ID,ORG,CREATE_USER,TENANT_ID,status')->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('product not found', 404);
+        }
+
+        return $row;
+    }
+
     private function whereNotDeleted($query, string $column): void
     {
         $query->where(function ($query) use ($column): void {
@@ -493,6 +587,28 @@ SQL;
         }
 
         return $ids;
+    }
+
+    /**
+     * @param array<int, mixed> $source
+     * @return array<int, string>
+     */
+    private function stringList(array $source): array
+    {
+        $values = [];
+        foreach ($source as $entry) {
+            if (is_array($entry)) {
+                $entry = $entry['id'] ?? $entry['ID'] ?? '';
+            }
+            foreach (explode(',', (string)$entry) as $part) {
+                $value = trim($part);
+                if ($value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return array_values(array_unique($values));
     }
 
     private function inventoryTenantId(array $input, array $payload, array $warehouse): string
