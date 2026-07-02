@@ -19,7 +19,44 @@ import sysConfig from '@/config/index'
 
 const sm2 = smCrypto.sm2
 const cipherMode = 1 // 1 - C1C3C2，0 - C1C2C3，默认为1
-const publicKey = sysConfig.PUBLIC_KEY
+const normalizeSm2PublicKey = (key) => {
+	const value = String(key || '').trim()
+	if (!value) {
+		return ''
+	}
+
+	const hexValue = value.replace(/^0x/i, '')
+	if (/^(04)?[0-9a-fA-F]{128}$/.test(hexValue)) {
+		return hexValue
+	}
+
+	if (typeof atob !== 'function' || !/^[A-Za-z0-9_-]+={0,2}$/.test(value)) {
+		return ''
+	}
+
+	try {
+		const base64 = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')
+		const binary = atob(base64)
+		const decodedHex = Array.from(binary, (char) => char.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+		return /^(04)?[0-9a-fA-F]{128}$/.test(decodedHex) ? decodedHex : ''
+	} catch (error) {
+		return ''
+	}
+}
+
+const publicKey = normalizeSm2PublicKey(sysConfig.PUBLIC_KEY)
+
+const doEncrypt = (msgString) => {
+	if (!publicKey) {
+		return msgString
+	}
+
+	try {
+		return sm2.doEncrypt(msgString, publicKey, cipherMode)
+	} catch (error) {
+		return msgString
+	}
+}
 
 /**
  * 国密加解密工具类
@@ -27,16 +64,10 @@ const publicKey = sysConfig.PUBLIC_KEY
 export default {
 	// SM2加密
 	doSm2Encrypt(msgString) {
-		if (!publicKey) {
-			return msgString
-		}
-		return sm2.doEncrypt(msgString, publicKey, cipherMode)
+		return doEncrypt(msgString)
 	},
 	// SM2数组加密
 	doSm2ArrayEncrypt(msgString) {
-		if (!publicKey) {
-			return msgString
-		}
-		return sm2.doEncrypt(msgString, publicKey, cipherMode)
+		return doEncrypt(msgString)
 	}
 }
