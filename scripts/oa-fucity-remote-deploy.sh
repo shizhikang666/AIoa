@@ -350,6 +350,26 @@ apply_staging() {
     fi
 }
 
+fix_writable_ownership() {
+    chmod -R u+rwX "$TARGET_ROOT/runtime" "$TARGET_ROOT/public/storage" || true
+
+    if [ -z "$OWNER" ]; then
+        return 0
+    fi
+
+    owner_user="${OWNER%%:*}"
+    if ! id "$owner_user" >/dev/null 2>&1; then
+        log "owner user not found, skipped writable chown: $OWNER"
+        return 0
+    fi
+
+    for writable_path in "$TARGET_ROOT/runtime" "$TARGET_ROOT/public/storage"; do
+        if [ -e "$writable_path" ]; then
+            chown -R "$OWNER" "$writable_path" || true
+        fi
+    done
+}
+
 harden_env_permissions() {
     env_file="$TARGET_ROOT/.env"
     [ -f "$env_file" ] || return 0
@@ -597,6 +617,7 @@ harden_env_permissions
 configure_nginx_site
 reload_nginx_if_requested
 post_deploy_checks
+fix_writable_ownership
 write_nginx_cors_report
 
 trap - EXIT
