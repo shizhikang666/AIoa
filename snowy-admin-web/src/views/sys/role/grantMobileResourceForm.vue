@@ -71,10 +71,10 @@
 			title: '一级目录',
 			dataIndex: 'parentName',
 			customCell: (row, index) => {
-				const parentName = row.parentName
-				const indexArr = firstShowMap.value[parentName]
-				if (index === indexArr[0]) {
-					return { rowSpan: indexArr.length }
+				const groupKey = getMenuGroupKey(row)
+				const indexArr = firstShowMap.value[groupKey] || []
+				if (indexArr.length === 0 || index === indexArr[0]) {
+					return { rowSpan: indexArr.length || 1 }
 				}
 				return { rowSpan: 0 }
 			},
@@ -101,8 +101,9 @@
 		// firstShowMap = {} // 重置单元格合并映射
 		// 如果有数据，我们再不去反复的查询
 		if (echoDatalist.value.length > 0) {
-			let data = echoDatalist.value.find((f) => f.id === moduleId.value).menu
-			loadDatas.value = data
+			const module = echoDatalist.value.find((f) => f.id === moduleId.value)
+			loadDatas.value = module?.menu || []
+			firstShowMap.value = buildFirstShowMap(loadDatas.value)
 		} else {
 			// 获取表格数据
 			spinningLoading.value = true
@@ -115,8 +116,10 @@
 				const resEcho = await roleApi.roleOwnMobileMenu(param)
 				spinningLoading.value = false
 				echoDatalist.value = echoModuleData(res, resEcho)
-				moduleId.value = res[0].id
-				loadDatas.value = echoDatalist.value[0].menu
+				const firstModule = echoDatalist.value[0] || {}
+				moduleId.value = firstModule.id || ''
+				loadDatas.value = firstModule.menu || []
+				firstShowMap.value = buildFirstShowMap(loadDatas.value)
 			} else {
 				spinningLoading.value = false
 				loadDatas.value = []
@@ -138,6 +141,59 @@
 		loadData()
 	}
 	// 数据转换
+	const getMenuGroupKey = (item) => item.parentKey || item.parentName || item.id
+	const getSortValue = (value, fallback) => {
+		const number = Number(value)
+		return Number.isFinite(number) ? number : fallback
+	}
+	const normalizeMenuRows = (menu = []) => {
+		const rows = Array.isArray(menu) ? menu : []
+		const rowById = rows.reduce((map, item) => {
+			if (item?.id) {
+				map[item.id] = item
+			}
+			return map
+		}, {})
+
+		return rows
+			.map((item, index) => {
+				let parent = item
+				let current = item
+				const visited = new Set()
+				while (current?.parentId && current.parentId !== '0' && rowById[current.parentId] && !visited.has(current.parentId)) {
+					visited.add(current.parentId)
+					current = rowById[current.parentId]
+					parent = current
+				}
+
+				return {
+					...item,
+					parentKey: item.parentKey || parent?.id || item.id,
+					parentName: item.parentName || parent?.title || item.title,
+					parentSortCode: item.parentSortCode ?? parent?.sortCode ?? item.sortCode,
+					_originIndex: index
+				}
+			})
+			.sort((a, b) => {
+				return (
+					getSortValue(a.parentSortCode, a._originIndex) - getSortValue(b.parentSortCode, b._originIndex) ||
+					String(getMenuGroupKey(a)).localeCompare(String(getMenuGroupKey(b))) ||
+					getSortValue(a.sortCode, a._originIndex) - getSortValue(b.sortCode, b._originIndex) ||
+					a._originIndex - b._originIndex
+				)
+			})
+	}
+	const buildFirstShowMap = (menu) => {
+		return menu.reduce((map, item, index) => {
+			const groupKey = getMenuGroupKey(item)
+			if (map[groupKey]) {
+				map[groupKey].push(index)
+			} else {
+				map[groupKey] = [index]
+			}
+			return map
+		}, {})
+	}
 	const echoModuleData = (data, resEcho) => {
 		// 通过应用循环
 		data.forEach((module) => {
@@ -170,16 +226,15 @@
 				})
 
 				// 排序
-				module.menu = module.menu.sort((a, b) => {
-					return a.parentId - b.parentId
-				})
+				module.menu = normalizeMenuRows(module.menu)
 				// 缓存加入索引
 				module.menu.forEach((item, index) => {
 					// 下面就是用来知道不同的一级菜单里面有几个二级菜单，以及他们所在的索引
-					if (firstShowMap.value[item.parentName]) {
-						firstShowMap.value[item.parentName].push(index)
+					const groupKey = getMenuGroupKey(item)
+					if (firstShowMap.value[groupKey]) {
+						firstShowMap.value[groupKey].push(index)
 					} else {
-						firstShowMap.value[item.parentName] = [index]
+						firstShowMap.value[groupKey] = [index]
 					}
 				})
 			}
@@ -232,14 +287,15 @@
 		record.parentCheck = val
 		// 通过这个应用id，找到应用下的所有菜单
 		const moduleMenu = echoDatalist.value.find((f) => record.module === f.id)
-		const parentName = record.parentName
 		// 获取同一级菜单的所有索引
-		const indexArr = firstShowMap.value[parentName]
+		const indexArr = firstShowMap.value[getMenuGroupKey(record)] || []
 		indexArr.forEach((indexItem) => {
 			// 获取同一级菜单的所有行
-			const row = moduleMenu.menu[indexItem]
+			const row = moduleMenu?.menu?.[indexItem]
 			// 给这些菜单的索引去勾选
-			changeSub(row, val)
+			if (row) {
+				changeSub(row, val)
+			}
 		})
 	}
 	// 关闭抽屉

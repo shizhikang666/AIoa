@@ -23,7 +23,13 @@
 			>
 				<template #headerCell="{ column }">
 					<template v-if="column.key === 'api'">
-						<a-checkbox @update:checked="(val) => onCheckAllChange(val)"> 接口 </a-checkbox>
+						<a-checkbox
+							:checked="apiCheckAll"
+							:indeterminate="apiCheckIndeterminate"
+							@update:checked="(val) => onCheckAllChange(val)"
+						>
+							接口
+						</a-checkbox>
 					</template>
 					<template v-if="column.key === 'dataScope'">
 						<span>{{ column.title }}</span>
@@ -121,6 +127,8 @@
 	// 自动获取宽度，默认获取浏览器的宽度的90%
 	//(window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth) * 0.9
 	let loadDatas = ref([])
+	const apiCheckAll = computed(() => loadDatas.value.length > 0 && loadDatas.value.every((item) => item.check))
+	const apiCheckIndeterminate = computed(() => loadDatas.value.some((item) => item.check) && !apiCheckAll.value)
 	// 标题接口列搜索, 数据范围默认
 	const scopeRadioValue = ref()
 	const state = reactive({
@@ -297,8 +305,8 @@
 		spinningLoading.value = true
 		loadDatas.value.forEach((data) => {
 			changeApi(data, value)
-			spinningLoading.value = false
 		})
+		spinningLoading.value = false
 	}
 
 	// 选中接口
@@ -393,11 +401,12 @@
 	// 标题数据范围列radio-group事件
 	const radioChange = (obj) => {
 		loadDatas.value.forEach((data) => {
-			data.dataScope.forEach((data) => {
-				if (obj.target.value === data.value) {
-					data.check = true
+			data.check = true
+			data.dataScope.forEach((scope) => {
+				if (obj.target.value === scope.value) {
+					scope.check = true
 				} else {
-					data.check = false
+					scope.check = false
 				}
 			})
 		})

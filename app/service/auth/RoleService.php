@@ -916,12 +916,21 @@ class RoleService
         }
 
         $menusByModule = [];
+        $menuRowsById = [];
+        foreach ($menus as $menu) {
+            $menuRowsById[(string)($menu['ID'] ?? '')] = $menu;
+        }
+
         foreach ($menus as $menu) {
             if (($menu['MENU_TYPE'] ?? '') === self::MENU_TYPE_CATALOG) {
                 continue;
             }
 
+            $parent = $this->firstLevelMenuAncestor($menu, $menuRowsById);
             $menuNode = $this->resourceNode($menu);
+            $menuNode['parentKey'] = (string)($parent['ID'] ?? $menu['ID'] ?? '');
+            $menuNode['parentName'] = (string)($parent['TITLE'] ?? $parent['NAME'] ?? $menuNode['title'] ?? '');
+            $menuNode['parentSortCode'] = isset($parent['SORT_CODE']) ? (int)$parent['SORT_CODE'] : null;
             $menuNode['button'] = $buttonsByMenu[(string)($menu['ID'] ?? '')] ?? [];
             $menusByModule[(string)($menu['MODULE'] ?? '')][] = $menuNode;
         }
@@ -932,6 +941,33 @@ class RoleService
 
             return $node;
         }, $modules);
+    }
+
+    /**
+     * @param array<string, mixed> $menu
+     * @param array<string, array<string, mixed>> $menuRowsById
+     * @return array<string, mixed>
+     */
+    private function firstLevelMenuAncestor(array $menu, array $menuRowsById): array
+    {
+        $current = $menu;
+        $moduleId = (string)($menu['MODULE'] ?? '');
+        $visited = [];
+
+        while (true) {
+            $parentId = (string)($current['PARENT_ID'] ?? '');
+            if ($parentId === '' || $parentId === '0' || isset($visited[$parentId])) {
+                return $current;
+            }
+
+            $parent = $menuRowsById[$parentId] ?? null;
+            if (!is_array($parent) || (string)($parent['MODULE'] ?? '') !== $moduleId) {
+                return $current;
+            }
+
+            $visited[$parentId] = true;
+            $current = $parent;
+        }
     }
 
     private function resourceNode(array $row): array
