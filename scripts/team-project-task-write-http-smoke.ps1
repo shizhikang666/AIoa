@@ -395,6 +395,27 @@ try {
     }
     Assert-Code -Json $taskUserReadd -Expected 200 -Name 'team project task user readd'
 
+    $taskDetailForUserSync = Invoke-RawGet -Url "$baseUrl/biz/bizteamprojecttask/detail?id=$(Enc $taskId)" -Token $token
+    Assert-Code -Json $taskDetailForUserSync -Expected 200 -Name 'team project task detail for user sync'
+    $taskDetailForUserSyncObj = $taskDetailForUserSync | ConvertFrom-Json
+    $detailUsers = @($taskDetailForUserSyncObj.data.users)
+    if ($detailUsers.Count -lt 2) {
+        throw "team project task detail for user sync expected at least 2 users body=$taskDetailForUserSync"
+    }
+    foreach ($detailUser in $detailUsers) {
+        if ([string]$detailUser.id -ne [string]$detailUser.userId) {
+            throw "team project task detail user id must be userId body=$taskDetailForUserSync"
+        }
+        if ([string]$detailUser.taskUserId -eq '') {
+            throw "team project task detail user missing taskUserId body=$taskDetailForUserSync"
+        }
+    }
+    $taskUserDetailRoundTrip = Invoke-RawPostJson -Url "$baseUrl/biz/bizteamprojecttask/user/edit" -Token $token -Data @{
+        id = $taskId
+        user = $detailUsers
+    }
+    Assert-Code -Json $taskUserDetailRoundTrip -Expected 200 -Name 'team project task user detail round trip'
+
     $badCommentAdd = Invoke-RawPostJson -Url "$baseUrl/biz/bizteamprojecttaskcomment/add" -Token $token -Data @{
         teamProjectTaskId = $missingTaskId
         contentText = "$prefix bad comment"

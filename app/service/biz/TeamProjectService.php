@@ -760,12 +760,14 @@ SQL;
         }
         if (!is_array($raw)) {
             $raw = [];
+        } elseif (!array_is_list($raw) && $this->looksLikeUserSelection($raw)) {
+            $raw = [$raw];
         }
 
         $ids = [];
         foreach ($raw as $item) {
             if (is_array($item)) {
-                $id = (string)($item['id'] ?? $item['userId'] ?? $item['value'] ?? '');
+                $id = (string)($item['userId'] ?? $item['USER_ID'] ?? $item['value'] ?? $item['id'] ?? $item['ID'] ?? '');
             } else {
                 $id = (string)$item;
             }
@@ -777,6 +779,17 @@ SQL;
         }
 
         return array_values(array_unique($ids));
+    }
+
+    private function looksLikeUserSelection(array $item): bool
+    {
+        foreach (['userId', 'USER_ID', 'value', 'id', 'ID'] as $key) {
+            if (array_key_exists($key, $item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function normalizeMemberRole(string $roleType): string

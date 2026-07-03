@@ -1571,7 +1571,7 @@ SQL;
             ->select()
             ->toArray();
 
-        return array_map(fn (array $row): array => $this->taskUserRow($row), $rows);
+        return array_map(fn (array $row): array => $this->taskAssigneeRow($row), $rows);
     }
 
     /**
@@ -1749,6 +1749,32 @@ SQL;
         ];
     }
 
+    private function taskAssigneeRow(array $row): array
+    {
+        $relationId = $this->value($row, 'ID', 'id');
+        $userId = $this->value($row, 'USER_ID', 'userId');
+        $name = $this->value($row, 'HEAD_NAME', 'headName');
+
+        return [
+            'id' => $userId,
+            'userId' => $userId,
+            'taskUserId' => $relationId,
+            'name' => $name,
+            'headName' => $name,
+            'avatar' => $this->value($row, 'AVATAR', 'avatar'),
+            'teamProjectId' => $this->value($row, 'TEAM_PROJECT_ID', 'teamProjectId'),
+            'teamProjectTaskId' => $this->value($row, 'TEAM_PROJECT_TASK_ID', 'teamProjectTaskId'),
+            'roleType' => $this->value($row, 'ROLE_TYPE', 'roleType'),
+            'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
+            'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
+            'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
+            'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+            'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
+            'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+            'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
+        ];
+    }
+
     /**
      * @param array<int, array<string, mixed>> $rows
      * @return array<int, array<string, mixed>>
@@ -1905,13 +1931,15 @@ SQL;
         }
         if (!is_array($raw)) {
             $raw = [];
+        } elseif (!array_is_list($raw) && $this->looksLikeUserSelection($raw)) {
+            $raw = [$raw];
         }
 
         $ids = [];
         foreach ($raw as $item) {
             $id = '';
             if (is_array($item)) {
-                $id = (string)($item['id'] ?? $item['userId'] ?? $item['value'] ?? '');
+                $id = (string)($item['userId'] ?? $item['USER_ID'] ?? $item['value'] ?? $item['id'] ?? $item['ID'] ?? '');
             } else {
                 $id = (string)$item;
             }
@@ -1923,6 +1951,17 @@ SQL;
         }
 
         return array_values(array_unique($ids));
+    }
+
+    private function looksLikeUserSelection(array $item): bool
+    {
+        foreach (['userId', 'USER_ID', 'value', 'id', 'ID'] as $key) {
+            if (array_key_exists($key, $item)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
