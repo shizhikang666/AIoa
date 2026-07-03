@@ -13,11 +13,14 @@
 			closable
 		/>
 		<a-spin :spinning="spinningLoading">
+			<div class="permission-search-bar">
+				<a-input-search v-model:value="apiSearchText" allow-clear placeholder="请输入接口地址" style="width: 360px" />
+			</div>
 			<a-table
 				class="mt-4"
 				size="middle"
 				:columns="columns"
-				:data-source="loadDatas"
+				:data-source="filteredLoadDatas"
 				bordered
 				:row-key="(record) => record.api"
 			>
@@ -127,8 +130,17 @@
 	// 自动获取宽度，默认获取浏览器的宽度的90%
 	//(window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth) * 0.9
 	const loadDatas = ref([])
-	const apiCheckAll = computed(() => loadDatas.value.length > 0 && loadDatas.value.every((item) => item.check))
-	const apiCheckIndeterminate = computed(() => loadDatas.value.some((item) => item.check) && !apiCheckAll.value)
+	const apiSearchText = ref('')
+	const filteredLoadDatas = computed(() => {
+		const keyword = apiSearchText.value.trim().toLowerCase()
+		if (!keyword) {
+			return loadDatas.value
+		}
+		return loadDatas.value.filter((item) => String(item.api || '').toLowerCase().includes(keyword))
+	})
+	const visibleGrantRows = computed(() => filteredLoadDatas.value)
+	const apiCheckAll = computed(() => visibleGrantRows.value.length > 0 && visibleGrantRows.value.every((item) => item.check))
+	const apiCheckIndeterminate = computed(() => visibleGrantRows.value.some((item) => item.check) && !apiCheckAll.value)
 	// 标题接口列搜索, 数据范围默认
 	const scopeRadioValue = ref()
 	const state = reactive({
@@ -144,11 +156,11 @@
 			dataIndex: 'api',
 			width: 380,
 			customFilterDropdown: true,
-			onFilter: (value, record) => record.api.includes(value),
+			onFilter: (value, record) => String(record.api || '').toLowerCase().includes(String(value || '').toLowerCase()),
 			onFilterDropdownOpenChange: (visible) => {
 				if (visible) {
 					setTimeout(() => {
-						searchInput.value.focus()
+						searchInput.value?.focus()
 					}, 100)
 				}
 			}
@@ -291,13 +303,14 @@
 	const onClose = () => {
 		// 将这些缓存的给清空
 		loadDatas.value = []
+		apiSearchText.value = ''
 		scopeRadioValue.value = ''
 		visible.value = false
 	}
 	// 全选
 	const onCheckAllChange = (value) => {
 		spinningLoading.value = true
-		loadDatas.value.forEach((data) => {
+		visibleGrantRows.value.forEach((data) => {
 			changeApi(data, value)
 		})
 		spinningLoading.value = false
@@ -394,7 +407,7 @@
 	}
 	// 标题数据范围列radio-group事件
 	const radioChange = (obj) => {
-		loadDatas.value.forEach((data) => {
+		visibleGrantRows.value.forEach((data) => {
 			data.check = true
 			data.dataScope.forEach((scope) => {
 				if (obj.target.value === scope.value) {
@@ -417,5 +430,11 @@
 		margin-left: 0px !important;
 		padding-top: 2px !important;
 		padding-bottom: 2px !important;
+	}
+
+	.permission-search-bar {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 16px;
 	}
 </style>

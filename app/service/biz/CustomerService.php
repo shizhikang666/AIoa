@@ -126,15 +126,12 @@ SQL;
 
     public function add(array $input, array $payload = []): array
     {
-        $fileId = $this->requiredInput($input, 'fileId');
-
-        return Db::transaction(function () use ($input, $payload, $fileId): array {
+        return Db::transaction(function () use ($input, $payload): array {
             $now = date('Y-m-d H:i:s');
             $userId = $this->currentUserId($payload);
             $id = $this->newId();
             $row = [
                 'ID' => $id,
-                'FILE_ID' => $fileId,
                 'ORG' => $this->defaultOrgId($input, $payload),
                 'USER' => $this->defaultUserId($input, $payload),
                 'DELETE_FLAG' => self::NOT_DELETE,
@@ -263,7 +260,7 @@ SQL;
             $row[$column] = match ($inputKey) {
                 'address' => $this->addressValue($input[$inputKey]),
                 'sortCode' => $this->nullableInt($input[$inputKey]),
-                'fileId' => $partial ? $this->requiredInput($input, 'fileId') : (string)$input[$inputKey],
+                'fileId' => $this->nullableString($input[$inputKey]),
                 'firstContactTime' => $this->nullableString($input[$inputKey]),
                 default => $this->nullableString($input[$inputKey]),
             };

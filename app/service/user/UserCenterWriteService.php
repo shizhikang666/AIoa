@@ -151,12 +151,19 @@ class UserCenterWriteService
         if (!is_array($config) || $config === []) {
             throw new RuntimeException('missing config', 400);
         }
+        $config = $this->normalizeProcessConfigList($config);
+        if ($config === []) {
+            throw new RuntimeException('missing config', 400);
+        }
 
         return Db::transaction(function () use ($config, $payload): array {
             $user = $this->activeCurrentUser($payload, 'ID, TENANT_ID');
             $userId = (string)$user['ID'];
             $now = date('Y-m-d H:i:s');
-            $configJson = json_encode(['config' => array_values($config)], JSON_UNESCAPED_UNICODE);
+            $configJson = json_encode(['config' => $config], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($configJson === false) {
+                throw new RuntimeException('invalid config', 400);
+            }
 
             $row = Db::name('sys_user_process_config')
                 ->where('CREATE_USER', $userId)
@@ -195,6 +202,112 @@ class UserCenterWriteService
 
             return ['id' => $id];
         });
+    }
+
+    /**
+     * @param array<int|string, mixed> $config
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeProcessConfigList(array $config): array
+    {
+        $result = [];
+        foreach ($config as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $processName = trim((string)($item['processName'] ?? $item['key'] ?? ''));
+            if ($processName === '') {
+                continue;
+            }
+
+            $row = [
+                'processName' => $processName,
+                'approveUserIdList' => $this->userIdListValue($item['approveUserIdList'] ?? []),
+                'copyUserIdList' => $this->userIdListValue($item['copyUserIdList'] ?? []),
+            ];
+
+            if (array_key_exists('treasurer', $item) || array_key_exists('treasurerId', $item)) {
+                $row['treasurer'] = $this->singleUserIdValue($item['treasurer'] ?? $item['treasurerId'] ?? '');
+            }
+            if (array_key_exists('procure', $item) || array_key_exists('procureId', $item)) {
+                $row['procure'] = $this->singleUserIdValue($item['procure'] ?? $item['procureId'] ?? '');
+            }
+            if (array_key_exists('open', $item)) {
+                $row['open'] = (bool)$item['open'];
+            }
+
+            $result[] = $row;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function userIdListValue(mixed $value): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+
+        if (is_string($value)) {
+            $value = trim($value);
+            if ($value === '') {
+                return [];
+            }
+
+            $decoded = json_decode($value, true);
+            $value = is_array($decoded) ? $decoded : preg_split('/[\s,]+/', $value);
+        }
+
+        if (!is_array($value)) {
+            $id = $this->userIdFromSelection($value);
+
+            return $id === '' ? [] : [$id];
+        }
+
+        $items = $this->isAssociativeArray($value) ? [$value] : $value;
+        $ids = [];
+        foreach ($items as $item) {
+            $id = $this->userIdFromSelection($item);
+            if ($id !== '') {
+                $ids[] = $id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    private function singleUserIdValue(mixed $value): string
+    {
+        return $this->userIdListValue($value)[0] ?? '';
+    }
+
+    private function userIdFromSelection(mixed $value): string
+    {
+        if (is_array($value)) {
+            foreach (['userId', 'id', 'value', 'USER_ID', 'ID'] as $key) {
+                if (!array_key_exists($key, $value)) {
+                    continue;
+                }
+
+                $id = $this->userIdFromSelection($value[$key]);
+                if ($id !== '') {
+                    return $id;
+                }
+            }
+
+            return '';
+        }
+
+        return trim((string)$value);
+    }
+
+    private function isAssociativeArray(array $value): bool
+    {
+        return $value !== [] && array_keys($value) !== range(0, count($value) - 1);
     }
 
     private function uploadedImageDataUri(UploadedFile $file): string

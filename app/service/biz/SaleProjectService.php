@@ -309,6 +309,7 @@ SQL;
             $projectId = $this->newId();
             $now = date('Y-m-d H:i:s');
             $tenantId = $this->writeTenantId($input, $payload, $customer);
+            $this->ensureCustomerBusinessLicense($customer, $input, $tenantId, $userId, $now);
             $row = [
                 'ID' => $projectId,
                 'CUSTOMER' => (string)$data['CUSTOMER'],
@@ -4332,7 +4333,7 @@ SQL)
 
         $query = Db::name('customer')
             ->where('ID', $customerId)
-            ->field('ID,ORG,USER,STATUS,TENANT_ID');
+            ->field('ID,ORG,USER,STATUS,TENANT_ID,FILE_ID');
         $this->whereNotDeleted($query, 'DELETE_FLAG');
         $payloadTenant = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
         if ($payloadTenant !== '') {
@@ -4363,6 +4364,45 @@ SQL)
         }
 
         throw new RuntimeException('customer is outside data scope', 403);
+    }
+
+    private function ensureCustomerBusinessLicense(array $customer, array $input, string $tenantId, string $userId, string $now): void
+    {
+        $existingFileId = trim((string)($customer['FILE_ID'] ?? ''));
+        if ($existingFileId !== '') {
+            return;
+        }
+
+        $fileId = $this->optionalInputString($input, ['businessLicenseFileId', 'customerFileId', 'licenseFileId']) ?? '';
+        if ($fileId === '') {
+            throw new RuntimeException('missing businessLicenseFileId', 400);
+        }
+        $this->assertMaxLength($fileId, 'businessLicenseFileId', 20);
+        $this->assertFileExists($fileId, $tenantId);
+
+        Db::name('customer')
+            ->where('ID', (string)$customer['ID'])
+            ->update([
+                'FILE_ID' => $fileId,
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $userId !== '' ? $userId : null,
+                'VERSION' => Db::raw('IFNULL(VERSION, 0) + 1'),
+            ]);
+    }
+
+    private function assertFileExists(string $fileId, string $tenantId): void
+    {
+        $query = Db::name('dev_file')->where('ID', $fileId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where(function ($query) use ($tenantId): void {
+                $query->whereNull('TENANT_ID')->whereOr('TENANT_ID', '=', $tenantId);
+            });
+        }
+
+        if ((int)$query->count() === 0) {
+            throw new RuntimeException('business license file not found', 400);
+        }
     }
 
     /**

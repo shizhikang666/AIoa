@@ -37,7 +37,13 @@
 					</a-tab-pane>
 
 					<a-tab-pane key="project" tab="项目记录">
-						<saleProject :address="baseInfo.address" :customer-name="baseInfo.name" :customer-id="baseInfo.id" />
+						<saleProject
+							:address="baseInfo.address"
+							:customer-name="baseInfo.name"
+							:customer-id="baseInfo.id"
+							:customer-file-id="baseInfo.fileId"
+							:customer-download-path="baseInfo.downloadPath"
+						/>
 					</a-tab-pane>
 					<a-tab-pane key="followUpRecords" tab="客户跟进记录">
 						<followup :customer-id="baseInfo.id"></followup>

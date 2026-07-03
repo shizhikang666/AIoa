@@ -20,23 +20,24 @@ class ProductService
     private const SINGLE_PRODUCT = 'SINGLE_PRODUCT';
     private const KIT_PRODUCT_DATA = 'KIT_PRODUCT_DATA';
     private const SORT_FIELD_MAP = [
-        'id' => 'ID',
-        'productName' => 'PRODUCT_NAME',
-        'productCategory' => 'PRODUCT_CATEGORY',
-        'safetyStock' => 'SAFETY_STOCK',
-        'purchasePrice' => 'PURCHASE_PRICE',
-        'salePrice' => 'SALE_PRICE',
-        'minPrice' => 'MIN_PRICE',
-        'category' => 'CATEGORY',
-        'specs' => 'SPECS',
-        'org' => 'ORG',
-        'orgId' => 'ORG',
-        'createTime' => 'CREATE_TIME',
-        'updateTime' => 'UPDATE_TIME',
-        'tenantId' => 'TENANT_ID',
-        'reconciliationType' => 'RECONCILIATION_TYPE',
-        'reconciliationAmount' => 'RECONCILIATION_AMOUNT',
-        'status' => 'status',
+        'id' => 'p.ID',
+        'productName' => 'p.PRODUCT_NAME',
+        'productCategory' => 'p.PRODUCT_CATEGORY',
+        'safetyStock' => 'p.SAFETY_STOCK',
+        'purchasePrice' => 'p.PURCHASE_PRICE',
+        'salePrice' => 'p.SALE_PRICE',
+        'minPrice' => 'p.MIN_PRICE',
+        'category' => 'p.CATEGORY',
+        'specs' => 'p.SPECS',
+        'org' => 'p.ORG',
+        'orgId' => 'p.ORG',
+        'createTime' => 'p.CREATE_TIME',
+        'createUserName' => 'creator.NAME',
+        'updateTime' => 'p.UPDATE_TIME',
+        'tenantId' => 'p.TENANT_ID',
+        'reconciliationType' => 'p.RECONCILIATION_TYPE',
+        'reconciliationAmount' => 'p.RECONCILIATION_AMOUNT',
+        'status' => 'p.status',
     ];
 
     public function page(array $filters = [], array $payload = []): array
@@ -647,61 +648,65 @@ class ProductService
     private function productQuery(array $filters, array $payload, bool $hideDisabledByDefault)
     {
         $query = Db::name('biz_product')
+            ->alias('p')
+            ->field('p.*, creator.NAME AS CREATE_USER_NAME, updater.NAME AS UPDATE_USER_NAME')
+            ->leftJoin('sys_user creator', 'creator.ID = p.CREATE_USER')
+            ->leftJoin('sys_user updater', 'updater.ID = p.UPDATE_USER')
             ->where(function ($query): void {
-                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                $query->whereNull('p.DELETE_FLAG')->whereOr('p.DELETE_FLAG', '=', self::NOT_DELETE);
             });
 
         $tenantId = trim((string)($filters['tenantId'] ?? $payload['tenant_id'] ?? ''));
         if ($tenantId !== '') {
-            $query->where('TENANT_ID', $tenantId);
+            $query->where('p.TENANT_ID', $tenantId);
         }
 
         if (!empty($filters['id'])) {
-            $query->where('ID', (string)$filters['id']);
+            $query->where('p.ID', (string)$filters['id']);
         }
 
         if (!empty($filters['productName'])) {
-            $query->whereLike('PRODUCT_NAME', '%' . trim((string)$filters['productName']) . '%');
+            $query->whereLike('p.PRODUCT_NAME', '%' . trim((string)$filters['productName']) . '%');
         }
 
         if (!empty($filters['searchKey'])) {
-            $query->whereLike('PRODUCT_NAME', '%' . trim((string)$filters['searchKey']) . '%');
+            $query->whereLike('p.PRODUCT_NAME', '%' . trim((string)$filters['searchKey']) . '%');
         }
 
         if (!empty($filters['productCategory'])) {
-            $query->where('PRODUCT_CATEGORY', (string)$filters['productCategory']);
+            $query->where('p.PRODUCT_CATEGORY', (string)$filters['productCategory']);
         }
 
         if (!empty($filters['category'])) {
-            $query->where('CATEGORY', (string)$filters['category']);
+            $query->where('p.CATEGORY', (string)$filters['category']);
         }
 
         if (!empty($filters['startCreateTime']) && !empty($filters['endCreateTime'])) {
-            $query->whereBetweenTime('CREATE_TIME', (string)$filters['startCreateTime'], (string)$filters['endCreateTime']);
+            $query->whereBetweenTime('p.CREATE_TIME', (string)$filters['startCreateTime'], (string)$filters['endCreateTime']);
         }
 
         $ignoreIds = $this->normalizeIdList($filters['ignoreIdList'] ?? []);
         if ($ignoreIds !== []) {
-            $query->whereNotIn('ID', $ignoreIds);
+            $query->whereNotIn('p.ID', $ignoreIds);
         }
 
         if (!empty($filters['reconciliationAmount'])) {
-            $query->whereLike('RECONCILIATION_AMOUNT', '%' . trim((string)$filters['reconciliationAmount']) . '%');
+            $query->whereLike('p.RECONCILIATION_AMOUNT', '%' . trim((string)$filters['reconciliationAmount']) . '%');
         }
 
         if (!empty($filters['reconciliationType'])) {
             if ((string)$filters['reconciliationType'] === self::ENABLE) {
-                $query->where('RECONCILIATION_TYPE', self::ENABLE);
+                $query->where('p.RECONCILIATION_TYPE', self::ENABLE);
             } else {
                 $query->where(function ($query): void {
-                    $query->whereNull('RECONCILIATION_TYPE')
-                        ->whereOr('RECONCILIATION_TYPE', '<>', self::ENABLE);
+                    $query->whereNull('p.RECONCILIATION_TYPE')
+                        ->whereOr('p.RECONCILIATION_TYPE', '<>', self::ENABLE);
                 });
             }
         }
 
         if ($hideDisabledByDefault && !$this->truthy($filters['showDisabledProducts'] ?? false)) {
-            $query->where('status', self::ENABLE);
+            $query->where('p.status', self::ENABLE);
         }
 
         if (!empty($filters['orgId'])) {
@@ -709,13 +714,13 @@ class ProductService
             if ($orgIds === []) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->whereIn('ORG', $orgIds);
+                $query->whereIn('p.ORG', $orgIds);
             }
         }
 
         $scopeOrgIds = $this->scopeOrgIds($payload);
         if ($scopeOrgIds !== []) {
-            $query->whereIn('ORG', $scopeOrgIds);
+            $query->whereIn('p.ORG', $scopeOrgIds);
         }
 
         return $query;
@@ -728,10 +733,10 @@ class ProductService
         if ($sortField !== '' && isset(self::SORT_FIELD_MAP[$sortField])) {
             $direction = in_array($sortOrder, ['desc', 'descend', 'descending'], true) ? 'desc' : 'asc';
 
-            return $query->order(self::SORT_FIELD_MAP[$sortField], $direction)->order('ID', 'asc');
+            return $query->order(self::SORT_FIELD_MAP[$sortField], $direction)->order('p.ID', 'asc');
         }
 
-        return $query->order('ID', 'asc');
+        return $query->order('p.ID', 'asc');
     }
 
     /**
@@ -764,8 +769,10 @@ class ProductService
             'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
             'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
             'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+            'createUserName' => $this->value($row, 'CREATE_USER_NAME', 'createUserName'),
             'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
             'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+            'updateUserName' => $this->value($row, 'UPDATE_USER_NAME', 'updateUserName'),
             'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
             'specs' => $this->value($row, 'SPECS', 'specs'),
             'org' => $orgId,

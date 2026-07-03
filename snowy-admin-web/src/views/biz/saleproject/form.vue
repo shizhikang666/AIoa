@@ -59,6 +59,16 @@
 						<!--				<a-input v-model:value="formData.address" placeholder="请输入客户地区" allow-clear />-->
 						<!--			-->
 					</a-form-item>
+					<a-form-item v-if="isAddMode" label="营业执照：" name="businessLicenseFileId" :required="businessLicenseRequired">
+						<a-space direction="vertical">
+							<a-button type="primary" @click="() => businessLicenseUploadRef.openUpload()">
+								<UploadOutlined />
+								文件上传
+							</a-button>
+							<a-typography-text v-if="businessLicenseRequired" type="danger">请上传营业执照</a-typography-text>
+							<a-image v-if="businessLicensePreviewUrl" :width="200" :src="businessLicensePreviewUrl" />
+						</a-space>
+					</a-form-item>
 					<a-form-item label="备注" name="remark">
 						<a-textarea v-model:value="formData.remark" :rows="4" />
 					</a-form-item>
@@ -266,6 +276,7 @@
 	</xn-form-container>
 
 	<CustomerForm ref="customerFormRef"></CustomerForm>
+	<uploadForm :accept="'image/*'" :multiple="false" ref="businessLicenseUploadRef" @successful="onBusinessLicenseUploadSuccess" />
 </template>
 
 <script setup name="bizSaleProjectForm">
@@ -273,12 +284,13 @@
 	import { cloneDeep, debounce } from 'lodash-es'
 	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
 	import bizProductApi from '@/api/biz/bizProductApi'
-	import { createVNode, reactive, watch, ref } from 'vue'
+	import { computed, createVNode, reactive, watch, ref } from 'vue'
 	import CustomerApi from '@/api/biz/customerApi'
 	import { required } from '@/utils/formRules'
 	import CustomerForm from '../customer/form.vue'
+	import UploadForm from '@/views/biz/file/uploadForm.vue'
 	import SelectProductModal from '@/views/biz/bizproduct/modal/selectProductModal/index.vue'
-	import { App } from 'ant-design-vue'
+	import { App, message } from 'ant-design-vue'
 	import { Decimal } from 'decimal.js'
 	import customerApi from '@/api/biz/customerApi'
 	import { ExclamationCircleOutlined } from '@ant-design/icons-vue'
@@ -293,6 +305,7 @@
 	const { modal } = App.useApp()
 	// 抽屉状态
 	const customerFormRef = ref()
+	const businessLicenseUploadRef = ref()
 	const open = ref(false)
 	const emit = defineEmits({ successful: null })
 	const formRef = ref()
@@ -334,12 +347,46 @@
 			}
 			state.data = result.records.map((customer) => ({
 				label: `${customer.name}`,
-				value: customer.id
+				value: customer.id,
+				fileId: customer.fileId,
+				downloadPath: customer.downloadPath
 			}))
 			customerList.value = result.records
 			state.fetching = false
 		})
 	}, 300)
+	const isAddMode = computed(() => !formData.value.id && !isDeal.value)
+	const selectedCustomer = computed(() => {
+		const customerId = formData.value.customer
+		if (!customerId) {
+			return null
+		}
+		return (
+			customerList.value.find((item) => item.id === customerId) ||
+			state.data.find((item) => item.value === customerId) ||
+			null
+		)
+	})
+	const selectedCustomerFileId = computed(() => String(selectedCustomer.value?.fileId || '').trim())
+	const selectedCustomerDownloadPath = computed(() => String(selectedCustomer.value?.downloadPath || '').trim())
+	const businessLicensePreviewUrl = computed(
+		() => formData.value.businessLicenseDownloadPath || selectedCustomerDownloadPath.value
+	)
+	const businessLicenseRequired = computed(() => {
+		return (
+			isAddMode.value &&
+			!!formData.value.customer &&
+			!selectedCustomerFileId.value &&
+			!String(formData.value.businessLicenseFileId || '').trim()
+		)
+	})
+	watch(
+		() => formData.value.customer,
+		() => {
+			formData.value.businessLicenseFileId = undefined
+			formData.value.businessLicenseDownloadPath = undefined
+		}
+	)
 	const productFormData = ref({
 		productList: []
 	})
@@ -489,7 +536,9 @@
 			state.data = [
 				{
 					label: record.customerName,
-					value: record.customer
+					value: record.customer,
+					fileId: record.fileId || record.customerFileId,
+					downloadPath: record.downloadPath || record.customerDownloadPath
 				}
 			]
 			if (record.id) {
@@ -521,6 +570,7 @@
 		error.value = false
 		editDataInitLoading.value = false
 		state.data = []
+		customerList.value = []
 		productFormData.value = {
 			productList: []
 		}
@@ -536,6 +586,11 @@
 			const productFormParam = cloneDeep(productFormData.value)
 			if (formDataParam.area && formDataParam.area.join) {
 				formDataParam.area = formDataParam.area.join('/')
+			}
+			if (businessLicenseRequired.value) {
+				activeTab.value = 'baseInfo'
+				message.warning('请上传营业执照')
+				return
 			}
 
 			if (!isDeal.value) {
@@ -555,6 +610,11 @@
 		} finally {
 			submitLoading.value = false
 		}
+	}
+	const onBusinessLicenseUploadSuccess = (file) => {
+		formData.value.businessLicenseFileId = file.id
+		formData.value.businessLicenseDownloadPath = file.downloadPath
+		businessLicenseUploadRef.value.onClose()
 	}
 	// 抛出函数
 	defineExpose({

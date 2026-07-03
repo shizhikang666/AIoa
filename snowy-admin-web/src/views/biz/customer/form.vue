@@ -152,8 +152,7 @@
 		address: [required('请选择客户地区')],
 		sourceType: [required('请选择客户来源')],
 		customType: [required('请选择客户类型')],
-		status: [required('请选择状态')],
-		fileId: [required('请上传营业执照')]
+		status: [required('请选择状态')]
 	}
 
 	const onUploadSuccess = (v) => {

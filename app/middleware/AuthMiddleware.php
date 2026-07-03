@@ -53,6 +53,10 @@ class AuthMiddleware
             return true;
         }
 
+        if (str_starts_with($path, '/dev/file/upload') && strtoupper((string)$request->method()) === 'POST') {
+            return true;
+        }
+
         if (strtoupper((string)$request->method()) !== 'GET') {
             return false;
         }

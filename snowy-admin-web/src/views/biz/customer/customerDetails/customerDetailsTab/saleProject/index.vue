@@ -94,6 +94,8 @@
 								customer: customerId,
 								projectCategory: 'DIRECT',
 								customerName: customerName,
+								customerFileId: customerFileId,
+								customerDownloadPath: customerDownloadPath,
 								area: address,
 								projectName: ''
 							})
@@ -252,6 +254,12 @@
 			required: true
 		},
 		address: {
+			type: String
+		},
+		customerFileId: {
+			type: String
+		},
+		customerDownloadPath: {
 			type: String
 		}
 	})

@@ -133,6 +133,7 @@
 		:disabled-form="{
 			sourceType: true
 		}"
+		@successful="tableRef.refresh(true)"
 		ref="formRef"
 	></CustomerForm>
 	<xn-user-selector

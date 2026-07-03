@@ -88,7 +88,6 @@
 	}
 	const getConfig = async () => {
 		userCenterApi.userCenterGetProcessConfig().then((res) => {
-			console.log(res.config)
 			tool.data.set('SYS_USER_PROCESS_CONFIG', res)
 			const result = cloneDeep(tool.data.get('SYS_USER_PROCESS_CONFIG'))
 			processConfigList.value.forEach((v) => {
@@ -102,11 +101,7 @@
 	}
 
 	const { loading: submitLoading, load: onSubmit } = useLoading(async () => {
-		const param = cloneDeep(processConfigList.value)
-
-		param.map((v) => {
-			v.processName = v.processName ? v.processName : v.key
-		})
+		const param = cloneDeep(processConfigList.value).map((item) => serializeProcessConfig(item))
 
 		await userCenterApi.userCenterEditProcessConfig({
 			config: param
@@ -127,6 +122,66 @@
 			}
 			return acc
 		}, target)
+	}
+
+	function serializeProcessConfig(item) {
+		const result = {
+			processName: item.processName || item.key,
+			approveUserIdList: toUserIdList(item.approveUserIdList),
+			copyUserIdList: toUserIdList(item.copyUserIdList),
+			treasurer: toSingleUserId(item.treasurer),
+			procure: toSingleUserId(item.procure)
+		}
+		if (item.open !== undefined) {
+			result.open = Boolean(item.open)
+		}
+		return result
+	}
+
+	function toUserIdList(value) {
+		if (value === null || value === undefined || value === '') {
+			return []
+		}
+		if (typeof value === 'string') {
+			const trimmed = value.trim()
+			if (!trimmed) {
+				return []
+			}
+			try {
+				const parsed = JSON.parse(trimmed)
+				if (Array.isArray(parsed) || (parsed && typeof parsed === 'object')) {
+					return toUserIdList(parsed)
+				}
+			} catch {
+				// keep plain id strings supported
+			}
+			return trimmed.split(/[\s,]+/).filter(Boolean)
+		}
+		const items = Array.isArray(value) ? value : [value]
+		return Array.from(new Set(items.map((item) => userIdFromSelection(item)).filter(Boolean)))
+	}
+
+	function toSingleUserId(value) {
+		return toUserIdList(value)[0] || ''
+	}
+
+	function userIdFromSelection(value) {
+		if (value === null || value === undefined) {
+			return ''
+		}
+		if (Array.isArray(value)) {
+			return userIdFromSelection(value[0])
+		}
+		if (typeof value === 'object') {
+			for (const key of ['userId', 'id', 'value', 'USER_ID', 'ID']) {
+				const result = userIdFromSelection(value[key])
+				if (result) {
+					return result
+				}
+			}
+			return ''
+		}
+		return String(value).trim()
 	}
 </script>
 
