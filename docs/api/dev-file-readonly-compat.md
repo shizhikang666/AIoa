@@ -108,9 +108,9 @@ Supported sort fields are:
 - `page` returns paginated metadata and includes stored thumbnails for compatibility with the existing file management table.
 - `list` returns at most 200 lightweight metadata rows and omits thumbnail payloads to avoid returning large base64 data sets.
 - `detail` returns the full stored metadata row for one file id.
-- Local-file metadata rewrites `downloadPath` to `/api/dev/file/download?id=<id>` so copied frontend anchors, images, and preview components do not keep using the imported old Java domain.
+- Local-file metadata rewrites `downloadPath` to `/backend/dev/file/download?id=<id>` so copied frontend anchors, images, and preview components do not keep using the imported old Java domain.
 - Non-local engine rows keep their stored `DOWNLOAD_PATH`.
-- LOCAL uploads store files under `runtime/upload/dev_file/defaultBucketName/yyyy/M/d/`, write `dev_file.STORAGE_PATH` as an absolute path, and write `DOWNLOAD_PATH` as `/api/dev/file/download?id=<id>`.
+- LOCAL uploads store files under `public/upload/dev_file/defaultBucketName/yyyy/M/d/`, write `dev_file.STORAGE_PATH` as an absolute path, and write `DOWNLOAD_PATH` as `/backend/dev/file/download?id=<id>`.
 - Dynamic upload routes read `SNOWY_SYS_DEFAULT_FILE_ENGINE`; this compatibility slice requires the default engine to stay `LOCAL`. If it is changed to Aliyun, Tencent, or Minio before real provider storage is implemented, dynamic uploads return `code = 501`.
 - `upload*ReturnId`, `upload*ReturnUrl`, and `upload*ReturnFile` return Java-compatible `data` values: string id, string download path, or a camelCase file row.
 - The copied old `snowy-admin-web/src/components/Editor/index.vue` TinyMCE wrapper now defaults image uploads to `uploadDynamicReturnUrl` when callers do not pass `fileUploadFunction`; this was browser-smoked through a temporary `/exm/editor` route on 2026-06-12.

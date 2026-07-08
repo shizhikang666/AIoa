@@ -9,6 +9,7 @@ use app\service\user\PositionService;
 use app\service\user\UserDirectoryService;
 use app\service\user\UserOrgMigrationService;
 use app\support\ApiResponse;
+use app\support\DownloadResponseHeaders;
 use RuntimeException;
 use Throwable;
 use think\Request;
@@ -377,7 +378,6 @@ class UserController extends BaseSysController
         $filename = (string)($file['filename'] ?? 'download.txt');
         $content = (string)($file['content'] ?? '');
         $contentType = (string)($file['contentType'] ?? 'application/octet-stream');
-        $encodedFilename = rawurlencode($filename);
 
         $textual = str_starts_with($contentType, 'text/')
             || str_contains($contentType, 'json')
@@ -386,8 +386,9 @@ class UserController extends BaseSysController
 
         return Response::create($content, 'html', 200)->header([
             'Content-Type' => $textual ? $contentType . '; charset=utf-8' : $contentType,
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"; filename*=UTF-8\'\'' . $encodedFilename,
+            'Content-Disposition' => DownloadResponseHeaders::contentDisposition($filename),
             'Content-Length' => (string)strlen($content),
+            'Access-Control-Expose-Headers' => 'Content-Disposition',
             'Cache-Control' => 'no-store, no-cache, must-revalidate',
             'Pragma' => 'no-cache',
         ]);

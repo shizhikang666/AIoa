@@ -16,6 +16,13 @@ class SettlementAccountService
     private const DELETED = 'DELETED';
     private const ENABLE = 'ENABLE';
     private const DISABLED = 'DISABLED';
+    private const API_ADD = '/biz/settlementaccount/add';
+    private const API_EDIT = '/biz/settlementaccount/edit';
+    private const API_EDIT_STATUS = '/biz/settlementaccount/edit/status';
+    private const API_DELETE = '/biz/settlementaccount/delete';
+    private const API_EXPENSES_ADD = '/biz/settlementaccount/expenses/add';
+    private const API_PAYMENT_ADD = '/biz/settlementaccount/payment/add';
+    private const API_TRANSFER_ADD = '/biz/settlementaccount/transfer/add';
     private const ACCOUNT_FIELDS = <<<SQL
 a.ID AS ID,
 a.ACCOUNT_NAME AS ACCOUNT_NAME,
@@ -148,7 +155,7 @@ SQL;
             if ($orgId !== null) {
                 $row['org'] = $orgId;
             }
-            $this->assertNewAccountWritable($row, $payload);
+            $this->assertNewAccountWritable($row, $payload, self::API_ADD);
 
             Db::name('settlement_account')->insert($row);
 
@@ -162,7 +169,7 @@ SQL;
         $accountName = $this->requiredInput($input, 'accountName');
 
         return Db::transaction(function () use ($id, $input, $payload, $accountName): array {
-            $account = $this->assertAccountWritable($id, $payload, 'edit');
+            $account = $this->assertAccountWritable($id, $payload, 'edit', self::API_EDIT);
             $tenantId = (string)($account['TENANT_ID'] ?? $this->tenantId($input, $payload));
             if ($accountName !== (string)($account['ACCOUNT_NAME'] ?? '')) {
                 $this->assertUniqueAccountName($accountName, $tenantId, $id);
@@ -181,7 +188,7 @@ SQL;
             }
             if (array_key_exists('org', $input) || array_key_exists('orgId', $input)) {
                 $orgId = $this->nullableString($input['org'] ?? $input['orgId'] ?? null);
-                $this->assertOrgWritable($orgId, $payload);
+                $this->assertOrgWritable($orgId, $payload, self::API_EDIT);
                 $row['org'] = $orgId;
             }
 
@@ -199,7 +206,7 @@ SQL;
         $status = $this->accountStatus($input['accountStatus'] ?? null);
 
         return Db::transaction(function () use ($id, $status, $payload): array {
-            $this->assertAccountWritable($id, $payload, 'edit status');
+            $this->assertAccountWritable($id, $payload, 'edit status', self::API_EDIT_STATUS);
             $userId = $this->currentUserId($payload);
             $updated = Db::name('settlement_account')
                 ->where('ID', $id)
@@ -223,7 +230,7 @@ SQL;
         return Db::transaction(function () use ($idList, $payload): array {
             $accounts = $this->lockedAccounts($idList, $payload);
             foreach ($idList as $id) {
-                $this->assertAccountRowWritable($accounts[$id], $payload, 'delete');
+                $this->assertAccountRowWritable($accounts[$id], $payload, 'delete', self::API_DELETE);
             }
 
             $this->assertAccountsUnreferenced($idList);
@@ -296,7 +303,7 @@ SQL;
         return Db::transaction(function () use ($input, $payload, $targetId, $settlementCategory, $payer, $payerTime, $amountCents, $amount, $objectId, $bankName, $bankAccount, $remark, $processId, $processCategory, $operatorUserId, $skipPermissionCheck): array {
             $account = $this->lockedAccount($targetId, $payload);
             if (!$skipPermissionCheck) {
-                $account = $this->assertAccountRowWritable($account, $payload, 'add expenses');
+                $account = $this->assertAccountRowWritable($account, $payload, 'add expenses', self::API_EXPENSES_ADD);
             }
             $beforeAmount = $this->moneyFromCents($this->moneyCents($account['CURRENT_AMOUNT'] ?? '0'));
             $afterAmount = $this->moneyFromCents($this->moneyCents($beforeAmount) - $amountCents);
@@ -334,7 +341,7 @@ SQL;
 
             Db::name('biz_expenditure_record')->insert(array_merge($audit, [
                 'ID' => $expenditureId,
-                'OBJECT_ID' => $objectId,
+                'OBJECT_ID' => $objectId ?? '',
                 'TARGET_ID' => $targetId,
                 'SERIAL_ID' => $statementId,
                 'PROCESS_ID' => $processId,
@@ -435,7 +442,7 @@ SQL;
         return Db::transaction(function () use ($input, $payload, $targetId, $settlementCategory, $payer, $payerTime, $amountCents, $amount, $objectId, $bankName, $bankAccount, $remark, $processId, $processCategory, $operatorUserId, $skipPermissionCheck): array {
             $account = $this->lockedAccount($targetId, $payload);
             if (!$skipPermissionCheck) {
-                $account = $this->assertAccountRowWritable($account, $payload, 'add payment');
+                $account = $this->assertAccountRowWritable($account, $payload, 'add payment', self::API_PAYMENT_ADD);
             }
             $beforeAmount = $this->moneyFromCents($this->moneyCents($account['CURRENT_AMOUNT'] ?? '0'));
             $afterAmount = $this->moneyFromCents($this->moneyCents($beforeAmount) + $amountCents);
@@ -473,7 +480,7 @@ SQL;
 
             Db::name('biz_payment_record')->insert(array_merge($audit, [
                 'ID' => $paymentId,
-                'OBJECT_ID' => $objectId,
+                'OBJECT_ID' => $objectId ?? '',
                 'TARGET_ID' => $targetId,
                 'SERIAL_ID' => $statementId,
                 'PROCESS_ID' => $processId,
@@ -525,8 +532,8 @@ SQL;
 
         return Db::transaction(function () use ($input, $payload, $expensesAccountId, $revenueAccountId, $payerTime, $amountCents, $amount, $remark, $settlementCategory): array {
             $accounts = $this->lockedAccounts([$expensesAccountId, $revenueAccountId], $payload);
-            $expensesAccount = $this->assertAccountRowWritable($accounts[$expensesAccountId], $payload, 'transfer from this settlement account');
-            $revenueAccount = $this->assertAccountRowWritable($accounts[$revenueAccountId], $payload, 'transfer to this settlement account');
+            $expensesAccount = $this->assertAccountRowWritable($accounts[$expensesAccountId], $payload, 'transfer from this settlement account', self::API_TRANSFER_ADD);
+            $revenueAccount = $this->assertAccountRowWritable($accounts[$revenueAccountId], $payload, 'transfer to this settlement account', self::API_TRANSFER_ADD);
 
             $expensesBefore = $this->moneyFromCents($this->moneyCents($expensesAccount['CURRENT_AMOUNT'] ?? '0'));
             $expensesAfter = $this->moneyFromCents($this->moneyCents($expensesBefore) - $amountCents);
@@ -674,20 +681,20 @@ SQL;
         });
     }
 
-    private function assertAccountWritable(string $id, array $payload, string $action): array
+    private function assertAccountWritable(string $id, array $payload, string $action, ?string $apiUrl = null): array
     {
         $row = $this->activeAccount($id, $payload);
-        return $this->assertAccountRowWritable($row, $payload, $action);
+        return $this->assertAccountRowWritable($row, $payload, $action, $apiUrl);
     }
 
-    private function assertAccountRowWritable(array $row, array $payload, string $action): array
+    private function assertAccountRowWritable(array $row, array $payload, string $action, ?string $apiUrl = null): array
     {
         if ($this->canSeeAll($payload)) {
             return $row;
         }
 
         $accountOrg = trim((string)($row['org'] ?? $row['ORG'] ?? ''));
-        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $scopeOrgIds = $this->scopeOrgIds($payload, $apiUrl);
         if ($scopeOrgIds !== [] && $accountOrg !== '' && in_array($accountOrg, $scopeOrgIds, true)) {
             return $row;
         }
@@ -701,14 +708,14 @@ SQL;
         throw new RuntimeException("no permission to {$action} this settlement account", 403);
     }
 
-    private function assertNewAccountWritable(array $row, array $payload): void
+    private function assertNewAccountWritable(array $row, array $payload, ?string $apiUrl = null): void
     {
         if ($this->canSeeAll($payload)) {
             return;
         }
 
         $accountOrg = trim((string)($row['org'] ?? ''));
-        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $scopeOrgIds = $this->scopeOrgIds($payload, $apiUrl);
         if ($scopeOrgIds !== [] && $accountOrg !== '' && in_array($accountOrg, $scopeOrgIds, true)) {
             return;
         }
@@ -722,13 +729,13 @@ SQL;
         throw new RuntimeException('no permission to add this settlement account', 403);
     }
 
-    private function assertOrgWritable(?string $orgId, array $payload): void
+    private function assertOrgWritable(?string $orgId, array $payload, ?string $apiUrl = null): void
     {
         if ($orgId === null || $orgId === '' || $this->canSeeAll($payload)) {
             return;
         }
 
-        $scopeOrgIds = $this->scopeOrgIds($payload);
+        $scopeOrgIds = $this->scopeOrgIds($payload, $apiUrl);
         if ($scopeOrgIds !== [] && in_array($orgId, $scopeOrgIds, true)) {
             return;
         }
@@ -744,9 +751,9 @@ SQL;
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             });
 
-        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
-        if ($tenantId !== '') {
-            $query->where('TENANT_ID', $tenantId);
+        $tenantIds = $this->tenantScopeIds([], $payload);
+        if ($tenantIds !== []) {
+            $query->whereIn('TENANT_ID', $tenantIds);
         }
 
         $row = $query->find();
@@ -765,9 +772,9 @@ SQL;
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             });
 
-        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
-        if ($tenantId !== '') {
-            $query->where('TENANT_ID', $tenantId);
+        $tenantIds = $this->tenantScopeIds([], $payload);
+        if ($tenantIds !== []) {
+            $query->whereIn('TENANT_ID', $tenantIds);
         }
 
         $row = $query->lock(true)->find();
@@ -796,9 +803,9 @@ SQL;
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             });
 
-        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
-        if ($tenantId !== '') {
-            $query->where('TENANT_ID', $tenantId);
+        $tenantIds = $this->tenantScopeIds([], $payload);
+        if ($tenantIds !== []) {
+            $query->whereIn('TENANT_ID', $tenantIds);
         }
 
         $rows = $query->order('ID', 'asc')->lock(true)->select()->toArray();
@@ -883,7 +890,26 @@ SQL;
 
     private function tenantId(array $input, array $payload): string
     {
-        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $explicitTenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? ''));
+        if ($explicitTenantId !== '') {
+            return $explicitTenantId;
+        }
+
+        $orgId = trim((string)($input['org'] ?? $input['orgId'] ?? $payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($orgId !== '') {
+            $orgTenantId = Db::name('sys_org')
+                ->where('ID', $orgId)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->value('TENANT_ID');
+            $orgTenantId = trim((string)$orgTenantId);
+            if ($orgTenantId !== '') {
+                return $orgTenantId;
+            }
+        }
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
 
         return $tenantId !== '' ? $tenantId : '1';
     }
@@ -916,8 +942,13 @@ SQL;
     /**
      * @return array<int, string>
      */
-    private function scopeOrgIds(array $payload): array
+    private function scopeOrgIds(array $payload, ?string $apiUrl = null): array
     {
+        $apiScopeOrgIds = $this->scopeOrgIdsForApi($payload, $apiUrl);
+        if ($apiScopeOrgIds !== null) {
+            return $apiScopeOrgIds;
+        }
+
         $ids = [];
         $direct = $payload['data_scope_org_ids'] ?? [];
         if (is_string($direct)) {
@@ -938,10 +969,155 @@ SQL;
             }, $scopes));
         }
 
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $ids
+        ))));
+
+        return $this->expandOrgIds($ids);
+    }
+
+    /**
+     * @return array<int, string>|null
+     */
+    private function scopeOrgIdsForApi(array $payload, ?string $apiUrl): ?array
+    {
+        $apiUrl = $this->normalizeApiUrl($apiUrl);
+        if ($apiUrl === '') {
+            return null;
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (!is_array($scopes)) {
+            return null;
+        }
+
+        $matched = false;
+        $ids = [];
+        foreach ($scopes as $scope) {
+            if (!is_array($scope)) {
+                continue;
+            }
+
+            if ($this->normalizeApiUrl($scope['apiUrl'] ?? $scope['api_url'] ?? '') !== $apiUrl) {
+                continue;
+            }
+
+            $matched = true;
+            $scopeOrgIdList = $scope['scopeOrgIdList'] ?? $scope['scope_org_id_list'] ?? null;
+            if (is_string($scopeOrgIdList)) {
+                $scopeOrgIdList = explode(',', $scopeOrgIdList);
+            }
+            if (is_array($scopeOrgIdList)) {
+                $ids = array_merge($ids, $scopeOrgIdList);
+            }
+
+            $orgId = trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+            if ($orgId !== '') {
+                $ids[] = $orgId;
+            }
+        }
+
+        if (!$matched) {
+            return null;
+        }
+
         return array_values(array_unique(array_filter(array_map(
             static fn (mixed $id): string => trim((string)$id),
             $ids
         ))));
+    }
+
+    private function normalizeApiUrl(mixed $apiUrl): string
+    {
+        $apiUrl = strtolower('/' . trim((string)$apiUrl, " \t\n\r\0\x0B/"));
+        $apiUrl = preg_replace('#/+#', '/', $apiUrl) ?: '';
+        foreach (['/backend', '/api', '/index.php'] as $prefix) {
+            if ($apiUrl === $prefix) {
+                return '';
+            }
+            if (str_starts_with($apiUrl, $prefix . '/')) {
+                $apiUrl = substr($apiUrl, strlen($prefix));
+            }
+        }
+
+        return rtrim($apiUrl, '/') ?: '';
+    }
+
+    /**
+     * @param array<int, string> $orgIds
+     * @return array<int, string>
+     */
+    private function expandOrgIds(array $orgIds): array
+    {
+        $seen = [];
+        $queue = [];
+        foreach ($orgIds as $orgId) {
+            $orgId = trim($orgId);
+            if ($orgId === '' || isset($seen[$orgId])) {
+                continue;
+            }
+            $seen[$orgId] = true;
+            $queue[] = $orgId;
+        }
+
+        while ($queue !== []) {
+            $children = Db::name('sys_org')
+                ->whereIn('PARENT_ID', $queue)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->column('ID');
+
+            $queue = [];
+            foreach ($children as $childId) {
+                $childId = trim((string)$childId);
+                if ($childId === '' || isset($seen[$childId])) {
+                    continue;
+                }
+                $seen[$childId] = true;
+                $queue[] = $childId;
+            }
+        }
+
+        return array_keys($seen);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function tenantScopeIds(array $filters, array $payload): array
+    {
+        $ids = [];
+        $filterTenantId = trim((string)($filters['tenantId'] ?? $filters['tenant_id'] ?? ''));
+        if ($filterTenantId !== '') {
+            $ids[] = $filterTenantId;
+
+            return $ids;
+        }
+
+        foreach ([$payload['tenant_id'] ?? null, $payload['tenantId'] ?? null] as $tenantId) {
+            $tenantId = trim((string)$tenantId);
+            if ($tenantId !== '') {
+                $ids[] = $tenantId;
+            }
+        }
+
+        $orgId = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($orgId !== '') {
+            $orgTenantId = Db::name('sys_org')
+                ->where('ID', $orgId)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->value('TENANT_ID');
+            $orgTenantId = trim((string)$orgTenantId);
+            if ($orgTenantId !== '') {
+                $ids[] = $orgTenantId;
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     private function canSeeAll(array $payload): bool
@@ -1110,9 +1286,9 @@ SQL;
                 $query->whereNull('a.DELETE_FLAG')->whereOr('a.DELETE_FLAG', '=', self::NOT_DELETE);
             });
 
-        $tenantId = trim((string)($filters['tenantId'] ?? $payload['tenant_id'] ?? ''));
-        if ($tenantId !== '') {
-            $query->where('a.TENANT_ID', $tenantId);
+        $tenantIds = $this->tenantScopeIds($filters, $payload);
+        if ($tenantIds !== []) {
+            $query->whereIn('a.TENANT_ID', $tenantIds);
         }
 
         if ($enabledOnly) {
@@ -1138,9 +1314,31 @@ SQL;
         }
 
         if (!empty($filters['orgId'])) {
-            $query->where('a.org', (string)$filters['orgId']);
-        } elseif (!empty($payload['data_scope_org_ids']) && is_array($payload['data_scope_org_ids'])) {
-            $query->whereIn('a.org', array_map('strval', $payload['data_scope_org_ids']));
+            $orgId = (string)$filters['orgId'];
+            if (!$this->canSeeAll($payload)) {
+                $scopeOrgIds = $this->scopeOrgIds($payload);
+                if ($scopeOrgIds === [] || !in_array($orgId, $scopeOrgIds, true)) {
+                    $query->whereRaw('1 = 0');
+                }
+            }
+            $query->where('a.org', $orgId);
+        } elseif (!$this->canSeeAll($payload)) {
+            $scopeOrgIds = $this->scopeOrgIds($payload);
+            $currentUserId = $this->currentUserId($payload);
+            if ($scopeOrgIds !== [] || $currentUserId !== '') {
+                $query->where(function ($query) use ($scopeOrgIds, $currentUserId): void {
+                    if ($scopeOrgIds !== []) {
+                        $query->whereIn('a.org', $scopeOrgIds);
+                    }
+                    if ($currentUserId !== '') {
+                        $scopeOrgIds === []
+                            ? $query->where('a.CREATE_USER', $currentUserId)
+                            : $query->whereOr('a.CREATE_USER', '=', $currentUserId);
+                    }
+                });
+            } else {
+                $query->whereRaw('1 = 0');
+            }
         }
 
         if (!empty($filters['searchKey'])) {

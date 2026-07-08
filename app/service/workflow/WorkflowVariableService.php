@@ -30,6 +30,7 @@ class WorkflowVariableService
     public function historyByProcessInstance(string $processInstanceId): array
     {
         $rows = ActHiVarinst::where('PROC_INST_ID_', $processInstanceId)
+            ->order(['CREATE_TIME_' => 'asc', 'ID_' => 'asc'])
             ->select()
             ->toArray();
 
@@ -62,6 +63,14 @@ class WorkflowVariableService
     private function normalizeValue(array $row): mixed
     {
         $type = (string)($row['TYPE_'] ?? $row['VAR_TYPE_'] ?? '');
+
+        if ($type === 'date' && array_key_exists('LONG_', $row) && $row['LONG_'] !== null) {
+            return date('Y-m-d H:i:s', intdiv((int)$row['LONG_'], 1000));
+        }
+
+        if ($type === 'boolean' && array_key_exists('LONG_', $row) && $row['LONG_'] !== null) {
+            return (int)$row['LONG_'] === 1;
+        }
 
         if (array_key_exists('TEXT_', $row) && $row['TEXT_'] !== null) {
             return $this->decodeText((string)$row['TEXT_'], $type);
@@ -96,9 +105,12 @@ class WorkflowVariableService
             return (float)$value;
         }
 
-        $decoded = json_decode($value, true);
-        if (json_last_error() === JSON_ERROR_NONE) {
-            return $decoded;
+        $trimmed = ltrim($value);
+        if ($trimmed !== '' && ($trimmed[0] === '{' || $trimmed[0] === '[')) {
+            $decoded = json_decode($value, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
         }
 
         return $value;

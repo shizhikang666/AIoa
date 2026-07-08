@@ -174,7 +174,7 @@ require getcwd() . '/vendor/autoload.php';
 `$statement = think\facade\Db::name('settlement_account_statement')->where('PROCESS_ID', `$pid)->find();
 `$account = think\facade\Db::name('settlement_account')->where('ID', `$accountId)->find();
 `$vars = [];
-foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['approval', 'status', 'state', 'accountId', 'payerTime', 'settlementCategory'])->select()->toArray() as `$row) {
+foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['approval', 'status', 'state', 'accountId', 'payerTime', 'settlementCategory'])->order('CREATE_TIME_', 'asc')->order('REV_', 'asc')->order('ID_', 'asc')->select()->toArray() as `$row) {
     `$name = (string)(`$row['NAME_'] ?? '');
     `$type = (string)(`$row['VAR_TYPE_'] ?? '');
     if (`$type === 'boolean') {

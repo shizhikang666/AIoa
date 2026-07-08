@@ -286,7 +286,7 @@ require getcwd() . '/vendor/autoload.php';
 `$statement = think\facade\Db::name('settlement_account_statement')->where('PROCESS_ID', `$pid)->find();
 `$account = think\facade\Db::name('settlement_account')->where('ID', `$accountId)->find();
 `$vars = [];
-foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['approval', 'status', 'state'])->select()->toArray() as `$row) {
+foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['approval', 'status', 'state'])->order('CREATE_TIME_', 'asc')->order('REV_', 'asc')->order('ID_', 'asc')->select()->toArray() as `$row) {
     `$name = (string)(`$row['NAME_'] ?? '');
     if ((string)(`$row['VAR_TYPE_'] ?? '') === 'boolean') {
         `$vars[`$name] = ((int)(`$row['LONG_'] ?? 0)) === 1 ? 'true' : 'false';
@@ -419,7 +419,7 @@ require getcwd() . '/vendor/autoload.php';
 `$pid = '$safeRejectPid';
 `$accountId = '$safeAccountId';
 `$vars = [];
-foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['approval', 'status', 'state'])->select()->toArray() as `$row) {
+foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['approval', 'status', 'state'])->order('CREATE_TIME_', 'asc')->order('REV_', 'asc')->order('ID_', 'asc')->select()->toArray() as `$row) {
     `$name = (string)(`$row['NAME_'] ?? '');
     if ((string)(`$row['VAR_TYPE_'] ?? '') === 'boolean') {
         `$vars[`$name] = ((int)(`$row['LONG_'] ?? 0)) === 1 ? 'true' : 'false';

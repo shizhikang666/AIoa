@@ -9,6 +9,7 @@ use app\service\workflow\WorkflowRuntimeService;
 use app\service\workflow\WorkflowVariableService;
 use app\service\biz\FileRelationService;
 use app\support\ApiResponse;
+use think\facade\Db;
 use think\Request;
 use think\Response;
 
@@ -33,7 +34,8 @@ class ProcessController extends BaseWorkflowController
     public function detail(Request $request): Response
     {
         return $this->guard(fn () => $this->workflowQueryService->processDetail(
-            $this->processInstanceId($request)
+            $this->processInstanceId($request),
+            $this->currentUserId($request)
         ));
     }
 
@@ -42,13 +44,15 @@ class ProcessController extends BaseWorkflowController
         $input = $this->body($request);
 
         return $this->guard(function () use ($request, $input): array {
+            $processInstanceId = $this->processInstanceId($request, $input);
             $variables = $this->workflowVariableService->historyByProcessInstance(
-                $this->processInstanceId($request, $input)
+                $processInstanceId
             );
             $fields = $this->stringList($input['fields'] ?? []);
             if ($fields !== []) {
                 $variables = array_intersect_key($variables, array_flip($fields));
             }
+            $variables = $this->withDisplayVariables($variables, $processInstanceId);
 
             return array_map(
                 fn (string $name, mixed $value): array => [
@@ -257,6 +261,50 @@ class ProcessController extends BaseWorkflowController
         }
 
         return $this->requiredString($request, 'id');
+    }
+
+    /**
+     * @param array<string, mixed> $variables
+     * @return array<string, mixed>
+     */
+    private function withDisplayVariables(array $variables, string $processInstanceId): array
+    {
+        $accountId = trim((string)($variables['accountId'] ?? ''));
+        if ($accountId === '' || isset($variables['accountName'])) {
+            return $variables;
+        }
+
+        $accountName = $this->settlementAccountNameForProcess($accountId, $variables, $processInstanceId);
+        if ($accountName !== '') {
+            $variables['accountName'] = $accountName;
+        }
+
+        return $variables;
+    }
+
+    /**
+     * @param array<string, mixed> $variables
+     */
+    private function settlementAccountNameForProcess(string $accountId, array $variables, string $processInstanceId): string
+    {
+        $tenantId = trim((string)($variables['tenantId'] ?? ''));
+        if ($tenantId === '') {
+            $tenantId = trim((string)Db::name('act_hi_procinst')
+                ->where('PROC_INST_ID_', $processInstanceId)
+                ->value('TENANT_ID_'));
+        }
+
+        $query = Db::name('settlement_account')
+            ->where('ID', $accountId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', 'NOT_DELETE');
+            });
+
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return trim((string)$query->value('ACCOUNT_NAME'));
     }
 
     /**

@@ -256,6 +256,9 @@ require getcwd() . '/vendor/autoload.php';
     ->where('PROC_INST_ID_', `$pid)
     ->whereIn('NAME_', ['status', 'state', 'approval', 'comment'])
     ->field('NAME_, VAR_TYPE_, LONG_, TEXT_, TEXT2_')
+    ->order('CREATE_TIME_', 'asc')
+    ->order('REV_', 'asc')
+    ->order('ID_', 'asc')
     ->select()
     ->toArray();
 `$vars = [];

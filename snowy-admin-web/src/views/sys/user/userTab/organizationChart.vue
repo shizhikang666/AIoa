@@ -3,6 +3,7 @@
 		<vue3-tree-org
 			class="xn-tree-line"
 			:data="treeData"
+			:props="{ label: 'label', children: 'children', id: 'id', pid: 'parentId' }"
 			:tool-bar="{ scale: true, restore: false, expand: false, zoom: true, fullscreen: true }"
 			:disabled="false"
 			:center="true"
@@ -22,8 +23,20 @@
 	import userCenterApi from '@/api/sys/userCenterApi'
 	const treeData = ref({})
 	userCenterApi.userLoginOrgTree().then((data) => {
-		treeData.value = data[0]
+		treeData.value = normalizeOrgNode(data?.[0] || {})
 	})
+
+	const normalizeOrgNode = (node) => {
+		const label = node.label || node.name || node.NAME || node.title || node.CODE || node.id || node.ID || ''
+		return {
+			...node,
+			id: node.id || node.ID,
+			parentId: node.parentId || node.PARENT_ID || node.pid,
+			label,
+			name: node.name || node.NAME || label,
+			children: Array.isArray(node.children) ? node.children.map((child) => normalizeOrgNode(child)) : []
+		}
+	}
 </script>
 
 <style lang="less" scoped>

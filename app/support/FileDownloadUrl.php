@@ -11,10 +11,13 @@ class FileDownloadUrl
         $engine = strtoupper(trim((string)$engine));
         $id = trim((string)$id);
         if ($engine === 'LOCAL' && $id !== '') {
-            return '/api/dev/file/download?id=' . rawurlencode($id);
+            return '/backend/dev/file/download?id=' . rawurlencode($id);
         }
 
         $downloadPath = $downloadPath === null ? null : trim((string)$downloadPath);
+        if ($downloadPath !== null && str_starts_with($downloadPath, '/api/dev/file/download')) {
+            $downloadPath = '/backend' . substr($downloadPath, 4);
+        }
 
         return $downloadPath === '' ? null : $downloadPath;
     }

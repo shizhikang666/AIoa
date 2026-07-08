@@ -1,5 +1,58 @@
 ﻿锘块敇鍧楁晣閸ф鏅ｉ柛褎顨嗛弲? IMPLEMENT.md
 
+## merge-agent/api-agent/test-agent Implementation Log: Online Compatibility Follow-up
+
+Date: 2026-07-08
+
+### Implemented
+
+- Continued the existing online/prelaunch compatibility worktree instead of opening a new feature block.
+- Added `app/support/DownloadResponseHeaders.php` and reused it for payroll/user/generator/local-file binary responses.
+- Standardized local file `downloadPath` output on `/backend/dev/file/download?id=<id>` for production alignment.
+- Added a Vite development proxy for `/backend` so direct browser asset/download paths also work against the local backend.
+- Updated `scripts/test-agent-db-smoke.ps1` and API docs to match `/backend` local download paths and file content-type detection.
+- Updated `scripts/workflow-read-http-smoke.ps1` so `/biz/task/history/page` is checked as a history process row endpoint while active task pages still require `taskId`.
+- Updated the new-conversation bootstrap workflow browser-smoke note to use the current login-menu paths `/biz/historytask` and `/biz/copytask`.
+- Updated workflow smoke scripts to read the latest duplicate historic variables and to treat procurement purchase orders as controlled side effects that are asserted and cleaned.
+- Updated `PurchaseOrderService::workflowDate()` to accept workflow-normalized date variables when procurement starts create purchase orders.
+- Reviewed the broader pending changes for RBAC data scopes, token refresh normalization, process details/current task ids, process variables, workflow procure/payment forms, frontend user/process config handling, and download filename parsing.
+
+### Deferred
+
+- No commit, production deployment, online data operation, schema change, dependency change, or Java source edit was performed.
+- Manual process-detail/task-form click-through and release packaging remain pending until explicitly selected.
+
+### Verification Status
+
+- Passed:
+  - Full PHP lint over `app` and `route`
+  - Focused PHP lint for changed download/controller files
+  - `php think route:list`
+  - Process/task/download/user-center route visibility checks
+  - `.\scripts\project-progress.ps1 -Lean`
+  - `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`
+  - `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`
+  - `.\scripts\test-agent-db-smoke.ps1`
+  - `.\scripts\auth-index-read-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\business-read-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\dev-read-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\frontend-deferred-write-wrapper-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\workflow-read-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\workflow-general-start-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\workflow-payment-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\workflow-payment-out-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\workflow-procure-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\workflow-task-transition-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`
+  - `.\scripts\project-preflight.ps1` standard steps through repeated full/resumed runs
+  - `.\scripts\web-ready.ps1`
+  - `.\scripts\browser-upload-provider-guard-smoke.ps1`
+  - `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath /biz/biztask,/biz/biztask/mystarttask,/biz/biztask/processList,/biz/biztask/allprocess`
+  - `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath /biz/historytask,/biz/copytask`
+  - `npm run build` in `snowy-admin-web`
+  - `git diff --check`
+- Not run:
+  - Manual process-detail/task-form click-through and role data-scope UI checks.
+
 ## test-agent Implementation Log: Sales Approval Reject Side-Effect Smoke Matrix
 
 Date: 2026-07-02

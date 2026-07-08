@@ -52,7 +52,7 @@
 					:data-source="details.productInfoList"
 					:columns="infoColumns"
 				>
-					<template #bodyCell="{ column, text, record, index }">
+					<template #bodyCell="{ column, record }">
 						<template v-if="column.dataIndex === 'productName'">{{ record.productName }}</template>
 						<template v-if="column.dataIndex === 'specs'">
 							{{ $TOOL.dictTypeDataByPath('PRODUCT_DICT', 'PRODUCT_SPECS', record.specs) }}
@@ -72,14 +72,14 @@
 				>采购确认信息
 			</a-typography-title>
 			<a-table
-				v-if="details.productList.length"
+				v-if="details.productList && details.productList.length"
 				:pagination="false"
 				size="middle"
 				bordered
 				:data-source="details.productList"
 				:columns="columns"
 			>
-				<template #bodyCell="{ column, text, record, index }">
+				<template #bodyCell="{ column, record }">
 					<template v-if="column.dataIndex === 'productName'">
 						<a-typography-link @click="openProductDetails(record.productId)"
 							>{{ record.productName }}
@@ -113,7 +113,7 @@
 
 	const loading = ref(false)
 	const error = ref(false)
-	const { id } = defineProps({
+	const props = defineProps({
 		id: {
 			type: String,
 			required: true
@@ -130,6 +130,37 @@
 			return `<a href="${url}" target="_blank" style="color: blue; text-decoration: underline;">${url}</a>`
 		})
 	}
+	const normalizeList = (value) => {
+		if (Array.isArray(value)) {
+			return value
+		}
+		if (!value) {
+			return []
+		}
+		if (typeof value === 'string') {
+			try {
+				const parsed = JSON.parse(value)
+				return Array.isArray(parsed) ? parsed : []
+			} catch (e) {
+				return []
+			}
+		}
+		return []
+	}
+	const normalizeObject = (value) => {
+		if (value && typeof value === 'object' && !Array.isArray(value)) {
+			return value
+		}
+		if (typeof value === 'string') {
+			try {
+				const parsed = JSON.parse(value)
+				return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+			} catch (e) {
+				return {}
+			}
+		}
+		return {}
+	}
 	const supplier = ref({})
 	const details = ref({})
 	const load = async () => {
@@ -137,7 +168,7 @@
 		loading.value = true
 		try {
 			const fields = ['supplier', 'amount', 'productList', 'desirePurchaseDate', 'remark', 'productInfoList']
-			const res = await bizProcessApi.bizVariable({ id: id, fields })
+			const res = await bizProcessApi.bizVariable({ id: props.id, fields })
 			let result = {}
 			res.forEach((item) => {
 				result[item.name] = item.value
@@ -145,7 +176,9 @@
 
 			console.log(result)
 
-			result.productList = result.productList ? JSON.parse(result.productList) : []
+			result.productList = normalizeList(result.productList)
+			result.productInfoList = normalizeList(result.productInfoList)
+			result.supplier = normalizeObject(result.supplier)
 			supplier.value = result.supplier
 			details.value = result
 		} catch (e) {

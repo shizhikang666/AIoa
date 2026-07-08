@@ -36,7 +36,6 @@
 <script setup lang="js" name="projectPaymentInfo">
 	import bizProcessApi from '@/api/biz/bizProcessApi'
 	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
-	import settlementAccountApi from '@/api/biz/settlementAccountApi'
 
 	import detail from '@/views/biz/saleproject/detail.vue'
 
@@ -59,7 +58,7 @@
 		error.value = false
 		loading.value = true
 		try {
-			const fields = ['projectId', 'remark', 'amount', 'accountId', 'payer', 'payerTime', 'settlementCategory']
+			const fields = ['projectId', 'remark', 'amount', 'accountId', 'accountName', 'payer', 'payerTime', 'settlementCategory']
 			const res = await bizProcessApi.bizVariable({ id: props.id, fields })
 			const result = {}
 			res.forEach((item) => {
@@ -69,10 +68,12 @@
 			projectBaseInfo.value = details.bizSaleProject
 			baseInfo.value = result
 
-			const accountDetails = await settlementAccountApi.settlementAccountDetail({
-				id: result.accountId
-			})
-			account.value = accountDetails
+			account.value = result.accountId
+				? {
+						id: result.accountId,
+						accountName: result.accountName || result.accountId
+					}
+				: {}
 		} catch (e) {
 			error.value = true
 		} finally {

@@ -70,7 +70,7 @@ Returned display fields include:
 - `downloadPath`
 - `firstContactTime`
 
-For local `dev_file` rows linked through `FILE_ID`, `downloadPath` is normalized to `/api/dev/file/download?id=<fileId>` so the copied frontend does not use imported old-domain file URLs. Non-local file rows preserve their stored `DOWNLOAD_PATH`.
+For local `dev_file` rows linked through `FILE_ID`, `downloadPath` is normalized to `/backend/dev/file/download?id=<fileId>` so the copied frontend does not use imported old-domain file URLs. Non-local file rows preserve their stored `DOWNLOAD_PATH`.
 
 ### Customer detail
 

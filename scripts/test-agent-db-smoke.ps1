@@ -228,12 +228,12 @@ try {
     if (($download['content'] ?? '') !== $content) {
         throw new RuntimeException('download content mismatch');
     }
-    if (($download['contentType'] ?? '') !== 'application/octet-stream;charset=UTF-8') {
+    if (($download['contentType'] ?? '') !== 'text/plain;charset=UTF-8') {
         throw new RuntimeException('download content type mismatch');
     }
 
     $detail = $service->detail($localId);
-    if (($detail['downloadPath'] ?? '') !== '/api/dev/file/download?id=' . rawurlencode($localId)) {
+    if (($detail['downloadPath'] ?? '') !== '/backend/dev/file/download?id=' . rawurlencode($localId)) {
         throw new RuntimeException('local detail downloadPath was not normalized');
     }
 
@@ -312,7 +312,7 @@ try {
     if (($file['suffix'] ?? '') !== 'txt') {
         throw new RuntimeException('upload suffix mismatch');
     }
-    if (($file['downloadPath'] ?? '') !== '/api/dev/file/download?id=' . rawurlencode((string)$file['id'])) {
+    if (($file['downloadPath'] ?? '') !== '/backend/dev/file/download?id=' . rawurlencode((string)$file['id'])) {
         throw new RuntimeException('upload downloadPath mismatch');
     }
     if (!is_file((string)$file['storagePath'])) {
@@ -340,7 +340,7 @@ try {
         throw new RuntimeException('dynamic upload row missing');
     }
     $storedPaths[] = (string)$dynamicRow['STORAGE_PATH'];
-    if ($url !== '/api/dev/file/download?id=' . rawurlencode($dynamicId)) {
+    if ($url !== '/backend/dev/file/download?id=' . rawurlencode($dynamicId)) {
         throw new RuntimeException('uploadReturnUrl mismatch');
     }
 
@@ -1106,7 +1106,7 @@ try {
     if (count($list) !== 1) {
         throw new RuntimeException('relation list did not return one active row');
     }
-    if (($list[0]['downloadPath'] ?? '') !== '/api/dev/file/download?id=' . rawurlencode((string)$fileA['id'])) {
+    if (($list[0]['downloadPath'] ?? '') !== '/backend/dev/file/download?id=' . rawurlencode((string)$fileA['id'])) {
         throw new RuntimeException('relation downloadPath was not normalized');
     }
 

@@ -151,7 +151,7 @@ class FileService
         }
 
         $now = date('Y-m-d H:i:s');
-        $downloadPath = '/api/dev/file/download?id=' . rawurlencode($id);
+        $downloadPath = '/backend/dev/file/download?id=' . rawurlencode($id);
         $row = [
             'ID' => $id,
             'ENGINE' => self::ENGINE_LOCAL,
@@ -238,7 +238,7 @@ class FileService
 
         return [
             'filename' => trim((string)($row['NAME'] ?? '')) !== '' ? (string)$row['NAME'] : basename($path),
-            'contentType' => 'application/octet-stream;charset=UTF-8',
+            'contentType' => $this->contentType((string)($row['SUFFIX'] ?? pathinfo($path, PATHINFO_EXTENSION))),
             'content' => $content,
         ];
     }
@@ -341,13 +341,37 @@ class FileService
         $configured = trim((string)(getenv('DEV_FILE_LOCAL_ROOT') ?: ''));
         $root = $configured !== ''
             ? $configured
-            : app()->getRuntimePath() . 'upload' . DIRECTORY_SEPARATOR . 'dev_file';
+            : app()->getRootPath() . 'public' . DIRECTORY_SEPARATOR . 'upload' . DIRECTORY_SEPARATOR . 'dev_file';
         $root = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, $root);
         if (!$this->isAbsolutePath($root)) {
             $root = app()->getRootPath() . ltrim($root, DIRECTORY_SEPARATOR);
         }
 
         return rtrim($root, DIRECTORY_SEPARATOR);
+    }
+
+    private function contentType(string $suffix): string
+    {
+        $suffix = strtolower(trim($suffix, " \t\n\r\0\x0B."));
+
+        return match ($suffix) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'bmp' => 'image/bmp',
+            'svg' => 'image/svg+xml',
+            'pdf' => 'application/pdf',
+            'txt' => 'text/plain;charset=UTF-8',
+            'csv' => 'text/csv;charset=UTF-8',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'ppt' => 'application/vnd.ms-powerpoint',
+            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            default => 'application/octet-stream',
+        };
     }
 
     private function originalName(UploadedFile $file): string

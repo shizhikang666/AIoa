@@ -439,10 +439,75 @@ SQL;
             $query->where('TENANT_ID', $tenantId);
         }
 
-        $existing = $query->field('ID')->lock(true)->find();
-        if (is_array($existing) && $existing !== []) {
-            throw new RuntimeException('user already has leave application in range', 400);
+        $rows = $query->field('ID,PROCESS_ID')->lock(true)->select()->toArray();
+        foreach ($rows as $row) {
+            if ($this->leaveApplicationBlocksTimeRange($row['PROCESS_ID'] ?? null)) {
+                throw new RuntimeException('user already has leave application in range', 400);
+            }
         }
+    }
+
+    private function leaveApplicationBlocksTimeRange(mixed $processId): bool
+    {
+        $processId = trim((string)$processId);
+        if ($processId === '') {
+            return true;
+        }
+
+        $rows = Db::name('act_hi_varinst')
+            ->where('PROC_INST_ID_', $processId)
+            ->whereIn('NAME_', ['approval', 'cancel', 'state', 'status'])
+            ->field('NAME_,VAR_TYPE_,LONG_,DOUBLE_,TEXT_,TEXT2_')
+            ->select()
+            ->toArray();
+        if ($rows === []) {
+            return true;
+        }
+
+        $variables = [];
+        foreach ($rows as $row) {
+            $name = (string)($row['NAME_'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $variables[$name] = $this->workflowVariableValue($row);
+        }
+
+        $status = strtoupper(trim((string)($variables['status'] ?? '')));
+        $state = strtoupper(trim((string)($variables['state'] ?? '')));
+        if (in_array($status, ['REJECT', 'CANCEL', 'CANCELED', 'CANCELLED'], true)
+            || in_array($state, ['REJECT', 'CANCEL', 'CANCELED', 'CANCELLED'], true)
+            || ($variables['cancel'] ?? false) === true
+            || (($variables['approval'] ?? null) === false && ($status !== '' || $state !== ''))) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function workflowVariableValue(array $row): mixed
+    {
+        $type = (string)($row['VAR_TYPE_'] ?? '');
+        if ($type === 'boolean') {
+            return (int)($row['LONG_'] ?? 0) === 1;
+        }
+        if ($type === 'integer' || $type === 'long') {
+            return (int)($row['LONG_'] ?? 0);
+        }
+        if ($type === 'double') {
+            return (float)($row['DOUBLE_'] ?? 0);
+        }
+        if ($type === 'null') {
+            return null;
+        }
+        if ((string)($row['TEXT2_'] ?? '') === '!emptyString!') {
+            return '';
+        }
+
+        return $row['TEXT_'] ?? null;
     }
 
     private function assertTargetUserWritable(string $userId, array $payload): void

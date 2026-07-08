@@ -3,6 +3,7 @@
 namespace app\service\auth;
 
 use think\facade\Cache;
+use think\facade\Db;
 use think\Request;
 
 class TokenService
@@ -30,6 +31,7 @@ class TokenService
             'mobile_button_codes' => $authContext['mobile_button_codes'] ?? [],
             'permission_codes' => $authContext['permission_codes'] ?? [],
             'menu_ids' => $authContext['menu_ids'] ?? [],
+            'data_scope_org_ids' => $authContext['data_scope_org_ids'] ?? [],
             'data_scopes' => $authContext['data_scopes'] ?? [],
             'login_at' => $now,
             'expires_at' => $expiresAt,
@@ -58,7 +60,16 @@ class TokenService
             return null;
         }
 
-        return $payload;
+        $normalizedPayload = $this->normalizePayload($payload);
+        if ($normalizedPayload !== $payload) {
+            Cache::set(
+                $this->tokenKey($token),
+                $normalizedPayload,
+                max(1, (int)($normalizedPayload['expires_at'] ?? time()) - time())
+            );
+        }
+
+        return $normalizedPayload;
     }
 
     public function revoke(?string $token): void
@@ -245,6 +256,158 @@ class TokenService
         unset($tokens[$this->tokenHash($token)]);
 
         $this->writeUserTokens($userId, $tokens);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function normalizePayload(array $payload): array
+    {
+        if ($this->needsAuthContextRefresh($payload)) {
+            $payload = $this->refreshAuthContext($payload);
+        }
+
+        if (!$this->needsLegacyOrgScopeFallback($payload)) {
+            return $payload;
+        }
+
+        $orgIds = [];
+        $orgId = trim((string)($payload['org_id'] ?? $payload['orgId'] ?? ''));
+        if ($orgId !== '') {
+            $orgIds[] = $orgId;
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            foreach ($scopes as $scope) {
+                if (!is_array($scope)) {
+                    continue;
+                }
+
+                $scopeOrgId = trim((string)($scope['orgId'] ?? $scope['org_id'] ?? ''));
+                if ($scopeOrgId !== '') {
+                    $orgIds[] = $scopeOrgId;
+                }
+            }
+        }
+
+        $payload['data_scope_org_ids'] = $this->expandOrgIds($orgIds);
+
+        return $payload;
+    }
+
+    private function needsAuthContextRefresh(array $payload): bool
+    {
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($scopes)) {
+            foreach ($scopes as $scope) {
+                if (is_array($scope) && array_key_exists('scopeCategory', $scope)) {
+                    return false;
+                }
+            }
+        }
+
+        $permissionCodes = $payload['permission_codes'] ?? $payload['permissionCodeList'] ?? [];
+
+        return is_array($permissionCodes) && $permissionCodes !== [];
+    }
+
+    private function needsLegacyOrgScopeFallback(array $payload): bool
+    {
+        if (empty($payload['data_scope_org_ids']) || !is_array($payload['data_scope_org_ids'])) {
+            return true;
+        }
+
+        $scopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (!is_array($scopes) || $scopes === []) {
+            return false;
+        }
+
+        foreach ($scopes as $scope) {
+            if (is_array($scope) && array_key_exists('scopeCategory', $scope)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function refreshAuthContext(array $payload): array
+    {
+        $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
+        if ($userId === '') {
+            return $payload;
+        }
+
+        $user = Db::name('sys_user')->where('ID', $userId)->find();
+        if (!is_array($user) || $user === []) {
+            return $payload;
+        }
+
+        $authContext = (new RbacService())->buildForUser($user);
+        foreach ([
+            'role_ids',
+            'role_codes',
+            'button_codes',
+            'mobile_button_codes',
+            'permission_codes',
+            'menu_ids',
+            'data_scope_org_ids',
+            'data_scopes',
+        ] as $key) {
+            $payload[$key] = $authContext[$key] ?? [];
+        }
+
+        $payload['tenant_id'] = (string)($user['TENANT_ID'] ?? ($payload['tenant_id'] ?? ''));
+        $payload['account'] = $user['ACCOUNT'] ?? ($payload['account'] ?? null);
+        $payload['name'] = $user['NAME'] ?? ($payload['name'] ?? null);
+        $payload['org_id'] = $user['ORG_ID'] ?? ($payload['org_id'] ?? null);
+
+        return $payload;
+    }
+
+    /**
+     * @param array<int, string> $orgIds
+     * @return array<int, string>
+     */
+    private function expandOrgIds(array $orgIds): array
+    {
+        $seen = [];
+        $queue = [];
+        foreach ($orgIds as $orgId) {
+            $orgId = trim((string)$orgId);
+            if ($orgId === '' || isset($seen[$orgId])) {
+                continue;
+            }
+            $seen[$orgId] = true;
+            $queue[] = $orgId;
+        }
+
+        while ($queue !== []) {
+            $children = Db::name('sys_org')
+                ->whereIn('PARENT_ID', $queue)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', 'NOT_DELETE');
+                })
+                ->column('ID');
+
+            $queue = [];
+            foreach ($children as $childId) {
+                $childId = trim((string)$childId);
+                if ($childId === '' || isset($seen[$childId])) {
+                    continue;
+                }
+                $seen[$childId] = true;
+                $queue[] = $childId;
+            }
+        }
+
+        return array_keys($seen);
     }
 
     /**

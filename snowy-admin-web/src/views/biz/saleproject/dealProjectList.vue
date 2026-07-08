@@ -130,8 +130,8 @@
 			:row-key="(record) => record.id"
 			:tool-config="toolConfig"
 		>
-			<template #operator class="table-operator">
-				<a-space>
+			<template #operator>
+				<a-space class="table-operator">
 					<a-button type="primary" @click="formRef.onOpen()" v-if="hasPerm('bizSaleProjectAdd')">
 						<template #icon>
 							<plus-outlined />
@@ -570,8 +570,7 @@
 			Object.assign(parameter, searchFormParam, {
 				sortOrder: 'descend',
 				sortField: 'completionDate',
-				projectState: 'SHIPPED,PARTIALLY_SHIPPED,WAIT_DELIVER,COMPLETED',
-				specialType: 'PUBLIC_FOR_ReturnAndRefund'
+				projectState: 'SHIPPED,PARTIALLY_SHIPPED,WAIT_DELIVER,COMPLETED'
 			})
 		)
 		const processInfo = await bizProcessApi.bizProcessQuery({

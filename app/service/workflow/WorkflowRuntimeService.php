@@ -42,6 +42,12 @@ class WorkflowRuntimeService
     private const STATUS_AGREE = 'AGREE';
     private const STATUS_REJECT = 'REJECT';
     private const STATUS_CANCEL = 'cancel';
+    private const ACTIVITY_RESULT_VARIABLES = [
+        'approval' => true,
+        'comment' => true,
+        'state' => true,
+        'status' => true,
+    ];
     private const LEAVE_END_EVENT = 'Event_0kb2f2q';
     private const NOT_DELETE = 'NOT_DELETE';
     private const LEAVE_CATEGORY_ANNUAL = 'annualLeave';
@@ -208,6 +214,20 @@ class WorkflowRuntimeService
             'user' => $assignee,
         ]);
 
+        $afterStart = null;
+        if ($processKey === self::PROCESS_PROCURE) {
+            $afterStart = function (string $processInstanceId, array $startedVariables, string $_now) use ($tenantId, $currentUserId): array {
+                return [
+                    'purchaseOrder' => $this->purchaseOrderService->purchaseOrderFromWorkflow(
+                        $startedVariables,
+                        $processInstanceId,
+                        $tenantId,
+                        $currentUserId
+                    ),
+                ];
+            };
+        }
+
         return $this->startInitialApprovalProcess(
             $processKey,
             $currentUserId,
@@ -218,7 +238,9 @@ class WorkflowRuntimeService
             $assignee,
             $title,
             $variables,
-            $this->firstApprovalTaskName($processKey)
+            $this->firstApprovalTaskName($processKey),
+            [],
+            $afterStart
         );
     }
 
@@ -316,6 +338,12 @@ class WorkflowRuntimeService
         $this->requiredPositiveInputDecimal($input, 'amount');
 
         $project = $this->saleProjectService->workflowProjectStartInfo($projectId, $payload, $tenantId);
+        $this->saleProjectService->assertProjectPaymentAmountWithinRemaining(
+            $projectId,
+            $input['amount'] ?? null,
+            $project,
+            $tenantId
+        );
         $assignee = $approveUserIds[0];
         $starterName = trim((string)($starter['NAME'] ?? $payload['name'] ?? $currentUserId));
         $projectName = trim((string)($project['PROJECT_NAME'] ?? $projectId));
@@ -595,7 +623,8 @@ class WorkflowRuntimeService
         string $title,
         array $variables,
         string $taskName,
-        array $extraResponse = []
+        array $extraResponse = [],
+        ?callable $afterStart = null
     ): array {
         return Db::transaction(function () use (
             $processKey,
@@ -608,7 +637,8 @@ class WorkflowRuntimeService
             $title,
             $variables,
             $taskName,
-            $extraResponse
+            $extraResponse,
+            $afterStart
         ): array {
             $definition = $this->processDefinition($processKey);
             $definitionId = (string)$definition['ID_'];
@@ -762,6 +792,8 @@ class WorkflowRuntimeService
                 $processKey
             );
 
+            $afterStartResponse = $afterStart === null ? [] : $afterStart($processInstanceId, $variables, $now);
+
             return array_merge([
                 'id' => $processInstanceId,
                 'processInstanceId' => $processInstanceId,
@@ -773,7 +805,7 @@ class WorkflowRuntimeService
                 'status' => self::STATUS_PROGRESS,
                 'ccRecordCount' => $ccRecordCount,
                 'fileRelationCount' => $fileRelationCount,
-            ], $extraResponse);
+            ], $extraResponse, $afterStartResponse);
         });
     }
 
@@ -2225,11 +2257,6 @@ class WorkflowRuntimeService
             throw new RuntimeException('missing leave tenantId', 400);
         }
 
-        $objectId = trim((string)($variables['objectId'] ?? ''));
-        if (strlen($objectId) > 20) {
-            throw new RuntimeException('objectId is too long', 400);
-        }
-
         $this->assertNoOverlappingLeave($initiator, $startTime, $endTime, $effectiveTenantId, $processInstanceId);
 
         $row = [
@@ -2242,8 +2269,11 @@ class WorkflowRuntimeService
             'END_TIME' => $endTime,
             'DELETE_FLAG' => self::NOT_DELETE,
             'TENANT_ID' => $effectiveTenantId,
-            'OBJECT_ID' => $objectId,
         ];
+        $objectId = trim((string)($variables['objectId'] ?? ''));
+        if ($this->leaveHasObjectIdColumn() && strlen($objectId) <= 20) {
+            $row['OBJECT_ID'] = $objectId;
+        }
 
         $existing = Db::name('biz_leave_application')
             ->where('PROCESS_ID', $processInstanceId)
@@ -2457,9 +2487,63 @@ class WorkflowRuntimeService
                     });
             });
 
-        if ($query->count() > 0) {
-            throw new RuntimeException('user already has leave in this time range', 400);
+        $rows = $query->field('ID,PROCESS_ID')->lock(true)->select()->toArray();
+        foreach ($rows as $row) {
+            if ($this->leaveApplicationBlocksTimeRange($row['PROCESS_ID'] ?? null)) {
+                throw new RuntimeException('user already has leave in this time range', 400);
+            }
         }
+    }
+
+    private function leaveApplicationBlocksTimeRange(mixed $processId): bool
+    {
+        $processId = trim((string)$processId);
+        if ($processId === '') {
+            return true;
+        }
+
+        $rows = Db::name('act_hi_varinst')
+            ->where('PROC_INST_ID_', $processId)
+            ->whereIn('NAME_', ['approval', 'cancel', 'state', 'status'])
+            ->field('NAME_,VAR_TYPE_,LONG_,TEXT_,TEXT2_')
+            ->select()
+            ->toArray();
+        if ($rows === []) {
+            return true;
+        }
+
+        $variables = [];
+        foreach ($rows as $row) {
+            $name = (string)($row['NAME_'] ?? '');
+            if ($name === '') {
+                continue;
+            }
+            $variables[$name] = $this->historyVariableValue($row);
+        }
+
+        $status = strtoupper(trim((string)($variables['status'] ?? '')));
+        $state = strtoupper(trim((string)($variables['state'] ?? '')));
+        if (in_array($status, ['REJECT', 'CANCEL', 'CANCELED', 'CANCELLED'], true)
+            || in_array($state, ['REJECT', 'CANCEL', 'CANCELED', 'CANCELLED'], true)
+            || ($variables['cancel'] ?? false) === true
+            || (($variables['approval'] ?? null) === false && ($status !== '' || $state !== ''))) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private function leaveHasObjectIdColumn(): bool
+    {
+        static $hasColumn = null;
+        if ($hasColumn !== null) {
+            return $hasColumn;
+        }
+
+        $columns = Db::query("SHOW COLUMNS FROM `biz_leave_application` LIKE 'OBJECT_ID'");
+        $hasColumn = $columns !== [];
+
+        return $hasColumn;
     }
 
     /**
@@ -2678,9 +2762,13 @@ class WorkflowRuntimeService
     ): void {
         foreach ($variables as $name => $value) {
             $columns = $this->variableColumns($value, $name)['history'];
-            $existing = Db::name('act_hi_varinst')
+            $existingQuery = Db::name('act_hi_varinst')
                 ->where('PROC_INST_ID_', $processInstanceId)
-                ->where('NAME_', $name)
+                ->where('NAME_', $name);
+            if ($activityInstanceId !== '' && $this->isActivityResultVariable((string)$name)) {
+                $existingQuery->where('ACT_INST_ID_', $activityInstanceId);
+            }
+            $existing = $existingQuery
                 ->order('CREATE_TIME_', 'asc')
                 ->order('ID_', 'asc')
                 ->find();
@@ -2708,6 +2796,11 @@ class WorkflowRuntimeService
                 'REMOVAL_TIME_' => null,
             ], $columns));
         }
+    }
+
+    private function isActivityResultVariable(string $name): bool
+    {
+        return isset(self::ACTIVITY_RESULT_VARIABLES[$name]);
     }
 
     /**

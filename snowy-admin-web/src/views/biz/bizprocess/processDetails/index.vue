@@ -364,10 +364,12 @@
 				return !imgSuffix.includes(v.suffix)
 			})
 
-			if (taskId) {
-				await loadTaskForm(taskId).then()
+			const currentTaskId = taskId || result.currentTask?.taskId || result.currentTaskId
+			if (currentTaskId) {
+				await loadTaskForm(currentTaskId).then()
 			} else {
 				showTaskForm.value = false
+				taskDetail.value = {}
 			}
 		} catch (e) {
 			console.error(e)

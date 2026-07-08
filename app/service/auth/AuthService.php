@@ -100,7 +100,10 @@ class AuthService
             'mobileButtonCodeList' => $payload['mobile_button_codes'] ?? [],
             'permissionCodeList' => $payload['permission_codes'] ?? [],
             'menuIdList' => $payload['menu_ids'] ?? [],
-            'dataScopeList' => $payload['data_scopes'] ?? [],
+            'dataScopeOrgIdList' => $payload['data_scope_org_ids'] ?? [],
+            // Data scopes are kept in the token payload for backend filtering.
+            // Sending them to the browser can exceed localStorage limits during login.
+            'dataScopeList' => [],
         ]);
     }
 

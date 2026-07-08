@@ -48,7 +48,7 @@
 					</a-typography-link>
 				</template>
 				<template v-if="column.dataIndex === 'category'">
-					{{ $TOOL.dictTypeDataByPath('APPROVAL_PROCESS', 'TASK_CATEGORY', record.category) }}
+					{{ $TOOL.dictTypeDataByPath('APPROVAL_PROCESS', 'progress_category', record.category) }}
 				</template>
 				<template v-if="column.dataIndex === 'status'">
 					<a-tag :color="$TOOL.dictTypeDataByPath('APPROVAL_PROCESS', 'progress_state_color', record.status)">
@@ -56,7 +56,7 @@
 					</a-tag>
 				</template>
 				<template v-if="column.dataIndex === 'amount'">
-					{{ record.variable.amount ? record.variable.amount : '--' }}
+					{{ record.amount ?? record.variable?.amount ?? '--' }}
 				</template>
 			</template>
 		</s-table>

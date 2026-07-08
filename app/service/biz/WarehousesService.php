@@ -326,19 +326,34 @@ class WarehousesService
     private function warehouseRows(array $rows): array
     {
         $ownerNames = $this->ownerNames($rows);
+        $creatorNames = $this->userNames($rows, 'CREATE_USER', 'createUser');
+        $updaterNames = $this->userNames($rows, 'UPDATE_USER', 'updateUser');
         $orgNames = $this->orgNames($rows);
 
-        return array_map(fn (array $row): array => $this->warehouseRow($row, $ownerNames, $orgNames), $rows);
+        return array_map(
+            fn (array $row): array => $this->warehouseRow($row, $ownerNames, $orgNames, $creatorNames, $updaterNames),
+            $rows
+        );
     }
 
     /**
      * @param array<string, string> $ownerNames
      * @param array<string, string> $orgNames
+     * @param array<string, string> $creatorNames
+     * @param array<string, string> $updaterNames
      */
-    private function warehouseRow(array $row, array $ownerNames = [], array $orgNames = []): array
+    private function warehouseRow(
+        array $row,
+        array $ownerNames = [],
+        array $orgNames = [],
+        array $creatorNames = [],
+        array $updaterNames = []
+    ): array
     {
         $userId = $this->value($row, 'USER', 'user');
         $orgId = $this->value($row, 'ORG', 'org');
+        $createUser = $this->value($row, 'CREATE_USER', 'createUser');
+        $updateUser = $this->value($row, 'UPDATE_USER', 'updateUser');
 
         return [
             'id' => $this->value($row, 'ID', 'id'),
@@ -353,9 +368,15 @@ class WarehousesService
             'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
             'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
             'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
-            'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
+            'createUser' => $createUser,
+            'createUserName' => $createUser !== null
+                ? ($creatorNames[(string)$createUser] ?? $this->value($row, 'createUserName'))
+                : $this->value($row, 'createUserName'),
             'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
-            'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
+            'updateUser' => $updateUser,
+            'updateUserName' => $updateUser !== null
+                ? ($updaterNames[(string)$updateUser] ?? $this->value($row, 'updateUserName'))
+                : $this->value($row, 'updateUserName'),
             'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
         ];
     }
@@ -366,8 +387,17 @@ class WarehousesService
      */
     private function ownerNames(array $rows): array
     {
+        return $this->userNames($rows, 'USER', 'user');
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<string, string>
+     */
+    private function userNames(array $rows, string $upperKey, string $lowerKey): array
+    {
         $userIds = array_values(array_unique(array_filter(array_map(
-            static fn (array $row): string => (string)($row['USER'] ?? $row['user'] ?? ''),
+            static fn (array $row): string => (string)($row[$upperKey] ?? $row[$lowerKey] ?? ''),
             $rows
         ))));
         if ($userIds === []) {

@@ -314,7 +314,7 @@ Assert-FirstRecordIfPresent -Json $taskPage -Name 'biz task page' -Keys @('id', 
 
 $taskHistoryPage = Invoke-RawGet -Url "$baseUrl/biz/task/history/page?current=1&size=1" -Token $token
 Assert-PagedShape -Json $taskHistoryPage -Name 'biz task history page'
-Assert-FirstRecordIfPresent -Json $taskHistoryPage -Name 'biz task history page' -Keys @('id', 'taskId', 'instanceId', 'processInstanceId', 'processId', 'variable')
+Assert-WorkflowProcessRowIfPresent -Json $taskHistoryPage -Name 'biz task history page'
 
 $processPage = Invoke-RawGet -Url "$baseUrl/biz/process/page?current=1&size=1" -Token $token
 Assert-PagedShape -Json $processPage -Name 'biz process page'

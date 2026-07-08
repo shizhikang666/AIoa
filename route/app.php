@@ -65,8 +65,8 @@ Route::group('sys/userCenter', function () {
     Route::get('loginWorkbench', 'sys.UserCenterController/loginWorkbench');
     Route::get('loginUnreadMessagePage', 'sys.UserCenterController/loginUnreadMessagePage');
     Route::get('loginUnreadMessageDetail', 'sys.UserCenterController/loginUnreadMessageDetail');
-    Route::post('process/config', 'sys.UserCenterController/processConfig');
     Route::post('process/config/edit', 'sys.UserCenterController/editProcessConfig');
+    Route::post('process/config', 'sys.UserCenterController/processConfig');
     Route::post('updatePassword', 'sys.UserCenterController/updatePassword');
     Route::post('updateAvatar', 'sys.UserCenterController/updateAvatar');
     Route::post('updateSignature', 'sys.UserCenterController/updateSignature');

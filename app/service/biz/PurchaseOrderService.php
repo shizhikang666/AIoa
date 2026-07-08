@@ -454,6 +454,15 @@ SQL;
         string $operatorUserId
     ): array {
         return Db::transaction(function () use ($input, $processInstanceId, $tenantId, $operatorUserId): array {
+            $productList = $this->workflowPurchaseProductList($input['productList'] ?? null, false);
+            $productIds = array_values(array_unique(array_map(static fn (array $item): string => $item['productId'], $productList)));
+            if ($productIds !== []) {
+                $this->assertProductsExist($productIds, $tenantId);
+            }
+            $amount = array_key_exists('amount', $input)
+                ? $this->nonNegativeDecimal($input['amount'], 'amount')
+                : $this->productAmountTotal($productList);
+
             $existing = Db::name('biz_purchase_order')
                 ->where('INSTANCE_ID', $processInstanceId)
                 ->where(function ($query): void {
@@ -469,14 +478,36 @@ SQL;
                     })
                     ->count();
 
+                $updatedItems = 0;
+                if ($productList !== [] && (int)$itemCount === 0) {
+                    $now = date('Y-m-d H:i:s');
+                    $updatedItems = $this->insertWorkflowPurchaseOrderItems(
+                        $orderId,
+                        $productList,
+                        (string)($existing['TENANT_ID'] ?? $tenantId),
+                        $operatorUserId,
+                        $now
+                    );
+                    Db::name('biz_purchase_order')
+                        ->where('ID', $orderId)
+                        ->update([
+                            'AMOUNT' => $amount,
+                            'UPDATE_TIME' => $now,
+                            'UPDATE_USER' => $operatorUserId !== '' ? $operatorUserId : null,
+                            'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+                        ]);
+                    $itemCount = $updatedItems;
+                }
+
                 return [
                     'id' => $orderId,
                     'instanceId' => $processInstanceId,
                     'settlementStatus' => (string)($existing['SETTLEMENT_STATUS'] ?? self::SETTLEMENT_NOT_COMPLETED),
                     'storageStatus' => (string)($existing['STORAGE_STATUS'] ?? self::STORAGE_NOT_IN_WAREHOUSE),
-                    'amount' => $this->decimal($existing['AMOUNT'] ?? null),
+                    'amount' => $updatedItems > 0 ? $this->decimal($amount) : $this->decimal($existing['AMOUNT'] ?? null),
                     'itemCount' => (int)$itemCount,
                     'existing' => true,
+                    'updatedItems' => $updatedItems,
                 ];
             }
 
@@ -484,12 +515,13 @@ SQL;
             $supplier = $this->workflowObject($input['supplier'] ?? null, 'supplier');
             $supplierId = $this->workflowOptionalString($supplier['id'] ?? $supplier['ID'] ?? null, 20) ?? '';
             $desirePurchaseDate = $this->workflowDate($input['desirePurchaseDate'] ?? null, 'desirePurchaseDate');
-            $amount = $this->nonNegativeDecimal($input['amount'] ?? null, 'amount');
             $remark = $this->workflowOptionalString($input['remark'] ?? null, 65535);
             $org = $this->workflowOptionalString($input['org'] ?? null, 20);
-            $productList = $this->workflowPurchaseProductList($input['productList'] ?? null);
-            $productIds = array_values(array_unique(array_map(static fn (array $item): string => $item['productId'], $productList)));
-            $this->assertProductsExist($productIds, $tenantId);
+            $productInfoList = $this->workflowOptionalArrayValue($input['productInfoList'] ?? null, 'productInfoList');
+            $extJson = ['supplier' => $supplier];
+            if ($productInfoList !== []) {
+                $extJson['productInfoList'] = $productInfoList;
+            }
 
             $now = date('Y-m-d H:i:s');
             $orderId = $this->newId();
@@ -503,7 +535,7 @@ SQL;
                 'DESIRE_PURCHASE_DATE' => $desirePurchaseDate,
                 'AMOUNT' => $amount,
                 'REMARK' => $remark,
-                'EXT_JSON' => json_encode(['supplier' => $supplier], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'EXT_JSON' => json_encode($extJson, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 'DELETE_FLAG' => self::NOT_DELETE,
                 'CREATE_TIME' => $now,
                 'CREATE_USER' => $operatorUserId !== '' ? $operatorUserId : null,
@@ -514,31 +546,7 @@ SQL;
                 'ORG' => $org,
             ]);
 
-            $itemRows = [];
-            foreach ($productList as $item) {
-                $itemRows[] = [
-                    'ID' => $this->newId(),
-                    'PURCHASE_ORDER_ID' => $orderId,
-                    'STORAGE_STATUS' => self::STORAGE_NOT_IN_WAREHOUSE,
-                    'PRODUCT_ID' => $item['productId'],
-                    'AMOUNT' => $item['amount'],
-                    'NUMBER' => $item['number'],
-                    'UNIT_AMOUNT' => $item['unitAmount'],
-                    'DISCOUNT_RATE' => $item['discountRate'],
-                    'REMARK' => $item['remark'],
-                    'EXT_JSON' => null,
-                    'DELETE_FLAG' => self::NOT_DELETE,
-                    'CREATE_TIME' => $now,
-                    'CREATE_USER' => $operatorUserId !== '' ? $operatorUserId : null,
-                    'UPDATE_TIME' => null,
-                    'UPDATE_USER' => null,
-                    'TENANT_ID' => $tenantId,
-                    'VERSION' => 0,
-                    'FREIGHT_SHARE_AMOUNT' => '0',
-                    'UNIT_COST_WITH_FREIGHT' => '0',
-                ];
-            }
-            Db::name('biz_purchase_order_item')->insertAll($itemRows);
+            $itemCount = $this->insertWorkflowPurchaseOrderItems($orderId, $productList, $tenantId, $operatorUserId, $now);
 
             return [
                 'id' => $orderId,
@@ -547,10 +555,53 @@ SQL;
                 'storageStatus' => self::STORAGE_NOT_IN_WAREHOUSE,
                 'amount' => $this->decimal($amount),
                 'supplierId' => $supplierId,
-                'itemCount' => count($itemRows),
+                'itemCount' => $itemCount,
                 'existing' => false,
             ];
         });
+    }
+
+    /**
+     * @param array<int, array{productId: string, amount: string, number: int, unitAmount: string, discountRate: string, remark: ?string}> $productList
+     */
+    private function insertWorkflowPurchaseOrderItems(
+        string $orderId,
+        array $productList,
+        string $tenantId,
+        string $operatorUserId,
+        string $now
+    ): int {
+        if ($productList === []) {
+            return 0;
+        }
+
+        $itemRows = [];
+        foreach ($productList as $item) {
+            $itemRows[] = [
+                'ID' => $this->newId(),
+                'PURCHASE_ORDER_ID' => $orderId,
+                'STORAGE_STATUS' => self::STORAGE_NOT_IN_WAREHOUSE,
+                'PRODUCT_ID' => $item['productId'],
+                'AMOUNT' => $item['amount'],
+                'NUMBER' => $item['number'],
+                'UNIT_AMOUNT' => $item['unitAmount'],
+                'DISCOUNT_RATE' => $item['discountRate'],
+                'REMARK' => $item['remark'],
+                'EXT_JSON' => null,
+                'DELETE_FLAG' => self::NOT_DELETE,
+                'CREATE_TIME' => $now,
+                'CREATE_USER' => $operatorUserId !== '' ? $operatorUserId : null,
+                'UPDATE_TIME' => null,
+                'UPDATE_USER' => null,
+                'TENANT_ID' => $tenantId,
+                'VERSION' => 0,
+                'FREIGHT_SHARE_AMOUNT' => '0',
+                'UNIT_COST_WITH_FREIGHT' => '0',
+            ];
+        }
+        Db::name('biz_purchase_order_item')->insertAll($itemRows);
+
+        return count($itemRows);
     }
 
     private function workflowRequiredString(mixed $value, string $field, int $maxLength): string
@@ -587,6 +638,15 @@ SQL;
 
     private function workflowDate(mixed $value, string $field): string
     {
+        if (is_array($value) && ($value['__workflow_type'] ?? null) === 'date') {
+            $millis = $value['millis'] ?? null;
+            if ($millis === null || $millis === '' || !is_numeric($millis)) {
+                throw new RuntimeException("invalid {$field}", 400);
+            }
+
+            return date('Y-m-d H:i:s', intdiv((int)$millis, 1000));
+        }
+
         $text = $this->workflowRequiredString($value, $field, 40);
         if (is_numeric($text)) {
             $raw = (int)$text;
@@ -661,8 +721,12 @@ SQL;
     /**
      * @return array<int, array{productId: string, amount: string, number: int, unitAmount: string, discountRate: string, remark: ?string}>
      */
-    private function workflowPurchaseProductList(mixed $value): array
+    private function workflowPurchaseProductList(mixed $value, bool $required = true): array
     {
+        if (!$required && ($value === null || $value === '' || $value === [])) {
+            return [];
+        }
+
         $items = $this->workflowArrayList($value, 'productList');
         $normalized = [];
         foreach ($items as $index => $item) {
@@ -683,6 +747,28 @@ SQL;
         }
 
         return $normalized;
+    }
+
+    /**
+     * @return array<int|string, mixed>
+     */
+    private function workflowOptionalArrayValue(mixed $value, string $field): array
+    {
+        if ($value === null || $value === '') {
+            return [];
+        }
+        if (is_string($value)) {
+            $decoded = json_decode($value, true);
+            if (!is_array($decoded)) {
+                throw new RuntimeException("invalid {$field}", 400);
+            }
+            return $decoded;
+        }
+        if (!is_array($value)) {
+            throw new RuntimeException("invalid {$field}", 400);
+        }
+
+        return $value;
     }
 
     private function positiveInteger(mixed $value, string $field): int

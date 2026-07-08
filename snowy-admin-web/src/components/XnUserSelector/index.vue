@@ -559,7 +559,9 @@
 		}
 	}
 	const getUserAvatarById = (ids) => {
-		if (isEmpty(userObj.value) && !isEmpty(ids)) {
+		ids = Array.isArray(ids) ? ids : [ids].filter(Boolean)
+		const currentIds = userObj.value.map((user) => user.id)
+		if (!isEmpty(ids) && currentIds.join(',') !== ids.join(',')) {
 			const param = {
 				idList: recordIds.value
 			}

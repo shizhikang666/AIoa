@@ -145,8 +145,6 @@
 	import detail from '@/views/biz/saleproject/detail.vue'
 	import { Decimal } from 'decimal.js'
 
-	import settlementAccountApi from '@/api/biz/settlementAccountApi'
-
 	const processInfo = ref({
 		productList: []
 	})
@@ -216,6 +214,7 @@
 				'projectId',
 				'remark',
 				'accountId',
+				'accountName',
 				'initPrice',
 				'payerCategory',
 				'consignee',
@@ -238,9 +237,7 @@
 			processInfo.value = result
 			const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
 			projectBaseInfo.value = details.bizSaleProject
-			processInfo.value.accountName = await settlementAccountApi.settlementAccountName({
-				id: processInfo.value.accountId
-			})
+			processInfo.value.accountName = result.accountName || result.accountId
 			invoicingInfo.value = processInfo.value.invoicingInfo
 		} catch (e) {
 			error.value = true

@@ -71,14 +71,13 @@ class WorkflowQueryService
     public function historyTaskPage(string $userId, array $filters = []): array
     {
         [$page, $limit] = $this->pagination($filters);
-        $total = $this->historyTaskQuery($userId, $filters)->count();
-        $records = $this->taskRows(
-            $this->historyTaskQuery($userId, $filters)
-                ->order(['END_TIME_' => 'desc', 'START_TIME_' => 'desc', 'ID_' => 'desc'])
+        $total = $this->historyProcessQueryForUser($userId, $filters)->count();
+        $records = $this->historicProcessRows(
+            $this->historyProcessQueryForUser($userId, $filters)
+                ->order($this->historyProcessSort($filters))
                 ->page($page, $limit)
                 ->select()
-                ->toArray(),
-            false
+                ->toArray()
         );
 
         return [
@@ -115,7 +114,7 @@ class WorkflowQueryService
         ];
     }
 
-    public function processDetail(string $processInstanceId): array
+    public function processDetail(string $processInstanceId, string $currentUserId = ''): array
     {
         $process = ActHiProcinst::where('PROC_INST_ID_', $processInstanceId)->find();
         $activities = ActHiActinst::where('PROC_INST_ID_', $processInstanceId)
@@ -126,9 +125,11 @@ class WorkflowQueryService
             ->order(['TIME_' => 'asc', 'ID_' => 'asc'])
             ->select()
             ->toArray();
+        $activityVariables = $this->activityVariableMap($processInstanceId);
         $processRow = $process ? $process->toArray() : ['ID_' => $processInstanceId, 'PROC_INST_ID_' => $processInstanceId];
         $variables = $this->variableService->historyByProcessInstance($processInstanceId);
         $userProcess = $this->processRow($processRow, $variables);
+        $currentTask = $this->currentRuntimeTask($processInstanceId, $currentUserId);
 
         return [
             'process' => $process ? $processRow : null,
@@ -138,8 +139,10 @@ class WorkflowQueryService
             'userProcess' => $userProcess,
             'startUser' => $this->userById((string)($userProcess['startUserId'] ?? $variables['initiator'] ?? '')),
             'startOrgTree' => $this->orgTree((string)($variables['org'] ?? '')),
-            'userActivityList' => $this->userActivityList($activities, $comments),
+            'userActivityList' => $this->userActivityList($activities, $comments, $activityVariables),
             'ccUser' => $this->usersByIds($this->arrayValue($variables['ccUserIdList'] ?? $variables['copyUserIdList'] ?? [])),
+            'currentTask' => $currentTask,
+            'currentTaskId' => $currentTask['taskId'] ?? null,
         ];
     }
 
@@ -292,19 +295,137 @@ class WorkflowQueryService
         return $query;
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function currentRuntimeTask(string $processInstanceId, string $userId): ?array
+    {
+        $processInstanceId = trim($processInstanceId);
+        $userId = trim($userId);
+        if ($processInstanceId === '' || $userId === '') {
+            return null;
+        }
+
+        $task = ActRuTask::where('PROC_INST_ID_', $processInstanceId)
+            ->where('ASSIGNEE_', $userId)
+            ->order(['CREATE_TIME_' => 'asc', 'ID_' => 'asc'])
+            ->find();
+        if (!$task) {
+            return null;
+        }
+
+        $taskRow = $task->toArray();
+        $taskId = (string)($taskRow['ID_'] ?? '');
+        if ($taskId === '') {
+            return null;
+        }
+
+        return [
+            'id' => $taskId,
+            'taskId' => $taskId,
+            'name' => $taskRow['NAME_'] ?? null,
+            'category' => $taskRow['TASK_DEF_KEY_'] ?? null,
+            'taskDefinitionKey' => $taskRow['TASK_DEF_KEY_'] ?? null,
+            'processKey' => $this->definitionKey((string)($taskRow['PROC_DEF_ID_'] ?? '')),
+            'processInstanceId' => $taskRow['PROC_INST_ID_'] ?? $processInstanceId,
+            'processDefinitionId' => $taskRow['PROC_DEF_ID_'] ?? null,
+            'createTime' => $taskRow['CREATE_TIME_'] ?? null,
+        ];
+    }
+
     private function historyTaskQuery(string $userId, array $filters)
     {
-        $query = ActHiTaskinst::where('ASSIGNEE_', $userId);
+        $query = ActHiTaskinst::where('ASSIGNEE_', $userId)
+            ->whereNotNull('END_TIME_');
 
         if (!empty($filters['processInstanceId'])) {
             $query->where('PROC_INST_ID_', (string)$filters['processInstanceId']);
         }
 
-        if (!empty($filters['processKey'])) {
-            $query->where('PROC_DEF_KEY_', (string)$filters['processKey']);
+        $processKey = trim((string)($filters['processKey'] ?? $filters['category'] ?? ''));
+        if ($processKey !== '') {
+            $query->where('PROC_DEF_KEY_', $processKey);
         }
 
         return $query;
+    }
+
+    private function historyProcessQueryForUser(string $userId, array $filters)
+    {
+        $processIds = $this->historyProcessIdsForUser($userId);
+        $query = ActHiProcinst::where([]);
+        if ($processIds === []) {
+            $query->whereRaw('1=0');
+            return $query;
+        }
+
+        $query->whereIn('PROC_INST_ID_', $processIds);
+
+        if (!empty($filters['processInstanceId'])) {
+            $query->where('PROC_INST_ID_', (string)$filters['processInstanceId']);
+        }
+
+        $processKey = trim((string)($filters['processKey'] ?? $filters['category'] ?? $filters['processCategory'] ?? ''));
+        if ($processKey !== '') {
+            $query->where('PROC_DEF_KEY_', $processKey);
+        }
+
+        if (!empty($filters['tenantId'])) {
+            $query->where('TENANT_ID_', (string)$filters['tenantId']);
+        }
+
+        if (!empty($filters['state'])) {
+            $query->where('STATE_', (string)$filters['state']);
+        }
+
+        $this->applyTimeRange($query, $filters, 'START_TIME_', 'startCreateTime', 'endCreateTime');
+        $this->applyHistoryVariableLike($query, 'title', $filters['title'] ?? null);
+        $this->applyHistoryVariableLike($query, 'amount', $filters['amount'] ?? null);
+
+        return $query;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function historyProcessIdsForUser(string $userId): array
+    {
+        $userId = trim($userId);
+        if ($userId === '') {
+            return [];
+        }
+
+        $processIds = [];
+        foreach ([
+            ActHiTaskinst::where('ASSIGNEE_', $userId)->column('PROC_INST_ID_'),
+            ActRuTask::where('ASSIGNEE_', $userId)->column('PROC_INST_ID_'),
+            ActHiProcinst::where('START_USER_ID_', $userId)->column('PROC_INST_ID_'),
+        ] as $ids) {
+            foreach ($ids as $id) {
+                $id = trim((string)$id);
+                if ($id !== '') {
+                    $processIds[] = $id;
+                }
+            }
+        }
+
+        return array_values(array_unique($processIds));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function historyProcessSort(array $filters): array
+    {
+        $field = trim((string)($filters['sortField'] ?? ''));
+        $order = strtolower(trim((string)($filters['sortOrder'] ?? 'descend'))) === 'ascend' ? 'asc' : 'desc';
+        $column = match ($field) {
+            'endTime', 'finishTime', 'completeTime' => 'END_TIME_',
+            'createTime', 'startTime' => 'START_TIME_',
+            default => 'START_TIME_',
+        };
+
+        return [$column => $order, 'ID_' => $order];
     }
 
     private function startedProcessQuery(string $userId, array $filters)
@@ -460,6 +581,8 @@ class WorkflowQueryService
     {
         $processId = (string)($row['PROC_INST_ID_'] ?? $row['ID_'] ?? '');
         $processKey = (string)($row['PROC_DEF_KEY_'] ?? $this->definitionKey((string)($row['PROC_DEF_ID_'] ?? '')) ?? '');
+        $startUserId = trim((string)($row['START_USER_ID_'] ?? $variables['initiator'] ?? ''));
+        $startUser = $this->userById($startUserId);
 
         return array_merge($row, [
             'id' => $processId,
@@ -474,7 +597,10 @@ class WorkflowQueryService
             'createTime' => $row['START_TIME_'] ?? $row['CREATE_TIME_'] ?? null,
             'startTime' => $row['START_TIME_'] ?? $row['CREATE_TIME_'] ?? null,
             'endTime' => $row['END_TIME_'] ?? null,
-            'startUserId' => $row['START_USER_ID_'] ?? null,
+            'startUserId' => $startUserId !== '' ? $startUserId : null,
+            'promoterId' => $startUserId !== '' ? $startUserId : null,
+            'promoterName' => $startUser['name'] ?? null,
+            'startUserName' => $startUser['name'] ?? null,
             'variable' => $variables,
         ]);
     }
@@ -489,7 +615,10 @@ class WorkflowQueryService
         }
 
         return $this->variablesByProcess(
-            ActHiVarinst::whereIn('PROC_INST_ID_', $processIds)->select()->toArray()
+            ActHiVarinst::whereIn('PROC_INST_ID_', $processIds)
+                ->order(['CREATE_TIME_' => 'asc', 'ID_' => 'asc'])
+                ->select()
+                ->toArray()
         );
     }
 
@@ -503,7 +632,10 @@ class WorkflowQueryService
         }
 
         return $this->variablesByProcess(
-            ActRuVariable::whereIn('PROC_INST_ID_', $processIds)->select()->toArray()
+            ActRuVariable::whereIn('PROC_INST_ID_', $processIds)
+                ->order(['ID_' => 'asc'])
+                ->select()
+                ->toArray()
         );
     }
 
@@ -616,10 +748,38 @@ class WorkflowQueryService
 
     /**
      * @param array<int, array<string, mixed>> $activities
+     * @return array<string, array<string, mixed>>
+     */
+    private function activityVariableMap(string $processInstanceId): array
+    {
+        $rows = ActHiVarinst::where('PROC_INST_ID_', $processInstanceId)
+            ->whereIn('NAME_', ['approval', 'comment', 'state', 'status'])
+            ->order(['CREATE_TIME_' => 'asc', 'ID_' => 'asc'])
+            ->select()
+            ->toArray();
+
+        $grouped = [];
+        foreach ($rows as $row) {
+            $activityId = (string)($row['ACT_INST_ID_'] ?? '');
+            if ($activityId === '') {
+                continue;
+            }
+            $grouped[$activityId][] = $row;
+        }
+
+        foreach ($grouped as $activityId => $activityRows) {
+            $grouped[$activityId] = $this->variableService->normalizeMap($activityRows);
+        }
+
+        return $grouped;
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $comments
+     * @param array<string, array<string, mixed>> $activityVariables
      * @return array<int, array<string, mixed>>
      */
-    private function userActivityList(array $activities, array $comments): array
+    private function userActivityList(array $activities, array $comments, array $activityVariables = []): array
     {
         $commentsByTask = [];
         foreach ($comments as $comment) {
@@ -630,10 +790,17 @@ class WorkflowQueryService
             $commentsByTask[$taskId][] = $comment;
         }
 
-        return array_values(array_map(function (array $activity) use ($commentsByTask): array {
+        return array_values(array_map(function (array $activity) use ($commentsByTask, $activityVariables): array {
             $taskId = (string)($activity['TASK_ID_'] ?? '');
             $userId = (string)($activity['ASSIGNEE_'] ?? '');
             $comment = $commentsByTask[$taskId][0] ?? [];
+            $activityId = (string)($activity['ID_'] ?? '');
+            $form = $activityVariables[$activityId] ?? [];
+            $approval = $form['approval'] ?? null;
+            $state = $form['state'] ?? $form['status'] ?? null;
+            if ($state === null && is_bool($approval)) {
+                $state = $approval ? 'AGREE' : 'REJECT';
+            }
 
             return [
                 'category' => $activity['ACT_ID_'] ?? null,
@@ -642,7 +809,10 @@ class WorkflowQueryService
                     'taskId' => $taskId,
                     'bizUser' => $this->userById($userId),
                     'form' => [
-                        'comment' => $comment['MESSAGE_'] ?? null,
+                        'comment' => $comment['MESSAGE_'] ?? ($form['comment'] ?? null),
+                        'state' => $state,
+                        'status' => $form['status'] ?? $state,
+                        'approval' => $approval,
                     ],
                     'startTime' => $activity['START_TIME_'] ?? null,
                     'endTime' => $activity['END_TIME_'] ?? null,

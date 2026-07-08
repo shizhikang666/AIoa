@@ -17,6 +17,7 @@
 <script setup name="menuTreeSelect">
 	import tool from '@/utils/tool'
 	import { onMounted } from 'vue'
+	import { cloneDeep } from 'lodash-es'
 	const defaultSelectKeys = ref([])
 	const menu = ref([])
 
@@ -48,14 +49,14 @@
 		} else {
 			defaultSelectKeys.value = props.defaultSelectKeys
 		}
-		menu.value = traverseChildren(tool.data.get('MENU'))
+		menu.value = traverseChildren(cloneDeep(tool.data.get('MENU') || []))
 	})
 	// 遍历增加属性
 	const traverseChildren = (data = []) => {
 		// 递归遍历控件树
 		const traverse = (array) => {
 			array.forEach((element) => {
-				if (element.children) {
+				if (Array.isArray(element.children) && element.children.length > 0) {
 					// 设置支节点不可选择
 					element.selectable = false
 					traverse(element.children)
@@ -84,7 +85,7 @@
 						}
 					})
 				}
-				if (element.children) {
+				if (Array.isArray(element.children) && element.children.length > 0) {
 					traverse(element.children)
 				}
 			})
@@ -102,9 +103,12 @@
 	}
 	// 设置回显的数据
 	const setSelectData = (data) => {
-		defaultSelectKeys.value = data.map((m) => {
-			return m.id
-		})
+		const items = Array.isArray(data) ? data : []
+		defaultSelectKeys.value = items
+			.map((m) => {
+				return typeof m === 'object' && m !== null ? m.id : m
+			})
+			.filter(Boolean)
 	}
 	defineExpose({
 		getSelectData,

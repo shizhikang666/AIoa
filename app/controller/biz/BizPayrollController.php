@@ -7,6 +7,7 @@ namespace app\controller\biz;
 use app\controller\sys\BaseSysController;
 use app\service\biz\BizPayrollService;
 use app\support\ApiResponse;
+use app\support\DownloadResponseHeaders;
 use RuntimeException;
 use think\Request;
 use think\Response;
@@ -140,12 +141,12 @@ class BizPayrollController extends BaseSysController
         $filename = (string)($file['filename'] ?? 'download.xlsx');
         $content = (string)($file['content'] ?? '');
         $contentType = (string)($file['contentType'] ?? 'application/octet-stream');
-        $encodedFilename = rawurlencode($filename);
 
         return Response::create($content, 'html', 200)->header([
             'Content-Type' => $contentType,
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"; filename*=UTF-8\'\'' . $encodedFilename,
+            'Content-Disposition' => DownloadResponseHeaders::contentDisposition($filename),
             'Content-Length' => (string)strlen($content),
+            'Access-Control-Expose-Headers' => 'Content-Disposition',
             'Cache-Control' => 'no-store, no-cache, must-revalidate',
             'Pragma' => 'no-cache',
         ]);

@@ -45,6 +45,12 @@ export default defineConfig(({ command, mode }) => {
 					ws: false,
 					changeOrigin: true,
 					rewrite: (path) => path.replace(/^\/api/, '')
+				},
+				'/backend': {
+					target: envConfig.VITE_API_BASEURL,
+					ws: false,
+					changeOrigin: true,
+					rewrite: (path) => path.replace(/^\/backend/, '')
 				}
 			}
 		},

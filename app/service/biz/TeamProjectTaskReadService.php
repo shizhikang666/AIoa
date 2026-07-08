@@ -18,6 +18,8 @@ class TeamProjectTaskReadService
 
     private const TEAM_PROJECT_PERMISSION_CATEGORY = 'TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION';
 
+    private const MEMBER_PERMISSION_CODES = ['addComment'];
+
     private const CATEGORY_FIELDS = <<<SQL
 c.ID AS ID,
 c.TEAM_PROJECT_ID AS TEAM_PROJECT_ID,
@@ -565,7 +567,7 @@ SQL;
             $task = $this->activeTaskForWrite($taskId, $payload, 'edit task users');
             $teamProjectId = (string)$task['TEAM_PROJECT_ID'];
             $this->assertTaskAssignmentPermission($taskId, $teamProjectId, $payload);
-            $this->assertProjectUsers($teamProjectId, $userIds);
+            $this->ensureProjectUsers($teamProjectId, $userIds, $payload, $task);
 
             $currentRows = $this->activeTaskUserRows($taskId, $teamProjectId);
             $currentUserIds = [];
@@ -1542,6 +1544,141 @@ SQL;
         if ((int)$query->count() !== count($userIds)) {
             throw new RuntimeException('selected user is not a member of this team project', 400);
         }
+    }
+
+    /**
+     * @param array<int, string> $userIds
+     */
+    private function ensureProjectUsers(string $teamProjectId, array $userIds, array $payload, array $project): void
+    {
+        if ($userIds === []) {
+            return;
+        }
+
+        $query = Db::name('biz_team_project_user')
+            ->where('TEAM_PROJECT_ID', $teamProjectId)
+            ->whereIn('USER_ID', $userIds);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        $existingUserIds = array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $query->column('USER_ID')
+        ))));
+        $missingUserIds = array_values(array_diff($userIds, $existingUserIds));
+        if ($missingUserIds === []) {
+            return;
+        }
+
+        $this->assertUsersExist($missingUserIds);
+
+        $tenantId = $this->tenantIdFromProject($payload, $project);
+        $currentUserId = $this->currentUserId($payload);
+        $now = date('Y-m-d H:i:s');
+        $deletedRows = $this->deletedProjectMemberRowsByUser($teamProjectId, $missingUserIds);
+
+        foreach ($missingUserIds as $userId) {
+            $deletedRow = $deletedRows[$userId] ?? null;
+            if (is_array($deletedRow)) {
+                Db::name('biz_team_project_user')
+                    ->where('ID', (string)$deletedRow['ID'])
+                    ->update([
+                        'ROLE_TYPE' => 'MEMBER',
+                        'DELETE_FLAG' => self::NOT_DELETE,
+                        'UPDATE_TIME' => $now,
+                        'UPDATE_USER' => $currentUserId,
+                        'TENANT_ID' => $tenantId,
+                    ]);
+            } else {
+                Db::name('biz_team_project_user')->insert([
+                    'ID' => $this->newId(),
+                    'TEAM_PROJECT_ID' => $teamProjectId,
+                    'USER_ID' => $userId,
+                    'ROLE_TYPE' => 'MEMBER',
+                    'DELETE_FLAG' => self::NOT_DELETE,
+                    'CREATE_TIME' => $now,
+                    'CREATE_USER' => $currentUserId,
+                    'UPDATE_TIME' => null,
+                    'UPDATE_USER' => null,
+                    'TENANT_ID' => $tenantId,
+                ]);
+            }
+
+            $this->syncProjectMemberRelation($teamProjectId, $userId, $tenantId);
+        }
+    }
+
+    /**
+     * @param array<int, string> $userIds
+     */
+    private function assertUsersExist(array $userIds): void
+    {
+        if ($userIds === []) {
+            return;
+        }
+
+        $query = Db::name('sys_user')->whereIn('ID', $userIds);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ((int)$query->count() !== count($userIds)) {
+            throw new RuntimeException('selected user not found', 400);
+        }
+    }
+
+    /**
+     * @param array<int, string> $userIds
+     * @return array<string, array<string, mixed>>
+     */
+    private function deletedProjectMemberRowsByUser(string $teamProjectId, array $userIds): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        $rows = Db::name('biz_team_project_user')
+            ->where('TEAM_PROJECT_ID', $teamProjectId)
+            ->whereIn('USER_ID', $userIds)
+            ->where('DELETE_FLAG', self::DELETED)
+            ->select()
+            ->toArray();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $userId = (string)($row['USER_ID'] ?? '');
+            if ($userId !== '') {
+                $map[$userId] = $row;
+            }
+        }
+
+        return $map;
+    }
+
+    private function syncProjectMemberRelation(string $teamProjectId, string $userId, string $tenantId): void
+    {
+        $extJson = json_encode(self::MEMBER_PERMISSION_CODES, JSON_UNESCAPED_UNICODE);
+        $relation = Db::name('biz_relation')
+            ->where('OBJECT_ID', $teamProjectId)
+            ->where('TARGET_ID', $userId)
+            ->where('CATEGORY', self::TEAM_PROJECT_PERMISSION_CATEGORY)
+            ->find();
+
+        if (is_array($relation) && !empty($relation['ID'])) {
+            Db::name('biz_relation')
+                ->where('ID', (string)$relation['ID'])
+                ->update([
+                    'EXT_JSON' => $extJson,
+                    'TENANT_ID' => $tenantId,
+                ]);
+
+            return;
+        }
+
+        Db::name('biz_relation')->insert([
+            'ID' => $this->newId(),
+            'OBJECT_ID' => $teamProjectId,
+            'TARGET_ID' => $userId,
+            'CATEGORY' => self::TEAM_PROJECT_PERMISSION_CATEGORY,
+            'EXT_JSON' => $extJson,
+            'TENANT_ID' => $tenantId,
+        ]);
     }
 
     private function assertReplyMaintainer(array $reply, array $payload, string $action): void

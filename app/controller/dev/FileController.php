@@ -7,6 +7,7 @@ namespace app\controller\dev;
 use app\controller\sys\BaseSysController;
 use app\service\dev\FileService;
 use app\support\ApiResponse;
+use app\support\DownloadResponseHeaders;
 use RuntimeException;
 use Throwable;
 use think\Request;
@@ -273,11 +274,11 @@ class FileController extends BaseSysController
         $filename = (string)($file['filename'] ?? 'download');
         $content = (string)($file['content'] ?? '');
         $contentType = (string)($file['contentType'] ?? 'application/octet-stream;charset=UTF-8');
-        $encodedFilename = rawurlencode($filename);
+        $disposition = str_starts_with(strtolower($contentType), 'image/') ? 'inline' : 'attachment';
 
         $headers = [
             'Content-Type' => $contentType,
-            'Content-Disposition' => 'attachment;filename=' . $encodedFilename,
+            'Content-Disposition' => DownloadResponseHeaders::contentDisposition($filename, $disposition),
             'Content-Length' => (string)strlen($content),
             'Access-Control-Expose-Headers' => 'Content-Disposition',
         ];

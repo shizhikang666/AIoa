@@ -66,7 +66,6 @@
 	import bizSaleProjectDetail from '@/views/biz/saleproject/detail.vue'
 	import bizPurchaseOrderDetail from '@/views/biz/bizpurchaseorder/details/index.vue'
 	import bizLeaveApplicationDetails from '@/views/biz/bizleaveapplication/details.vue'
-	import settlementAccountApi from '@/api/biz/settlementAccountApi'
 	import { useTemplateRef } from 'vue'
 
 	const bizLeaveApplicationDetailsRef = useTemplateRef('bizLeaveApplicationDetailsRef')
@@ -87,6 +86,7 @@
 			'remark',
 			'amount',
 			'accountId',
+			'accountName',
 			'payer',
 			'payerTime',
 			'bankAccount',
@@ -100,10 +100,10 @@
 		})
 		info.value = result
 		if (result.accountId) {
-			const accountDetails = await settlementAccountApi.settlementAccountDetail({
-				id: result.accountId
-			})
-			account.value = accountDetails
+			account.value = {
+				id: result.accountId,
+				accountName: result.accountName || result.accountId
+			}
 		}
 	})
 	load()

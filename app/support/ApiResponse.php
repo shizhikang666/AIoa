@@ -67,6 +67,35 @@ class ApiResponse
             return $fallback;
         }
 
+        $workflowMessageMap = [
+            'missing form' => '审批表单不能为空',
+            'task not found or completed' => '任务不存在或已完成',
+            'task transition is deferred for this activity' => '当前节点暂不支持此审批操作',
+            'task transition is deferred for this process' => '当前流程暂不支持此审批操作',
+            'missing leave initiator' => '请假发起人不能为空',
+            'missing leave category' => '请假类型不能为空',
+            'missing leave tenantId' => '请假租户不能为空',
+            'missing leave amount' => '请假天数不能为空',
+            'invalid leave amount' => '请假天数不正确',
+            'missing leave startTime' => '请假开始时间不能为空',
+            'invalid leave startTime' => '请假开始时间不正确',
+            'missing leave endTime' => '请假结束时间不能为空',
+            'invalid leave endTime' => '请假结束时间不正确',
+            'invalid leave time range' => '请假结束时间不能早于开始时间',
+            'user already has leave in this time range' => '该用户在此时间段已有请假/外出记录',
+            'user already has leave application in range' => '该用户在此时间段已有请假/外出记录',
+            'user annual leave balance not found' => '未找到该用户年假余额',
+            'insufficient annual leave balance' => '年假余额不足',
+            'missing amount' => '金额不能为空',
+            'invalid amount' => '金额不正确',
+            'amount must be greater than 0' => '金额必须大于0',
+            'settlement account not found' => '结算账户不存在或不可用',
+            'amount collected exceeds sale project total price' => '累计收款金额不能超过项目总价',
+        ];
+        if (isset($workflowMessageMap[$message])) {
+            return $workflowMessageMap[$message];
+        }
+
         if (isset(self::MESSAGE_MAP[$message])) {
             return self::MESSAGE_MAP[$message];
         }

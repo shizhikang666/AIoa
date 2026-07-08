@@ -288,36 +288,6 @@
 		})
 	}
 
-	if (hasPerm(['editReconciliation'])) {
-		columns.length = 0 // 清空数组
-		columns.push(
-			{
-				title: '产品名称',
-				dataIndex: 'productName'
-			},
-			{
-				title: '产品分类',
-				dataIndex: 'productCategory'
-			},
-			{
-				title: '类别',
-				dataIndex: 'category'
-			},
-			{
-				title: '是否启用对账',
-				dataIndex: 'reconciliationType'
-			},
-			{
-				title: '对账金额',
-				dataIndex: 'reconciliationAmount'
-			},
-			{
-				title: '创建用户',
-				dataIndex: 'createUserName'
-			}
-		)
-	}
-
 	const selectedRowKeys = ref([])
 	// 列表选择配置
 	const options = {

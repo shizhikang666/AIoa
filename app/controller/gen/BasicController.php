@@ -7,6 +7,7 @@ namespace app\controller\gen;
 use app\controller\sys\BaseSysController;
 use app\service\gen\BasicService;
 use app\support\ApiResponse;
+use app\support\DownloadResponseHeaders;
 use RuntimeException;
 use think\Request;
 use think\Response;
@@ -142,11 +143,10 @@ class BasicController extends BaseSysController
         $filename = (string)($file['filename'] ?? 'gen-basic.zip');
         $content = (string)($file['content'] ?? '');
         $contentType = (string)($file['contentType'] ?? 'application/octet-stream');
-        $encodedFilename = rawurlencode($filename);
 
         return Response::create($content, 'html', 200)->header([
             'Content-Type' => $contentType,
-            'Content-Disposition' => 'attachment;filename=' . $encodedFilename,
+            'Content-Disposition' => DownloadResponseHeaders::contentDisposition($filename),
             'Content-Length' => (string)strlen($content),
             'Access-Control-Expose-Headers' => 'Content-Disposition',
             'Cache-Control' => 'no-store, no-cache, must-revalidate',

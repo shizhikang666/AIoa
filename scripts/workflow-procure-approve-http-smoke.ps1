@@ -165,7 +165,7 @@ require getcwd() . '/vendor/autoload.php';
     ? think\facade\Db::name('biz_purchase_order_item')->where('PURCHASE_ORDER_ID', `$orderId)->order('PRODUCT_ID', 'asc')->select()->toArray()
     : [];
 `$vars = [];
-foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['approval', 'status', 'state', 'productList', 'amount', 'user'])->field('NAME_,VAR_TYPE_,LONG_,TEXT_')->select()->toArray() as `$row) {
+foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['approval', 'status', 'state', 'productList', 'amount', 'user'])->field('NAME_,VAR_TYPE_,LONG_,TEXT_')->order('CREATE_TIME_', 'asc')->order('REV_', 'asc')->order('ID_', 'asc')->select()->toArray() as `$row) {
     `$name = (string)(`$row['NAME_'] ?? '');
     `$type = (string)(`$row['VAR_TYPE_'] ?? '');
     if (`$type === 'boolean') {
@@ -342,7 +342,7 @@ echo json_encode([
     Assert-IntEqual -Actual ([int]$midLeader.runtime.taskCount) -Expected 1 -Name 'runtime task count after leader'
     Assert-Equal -Actual ([string]$midLeader.runtime.taskId) -Expected $procureTaskId -Name 'procure task id'
     Assert-Equal -Actual ([string]$midLeader.runtime.taskDefinitionKey) -Expected 'Activity_procure_approval' -Name 'runtime procure task definition'
-    Assert-IntEqual -Actual ([int]$midLeader.orderCount) -Expected 0 -Name 'order count after leader'
+    Assert-IntEqual -Actual ([int]$midLeader.orderCount) -Expected 1 -Name 'controlled order count after leader'
 
     $productList = @(
         @{
@@ -384,7 +384,7 @@ echo json_encode([
     Assert-IntEqual -Actual ([int]$midProcure.runtime.taskCount) -Expected 1 -Name 'runtime task count after procurement'
     Assert-Equal -Actual ([string]$midProcure.runtime.taskId) -Expected $generalTaskId -Name 'general task id'
     Assert-Equal -Actual ([string]$midProcure.runtime.taskDefinitionKey) -Expected 'Activity_approval_procure' -Name 'runtime general task definition'
-    Assert-IntEqual -Actual ([int]$midProcure.orderCount) -Expected 0 -Name 'order count before final approval'
+    Assert-IntEqual -Actual ([int]$midProcure.orderCount) -Expected 1 -Name 'controlled order count before final approval'
     if (-not ([string]$midProcure.variables.productList).Contains($productA) -or -not ([string]$midProcure.variables.productList).Contains($productB)) {
         throw "productList variable missing product ids: $($midProcure.variables | ConvertTo-Json -Compress)"
     }

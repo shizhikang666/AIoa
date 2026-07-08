@@ -33,8 +33,6 @@
 <script setup lang="js" name="PaymentInfo">
 	import bizProcessApi from '@/api/biz/bizProcessApi'
 
-	import settlementAccountApi from '@/api/biz/settlementAccountApi'
-
 	const props = defineProps({
 		id: {
 			type: String,
@@ -52,17 +50,20 @@
 		error.value = false
 		loading.value = true
 		try {
-			const fields = ['remark', 'amount', 'accountId', 'payer', 'payerTime', 'settlementCategory']
+			const fields = ['remark', 'amount', 'accountId', 'accountName', 'payer', 'payerTime', 'settlementCategory']
 			const res = await bizProcessApi.bizVariable({ id: props.id, fields })
 			const result = {}
 			res.forEach((item) => {
 				result[item.name] = item.value
 			})
 			baseInfo.value = result
-			const accountDetails = await settlementAccountApi.settlementAccountDetail({
-				id: result.accountId
-			})
-			account.value = accountDetails
+			account.value = {}
+			if (result.accountId) {
+				account.value = {
+					id: result.accountId,
+					accountName: result.accountName || result.accountId
+				}
+			}
 		} catch (e) {
 			error.value = true
 		} finally {

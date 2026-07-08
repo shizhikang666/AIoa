@@ -220,6 +220,7 @@ $productAId = New-SmokeId -Prefix 'SPIA'
 $productBId = New-SmokeId -Prefix 'SPIB'
 $kitProductId = New-SmokeId -Prefix 'SPIK'
 $childProductId = New-SmokeId -Prefix 'SPIH'
+$licenseFileId = New-SmokeId -Prefix 'SPIF'
 $missingProductId = New-SmokeId -Prefix 'SPIM'
 $relationId = New-SmokeId -Prefix 'SPIR'
 $returnOrderItemId = New-SmokeId -Prefix 'SPIO'
@@ -231,6 +232,7 @@ $safeProductAId = $productAId.Replace("'", "\'")
 $safeProductBId = $productBId.Replace("'", "\'")
 $safeKitProductId = $kitProductId.Replace("'", "\'")
 $safeChildProductId = $childProductId.Replace("'", "\'")
+$safeLicenseFileId = $licenseFileId.Replace("'", "\'")
 $safeMissingProductId = $missingProductId.Replace("'", "\'")
 $safeRelationId = $relationId.Replace("'", "\'")
 $safeReturnOrderItemId = $returnOrderItemId.Replace("'", "\'")
@@ -258,6 +260,7 @@ think\facade\Db::name('return_order_item')->where('ID', '$safeReturnOrderItemId'
 think\facade\Db::name('product_relation')->where('ID', '$safeRelationId')->delete();
 think\facade\Db::name('biz_product')->whereIn('ID', ['$safeProductAId', '$safeProductBId', '$safeKitProductId', '$safeChildProductId'])->delete();
 think\facade\Db::name('customer')->where('ID', '$safeCustomerId')->delete();
+think\facade\Db::name('dev_file')->where('ID', '$safeLicenseFileId')->delete();
 "@
 
 $snapshotCode = @"
@@ -282,6 +285,22 @@ try {
 require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 `$now = date('Y-m-d H:i:s');
+think\facade\Db::name('dev_file')->insert([
+    'ID' => '$safeLicenseFileId',
+    'ENGINE' => 'LOCAL',
+    'BUCKET' => 'defaultBucketName',
+    'NAME' => '$safePrefix-license.txt',
+    'SUFFIX' => 'txt',
+    'SIZE_KB' => 1,
+    'SIZE_INFO' => '1KB',
+    'OBJ_NAME' => '$safePrefix-license.txt',
+    'STORAGE_PATH' => sys_get_temp_dir() . DIRECTORY_SEPARATOR . '$safePrefix-license.txt',
+    'DOWNLOAD_PATH' => '/backend/dev/file/download?id=$safeLicenseFileId',
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => '$safeUserId',
+    'TENANT_ID' => '$safeTenantId',
+]);
 think\facade\Db::name('customer')->insert([
     'ID' => '$safeCustomerId',
     'NAME' => '$safePrefix customer',
@@ -361,6 +380,7 @@ echo json_encode(['ok' => 1], JSON_UNESCAPED_SLASHES);
         customer = $customerId
         projectName = "$prefix project"
         projectCategory = 'DEFAULT'
+        businessLicenseFileId = $licenseFileId
     }
     Assert-Code -Json $projectAdd -Expected 200 -Name 'sale project add for standalone product item smoke'
     $projectId = Read-JsonPath -Json $projectAdd -Path 'data.id'

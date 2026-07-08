@@ -109,6 +109,12 @@ require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 `$pid = '$safeProcessId';
 think\facade\Db::transaction(function () use (`$pid): void {
+    `$orderIds = think\facade\Db::name('biz_purchase_order')->where('INSTANCE_ID', `$pid)->column('ID');
+    `$orderIds = array_values(array_filter(array_map('strval', `$orderIds)));
+    if (`$orderIds !== []) {
+        think\facade\Db::name('biz_purchase_order_item')->whereIn('PURCHASE_ORDER_ID', `$orderIds)->delete();
+        think\facade\Db::name('biz_purchase_order')->whereIn('ID', `$orderIds)->delete();
+    }
     think\facade\Db::name('act_ru_task')->where('PROC_INST_ID_', `$pid)->delete();
     think\facade\Db::name('act_ru_variable')->where('PROC_INST_ID_', `$pid)->delete();
     think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->delete();
@@ -120,6 +126,63 @@ think\facade\Db::transaction(function () use (`$pid): void {
     think\facade\Db::name('biz_cc_records')->where('INSTANCE_ID', `$pid)->delete();
     think\facade\Db::name('biz_file_relation')->where('OBJECT_ID', `$pid)->delete();
 });
+echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+"@
+
+    [void](Invoke-PhpJson -Code $cleanupCode)
+}
+
+function New-SmokeProduct {
+    param(
+        [Parameter(Mandatory = $true)][string]$UserId,
+        [Parameter(Mandatory = $true)][string]$TenantId,
+        [string]$OrgId = ''
+    )
+
+    $safeUserId = $UserId.Replace("'", "\'")
+    $safeTenantId = $TenantId.Replace("'", "\'")
+    $safeOrgId = $OrgId.Replace("'", "\'")
+    $code = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$id = 'WGP' . substr((string)((int)floor(microtime(true) * 1000)), -11) . (string)random_int(100000, 999999);
+`$name = 'codex workflow procure product ' . substr(`$id, -6);
+`$now = date('Y-m-d H:i:s');
+think\facade\Db::name('biz_product')->insert([
+    'ID' => `$id,
+    'PRODUCT_NAME' => `$name,
+    'PRODUCT_CATEGORY' => 'DEFAULT',
+    'SAFETY_STOCK' => 0,
+    'PURCHASE_PRICE' => '1.00',
+    'SALE_PRICE' => '1.00',
+    'MIN_PRICE' => '1.00',
+    'CATEGORY' => 'SINGLE_PRODUCT',
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => '$safeUserId',
+    'TENANT_ID' => '$safeTenantId',
+    'SPECS' => 'workflow-general-start-smoke',
+    'ORG' => '$safeOrgId',
+    'status' => 'ENABLE',
+]);
+echo json_encode(['id' => `$id, 'name' => `$name], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+"@
+
+    return Invoke-PhpJson -Code $code
+}
+
+function Remove-SmokeProduct {
+    param([string]$ProductId)
+
+    if ([string]::IsNullOrWhiteSpace($ProductId)) {
+        return
+    }
+
+    $safeProductId = $ProductId.Replace("'", "\'")
+    $cleanupCode = @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+think\facade\Db::name('biz_product')->where('ID', '$safeProductId')->delete();
 echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 "@
 
@@ -339,6 +402,11 @@ echo json_encode([
     'task' => think\facade\Db::name('act_ru_task')->where('ID_', `$tid)->field('TASK_DEF_KEY_,ASSIGNEE_')->find(),
     'hiProc' => think\facade\Db::name('act_hi_procinst')->where('PROC_INST_ID_', `$pid)->field('STATE_,END_TIME_')->find(),
     'purchaseOrderCount' => think\facade\Db::name('biz_purchase_order')->where('INSTANCE_ID', `$pid)->count(),
+    'purchaseOrderItemCount' => think\facade\Db::name('biz_purchase_order_item')
+        ->alias('i')
+        ->join('biz_purchase_order o', 'o.ID = i.PURCHASE_ORDER_ID')
+        ->where('o.INSTANCE_ID', `$pid)
+        ->count(),
     'expectedAssignee' => '$safeAssignee',
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 "@
@@ -349,8 +417,8 @@ echo json_encode([
     if ([string]$state.hiProc.STATE_ -ne 'ACTIVE' -or -not [string]::IsNullOrWhiteSpace([string]$state.hiProc.END_TIME_)) {
         throw "procure process should stay active before procurement decision: $($state | ConvertTo-Json -Compress)"
     }
-    if ([int]$state.purchaseOrderCount -ne 0) {
-        throw "procure first approval should not create purchase order: $($state | ConvertTo-Json -Compress)"
+    if ([int]$state.purchaseOrderCount -ne 1 -or [int]$state.purchaseOrderItemCount -ne 1) {
+        throw "procure start should have one controlled purchase order with one item: $($state | ConvertTo-Json -Compress)"
     }
 }
 
@@ -368,7 +436,7 @@ require getcwd() . '/vendor/autoload.php';
 `$pid = '$safeProcessId';
 `$key = '$safeProcessKey';
 `$vars = [];
-foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['status', 'state', 'approval'])->field('NAME_,VAR_TYPE_,LONG_,TEXT_')->select()->toArray() as `$row) {
+foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['status', 'state', 'approval'])->field('NAME_,VAR_TYPE_,LONG_,TEXT_')->order('CREATE_TIME_', 'asc')->order('REV_', 'asc')->order('ID_', 'asc')->select()->toArray() as `$row) {
     `$vars[`$row['NAME_']] = `$row;
 }
 echo json_encode([
@@ -405,7 +473,7 @@ require getcwd() . '/vendor/autoload.php';
 `$pid = '$safeProcessId';
 `$key = '$safeProcessKey';
 `$vars = [];
-foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['status', 'state', 'approval', 'cancel'])->field('NAME_,VAR_TYPE_,LONG_,TEXT_')->select()->toArray() as `$row) {
+foreach (think\facade\Db::name('act_hi_varinst')->where('PROC_INST_ID_', `$pid)->whereIn('NAME_', ['status', 'state', 'approval', 'cancel'])->field('NAME_,VAR_TYPE_,LONG_,TEXT_')->order('CREATE_TIME_', 'asc')->order('REV_', 'asc')->order('ID_', 'asc')->select()->toArray() as `$row) {
     `$vars[`$row['NAME_']] = `$row;
 }
 echo json_encode([
@@ -466,6 +534,7 @@ echo json_encode([
     'token' => (new app\service\auth\TokenService())->create(`$user, `$auth),
     'userId' => (string)`$user['ID'],
     'tenantId' => (string)(`$user['TENANT_ID'] ?? ''),
+    'orgId' => (string)(`$user['ORG_ID'] ?? ''),
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 "@
 
@@ -473,6 +542,7 @@ $context = Invoke-PhpJson -Code $contextCode
 $token = [string]$context.token
 $userId = [string]$context.userId
 $tenantId = [string]$context.tenantId
+$orgId = [string]$context.orgId
 if ([string]::IsNullOrWhiteSpace($token) -or [string]::IsNullOrWhiteSpace($userId) -or [string]::IsNullOrWhiteSpace($tenantId)) {
     throw 'failed to create local smoke auth token'
 }
@@ -480,6 +550,7 @@ if ([string]::IsNullOrWhiteSpace($token) -or [string]::IsNullOrWhiteSpace($userI
 $baseUrl = $BackendBaseUrl.TrimEnd('/')
 $processIds = @()
 $fileId = ''
+$productId = ''
 $beforeCounts = Get-BusinessCounts
 
 try {
@@ -523,6 +594,8 @@ try {
 
     $file = New-SmokeFile -UserId $userId -TenantId $tenantId
     $fileId = [string]$file.id
+    $product = New-SmokeProduct -UserId $userId -TenantId $tenantId -OrgId $orgId
+    $productId = [string]$product.id
 
     $markerPrefix = 'codex-general-start-' + ([Guid]::NewGuid().ToString('N').Substring(0, 10))
     $cases = @(
@@ -600,9 +673,20 @@ try {
                 approvesGeneralOffice = @($userId)
                 productInfoList = @(
                     @{
+                        productId = $productId
                         productName = 'codex product'
                         number = 1
                         amount = '1.00'
+                    }
+                )
+                productList = @(
+                    @{
+                        productId = $productId
+                        number = 1
+                        unitAmount = '1.00'
+                        amount = '1.00'
+                        discountRate = '0'
+                        remark = 'codex procure start smoke item'
                     }
                 )
                 amount = '45.67'
@@ -734,14 +818,20 @@ try {
         Write-Host "$($case.Key) cancel closed runtime"
     }
 
+    foreach ($processId in $processIds) {
+        Remove-SmokeProcess -ProcessInstanceId $processId
+    }
+    $processIds = @()
+
     $afterCounts = Get-BusinessCounts
     Assert-BusinessCountsEqual -Expected $beforeCounts -Actual $afterCounts
-    Write-Host 'business side-effect table counts unchanged'
+    Write-Host 'business side-effect table counts restored after smoke cleanup'
 } finally {
     foreach ($processId in $processIds) {
         Remove-SmokeProcess -ProcessInstanceId $processId
     }
     Remove-SmokeFile -FileId $fileId
+    Remove-SmokeProduct -ProductId $productId
 }
 
 Write-Host 'workflow general start HTTP smoke passed'

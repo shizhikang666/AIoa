@@ -150,8 +150,7 @@
 		let value = {}
 		let content = createVNode(bizpurchaseorderModel, {
 			defaultSearchFrom: {
-				storageStatus: 'NOT_IN_WAREHOUSE',
-				settlementStatus: 'COMPLETED'
+				storageStatus: 'NOT_IN_WAREHOUSE'
 			},
 			disableSearchFromKey: {
 				settlementStatus: true,

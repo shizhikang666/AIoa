@@ -18,7 +18,7 @@
 	</a-comment>
 	<a-modal v-model:open="open" :ok-button-props="{ loading: submitting }" @ok="submit(true)" title="确认">
 		<a-form ref="formRef" :model="form" :rules="formRules" layout="vertical">
-			<a-form-item label="结算账户：" name="account">
+			<a-form-item label="结算账户：" name="accountId">
 				<a-select
 					:filter-option="filterOption"
 					:filter-sort="filterAndSortOptions"
@@ -46,6 +46,9 @@
 					placeholder="选择结算类型"
 					change-on-select
 				/>
+			</a-form-item>
+			<a-form-item label="结算金额：" name="amount">
+				<XnCurrencyInput :min="0.01" v-model:value="form.amount" placeholder="请输入结算金额" />
 			</a-form-item>
 
 			<a-form-item label="结算日期：" name="payerTime">
@@ -86,7 +89,8 @@
 	const formRules = ref({
 		payerTime: [required('打款时间')],
 		settlementCategory: [required('结算分类不能为空')],
-		accountId: [required('收款账户不能为空')]
+		accountId: [required('收款账户不能为空')],
+		amount: [required('结算金额不能为空')]
 	})
 
 	const form = ref({
@@ -94,6 +98,7 @@
 		approval: '',
 		accountId: '',
 		settlementCategory: '',
+		amount: '',
 		payerTime: ''
 	})
 

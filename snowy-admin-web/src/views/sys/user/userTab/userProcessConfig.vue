@@ -80,23 +80,23 @@
 		let cloeConfig = cloneDeep(tool.data.get('SYS_USER_PROCESS_CONFIG'))
 
 		processConfigList.value.forEach((v) => {
-			let find = cloeConfig.config.find((f) => f.processName == v.key)
-			const sysFind = cloneDeep(tool.data.get('SYS_CONFIG').processConfigMap[v.key])
+			const configList = Array.isArray(cloeConfig?.config) ? cloeConfig.config : []
+			let find = configList.find((f) => f.processName == v.key)
+			const sysFind = cloneDeep(tool.data.get('SYS_CONFIG')?.processConfigMap?.[v.key] || {})
 			find = find ? find : { processName: v.key }
-			v = Object.assign(v, nonNullAssign(find, sysFind))
+			assignProcessConfig(v, sysFind, find)
 		})
 	}
 	const getConfig = async () => {
-		userCenterApi.userCenterGetProcessConfig().then((res) => {
-			tool.data.set('SYS_USER_PROCESS_CONFIG', res)
-			const result = cloneDeep(tool.data.get('SYS_USER_PROCESS_CONFIG'))
-			processConfigList.value.forEach((v) => {
-				const sysFind = cloneDeep(tool.data.get('SYS_CONFIG').processConfigMap[v.key])
-				let find = result.config.find((f) => f.processName === v.key)
-				find = find ? find : { processName: v.key }
-
-				v = Object.assign(v, { open: true }, nonNullAssign(find, sysFind))
-			})
+		const res = await userCenterApi.userCenterGetProcessConfig()
+		tool.data.set('SYS_USER_PROCESS_CONFIG', res)
+		const result = cloneDeep(tool.data.get('SYS_USER_PROCESS_CONFIG'))
+		const configList = Array.isArray(result?.config) ? result.config : []
+		processConfigList.value.forEach((v) => {
+			const sysFind = cloneDeep(tool.data.get('SYS_CONFIG')?.processConfigMap?.[v.key] || {})
+			let find = configList.find((f) => f.processName === v.key)
+			find = find ? find : { processName: v.key }
+			assignProcessConfig(v, sysFind, find)
 		})
 	}
 
@@ -111,17 +111,27 @@
 
 	getConfig()
 
-	function nonNullAssign(target, source) {
-		return Object.entries(source).reduce((acc, [key, value]) => {
-			if (value !== null && value !== undefined && value !== '') {
-				if (Array.isArray(value) && value.length === 0) {
-					// 如果源对象中的属性是数组且长度为 0，则不进行覆盖
-					return acc
-				}
-				acc[key] = value
-			}
-			return acc
-		}, target)
+	function assignProcessConfig(target, sysConfig, userConfig) {
+		const staticConfig = {
+			key: target.key,
+			name: target.name,
+			showProcure: target.showProcure,
+			showTreasurer: target.showTreasurer,
+			showOpen: target.showOpen
+		}
+		Object.assign(
+			target,
+			{
+				open: true,
+				approveUserIdList: [],
+				copyUserIdList: [],
+				treasurer: '',
+				procure: ''
+			},
+			sysConfig || {},
+			userConfig || {},
+			staticConfig
+		)
 	}
 
 	function serializeProcessConfig(item) {

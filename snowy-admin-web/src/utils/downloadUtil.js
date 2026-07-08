@@ -10,10 +10,49 @@
  */
 import { message } from 'ant-design-vue'
 
+const trimQuotes = (value) => {
+	value = String(value || '').trim()
+	if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+		return value.slice(1, -1)
+	}
+	return value
+}
+
+const decodeHeaderFilename = (value) => {
+	value = trimQuotes(value)
+	try {
+		return decodeURIComponent(value)
+	} catch (e) {
+		return value
+	}
+}
+
+const getContentDisposition = (headers) => {
+	return headers?.['content-disposition'] || headers?.get?.('content-disposition') || ''
+}
+
+const getDownloadFilename = (contentDisposition) => {
+	if (!contentDisposition) {
+		return 'download'
+	}
+
+	const utf8Match = contentDisposition.match(/filename\*\s*=\s*(?:[^']*'[^']*')?([^;]+)/i)
+	if (utf8Match?.[1]) {
+		return decodeHeaderFilename(utf8Match[1])
+	}
+
+	const filenameMatch = contentDisposition.match(/filename\s*=\s*("[^"]*"|[^;]+)/i)
+	if (filenameMatch?.[1]) {
+		return decodeHeaderFilename(filenameMatch[1])
+	}
+
+	return 'download'
+}
+
 export default {
 	// 对下载的流进行处理，直接从浏览器下载下来
 	resultDownload(res) {
-		if (res.data.type === 'application/json') {
+		if (String(res.data?.type || '').includes('application/json')) {
 			// 错误以及无权限
 			const reader = new FileReader(res.data)
 
@@ -24,14 +63,13 @@ export default {
 				message.error(result.msg)
 			}
 		} else {
-			const blob = new Blob([res.data], { type: 'application/octet-stream;charset=UTF-8' })
-			const contentDisposition = res.headers['content-disposition']
-			const patt = new RegExp('filename=([^;]+\\.[^\\.;]+);*')
+			const blob = new Blob([res.data], { type: res.data?.type || 'application/octet-stream;charset=UTF-8' })
+			const contentDisposition = getContentDisposition(res.headers)
 			const $link = document.createElement('a')
 			$link.href = URL.createObjectURL(blob)
-			$link.download = decodeURIComponent(patt.exec(contentDisposition)[1])
-			$link.click()
+			$link.download = getDownloadFilename(contentDisposition)
 			document.body.appendChild($link)
+			$link.click()
 			document.body.removeChild($link) // 下载完成移除元素
 			window.URL.revokeObjectURL($link.href) // 释放掉blob对象
 		}

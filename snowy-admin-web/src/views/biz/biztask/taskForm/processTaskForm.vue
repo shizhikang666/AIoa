@@ -25,6 +25,42 @@
 	>
 		<a-form class="product-form" ref="productFormRef" :model="formData" :rules="formRules" layout="horizontal">
 			<br />
+			<template v-if="applicantProductInfoList.length">
+				<a-typography-title :level="5">申请人采购信息</a-typography-title>
+				<a-table
+					rowKey="_rowKey"
+					:pagination="false"
+					size="middle"
+					bordered
+					:data-source="applicantProductInfoList"
+					:columns="applicantProductColumns"
+				>
+					<template #bodyCell="{ column, record }">
+						<template v-if="column.dataIndex === 'productName'">
+							{{ record.productName || '-' }}
+						</template>
+						<template v-if="column.dataIndex === 'number'">
+							{{ record.number ?? '-' }}
+						</template>
+						<template v-if="column.dataIndex === 'specs'">
+							{{ $TOOL.dictTypeDataByPath('PRODUCT_DICT', 'PRODUCT_SPECS', record.specs) || record.specs || '-' }}
+						</template>
+						<template v-if="column.dataIndex === 'model'">
+							{{ record.model || '-' }}
+						</template>
+						<template v-if="column.dataIndex === 'link'">
+							<a-typography-link v-if="record.link" :href="record.link" target="_blank">
+								{{ record.link }}
+							</a-typography-link>
+							<span v-else>-</span>
+						</template>
+						<template v-if="column.dataIndex === 'remark'">
+							{{ record.remark || '-' }}
+						</template>
+					</template>
+				</a-table>
+				<br />
+			</template>
 			<a-form-item label="采购金额：" name="amount">
 				<XnCurrencyInput :min="0.01" v-model:value="formData.amount" placeholder="请输入采购金额" />
 			</a-form-item>
@@ -45,7 +81,7 @@
 					:data-source="formData.productList"
 					:columns="columns"
 				>
-					<template #bodyCell="{ column, text, record, index }">
+					<template #bodyCell="{ column, record, index }">
 						<template v-if="column.dataIndex === 'productName'">
 							{{ record.productName }}
 						</template>
@@ -184,6 +220,54 @@
 
 	const { modal } = App.useApp()
 	const open = ref(false)
+	const normalizeList = (value) => {
+		if (Array.isArray(value)) {
+			return value
+		}
+		if (!value) {
+			return []
+		}
+		if (typeof value === 'string') {
+			try {
+				const parsed = JSON.parse(value)
+				return Array.isArray(parsed) ? parsed : []
+			} catch (e) {
+				return []
+			}
+		}
+		return []
+	}
+	const applicantProductColumns = [
+		{
+			title: '产品名称',
+			dataIndex: 'productName',
+			width: '18%'
+		},
+		{
+			title: '数量',
+			dataIndex: 'number',
+			width: '10%'
+		},
+		{
+			title: '单位',
+			dataIndex: 'specs',
+			width: '10%'
+		},
+		{
+			title: '型号规格',
+			dataIndex: 'model',
+			width: '14%'
+		},
+		{
+			title: '采购链接',
+			dataIndex: 'link'
+		},
+		{
+			title: '备注',
+			dataIndex: 'remark',
+			width: '18%'
+		}
+	]
 	const columns = [
 		{
 			title: '产品名称',
@@ -325,6 +409,12 @@
 	const premKey = computed(() => {
 		const { processKey, category } = props.taskDetail
 		return processKey + '-' + category
+	})
+	const applicantProductInfoList = computed(() => {
+		return normalizeList(props.taskDetail?.variables?.productInfoList).map((item, index) => ({
+			...item,
+			_rowKey: item.id || item.productId || `${item.productName || 'product'}-${index}`
+		}))
 	})
 
 	const form = ref({

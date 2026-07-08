@@ -1,5 +1,78 @@
 ﻿锘块敇鍧楁晣閸ф鏅ｉ柛褎顨嗛弲? STATUS.md
 
+## 2026-07-08 - merge-agent/api-agent/test-agent - Online Compatibility Follow-up
+
+### Completed
+
+- Continued the pending `OA-ThinkPHP` integration changes for online/prelaunch compatibility.
+- Kept the current `/backend` production API prefix for local file download URLs and added a Vite `/backend` development proxy so direct image/download links work in local dev as well as production.
+- Added shared `DownloadResponseHeaders` handling and aligned download response headers for payroll export, user exports, generator ZIP, and local file downloads.
+- Updated DB smoke expectations and file-download API docs for `/backend/dev/file/download` and file content-type detection.
+- Added workflow-smoke compatibility for duplicated historic variables by reading the latest `act_hi_varinst` row, and aligned procurement smokes with the current controlled purchase-order side effect.
+- Allowed workflow-normalized date variables in `PurchaseOrderService::workflowDate()` so `Process_procure` can create workflow purchase orders from normalized start variables.
+- Preserved the existing broader fixes already present in the worktree: RBAC data-scope payload normalization, workflow detail/current-task data, process variable display values, workflow procure/project/payment form compatibility, frontend process/user selector guards, and finance/workflow validation hardening.
+
+### Modified Files
+
+- `app/support/DownloadResponseHeaders.php`
+- `app/support/FileDownloadUrl.php`
+- `app/controller/biz/BizPayrollController.php`
+- `app/controller/dev/FileController.php`
+- `app/controller/gen/BasicController.php`
+- `app/controller/sys/UserController.php`
+- `app/service/biz/PurchaseOrderService.php`
+- `app/service/dev/FileService.php`
+- `scripts/test-agent-db-smoke.ps1`
+- `scripts/workflow-read-http-smoke.ps1`
+- `scripts/workflow-general-start-http-smoke.ps1`
+- `scripts/workflow-payment-approve-http-smoke.ps1`
+- `scripts/workflow-payment-out-approve-http-smoke.ps1`
+- `scripts/workflow-procure-approve-http-smoke.ps1`
+- `scripts/workflow-task-transition-http-smoke.ps1`
+- `scripts/sale-project-product-item-standalone-http-smoke.ps1`
+- `snowy-admin-web/vite.config.mjs`
+- `docs/api/dev-file-readonly-compat.md`
+- `docs/api/biz-file-relation-readonly-compat.md`
+- `docs/api/biz-customer-readonly.md`
+- `docs/tasks/new-conversation-bootstrap.md`
+
+### Test Results
+
+- Full PHP lint over `app` and `route`: passed.
+- Focused PHP lint for changed download/controller files: passed.
+- `php think route:list`: passed; current route-list output is 595 lines.
+- `php think route:list` checks for process/task/download/user-center routes: passed.
+- `.\scripts\project-progress.ps1 -Lean`: passed.
+- `.\scripts\frontend-api-route-gap-smoke.ps1 -FailOnReadMissing`: passed with 564/564 covered frontend endpoints and zero missing read-like routes.
+- `.\scripts\frontend-api-method-smoke.ps1 -ShowDeferred`: passed.
+- `.\scripts\test-agent-db-smoke.ps1`: passed against the local runtime bundle.
+- `.\scripts\auth-index-read-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed.
+- `.\scripts\business-read-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed.
+- `.\scripts\dev-read-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed.
+- `.\scripts\frontend-deferred-write-wrapper-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed with expected unauthenticated/validation guards.
+- `.\scripts\workflow-read-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed after aligning history-task page assertions with the process-row response shape.
+- `.\scripts\workflow-general-start-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed after controlled procure purchase-order cleanup.
+- `.\scripts\workflow-payment-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed after latest historic-variable ordering.
+- `.\scripts\workflow-payment-out-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed after latest historic-variable ordering.
+- `.\scripts\workflow-procure-approve-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed after controlled purchase-order expectations.
+- `.\scripts\workflow-task-transition-http-smoke.ps1 -BackendBaseUrl http://127.0.0.1:82`: passed after latest historic-variable ordering.
+- `.\scripts\project-preflight.ps1`: covered all standard preflight steps through repeated full/resumed runs; final resumed slice passed through workflow process cancel/edit, leave vacation adjustment, and `git diff --check`.
+- `.\scripts\web-ready.ps1`: passed after starting ThinkPHP on `127.0.0.1:82` and Vite on `127.0.0.1:83`.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1`: passed for the default file/payroll/product/customer/sale-project pages.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath /biz/biztask,/biz/biztask/mystarttask,/biz/biztask/processList,/biz/biztask/allprocess`: passed for current workflow menu pages.
+- `.\scripts\browser-upload-provider-guard-smoke.ps1 -SkipDefaultTargets -TargetPath /biz/historytask,/biz/copytask`: passed for current history-task and copy-task menu pages.
+- `npm run build` in `snowy-admin-web`: passed with existing Vite/Browserslist/CSS warnings only.
+- `git diff --check`: passed with existing LF/CRLF warnings only.
+
+### Current Issues
+
+- No blocking issue remains from the DB-backed or authenticated backend HTTP smokes run on the local runtime.
+- A stale browser-smoke target `/biz/biztask/historyTask` rendered the frontend 404 page; the current `sys_resource` menu path is `/biz/historytask` with component `biz/biztask/historyTask`, and that actual route passed.
+
+### Next Plan
+
+- Run any remaining manual process-detail/task-form click-through or role data-scope checks needed for release confidence, then package or commit this combined fix set only after explicit approval.
+
 ## 2026-07-02 - test-agent - Sales Approval Reject Side-Effect Smoke Matrix
 
 ### Completed

@@ -203,7 +203,16 @@ SQL;
             ->field(self::PROJECT_FIELDS)
             ->find();
         if (!is_array($row) || $row === []) {
-            throw new RuntimeException('sale project not found', 404);
+            if (!$this->canReadProjectFromWorkflow($id, $payload)) {
+                throw new RuntimeException('sale project not found', 404);
+            }
+
+            $row = $this->projectQuery(['id' => $id], $payload, false)
+                ->field(self::PROJECT_FIELDS)
+                ->find();
+            if (!is_array($row) || $row === []) {
+                throw new RuntimeException('sale project not found', 404);
+            }
         }
 
         return $this->detailsForProjects($this->projectRows([$row]), $payload)[0];
@@ -1831,6 +1840,29 @@ SQL;
     }
 
     /**
+     * @param array<string, mixed> $project
+     */
+    public function assertProjectPaymentAmountWithinRemaining(
+        string $projectId,
+        mixed $amount,
+        array $project,
+        string $tenantId = ''
+    ): void {
+        $amountCents = $this->moneyCents($amount);
+        if ($amountCents <= 0) {
+            throw new RuntimeException('amount must be greater than 0', 400);
+        }
+
+        $effectiveTenantId = trim((string)($tenantId !== '' ? $tenantId : ($project['TENANT_ID'] ?? '')));
+        $totalPriceCents = $this->moneyCents($project['TOTAL_PRICE'] ?? '0');
+        $historyAmountCents = $this->moneyCents($project['HISTORY_AMOUNT'] ?? '0');
+        $receivedCents = $this->sumProjectPaymentRecordCents($projectId, $effectiveTenantId) + $historyAmountCents;
+        if ($receivedCents + $amountCents > $totalPriceCents) {
+            throw new RuntimeException('amount collected exceeds sale project total price', 400);
+        }
+    }
+
+    /**
      * @param array<int, array<string, mixed>> $projectProductItemList
      * @return array<string, mixed>
      */
@@ -2355,7 +2387,7 @@ SQL;
         ];
     }
 
-    private function projectQuery(array $filters, array $payload)
+    private function projectQuery(array $filters, array $payload, bool $applyDataScope = true)
     {
         $query = Db::name('biz_sale_project')
             ->alias('p')
@@ -2441,9 +2473,149 @@ SQL;
 
         $this->applyCreateTimeRange($query, $filters);
         $this->applyCompletionTimeRange($query, $filters);
-        $this->applyDataScope($query, $filters, $payload);
+        if ($applyDataScope) {
+            $this->applyDataScope($query, $filters, $payload);
+        }
 
         return $query;
+    }
+
+    private function canReadProjectFromWorkflow(string $projectId, array $payload): bool
+    {
+        $projectId = trim($projectId);
+        $userId = $this->currentUserId($payload);
+        if ($projectId === '' || $userId === '') {
+            return false;
+        }
+
+        $processIds = $this->workflowProcessIdsForProject($projectId);
+        if ($processIds === []) {
+            return false;
+        }
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $processIds = array_values(array_filter(array_map(
+                'strval',
+                Db::name('act_hi_procinst')
+                    ->whereIn('PROC_INST_ID_', $processIds)
+                    ->where('TENANT_ID_', $tenantId)
+                    ->column('PROC_INST_ID_')
+            )));
+            if ($processIds === []) {
+                return false;
+            }
+        }
+
+        if ((int)Db::name('act_hi_procinst')
+            ->whereIn('PROC_INST_ID_', $processIds)
+            ->where('START_USER_ID_', $userId)
+            ->count() > 0) {
+            return true;
+        }
+
+        if ((int)Db::name('act_ru_task')
+            ->whereIn('PROC_INST_ID_', $processIds)
+            ->where('ASSIGNEE_', $userId)
+            ->count() > 0) {
+            return true;
+        }
+
+        if ((int)Db::name('act_hi_taskinst')
+            ->whereIn('PROC_INST_ID_', $processIds)
+            ->where('ASSIGNEE_', $userId)
+            ->count() > 0) {
+            return true;
+        }
+
+        return $this->workflowVariableListContains(
+            $processIds,
+            ['approveUserIdList', 'copyUserIdList', 'ccUserIdList'],
+            $userId
+        );
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function workflowProcessIdsForProject(string $projectId): array
+    {
+        $processIds = [];
+        foreach (['act_ru_variable', 'act_hi_varinst'] as $table) {
+            $rows = Db::name($table)
+                ->whereIn('NAME_', ['projectId', 'bizSaleProjectId'])
+                ->where(function ($query) use ($projectId): void {
+                    $query->where('TEXT_', $projectId)
+                        ->whereOr('TEXT2_', $projectId);
+                    if (is_numeric($projectId)) {
+                        $query->whereOr('LONG_', (int)$projectId);
+                    }
+                })
+                ->column('PROC_INST_ID_');
+            foreach ($rows as $processId) {
+                $processId = trim((string)$processId);
+                if ($processId !== '') {
+                    $processIds[] = $processId;
+                }
+            }
+        }
+
+        return array_values(array_unique($processIds));
+    }
+
+    /**
+     * @param array<int, string> $processIds
+     * @param array<int, string> $names
+     */
+    private function workflowVariableListContains(array $processIds, array $names, string $userId): bool
+    {
+        if ($processIds === [] || $names === [] || $userId === '') {
+            return false;
+        }
+
+        foreach (['act_ru_variable', 'act_hi_varinst'] as $table) {
+            $rows = Db::name($table)
+                ->whereIn('PROC_INST_ID_', $processIds)
+                ->whereIn('NAME_', $names)
+                ->field('TEXT_,TEXT2_,LONG_')
+                ->select()
+                ->toArray();
+
+            foreach ($rows as $row) {
+                if (in_array($userId, $this->workflowVariableStringList($row), true)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<int, string>
+     */
+    private function workflowVariableStringList(array $row): array
+    {
+        $text = (string)($row['TEXT_'] ?? '');
+        if ($text !== '') {
+            $decoded = json_decode($text, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $this->stringList($decoded);
+            }
+
+            return $this->stringList($text);
+        }
+
+        if ((string)($row['TEXT2_'] ?? '') === '!emptyString!') {
+            return [];
+        }
+
+        if (array_key_exists('LONG_', $row) && $row['LONG_'] !== null) {
+            return [(string)$row['LONG_']];
+        }
+
+        return [];
     }
 
     private function applyUserFilter($query, string $user): void

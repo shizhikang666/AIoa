@@ -56,8 +56,31 @@ abstract class BaseSysController extends BaseController
     protected function idList(Request $request): array
     {
         $value = $request->post('idList', $request->post('ids', $request->param('idList', [])));
+        if ($value === [] || $value === null || $value === '') {
+            $raw = '';
+            if (method_exists($request, 'getContent')) {
+                $raw = trim((string)$request->getContent());
+            }
+            if ($raw === '' && method_exists($request, 'getInput')) {
+                $raw = trim((string)$request->getInput());
+            }
+            if ($raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) {
+                    if (array_is_list($decoded)) {
+                        $value = $decoded;
+                    } else {
+                        $value = $decoded['idList'] ?? $decoded['ids'] ?? $decoded['id'] ?? [];
+                    }
+                }
+            }
+        }
+
         if (is_string($value)) {
             $value = explode(',', $value);
+        }
+        if (!is_array($value) && $value !== null && $value !== '') {
+            $value = [$value];
         }
 
         if (!is_array($value)) {
@@ -65,6 +88,10 @@ abstract class BaseSysController extends BaseController
         }
 
         return array_values(array_filter(array_map(static function ($id): string {
+            if (is_array($id)) {
+                $id = $id['id'] ?? $id['ID'] ?? $id['userId'] ?? $id['USER_ID'] ?? $id['value'] ?? '';
+            }
+
             return trim((string)$id);
         }, $value)));
     }
