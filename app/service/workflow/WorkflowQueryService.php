@@ -13,6 +13,7 @@ use app\model\ActReProcdef;
 use app\model\ActRuExecution;
 use app\model\ActRuTask;
 use app\model\ActRuVariable;
+use app\support\WorkflowTitleFormatter;
 use RuntimeException;
 use think\facade\Db;
 
@@ -583,6 +584,11 @@ class WorkflowQueryService
         $processKey = (string)($row['PROC_DEF_KEY_'] ?? $this->definitionKey((string)($row['PROC_DEF_ID_'] ?? '')) ?? '');
         $startUserId = trim((string)($row['START_USER_ID_'] ?? $variables['initiator'] ?? ''));
         $startUser = $this->userById($startUserId);
+        $title = WorkflowTitleFormatter::displayTitle(
+            isset($variables['title']) ? (string)$variables['title'] : null,
+            $processKey,
+            isset($startUser['name']) ? (string)$startUser['name'] : null
+        );
 
         return array_merge($row, [
             'id' => $processId,
@@ -590,7 +596,7 @@ class WorkflowQueryService
             'processInstanceId' => $processId,
             'category' => $processKey,
             'processKey' => $processKey,
-            'title' => $variables['title'] ?? null,
+            'title' => $title,
             'status' => $variables['status'] ?? ($row['STATE_'] ?? null),
             'remark' => $variables['remark'] ?? null,
             'amount' => $variables['amount'] ?? null,

@@ -8,6 +8,7 @@ use app\service\biz\PurchaseOrderService;
 use app\service\biz\ReturnOrderService;
 use app\service\biz\SaleProjectService;
 use app\service\biz\SettlementAccountService;
+use app\support\WorkflowTitleFormatter;
 use RuntimeException;
 use think\facade\Db;
 
@@ -811,16 +812,7 @@ class WorkflowRuntimeService
 
     private function generalProcessTitle(string $processKey, array $input, string $starterName): string
     {
-        $category = $this->inputString($input['settlementCategory'] ?? $input['category'] ?? '');
-
-        return match ($processKey) {
-            self::PROCESS_PROCURE => $starterName . "\u{53d1}\u{8d77}\u{7684}\u{91c7}\u{8d2d}\u{7533}\u{8bf7}",
-            self::PROCESS_PROCURE_IN_WAREHOUSE => $starterName . "\u{53d1}\u{8d77}\u{7684}\u{5165}\u{5e93}\u{7533}\u{8bf7}",
-            self::PROCESS_REIMBURSEMENT => $starterName . "\u{53d1}\u{8d77}\u{7684}" . $category . "\u{62a5}\u{9500}\u{7533}\u{8bf7}",
-            self::PROCESS_MAKE_PAYMENT => $starterName . "\u{53d1}\u{8d77}\u{7684}" . $category . "\u{4ed8}\u{6b3e}\u{7533}\u{8bf7}",
-            self::PROCESS_PAYMENT => $starterName . "\u{53d1}\u{8d77}\u{7684}" . $category . "\u{6536}\u{6b3e}\u{5355}\u{7533}\u{8bf7}",
-            default => $starterName . "\u{53d1}\u{8d77}\u{7684}\u{6d41}\u{7a0b}\u{7533}\u{8bf7}",
-        };
+        return WorkflowTitleFormatter::titleForProcess($processKey, $starterName);
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\WorkflowTitleFormatter;
 use RuntimeException;
 use think\facade\Db;
 
@@ -285,9 +286,15 @@ SQL;
 
     private function recordRow(array $row): array
     {
+        $title = WorkflowTitleFormatter::displayTitle(
+            isset($row['TITLE']) ? (string)$row['TITLE'] : null,
+            (string)($row['CATEGORY'] ?? ''),
+            isset($row['PROMOTER_NAME']) ? (string)$row['PROMOTER_NAME'] : null
+        );
+
         return [
             'id' => $row['ID'] ?? null,
-            'title' => $row['TITLE'] ?? null,
+            'title' => $title,
             'processId' => $row['PROCESS_ID'] ?? null,
             'promoterId' => $row['PROMOTER_ID'] ?? null,
             'promoterName' => $row['PROMOTER_NAME'] ?? null,
