@@ -316,7 +316,7 @@
 						</a-form-item>
 					</a-form>
 				</a-tab-pane>
-				<a-tab-pane key="approval" tab="审批信息" v-if="isOpenProcess">
+				<a-tab-pane key="approval" tab="审批信息" v-if="showApprovalFlow">
 					<a-form ref="formRef" :model="formData" :rules="formRules" layout="vertical">
 						<a-form-item label="审批人：" name="approveUserIdList">
 							<xn-user-selector
@@ -327,7 +327,7 @@
 								v-model:value="formData.approveUserIdList"
 							/>
 						</a-form-item>
-						<a-form-item v-if="isOpenProcess" label="抄送人：" name="receiverIdList">
+						<a-form-item v-if="showApprovalFlow" label="抄送人：" name="receiverIdList">
 							<xn-user-selector
 								:org-tree-api="selectorApiFunction.orgTreeApi"
 								:user-page-api="selectorApiFunction.userPageApi"
@@ -374,7 +374,6 @@
 	import tool from '@/utils/tool'
 	import { cloneDeep } from 'lodash-es'
 	import { useUserSelector } from '@/composables/useUserSelector'
-	import { useProcessParam } from '@/composables/useProcessParam'
 	import { createVNode, ref } from 'vue'
 	import SelectProductModal from '@/views/biz/bizproduct/modal/selectProductModal/index.vue'
 	import { Decimal } from 'decimal.js'
@@ -411,7 +410,7 @@
 	const formRef = ref()
 	// 表单数据
 	const formData = ref({})
-	const { isOpenProcess, copyUserIdList, approveUserIdList } = useProcessParam('Process_sale_project_init')
+	const showApprovalFlow = false
 	const fileFormRef = ref()
 	const productFormRef = ref()
 	const columns = [
@@ -564,8 +563,8 @@
 			},
 			productList: [],
 			bizSaleProjectId: record.id,
-			copyUserIdList: copyUserIdList,
-			approveUserIdList: approveUserIdList
+			copyUserIdList: [],
+			approveUserIdList: []
 		}
 		if (baseForm && baseForm.extJson) {
 			const json = JSON.parse(baseForm.extJson)
@@ -616,7 +615,7 @@
 		unitPhone: [required('请输入单位电话')]
 	}
 
-	if (isOpenProcess.value) {
+	if (showApprovalFlow) {
 		formRules['approveUserIdList'] = [required('请选择审批人')]
 	}
 	const InfoRef = ref()
@@ -682,7 +681,7 @@
 			return
 		}
 
-		if (isOpenProcess.value) {
+		if (showApprovalFlow) {
 			try {
 				await formRef.value.validate()
 			} catch (e) {

@@ -252,11 +252,9 @@ class WorkflowRuntimeService
         $tenantId = $this->tenantId($input, $payload, $starter);
         $orgId = $this->orgId($payload, $starter);
         $projectId = $this->requiredInputString($input, 'bizSaleProjectId');
-        $approveUserIds = $this->requiredStringList($input['approveUserIdList'] ?? $input['approveUsers'] ?? []);
         $copyUserIds = $this->stringList($input['copyUserIdList'] ?? $input['copyUsers'] ?? []);
         $fileIds = $this->requiredStringList($input['fileIdList'] ?? []);
         $productList = $this->decodedArrayList($input['productList'] ?? null, 'productList');
-        $this->assertUsers($approveUserIds, $tenantId, 'approve user not found');
         $this->assertUsers($copyUserIds, $tenantId, 'copy user not found');
         $this->assertProjectInitInput($input);
 
@@ -268,13 +266,11 @@ class WorkflowRuntimeService
             $tenantId,
             $orgId,
             $projectId,
-            $approveUserIds,
             $copyUserIds,
             $fileIds,
             $productList
         ): array {
             $project = $this->saleProjectService->markProjectPendingApproval($projectId, $payload, $tenantId);
-            $assignee = $approveUserIds[0];
             $starterName = trim((string)($starter['NAME'] ?? $payload['name'] ?? $currentUserId));
             $projectName = trim((string)($project['PROJECT_NAME'] ?? $projectId));
             $title = $starterName . "\u{53d1}\u{8d77}\u{7684}" . $projectName . "\u{9879}\u{76ee}\u{7533}\u{8bf7}";
@@ -287,37 +283,33 @@ class WorkflowRuntimeService
             ]));
             $variables = array_merge($variables, [
                 'initiator' => $currentUserId,
-                'approveUserIdList' => $approveUserIds,
+                'approveUserIdList' => [],
                 'copyUserIdList' => $copyUserIds,
                 'fileIdList' => $fileIds,
                 'org' => $orgId,
                 'approval' => true,
                 'title' => $title,
                 'tenantId' => $tenantId,
-                'status' => self::STATUS_PROGRESS,
-                'nrOfInstances' => count($approveUserIds),
+                'status' => self::STATUS_AGREE,
+                'state' => self::STATUS_AGREE,
+                'nrOfInstances' => 0,
                 'nrOfCompletedInstances' => 0,
-                'nrOfActiveInstances' => 1,
+                'nrOfActiveInstances' => 0,
                 'loopCounter' => 0,
-                'user' => $assignee,
             ]);
-
-            return $this->startInitialApprovalProcess(
-                self::PROCESS_SALE_PROJECT_INIT,
-                $currentUserId,
-                $tenantId,
-                $approveUserIds,
-                $copyUserIds,
-                $fileIds,
-                $assignee,
-                $title,
+            $processInstanceId = $this->uuid();
+            $result = $this->saleProjectService->applyProjectInitFromWorkflow(
                 $variables,
-                self::TASK_NAME_APPROVAL,
-                [
-                    'projectId' => $projectId,
-                    'projectState' => 'PENDING_APPROVAL',
-                ]
+                $processInstanceId,
+                $tenantId,
+                $currentUserId
             );
+
+            return array_merge([
+                'processInstanceId' => $processInstanceId,
+                'projectId' => $projectId,
+                'autoApproved' => true,
+            ], $result);
         });
     }
 
