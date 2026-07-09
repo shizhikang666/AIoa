@@ -145,7 +145,7 @@
 	import { Decimal } from 'decimal.js'
 	import InvoiceForm from '@/views/biz/saleproject/form/invoiceForm.vue'
 	import { useOrg } from '@/composables/useOrg'
-	const { treeData, loadingTreeData, findCompanyByDeptId } = useOrg()
+	const { treeData, loadingTreeData, findTopCompanyByOrgId } = useOrg()
 	const { message, modal, notification } = App.useApp()
 
 	const searchFormState = ref({})
@@ -252,7 +252,7 @@
 			)
 			.then((data) => {
 				data.records = data.records.map((v) => {
-					v.company = findCompanyByDeptId(treeData.value, v.org)
+					v.company = findTopCompanyByOrgId(treeData.value, v.org)
 					v.companyName = v.company ? v.company.name : ''
 
 					v.totalPrice = v.totalPrice ? v.totalPrice : 0
