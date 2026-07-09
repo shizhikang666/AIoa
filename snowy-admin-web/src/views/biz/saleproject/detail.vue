@@ -397,7 +397,14 @@
 					type="primary"
 					>退货
 				</a-button>
-				<a-button v-if="isDeal" @click="exportWord" :loading="exportWordLoading" type="primary"> 导出发货单 </a-button>
+				<a-button
+					v-if="isDeal && hasPerm('bizSaleProjectExportDeliveryNote')"
+					@click="exportWord"
+					:loading="exportWordLoading"
+					type="primary"
+				>
+					导出发货单
+				</a-button>
 			</a-space>
 		</template>
 	</xn-form-container>

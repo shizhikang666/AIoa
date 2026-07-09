@@ -27,6 +27,11 @@ class RoleService
     private const CATEGORY_MENU = 'MENU';
     private const CATEGORY_BUTTON = 'BUTTON';
     private const MENU_TYPE_CATALOG = 'CATALOG';
+    private const SALE_PROJECT_EXPORT_DELIVERY_NOTE_BUTTON_CODE = 'bizSaleProjectExportDeliveryNote';
+    private const SALE_PROJECT_EXPORT_DELIVERY_NOTE_BUTTON_TITLE = "\u{5bfc}\u{51fa}\u{53d1}\u{8d27}\u{5355}";
+    private const SALE_PROJECT_DEAL_MENU_PATH = '/biz/saleproject/dealProjectList';
+    private const SALE_PROJECT_DEAL_MENU_TITLE = "\u{5df2}\u{6210}\u{4ea4}\u{9879}\u{76ee}";
+    private const RESOURCE_CREATE_USER_ID = '1543837863788879870';
     private const BUILD_IN_ROLE_CODES = ['superadmin', 'tenantadmin'];
     private const SCOPE_CATEGORIES = [
         'SCOPE_ALL',
@@ -301,6 +306,8 @@ class RoleService
      */
     public function resourceTreeSelector(): array
     {
+        $this->ensureBuiltInBusinessButtons();
+
         return $this->grantTree('sys_resource');
     }
 
@@ -827,6 +834,108 @@ class RoleService
         if (in_array('system', $moduleCodes, true)) {
             throw new RuntimeException('只有超管角色可以授权系统模块资源', 400);
         }
+    }
+
+    private function ensureBuiltInBusinessButtons(): void
+    {
+        $this->ensureSaleProjectExportDeliveryNoteButton();
+    }
+
+    private function ensureSaleProjectExportDeliveryNoteButton(): void
+    {
+        $menu = Db::name('sys_resource')
+            ->where('CATEGORY', self::CATEGORY_MENU)
+            ->where('PATH', self::SALE_PROJECT_DEAL_MENU_PATH)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->find();
+
+        if (!is_array($menu) || $menu === []) {
+            $menu = Db::name('sys_resource')
+                ->where('CATEGORY', self::CATEGORY_MENU)
+                ->where('TITLE', self::SALE_PROJECT_DEAL_MENU_TITLE)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
+                ->find();
+        }
+
+        if (!is_array($menu) || $menu === []) {
+            return;
+        }
+
+        $menuId = trim((string)($menu['ID'] ?? ''));
+        if ($menuId === '') {
+            return;
+        }
+
+        $button = Db::name('sys_resource')
+            ->where('CATEGORY', self::CATEGORY_BUTTON)
+            ->where('CODE', self::SALE_PROJECT_EXPORT_DELIVERY_NOTE_BUTTON_CODE)
+            ->find();
+
+        $now = date('Y-m-d H:i:s');
+        if (is_array($button) && $button !== []) {
+            $buttonId = trim((string)($button['ID'] ?? ''));
+            if ($buttonId === '') {
+                return;
+            }
+
+            $update = [];
+            if (trim((string)($button['PARENT_ID'] ?? '')) !== $menuId) {
+                $update['PARENT_ID'] = $menuId;
+            }
+            if ((string)($button['TITLE'] ?? '') !== self::SALE_PROJECT_EXPORT_DELIVERY_NOTE_BUTTON_TITLE) {
+                $update['TITLE'] = self::SALE_PROJECT_EXPORT_DELIVERY_NOTE_BUTTON_TITLE;
+            }
+            if ((string)($button['DELETE_FLAG'] ?? '') !== self::NOT_DELETE) {
+                $update['DELETE_FLAG'] = self::NOT_DELETE;
+            }
+
+            if ($update !== []) {
+                $update['UPDATE_TIME'] = $now;
+                $update['UPDATE_USER'] = self::RESOURCE_CREATE_USER_ID;
+
+                Db::name('sys_resource')
+                    ->where('ID', $buttonId)
+                    ->update($update);
+            }
+
+            return;
+        }
+
+        $sortCode = (int)Db::name('sys_resource')
+            ->where('CATEGORY', self::CATEGORY_BUTTON)
+            ->where('PARENT_ID', $menuId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->max('SORT_CODE');
+
+        Db::name('sys_resource')->insert([
+            'ID' => $this->newId(),
+            'PARENT_ID' => $menuId,
+            'TITLE' => self::SALE_PROJECT_EXPORT_DELIVERY_NOTE_BUTTON_TITLE,
+            'NAME' => null,
+            'CODE' => self::SALE_PROJECT_EXPORT_DELIVERY_NOTE_BUTTON_CODE,
+            'CATEGORY' => self::CATEGORY_BUTTON,
+            'MODULE' => null,
+            'MENU_TYPE' => null,
+            'PATH' => null,
+            'COMPONENT' => null,
+            'ICON' => null,
+            'COLOR' => null,
+            'VISIBLE' => null,
+            'SORT_CODE' => $sortCode > 0 ? $sortCode + 10 : 109,
+            'EXT_JSON' => null,
+            'DELETE_FLAG' => self::NOT_DELETE,
+            'CREATE_TIME' => $now,
+            'CREATE_USER' => self::RESOURCE_CREATE_USER_ID,
+            'UPDATE_TIME' => null,
+            'UPDATE_USER' => null,
+        ]);
     }
 
     /**
