@@ -54,7 +54,7 @@
 					</a-tag>
 				</template>
 				<template v-if="column.dataIndex === 'category'">
-					{{ $TOOL.dictTypeDataByPath('APPROVAL_PROCESS', 'progress_category', record.category) }}
+					{{ displayProcessCategory(record) }}
 				</template>
 				<template v-if="column.dataIndex === 'amount'">
 					{{ record.variable.amount ? record.variable.amount : '--' }} {{ calcUnit(record.category) }}
@@ -89,6 +89,13 @@
 	const editAskForLeaveRef = ref()
 	const categoryOptions = ref([])
 	categoryOptions.value = tool.dictListByPath(['APPROVAL_PROCESS', 'progress_category'])
+	const displayProcessCategory = (record) => {
+		return (
+			record.categoryName ||
+			record.processCategoryName ||
+			tool.dictTypeDataByPath('APPROVAL_PROCESS', 'progress_category', record.category)
+		)
+	}
 
 	const { modal } = App.useApp()
 	const isEditRecord = (record) => {

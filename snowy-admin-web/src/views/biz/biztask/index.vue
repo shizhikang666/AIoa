@@ -57,13 +57,13 @@
 				</template>
 
 				<template v-if="column.dataIndex === 'orgName'">
-					{{ (record.startOrgTree&&record.startOrgTree.length) ? record.startOrgTree[0].label : '' }}
+					{{ displayOrgName(record) }}
 				</template>
 				<template v-if="column.dataIndex === 'amount'">
 					{{ record.variable.amount ? record.variable.amount : '--' }}
 				</template>
 				<template v-if="column.dataIndex === 'category'">
-					{{ $TOOL.dictTypeDataByPath('APPROVAL_PROCESS', 'TASK_CATEGORY', record.category) }}
+					{{ displayProcessCategory(record) }}
 				</template>
 				<template v-if="column.dataIndex === 'action'">
 					<a-space>
@@ -141,6 +141,16 @@
 
 	const categoryOptions = ref([])
 	categoryOptions.value = tool.dictListByPath(['APPROVAL_PROCESS', 'progress_category'])
+	const displayOrgName = (record) => {
+		return record.orgName || (record.startOrgTree && record.startOrgTree.length ? record.startOrgTree[0].label : '')
+	}
+	const displayProcessCategory = (record) => {
+		return (
+			record.categoryName ||
+			record.processCategoryName ||
+			tool.dictTypeDataByPath('APPROVAL_PROCESS', 'progress_category', record.category)
+		)
+	}
 	const selectedRowKeys = ref([])
 	// 列表选择配置
 	const options = {

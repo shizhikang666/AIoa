@@ -48,7 +48,7 @@
 					</a-typography-link>
 				</template>
 				<template v-if="column.dataIndex === 'category'">
-					{{ $TOOL.dictTypeDataByPath('APPROVAL_PROCESS', 'progress_category', record.category) }}
+					{{ displayProcessCategory(record) }}
 				</template>
 				<template v-if="column.dataIndex === 'status'">
 					<a-tag :color="$TOOL.dictTypeDataByPath('APPROVAL_PROCESS', 'progress_state_color', record.status)">
@@ -75,6 +75,13 @@
 
 	const categoryOptions = ref([])
 	categoryOptions.value = tool.dictListByPath(['APPROVAL_PROCESS', 'progress_category'])
+	const displayProcessCategory = (record) => {
+		return (
+			record.categoryName ||
+			record.processCategoryName ||
+			tool.dictTypeDataByPath('APPROVAL_PROCESS', 'progress_category', record.category)
+		)
+	}
 	const searchFormState = ref({})
 	const searchFormRef = ref()
 	const tableRef = ref()

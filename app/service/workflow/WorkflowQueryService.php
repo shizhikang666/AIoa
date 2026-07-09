@@ -22,6 +22,16 @@ use think\facade\Db;
  */
 class WorkflowQueryService
 {
+    /**
+     * @var array<string, array<string, mixed>>
+     */
+    private array $userCache = [];
+
+    /**
+     * @var array<string, string|null>
+     */
+    private array $orgNameCache = [];
+
     public function __construct(private readonly WorkflowVariableService $variableService = new WorkflowVariableService())
     {
     }
@@ -584,6 +594,9 @@ class WorkflowQueryService
         $processKey = (string)($row['PROC_DEF_KEY_'] ?? $this->definitionKey((string)($row['PROC_DEF_ID_'] ?? '')) ?? '');
         $startUserId = trim((string)($row['START_USER_ID_'] ?? $variables['initiator'] ?? ''));
         $startUser = $this->userById($startUserId);
+        $orgId = trim((string)($variables['org'] ?? $startUser['orgId'] ?? ''));
+        $orgName = $this->orgName($orgId);
+        $processLabel = WorkflowTitleFormatter::processLabel($processKey);
         $title = WorkflowTitleFormatter::displayTitle(
             isset($variables['title']) ? (string)$variables['title'] : null,
             $processKey,
@@ -596,10 +609,16 @@ class WorkflowQueryService
             'processInstanceId' => $processId,
             'category' => $processKey,
             'processKey' => $processKey,
+            'categoryName' => $processLabel,
+            'processCategory' => $processKey,
+            'processCategoryName' => $processLabel,
             'title' => $title,
             'status' => $variables['status'] ?? ($row['STATE_'] ?? null),
             'remark' => $variables['remark'] ?? null,
             'amount' => $variables['amount'] ?? null,
+            'org' => $orgId !== '' ? $orgId : null,
+            'orgId' => $orgId !== '' ? $orgId : null,
+            'orgName' => $orgName,
             'createTime' => $row['START_TIME_'] ?? $row['CREATE_TIME_'] ?? null,
             'startTime' => $row['START_TIME_'] ?? $row['CREATE_TIME_'] ?? null,
             'endTime' => $row['END_TIME_'] ?? null,
@@ -835,22 +854,41 @@ class WorkflowQueryService
         if ($userId === '') {
             return [];
         }
+        if (array_key_exists($userId, $this->userCache)) {
+            return $this->userCache[$userId];
+        }
 
         $row = Db::name('sys_user')
             ->where('ID', $userId)
             ->field('ID, ACCOUNT, NAME, AVATAR, ORG_ID')
             ->find();
         if (!is_array($row) || $row === []) {
-            return ['id' => $userId, 'name' => null, 'avatar' => null];
+            return $this->userCache[$userId] = ['id' => $userId, 'name' => null, 'avatar' => null];
         }
 
-        return [
+        return $this->userCache[$userId] = [
             'id' => $row['ID'] ?? $userId,
             'account' => $row['ACCOUNT'] ?? null,
             'name' => $row['NAME'] ?? null,
             'avatar' => $row['AVATAR'] ?? null,
             'orgId' => $row['ORG_ID'] ?? null,
         ];
+    }
+
+    private function orgName(string $orgId): ?string
+    {
+        if ($orgId === '') {
+            return null;
+        }
+        if (array_key_exists($orgId, $this->orgNameCache)) {
+            return $this->orgNameCache[$orgId];
+        }
+
+        $name = Db::name('sys_org')
+            ->where('ID', $orgId)
+            ->value('NAME');
+
+        return $this->orgNameCache[$orgId] = is_string($name) && $name !== '' ? $name : null;
     }
 
     /**
