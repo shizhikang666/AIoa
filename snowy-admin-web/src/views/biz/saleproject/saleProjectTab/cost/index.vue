@@ -129,31 +129,34 @@
 		items.forEach((item) => {
 			keyMap[item.productId] = item
 		})
+		const numberValue = (value) => new Decimal(value || 0)
+		const costUnitAmount = (productId, fallback) => {
+			const item = keyMap[productId]
+			if (item && item.avgUnitAmount !== undefined && item.avgUnitAmount !== null && !numberValue(item.avgUnitAmount).isZero()) {
+				return item.avgUnitAmount
+			}
+			return fallback || 0
+		}
 
 		resultProduct.forEach((product) => {
 			product.amount = product.number
 			if (product.children && product.children.length > 0) {
 				let baseCountAmount = new Decimal(0)
 				product.children.forEach((child) => {
-					const { product } = JSON.parse(child.extJson)
-					child.productName = product.productName
+					const extjson = child.extJson ? JSON.parse(child.extJson) : {}
+					const childProduct = extjson?.product || {}
+					const childProductId = child.targetId || childProduct.id
+					child.productName = child.productName || childProduct.productName
 					child.amount = child.number
-					// child.avgUnitAmount = keyMap[product.id] ? keyMap[product.id].avgUnitAmount : 0
-
-					const extjson = JSON.parse(child.extJson)
-
-					child.avgUnitAmount = extjson?.product?.purchasePrice ? extjson?.product?.purchasePrice : 0
-
-					child.countAmount = new Decimal(child.amount).mul(child.avgUnitAmount).toString()
+					child.avgUnitAmount = costUnitAmount(childProductId, child.purchasePrice || childProduct.purchasePrice)
+					child.countAmount = numberValue(child.amount).mul(child.avgUnitAmount).toNumber()
 					baseCountAmount = baseCountAmount.add(child.countAmount)
 				})
 				product.avgUnitAmount = baseCountAmount.toNumber()
 			} else {
-				// const find = keyMap[product.productId]
-				// product.avgUnitAmount = find ? find.avgUnitAmount : 0
-				product.avgUnitAmount = product.productPurchasePrice ? product.productPurchasePrice : 0
+				product.avgUnitAmount = costUnitAmount(product.productId, product.purchasePrice)
 			}
-			product.countAmount = new Decimal(product.avgUnitAmount).mul(product.amount).toNumber()
+			product.countAmount = numberValue(product.avgUnitAmount).mul(product.amount).toNumber()
 		})
 
 		list.value = resultProduct
@@ -164,7 +167,7 @@
 	//采购成本
 	const cost = computed(() => {
 		return list.value.reduce((per, next) => {
-			return per.add(new Decimal(next.amount).mul(next.avgUnitAmount))
+			return per.add(new Decimal(next.countAmount || 0))
 		}, new Decimal(0))
 	})
 

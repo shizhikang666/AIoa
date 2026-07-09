@@ -2823,7 +2823,7 @@ SQL;
         $query = Db::name('sale_project_product_item_relation')
             ->alias('r')
             ->leftJoin('biz_product p', 'p.ID = r.TARGET_ID')
-            ->field('r.*, p.PRODUCT_NAME AS PRODUCT_NAME, p.PRODUCT_CATEGORY AS PRODUCT_CATEGORY, p.CATEGORY AS PRODUCT_SYS_CATEGORY, p.SPECS AS SPECS')
+            ->field('r.*, p.PRODUCT_NAME AS PRODUCT_NAME, p.PRODUCT_CATEGORY AS PRODUCT_CATEGORY, p.CATEGORY AS PRODUCT_SYS_CATEGORY, p.SPECS AS SPECS, p.PURCHASE_PRICE AS PURCHASE_PRICE, p.SALE_PRICE AS SALE_PRICE, p.MIN_PRICE AS MIN_PRICE')
             ->whereIn('r.OBJECT_ID', $ids);
         $this->whereNotDeleted($query, 'r.DELETE_FLAG');
 
@@ -2834,6 +2834,9 @@ SQL;
         $result = [];
         foreach ($query->order('r.ID', 'asc')->select()->toArray() as $row) {
             $child = $this->normalizeRow($row);
+            foreach (['purchasePrice', 'salePrice', 'minPrice'] as $decimalField) {
+                $child[$decimalField] = $this->decimal($child[$decimalField] ?? null);
+            }
             if (empty($child['extJson'])) {
                 $child['extJson'] = json_encode([
                     'product' => [
@@ -2842,6 +2845,9 @@ SQL;
                         'productCategory' => $child['productCategory'] ?? null,
                         'category' => $child['productSysCategory'] ?? null,
                         'specs' => $child['specs'] ?? null,
+                        'purchasePrice' => $child['purchasePrice'] ?? null,
+                        'salePrice' => $child['salePrice'] ?? null,
+                        'minPrice' => $child['minPrice'] ?? null,
                     ],
                 ], JSON_UNESCAPED_UNICODE);
             }
@@ -2995,6 +3001,21 @@ SQL)
         foreach ($groups as $productId => $amounts) {
             $count = count($amounts);
             $result[$productId] = $count === 0 ? 0.0 : round(array_sum($amounts) / $count, 2);
+        }
+
+        $missingIds = array_values(array_diff($ids, array_keys($result)));
+        if ($missingIds !== []) {
+            $productQuery = Db::name('biz_product')
+                ->whereIn('ID', $missingIds);
+            $this->whereNotDeleted($productQuery, 'DELETE_FLAG');
+
+            if ($tenantId !== '') {
+                $productQuery->where('TENANT_ID', $tenantId);
+            }
+
+            foreach ($productQuery->column('PURCHASE_PRICE', 'ID') as $productId => $purchasePrice) {
+                $result[(string)$productId] = $this->number($purchasePrice);
+            }
         }
 
         return $result;
