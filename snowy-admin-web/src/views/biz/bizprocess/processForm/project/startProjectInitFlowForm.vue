@@ -259,13 +259,21 @@
 						layout="vertical"
 					>
 						<a-form-item label="开票公司：" name="companyName">
-							<a-input v-model:value="formData.invoicingInfo.companyName" placeholder="请输入开票公司" allow-clear />
+							<a-select
+								v-model:value="formData.invoicingInfo.companyName"
+								show-search
+								:filter-option="filterOption"
+								placeholder="请选择开票公司"
+								:options="invoiceCompanyOptions"
+								allow-clear
+							/>
 						</a-form-item>
 						<a-form-item label="开票类型：" name="invoicingCategory">
 							<a-select
 								v-model:value="formData.invoicingInfo.invoicingCategory"
 								placeholder="请选择分类"
 								:options="invoiceCategoryOptions"
+								@change="onInvoicingCategoryChange"
 							/>
 						</a-form-item>
 
@@ -279,13 +287,13 @@
 								allow-clear
 							/>
 						</a-form-item>
-						<a-form-item label="单位全称：" name="unit">
+						<a-form-item v-if="!isGeneralInvoice" label="单位全称：" name="unit">
 							<a-input v-model:value="formData.invoicingInfo.unit" placeholder="请输入单位全称" allow-clear />
 						</a-form-item>
-						<a-form-item label="单位地址：" name="unitAddress">
+						<a-form-item v-if="!isGeneralInvoice" label="单位地址：" name="unitAddress">
 							<a-input v-model:value="formData.invoicingInfo.unitAddress" placeholder="请输入单位地址" allow-clear />
 						</a-form-item>
-						<a-form-item label="单位电话：" name="unitPhone">
+						<a-form-item v-if="!isGeneralInvoice" label="单位电话：" name="unitPhone">
 							<a-input v-model:value="formData.invoicingInfo.unitPhone" placeholder="请输入单位电话" allow-clear />
 						</a-form-item>
 
@@ -293,25 +301,25 @@
 							<a-input v-model:value="formData.invoicingInfo.taxpayer" placeholder="请输入纳税人号" allow-clear />
 						</a-form-item>
 
-						<a-form-item label="开户银行：" name="bankName">
+						<a-form-item v-if="!isGeneralInvoice" label="开户银行：" name="bankName">
 							<a-input v-model:value="formData.invoicingInfo.bankName" placeholder="请输入开户银行" allow-clear />
 						</a-form-item>
-						<a-form-item label="开户银行账户：" name="corporateAccount">
+						<a-form-item v-if="!isGeneralInvoice" label="开户银行账户：" name="corporateAccount">
 							<a-input
 								v-model:value="formData.invoicingInfo.corporateAccount"
 								placeholder="请输入对公账户"
 								allow-clear
 							/>
 						</a-form-item>
-						<a-form-item label="发票收货联系电话：" name="phone">
+						<a-form-item v-if="!isGeneralInvoice" label="发票收货联系电话：" name="phone">
 							<a-input v-model:value="formData.invoicingInfo.phone" placeholder="请输入发票收货联系电话" allow-clear />
 						</a-form-item>
 
-						<a-form-item label="发票收货地址：" name="harvestAddress">
+						<a-form-item v-if="!isGeneralInvoice" label="发票收货地址：" name="harvestAddress">
 							<a-input v-model:value="formData.invoicingInfo.harvestAddress" placeholder="请输入发票地址" allow-clear />
 						</a-form-item>
 
-						<a-form-item label="备注：" name="remark">
+						<a-form-item v-if="!isGeneralInvoice" label="备注：" name="remark">
 							<a-textarea v-model:value="formData.invoicingInfo.remark" placeholder="请输入备注" allow-clear />
 						</a-form-item>
 					</a-form>
@@ -374,7 +382,8 @@
 	import tool from '@/utils/tool'
 	import { cloneDeep } from 'lodash-es'
 	import { useUserSelector } from '@/composables/useUserSelector'
-	import { createVNode, ref } from 'vue'
+	import { useSelectFilterOption } from '@/composables/useSelectFilterOption'
+	import { computed, createVNode, ref } from 'vue'
 	import SelectProductModal from '@/views/biz/bizproduct/modal/selectProductModal/index.vue'
 	import { Decimal } from 'decimal.js'
 	import SettlementAccountApi from '@/api/biz/settlementAccountApi'
@@ -401,6 +410,7 @@
 	payerCategoryOptions.value = tool.dictListByPath(['SALE_PROJECT', 'payerCategory'])
 
 	const accountList = ref([])
+	const invoiceCompanyOptions = ref([])
 
 	const sendLoading = ref(false)
 	// 定义emit事件
@@ -411,6 +421,18 @@
 	// 表单数据
 	const formData = ref({})
 	const showApprovalFlow = false
+	const generalInvoiceCategory = 'GeneralTicket'
+	const specialInvoiceFieldKeys = [
+		'unit',
+		'unitAddress',
+		'unitPhone',
+		'bankName',
+		'corporateAccount',
+		'phone',
+		'harvestAddress',
+		'remark'
+	]
+	const isGeneralInvoice = computed(() => formData.value.invoicingInfo?.invoicingCategory === generalInvoiceCategory)
 	const fileFormRef = ref()
 	const productFormRef = ref()
 	const columns = [
@@ -539,6 +561,17 @@
 	})
 
 	const logisticsCategory = ref([])
+	const filterOption = useSelectFilterOption()
+	const clearSpecialInvoiceFields = () => {
+		specialInvoiceFieldKeys.forEach((key) => {
+			formData.value.invoicingInfo[key] = ''
+		})
+	}
+	const onInvoicingCategoryChange = (value) => {
+		if (value === generalInvoiceCategory) {
+			clearSpecialInvoiceFields()
+		}
+	}
 	// 打开抽屉
 
 	const { load: onOpen, loading } = useLoading(async (record) => {
@@ -554,6 +587,13 @@
 			return {
 				label: v.accountName,
 				value: v.id
+			}
+		})
+		const accountNames = Array.from(new Set(accountListRes.map((v) => String(v.accountName || '').trim()).filter(Boolean)))
+		invoiceCompanyOptions.value = accountNames.map((accountName) => {
+			return {
+				label: accountName,
+				value: accountName
 			}
 		})
 		formData.value = {
@@ -581,6 +621,9 @@
 				formData.value.invoicingInfo.amount = ''
 			}
 		}
+		if (formData.value.invoicingInfo?.invoicingCategory === generalInvoiceCategory) {
+			clearSpecialInvoiceFields()
+		}
 	})
 
 	// 关闭抽屉
@@ -602,18 +645,23 @@
 		// freight: [required('运费金额不能为空')],
 		isInvoicing: [required('请选择是否开票')]
 	}
-	const invoiceRules = {
+	const baseInvoiceRules = {
 		amount: [required('请输入开票金额')],
 		invoicingCategory: [required('请输入开票类型')],
-		companyName: [required('请输入开票公司')],
+		companyName: [required('请选择开票公司')],
 		customerCompany: [required('请输入客户公司')],
+		taxpayer: [required('请输入纳税人号')]
+	}
+	const specialInvoiceRules = {
 		unit: [required('请输入单位全称')],
-		taxpayer: [required('请输入纳税人号')],
 		corporateAccount: [required('请输入对公账户')],
 		bankName: [required('请输入开户银行')],
 		unitAddress: [required('请输入单位地址')],
 		unitPhone: [required('请输入单位电话')]
 	}
+	const invoiceRules = computed(() => {
+		return isGeneralInvoice.value ? baseInvoiceRules : { ...baseInvoiceRules, ...specialInvoiceRules }
+	})
 
 	if (showApprovalFlow) {
 		formRules['approveUserIdList'] = [required('请选择审批人')]

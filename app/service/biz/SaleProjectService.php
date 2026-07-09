@@ -5851,6 +5851,7 @@ SQL)
         if (!in_array($category, self::INVOICING_CATEGORIES, true)) {
             throw new RuntimeException('invalid invoicingCategory', 400);
         }
+        $isGeneralTicket = $category === 'GeneralTicket';
 
         Db::name('biz_sale_project_invoicing')->insert([
             'ID' => $this->newId(),
@@ -5860,12 +5861,20 @@ SQL)
             'REMARK' => $this->workflowOptionalText($input['remark'] ?? null, 'remark', 80),
             'COMPANY_NAME' => $this->workflowRequiredText($input['companyName'] ?? null, 'companyName', 80),
             'CUSTOMER_COMPANY' => $this->workflowRequiredText($input['customerCompany'] ?? null, 'customerCompany', 80),
-            'UNIT' => $this->workflowRequiredText($input['unit'] ?? null, 'unit', 80),
+            'UNIT' => $isGeneralTicket
+                ? $this->workflowOptionalText($input['unit'] ?? null, 'unit', 80)
+                : $this->workflowRequiredText($input['unit'] ?? null, 'unit', 80),
             'PHONE' => $this->workflowOptionalText($input['phone'] ?? null, 'phone', 50),
             'TAXPAYER' => $this->workflowRequiredText($input['taxpayer'] ?? null, 'taxpayer', 50),
-            'CORPORATE_ACCOUNT' => $this->workflowRequiredText($input['corporateAccount'] ?? null, 'corporateAccount', 80),
-            'BANK_NAME' => $this->workflowRequiredText($input['bankName'] ?? null, 'bankName', 80),
-            'UNIT_ADDRESS' => $this->workflowRequiredText($input['unitAddress'] ?? null, 'unitAddress', 80),
+            'CORPORATE_ACCOUNT' => $isGeneralTicket
+                ? $this->workflowOptionalText($input['corporateAccount'] ?? null, 'corporateAccount', 80)
+                : $this->workflowRequiredText($input['corporateAccount'] ?? null, 'corporateAccount', 80),
+            'BANK_NAME' => $isGeneralTicket
+                ? $this->workflowOptionalText($input['bankName'] ?? null, 'bankName', 80)
+                : $this->workflowRequiredText($input['bankName'] ?? null, 'bankName', 80),
+            'UNIT_ADDRESS' => $isGeneralTicket
+                ? $this->workflowOptionalText($input['unitAddress'] ?? null, 'unitAddress', 80)
+                : $this->workflowRequiredText($input['unitAddress'] ?? null, 'unitAddress', 80),
             'UNIT_PHONE' => $this->workflowOptionalText($input['unitPhone'] ?? null, 'unitPhone', 50),
             'HARVEST_ADDRESS' => $this->workflowOptionalText($input['harvestAddress'] ?? null, 'harvestAddress', 80),
             'AMOUNT' => $this->workflowMoney($input['amount'] ?? null, 'amount', true),
