@@ -209,7 +209,7 @@
 
 						<a-popconfirm title="确定要作废吗？" @confirm="repealBizSaleProject(record)">
 							<a-button
-								:disabled="record.projectState != 'FOLLOW'"
+								:disabled="!['FOLLOW', 'WAIT_DELIVER'].includes(record.projectState)"
 								type="link"
 								danger
 								size="small"

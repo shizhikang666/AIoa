@@ -168,12 +168,14 @@ $projectIdTwo = [string]([Int64]604301000000000000 + [Int64](Get-Random -Minimum
 $invalidProjectId = [string]([Int64]604302000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 $missingId = [string]([Int64]604399000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 $invoiceId = [string]([Int64]704300000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
+$customerId = [string]([Int64]904300000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 
 $safePrefix = $prefix.Replace("'", "\'")
 $safeProjectIdOne = $projectIdOne.Replace("'", "\'")
 $safeProjectIdTwo = $projectIdTwo.Replace("'", "\'")
 $safeInvalidProjectId = $invalidProjectId.Replace("'", "\'")
 $safeInvoiceId = $invoiceId.Replace("'", "\'")
+$safeCustomerId = $customerId.Replace("'", "\'")
 $safeUserId = $userId.Replace("'", "\'")
 $safeTenantId = $tenantId.Replace("'", "\'")
 $safeOrgId = $orgId.Replace("'", "\'")
@@ -183,6 +185,7 @@ require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 think\facade\Db::name('biz_sale_project_invoicing')->where('ID', '$safeInvoiceId')->delete();
 think\facade\Db::name('biz_sale_project')->whereIn('ID', ['$safeProjectIdOne', '$safeProjectIdTwo', '$safeInvalidProjectId'])->delete();
+think\facade\Db::name('customer')->where('ID', '$safeCustomerId')->delete();
 think\facade\Db::name('biz_sale_project')->whereLike('PROJECT_NAME', '$safePrefix%')->delete();
 "@
 
@@ -193,15 +196,29 @@ try {
 require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 `$now = date('Y-m-d H:i:s');
+think\facade\Db::name('customer')->insert([
+    'ID' => '$safeCustomerId',
+    'NAME' => '$safePrefix customer',
+    'CUSTOM_TYPE' => 'OLD',
+    'ORG' => '$safeOrgId',
+    'USER' => '$safeUserId',
+    'STATUS' => 'ENABLE',
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => '$safeUserId',
+    'TENANT_ID' => '$safeTenantId',
+    'VERSION' => 0,
+    'DEAL_AMOUNT' => '1.00',
+]);
 `$projects = [
-    ['$safeProjectIdOne', 'FOLLOW'],
-    ['$safeProjectIdTwo', 'FOLLOW'],
-    ['$safeInvalidProjectId', 'WAIT_DELIVER'],
+    ['$safeProjectIdOne', 'FOLLOW', '', '0.00'],
+    ['$safeProjectIdTwo', 'WAIT_DELIVER', '$safeProjectIdTwo-process', '1.00'],
+    ['$safeInvalidProjectId', 'SHIPPED', '$safeInvalidProjectId-process', '0.00'],
 ];
 foreach (`$projects as `$project) {
     think\facade\Db::name('biz_sale_project')->insert([
         'ID' => `$project[0],
-        'CUSTOMER' => '$safePrefix-customer',
+        'CUSTOMER' => '$safeCustomerId',
         'PROJECT_NAME' => '$safePrefix project ' . `$project[0],
         'PROJECT_STATE' => `$project[1],
         'PLAY_STATE' => 'UNPAID',
@@ -218,7 +235,8 @@ foreach (`$projects as `$project) {
         'CREATE_USER' => '$safeUserId',
         'TENANT_ID' => '$safeTenantId',
         'VERSION' => 0,
-        'DEAL_AMOUNT' => 0,
+        'PROCESS_ID' => `$project[2],
+        'DEAL_AMOUNT' => `$project[3],
         'HISTORY_AMOUNT' => '0.00',
         'TOTAL_RETURN_AMOUNT' => '0.00',
         'TOTAL_REFUND_AMOUNT' => '0.00',
@@ -226,7 +244,7 @@ foreach (`$projects as `$project) {
 }
 think\facade\Db::name('biz_sale_project_invoicing')->insert([
     'ID' => '$safeInvoiceId',
-    'PROJECT_ID' => '$safeProjectIdOne',
+    'PROJECT_ID' => '$safeProjectIdTwo',
     'PROCESS_ID' => '$safeInvoiceId-process',
     'INVOICING_CATEGORY' => 'SPECIAL',
     'INVOICING_STATE' => 'WAIT',
@@ -257,7 +275,7 @@ require getcwd() . '/vendor/autoload.php';
 `$project = think\facade\Db::name('biz_sale_project')->where('ID', '$safeInvalidProjectId')->find();
 echo json_encode(`$project, JSON_UNESCAPED_SLASHES);
 "@
-    if ($invalidAfter.PROJECT_STATE -ne 'WAIT_DELIVER' -or [int]$invalidAfter.VERSION -ne 0 -or [string]$invalidAfter.REPEAL_CONTENT -ne '') {
+    if ($invalidAfter.PROJECT_STATE -ne 'SHIPPED' -or [int]$invalidAfter.VERSION -ne 0 -or [string]$invalidAfter.REPEAL_CONTENT -ne '') {
         throw 'sale project repeal invalid-state request changed the project'
     }
 
@@ -272,7 +290,8 @@ require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 `$projects = think\facade\Db::name('biz_sale_project')->whereIn('ID', ['$safeProjectIdOne', '$safeProjectIdTwo'])->order('ID')->select()->toArray();
 `$invoice = think\facade\Db::name('biz_sale_project_invoicing')->where('ID', '$safeInvoiceId')->find();
-echo json_encode(['projects' => `$projects, 'invoice' => `$invoice], JSON_UNESCAPED_SLASHES);
+`$customer = think\facade\Db::name('customer')->where('ID', '$safeCustomerId')->find();
+echo json_encode(['projects' => `$projects, 'invoice' => `$invoice, 'customer' => `$customer], JSON_UNESCAPED_SLASHES);
 "@
     foreach ($project in $after.projects) {
         if ($project.PROJECT_STATE -ne 'DISCARD' -or $project.REPEAL_CONTENT -ne "$prefix reason") {
@@ -285,8 +304,11 @@ echo json_encode(['projects' => `$projects, 'invoice' => `$invoice], JSON_UNESCA
             throw 'sale project repeal unexpectedly deleted the project row'
         }
     }
-    if ($after.invoice.DELETE_FLAG -ne 'NOT_DELETE') {
-        throw 'sale project repeal unexpectedly changed invoicing rows'
+    if ($after.invoice.DELETE_FLAG -ne 'DELETED' -or [string]$after.invoice.UPDATE_USER -ne $userId -or [string]$after.invoice.UPDATE_TIME -eq '') {
+        throw 'sale project repeal did not cancel pending invoicing rows for WAIT_DELIVER project'
+    }
+    if ([decimal]$after.customer.DEAL_AMOUNT -ne 0) {
+        throw 'sale project repeal did not restore customer deal amount'
     }
 
     Write-Host 'sale project repeal HTTP smoke passed'

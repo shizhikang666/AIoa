@@ -91,7 +91,6 @@ class ApiResponse
             'amount must be greater than 0' => '金额必须大于0',
             'settlement account not found' => '结算账户不存在或不可用',
             'amount collected exceeds sale project total price' => '累计收款金额不能超过项目总价',
-            'sale project cannot be repealed unless it is FOLLOW' => '仅跟进中的项目可以作废',
         ];
         if (isset($workflowMessageMap[$message])) {
             return $workflowMessageMap[$message];

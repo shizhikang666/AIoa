@@ -206,25 +206,8 @@
 				</template>
 				<template v-if="column.dataIndex === 'action'">
 					<a-space>
-						<a @click="formRef.onOpen(record)" v-if="hasPerm('bizSaleProjectEdit')">编辑</a>
-						<a-divider type="vertical" v-if="hasPerm(['bizSaleProjectEdit', 'bizSaleProjectDelete'], 'and')" />
-						<!--						<a-popconfirm title="确定要删除吗？" @confirm="deleteBizSaleProject(record)">-->
-						<!--							<a-button :disabled="record.projectState!='FOLLOW'" type="link" danger size="small" v-if="hasPerm('bizSaleProjectDelete')">删除 </a-button>-->
-						<!--						</a-popconfirm>-->
-
-						<a-popconfirm title="确定要作废吗？" @confirm="repealBizSaleProject(record)">
-							<template #description>
-								<a-textarea placeholder="作废原因" v-model:value="repealContent" />
-							</template>
-							<a-button
-								@click="repealContent = ''"
-								:disabled="record.projectState != 'FOLLOW'"
-								type="link"
-								danger
-								size="small"
-								v-if="hasPerm('bizSaleProjectRepeal')"
-								>作废
-							</a-button>
+						<a-popconfirm title="确定恢复为跟进状态吗？" @confirm="restoreProject(record)">
+							<a-button type="link" size="small" v-if="hasPerm('bizSaleProjectCancel')">恢复跟进</a-button>
 						</a-popconfirm>
 					</a-space>
 					<a-divider type="vertical" v-if="hasPerm(['bizSaleProjectDetail'])" />
@@ -511,7 +494,7 @@
 		}
 	]
 	// 操作栏通过权限判断是否显示
-	if (hasPerm(['bizSaleProjectEdit', 'bizSaleProjectDelete', 'bizSaleProjectDetail', 'bizSaleProjectRepeal'])) {
+	if (hasPerm(['bizSaleProjectDetail', 'bizSaleProjectCancel'])) {
 		columns.push({
 			title: '操作',
 			dataIndex: 'action',
@@ -667,6 +650,15 @@
 		bizSaleProjectApi.repealBizSaleProject(params).then(() => {
 			tableRef.value.clearRefreshSelected()
 		})
+	}
+	const restoreProject = (record) => {
+		bizSaleProjectApi
+			.cancelBizSaleProject({
+				id: record.id
+			})
+			.then(() => {
+				tableRef.value.refresh(true)
+			})
 	}
 
 	// 批量删除

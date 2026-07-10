@@ -8,7 +8,6 @@ use app\service\workflow\WorkflowRuntimeService;
 use app\support\FileDownloadUrl;
 use app\support\LegacyFileSource;
 use app\support\TenantScope;
-use app\support\ApiResponse;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -68,13 +67,6 @@ assertThrows(
     'legacy file source placeholder'
 );
 
-$normalizeMessage = new ReflectionMethod(ApiResponse::class, 'normalizeMessage');
-assertSameValue(
-    '仅跟进中的项目可以作废',
-    $normalizeMessage->invoke(null, 'sale project cannot be repealed unless it is FOLLOW', '请求失败'),
-    'sale project repeal state message'
-);
-
 $tenantPayload = ['tenant_id' => '1', 'role_codes' => ['tenantAdmin']];
 $superPayload = ['tenant_id' => '1', 'role_codes' => ['superAdmin']];
 assertSameValue(['tenantId' => '1'], TenantScope::scopedFilters(['tenantId' => '2'], $tenantPayload), 'tenant filter override');
@@ -84,6 +76,26 @@ assertSameValue(true, TenantScope::canCrossTenant($superPayload), 'super admin c
 
 $costMethod = new ReflectionMethod(SaleProjectService::class, 'addProductCostAmount');
 $costService = new SaleProjectService();
+$inventoryRequirementsMethod = new ReflectionMethod(SaleProjectService::class, 'inventoryRequirementsForProductItems');
+assertSameValue(
+    [
+        'single' => 2.0,
+        'component' => 6.0,
+        'accessory' => 3.0,
+    ],
+    $inventoryRequirementsMethod->invoke($costService, [
+        ['productId' => 'single', 'number' => 2, 'children' => []],
+        [
+            'productId' => 'kit',
+            'number' => 3,
+            'children' => [
+                ['productId' => 'component', 'number' => 2],
+                ['productId' => 'accessory', 'number' => 1],
+            ],
+        ],
+    ]),
+    'sale project inventory requirements include kit components'
+);
 $amounts = [];
 $names = [];
 $single = ['number' => 10, 'productId' => 'single', 'productName' => 'Single'];

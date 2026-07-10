@@ -271,7 +271,12 @@ class WorkflowRuntimeService
             $fileIds,
             $productList
         ): array {
-            $project = $this->saleProjectService->markProjectPendingApproval($projectId, $payload, $tenantId);
+            $project = $this->saleProjectService->markProjectPendingApproval(
+                $projectId,
+                $payload,
+                $tenantId,
+                $productList
+            );
             $starterName = trim((string)($starter['NAME'] ?? $payload['name'] ?? $currentUserId));
             $projectName = trim((string)($project['PROJECT_NAME'] ?? $projectId));
             $title = $starterName . "\u{53d1}\u{8d77}\u{7684}" . $projectName . "\u{9879}\u{76ee}\u{7533}\u{8bf7}";

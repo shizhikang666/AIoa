@@ -166,20 +166,34 @@ $prefix = 'CODEX_CANCEL_' + (Get-Date -Format 'MMddHHmmss') + '_' + (Get-Random 
 $projectId = [string]([Int64]604200000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 $invalidProjectId = [string]([Int64]604201000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 $otherProjectId = [string]([Int64]604202000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
+$insufficientProjectId = [string]([Int64]604203000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 $missingId = [string]([Int64]604299000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 $invoiceIdOne = [string]([Int64]704200000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 $invoiceIdTwo = [string]([Int64]704201000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 $invalidInvoiceId = [string]([Int64]704202000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 $otherInvoiceId = [string]([Int64]704203000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
+$productId = [string]([Int64]804200000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
+$warehouseId = [string]([Int64]804201000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
+$inventoryId = [string]([Int64]804202000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
+$itemId = [string]([Int64]804203000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
+$insufficientItemId = [string]([Int64]804204000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
+$customerId = [string]([Int64]904200000000000000 + [Int64](Get-Random -Minimum 100000 -Maximum 999999))
 
 $safePrefix = $prefix.Replace("'", "\'")
 $safeProjectId = $projectId.Replace("'", "\'")
 $safeInvalidProjectId = $invalidProjectId.Replace("'", "\'")
 $safeOtherProjectId = $otherProjectId.Replace("'", "\'")
+$safeInsufficientProjectId = $insufficientProjectId.Replace("'", "\'")
 $safeInvoiceIdOne = $invoiceIdOne.Replace("'", "\'")
 $safeInvoiceIdTwo = $invoiceIdTwo.Replace("'", "\'")
 $safeInvalidInvoiceId = $invalidInvoiceId.Replace("'", "\'")
 $safeOtherInvoiceId = $otherInvoiceId.Replace("'", "\'")
+$safeProductId = $productId.Replace("'", "\'")
+$safeWarehouseId = $warehouseId.Replace("'", "\'")
+$safeInventoryId = $inventoryId.Replace("'", "\'")
+$safeItemId = $itemId.Replace("'", "\'")
+$safeInsufficientItemId = $insufficientItemId.Replace("'", "\'")
+$safeCustomerId = $customerId.Replace("'", "\'")
 $safeUserId = $userId.Replace("'", "\'")
 $safeTenantId = $tenantId.Replace("'", "\'")
 $safeOrgId = $orgId.Replace("'", "\'")
@@ -188,7 +202,12 @@ $cleanupCode = @"
 require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 think\facade\Db::name('biz_sale_project_invoicing')->whereIn('ID', ['$safeInvoiceIdOne', '$safeInvoiceIdTwo', '$safeInvalidInvoiceId', '$safeOtherInvoiceId'])->delete();
-think\facade\Db::name('biz_sale_project')->whereIn('ID', ['$safeProjectId', '$safeInvalidProjectId', '$safeOtherProjectId'])->delete();
+think\facade\Db::name('biz_sale_project_product_item')->whereIn('ID', ['$safeItemId', '$safeInsufficientItemId'])->delete();
+think\facade\Db::name('inventory')->where('ID', '$safeInventoryId')->delete();
+think\facade\Db::name('warehouses')->where('ID', '$safeWarehouseId')->delete();
+think\facade\Db::name('biz_product')->where('ID', '$safeProductId')->delete();
+think\facade\Db::name('biz_sale_project')->whereIn('ID', ['$safeProjectId', '$safeInvalidProjectId', '$safeOtherProjectId', '$safeInsufficientProjectId'])->delete();
+think\facade\Db::name('customer')->where('ID', '$safeCustomerId')->delete();
 think\facade\Db::name('biz_sale_project')->whereLike('PROJECT_NAME', '$safePrefix%')->delete();
 "@
 
@@ -199,15 +218,30 @@ try {
 require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 `$now = date('Y-m-d H:i:s');
+think\facade\Db::name('customer')->insert([
+    'ID' => '$safeCustomerId',
+    'NAME' => '$safePrefix customer',
+    'CUSTOM_TYPE' => 'OLD',
+    'ORG' => '$safeOrgId',
+    'USER' => '$safeUserId',
+    'STATUS' => 'ENABLE',
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => '$safeUserId',
+    'TENANT_ID' => '$safeTenantId',
+    'VERSION' => 0,
+    'DEAL_AMOUNT' => '1.00',
+]);
 `$projects = [
-    ['$safeProjectId', 'WAIT_DELIVER'],
-    ['$safeInvalidProjectId', 'FOLLOW'],
-    ['$safeOtherProjectId', 'WAIT_DELIVER'],
+    ['$safeProjectId', 'WAIT_DELIVER', '$safeProjectId-process', '1.00'],
+    ['$safeInvalidProjectId', 'FOLLOW', '', '0.00'],
+    ['$safeOtherProjectId', 'DISCARD', '$safeOtherProjectId-process', '0.00'],
+    ['$safeInsufficientProjectId', 'DISCARD', '$safeInsufficientProjectId-process', '0.00'],
 ];
 foreach (`$projects as `$project) {
     think\facade\Db::name('biz_sale_project')->insert([
         'ID' => `$project[0],
-        'CUSTOMER' => '$safePrefix-customer',
+        'CUSTOMER' => '$safeCustomerId',
         'PROJECT_NAME' => '$safePrefix project ' . `$project[0],
         'PROJECT_STATE' => `$project[1],
         'PLAY_STATE' => 'UNPAID',
@@ -224,10 +258,71 @@ foreach (`$projects as `$project) {
         'CREATE_USER' => '$safeUserId',
         'TENANT_ID' => '$safeTenantId',
         'VERSION' => 0,
-        'DEAL_AMOUNT' => 0,
+        'PROCESS_ID' => `$project[2],
+        'DEAL_AMOUNT' => `$project[3],
         'HISTORY_AMOUNT' => '0.00',
         'TOTAL_RETURN_AMOUNT' => '0.00',
         'TOTAL_REFUND_AMOUNT' => '0.00',
+    ]);
+}
+think\facade\Db::name('biz_product')->insert([
+    'ID' => '$safeProductId',
+    'PRODUCT_NAME' => '$safePrefix product',
+    'PRODUCT_CATEGORY' => 'SMOKE',
+    'SAFETY_STOCK' => 0,
+    'PURCHASE_PRICE' => '10.00',
+    'SALE_PRICE' => '20.00',
+    'MIN_PRICE' => '8.00',
+    'CATEGORY' => 'SINGLE_PRODUCT',
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => '$safeUserId',
+    'TENANT_ID' => '$safeTenantId',
+    'SPECS' => 'smoke',
+    'ORG' => '$safeOrgId',
+    'status' => 'ENABLE',
+]);
+think\facade\Db::name('warehouses')->insert([
+    'ID' => '$safeWarehouseId',
+    'NAME' => '$safePrefix warehouse',
+    'CODE' => substr('$safeWarehouseId', 0, 20),
+    'ADDRESS' => '$safePrefix address',
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => '$safeUserId',
+    'TENANT_ID' => '$safeTenantId',
+    'ORG' => '$safeOrgId',
+]);
+think\facade\Db::name('inventory')->insert([
+    'ID' => '$safeInventoryId',
+    'WAREHOUSES_ID' => '$safeWarehouseId',
+    'PRODUCT_ID' => '$safeProductId',
+    'CURRENT_COUNT' => '2',
+    'DELETE_FLAG' => 'NOT_DELETE',
+    'CREATE_TIME' => `$now,
+    'CREATE_USER' => '$safeUserId',
+    'TENANT_ID' => '$safeTenantId',
+    'VERSION' => 0,
+]);
+foreach ([['$safeItemId', '$safeOtherProjectId', '2'], ['$safeInsufficientItemId', '$safeInsufficientProjectId', '3']] as `$item) {
+    think\facade\Db::name('biz_sale_project_product_item')->insert([
+        'ID' => `$item[0],
+        'PROJECT_ID' => `$item[1],
+        'PRODUCT_ID' => '$safeProductId',
+        'CATEGORY' => 'INIT',
+        'STATE' => 'WAIT_DELIVER',
+        'NUMBER' => `$item[2],
+        'DELIVERY' => '0',
+        'UNIT_PRICE' => '20.00',
+        'DISCOUNT_RATE' => '0',
+        'PRICE' => '40.00',
+        'DELETE_FLAG' => 'NOT_DELETE',
+        'CREATE_TIME' => `$now,
+        'CREATE_USER' => '$safeUserId',
+        'TENANT_ID' => '$safeTenantId',
+        'VERSION' => 0,
+        'PROJECT_REISSUE_ORDER_ID' => '',
+        'MARK' => '',
     ]);
 }
 `$invoices = [
@@ -286,15 +381,19 @@ echo json_encode(['project' => `$project, 'invoice' => `$invoice], JSON_UNESCAPE
 require getcwd() . '/vendor/autoload.php';
 `$app = (new think\App(getcwd()))->initialize();
 `$project = think\facade\Db::name('biz_sale_project')->where('ID', '$safeProjectId')->find();
+`$customer = think\facade\Db::name('customer')->where('ID', '$safeCustomerId')->find();
 `$targetInvoices = think\facade\Db::name('biz_sale_project_invoicing')->whereIn('ID', ['$safeInvoiceIdOne', '$safeInvoiceIdTwo'])->order('ID')->select()->toArray();
 `$otherInvoice = think\facade\Db::name('biz_sale_project_invoicing')->where('ID', '$safeOtherInvoiceId')->find();
-echo json_encode(['project' => `$project, 'targetInvoices' => `$targetInvoices, 'otherInvoice' => `$otherInvoice], JSON_UNESCAPED_SLASHES);
+echo json_encode(['project' => `$project, 'customer' => `$customer, 'targetInvoices' => `$targetInvoices, 'otherInvoice' => `$otherInvoice], JSON_UNESCAPED_SLASHES);
 "@
     if ($after.project.PROJECT_STATE -ne 'FOLLOW') {
         throw "sale project cancel expected FOLLOW, got $($after.project.PROJECT_STATE)"
     }
     if ([int]$after.project.VERSION -ne 1 -or [string]$after.project.UPDATE_USER -ne $userId -or [string]$after.project.UPDATE_TIME -eq '') {
         throw 'sale project cancel did not refresh audit/version fields'
+    }
+    if ([decimal]$after.project.DEAL_AMOUNT -ne 0 -or [decimal]$after.customer.DEAL_AMOUNT -ne 0) {
+        throw 'sale project cancel did not restore customer deal amount'
     }
     foreach ($invoice in $after.targetInvoices) {
         if ($invoice.DELETE_FLAG -ne 'DELETED' -or [string]$invoice.UPDATE_USER -ne $userId -or [string]$invoice.UPDATE_TIME -eq '') {
@@ -303,6 +402,30 @@ echo json_encode(['project' => `$project, 'targetInvoices' => `$targetInvoices, 
     }
     if ($after.otherInvoice.DELETE_FLAG -ne 'NOT_DELETE') {
         throw 'sale project cancel changed unrelated invoicing rows'
+    }
+
+    $restore = Invoke-RawPostJson -Url "$baseUrl/biz/saleproject/cancel" -Token $token -Data @{ id = $otherProjectId }
+    Assert-Code -Json $restore -Expected 200 -Name 'discarded sale project restore with sufficient inventory'
+
+    $restoreInsufficient = Invoke-RawPostJson -Url "$baseUrl/biz/saleproject/cancel" -Token $token -Data @{ id = $insufficientProjectId }
+    Assert-Code -Json $restoreInsufficient -Expected 400 -Name 'discarded sale project restore with insufficient inventory'
+
+    $restoredState = Invoke-PhpJson -Code @"
+require getcwd() . '/vendor/autoload.php';
+`$app = (new think\App(getcwd()))->initialize();
+`$restored = think\facade\Db::name('biz_sale_project')->where('ID', '$safeOtherProjectId')->find();
+`$insufficient = think\facade\Db::name('biz_sale_project')->where('ID', '$safeInsufficientProjectId')->find();
+`$invoice = think\facade\Db::name('biz_sale_project_invoicing')->where('ID', '$safeOtherInvoiceId')->find();
+echo json_encode(['restored' => `$restored, 'insufficient' => `$insufficient, 'invoice' => `$invoice], JSON_UNESCAPED_SLASHES);
+"@
+    if ($restoredState.restored.PROJECT_STATE -ne 'FOLLOW' -or [int]$restoredState.restored.VERSION -ne 1) {
+        throw 'discarded sale project with sufficient inventory was not restored'
+    }
+    if ($restoredState.invoice.DELETE_FLAG -ne 'DELETED') {
+        throw 'discarded sale project restore did not cancel pending invoicing row'
+    }
+    if ($restoredState.insufficient.PROJECT_STATE -ne 'DISCARD' -or [int]$restoredState.insufficient.VERSION -ne 0) {
+        throw 'insufficient inventory restore request changed the discarded project'
     }
 
     Write-Host 'sale project cancel HTTP smoke passed'

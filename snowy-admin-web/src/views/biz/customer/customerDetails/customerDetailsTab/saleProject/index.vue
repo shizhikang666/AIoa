@@ -162,7 +162,7 @@
 								<a-textarea placeholder="作废原因" v-model:value="repealContent" />
 							</template>
 							<a-button
-								:disabled="record.projectState != 'FOLLOW'"
+								:disabled="!['FOLLOW', 'WAIT_DELIVER'].includes(record.projectState)"
 								type="link"
 								danger
 								size="small"

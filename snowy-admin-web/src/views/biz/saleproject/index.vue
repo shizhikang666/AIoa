@@ -219,7 +219,7 @@
 							</template>
 							<a-button
 								@click="repealContent = ''"
-								:disabled="record.projectState != 'FOLLOW'"
+								:disabled="!['FOLLOW', 'WAIT_DELIVER'].includes(record.projectState)"
 								type="link"
 								danger
 								size="small"

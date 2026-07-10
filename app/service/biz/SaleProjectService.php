@@ -1669,6 +1669,11 @@ SQL;
                 ->field(
                     'p.ID AS ID,' .
                     'p.PROJECT_STATE AS PROJECT_STATE,' .
+                    'p.CUSTOMER AS CUSTOMER,' .
+                    'p.PROCESS_ID AS PROCESS_ID,' .
+                    'p.DEAL_AMOUNT AS DEAL_AMOUNT,' .
+                    'p.AMOUNT_COLLECTED AS AMOUNT_COLLECTED,' .
+                    'p.HISTORY_AMOUNT AS HISTORY_AMOUNT,' .
                     'p.TENANT_ID AS TENANT_ID'
                 )
                 ->lock(true)
@@ -1677,26 +1682,33 @@ SQL;
                 throw new RuntimeException('sale project not found', 404);
             }
 
-            if ((string)($project['PROJECT_STATE'] ?? '') !== self::WAIT_DELIVER_STATE) {
-                throw new RuntimeException('sale project state is not WAIT_DELIVER', 400);
+            $projectState = (string)($project['PROJECT_STATE'] ?? '');
+            if (!in_array($projectState, [self::WAIT_DELIVER_STATE, self::DISCARD_STATE], true)) {
+                throw new RuntimeException('仅待发货或已作废的项目可以恢复为跟进状态', 400);
             }
 
             $tenantId = trim((string)($project['TENANT_ID'] ?? ''));
+            $this->assertProjectCanReturnToFollow($projectId, $tenantId, $project);
+            if ($projectState === self::DISCARD_STATE) {
+                $this->assertStoredProjectProductsAvailable($projectId, $tenantId);
+            }
+
             $now = date('Y-m-d H:i:s');
             $userId = $this->currentUserId($payload);
             $auditUser = $userId !== '' ? $userId : null;
+            $this->deletePendingProjectInvoicing($projectId, $tenantId, $now, $auditUser);
 
-            $invoicingQuery = Db::name('biz_sale_project_invoicing')
-                ->where('PROJECT_ID', $projectId);
-            $this->whereNotDeleted($invoicingQuery, 'DELETE_FLAG');
-            if ($tenantId !== '') {
-                $invoicingQuery->where('TENANT_ID', $tenantId);
-            }
-            $invoicingQuery->update([
-                'DELETE_FLAG' => self::DELETED,
+            $projectUpdates = [
+                'PROJECT_STATE' => self::FOLLOW_STATE,
                 'UPDATE_TIME' => $now,
                 'UPDATE_USER' => $auditUser,
-            ]);
+                'VERSION' => Db::raw('VERSION + 1'),
+            ];
+            if ($projectState === self::WAIT_DELIVER_STATE
+                && (trim((string)($project['PROCESS_ID'] ?? '')) !== '' || (float)($project['DEAL_AMOUNT'] ?? 0) > 0.000001)) {
+                $this->decrementCustomerDealAmount((string)($project['CUSTOMER'] ?? ''), $tenantId);
+                $projectUpdates['DEAL_AMOUNT'] = '0.00';
+            }
 
             $projectUpdateQuery = Db::name('biz_sale_project')
                 ->where('ID', $projectId);
@@ -1704,12 +1716,7 @@ SQL;
             if ($tenantId !== '') {
                 $projectUpdateQuery->where('TENANT_ID', $tenantId);
             }
-            $projectUpdateQuery->update([
-                'PROJECT_STATE' => self::FOLLOW_STATE,
-                'UPDATE_TIME' => $now,
-                'UPDATE_USER' => $auditUser,
-                'VERSION' => Db::raw('VERSION + 1'),
-            ]);
+            $projectUpdateQuery->update($projectUpdates);
 
             return null;
         });
@@ -1726,7 +1733,17 @@ SQL;
         return Db::transaction(function () use ($ids, $repealContent, $payload): ?array {
             $rows = $this->projectQuery([], $payload)
                 ->whereIn('p.ID', $ids)
-                ->field('p.ID AS ID, p.PROJECT_NAME AS PROJECT_NAME, p.PROJECT_STATE AS PROJECT_STATE, p.TENANT_ID AS TENANT_ID')
+                ->field(
+                    'p.ID AS ID,' .
+                    'p.PROJECT_NAME AS PROJECT_NAME,' .
+                    'p.PROJECT_STATE AS PROJECT_STATE,' .
+                    'p.CUSTOMER AS CUSTOMER,' .
+                    'p.PROCESS_ID AS PROCESS_ID,' .
+                    'p.DEAL_AMOUNT AS DEAL_AMOUNT,' .
+                    'p.AMOUNT_COLLECTED AS AMOUNT_COLLECTED,' .
+                    'p.HISTORY_AMOUNT AS HISTORY_AMOUNT,' .
+                    'p.TENANT_ID AS TENANT_ID'
+                )
                 ->lock(true)
                 ->select()
                 ->toArray();
@@ -1734,30 +1751,42 @@ SQL;
                 throw new RuntimeException('sale project not found', 404);
             }
 
-            $tenantId = '';
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            $auditUser = $currentUserId !== '' ? $currentUserId : null;
             foreach ($rows as $row) {
-                if ((string)($row['PROJECT_STATE'] ?? '') !== self::FOLLOW_STATE) {
-                    throw new RuntimeException('sale project cannot be repealed unless it is FOLLOW', 400);
+                $projectState = (string)($row['PROJECT_STATE'] ?? '');
+                if (!in_array($projectState, [self::FOLLOW_STATE, self::WAIT_DELIVER_STATE], true)) {
+                    throw new RuntimeException('仅跟进中或待发货的项目可以作废', 400);
                 }
-                $rowTenantId = trim((string)($row['TENANT_ID'] ?? ''));
-                if ($tenantId === '' && $rowTenantId !== '') {
-                    $tenantId = $rowTenantId;
-                }
-            }
 
-            $updateQuery = Db::name('biz_sale_project')
-                ->whereIn('ID', $ids);
-            $this->whereNotDeleted($updateQuery, 'DELETE_FLAG');
-            if ($tenantId !== '') {
-                $updateQuery->where('TENANT_ID', $tenantId);
+                $tenantId = trim((string)($row['TENANT_ID'] ?? ''));
+                $projectId = (string)$row['ID'];
+                if ($projectState === self::WAIT_DELIVER_STATE) {
+                    $this->assertProjectCanReturnToFollow($projectId, $tenantId, $row);
+                    $this->deletePendingProjectInvoicing($projectId, $tenantId, $now, $auditUser);
+                }
+
+                $projectUpdates = [
+                    'PROJECT_STATE' => self::DISCARD_STATE,
+                    'REPEAL_CONTENT' => $repealContent,
+                    'UPDATE_TIME' => $now,
+                    'UPDATE_USER' => $auditUser,
+                    'VERSION' => Db::raw('VERSION + 1'),
+                ];
+                if ($projectState === self::WAIT_DELIVER_STATE
+                    && (trim((string)($row['PROCESS_ID'] ?? '')) !== '' || (float)($row['DEAL_AMOUNT'] ?? 0) > 0.000001)) {
+                    $this->decrementCustomerDealAmount((string)($row['CUSTOMER'] ?? ''), $tenantId);
+                    $projectUpdates['DEAL_AMOUNT'] = '0.00';
+                }
+
+                $updateQuery = Db::name('biz_sale_project')->where('ID', $projectId);
+                $this->whereNotDeleted($updateQuery, 'DELETE_FLAG');
+                if ($tenantId !== '') {
+                    $updateQuery->where('TENANT_ID', $tenantId);
+                }
+                $updateQuery->update($projectUpdates);
             }
-            $updateQuery->update([
-                'PROJECT_STATE' => self::DISCARD_STATE,
-                'REPEAL_CONTENT' => $repealContent,
-                'UPDATE_TIME' => date('Y-m-d H:i:s'),
-                'UPDATE_USER' => ($this->currentUserId($payload) !== '' ? $this->currentUserId($payload) : null),
-                'VERSION' => Db::raw('VERSION + 1'),
-            ]);
 
             return null;
         });
@@ -1766,7 +1795,12 @@ SQL;
     /**
      * @return array<string, mixed>
      */
-    public function markProjectPendingApproval(string $projectId, array $payload = [], string $tenantId = ''): array
+    public function markProjectPendingApproval(
+        string $projectId,
+        array $payload = [],
+        string $tenantId = '',
+        array $productList = []
+    ): array
     {
         $projectId = trim($projectId);
         if ($projectId === '') {
@@ -1778,9 +1812,16 @@ SQL;
             $filters['tenantId'] = $tenantId;
         }
 
-        return Db::transaction(function () use ($projectId, $payload, $filters, $tenantId): array {
+        return Db::transaction(function () use ($projectId, $payload, $filters, $tenantId, $productList): array {
             $project = $this->projectQuery($filters, $payload)
-                ->field('p.ID AS ID, p.PROJECT_NAME AS PROJECT_NAME, p.PROJECT_STATE AS PROJECT_STATE, p.TENANT_ID AS TENANT_ID')
+                ->field(
+                    'p.ID AS ID,' .
+                    'p.PROJECT_NAME AS PROJECT_NAME,' .
+                    'p.PROJECT_STATE AS PROJECT_STATE,' .
+                    'p.PROCESS_ID AS PROCESS_ID,' .
+                    'p.REPEAL_CONTENT AS REPEAL_CONTENT,' .
+                    'p.TENANT_ID AS TENANT_ID'
+                )
                 ->lock(true)
                 ->find();
             if (!is_array($project) || $project === []) {
@@ -1791,6 +1832,12 @@ SQL;
             }
 
             $effectiveTenantId = trim((string)($tenantId !== '' ? $tenantId : ($project['TENANT_ID'] ?? '')));
+            if (trim((string)($project['PROCESS_ID'] ?? '')) !== ''
+                || (array_key_exists('REPEAL_CONTENT', $project) && $project['REPEAL_CONTENT'] !== null)) {
+                $items = $this->normalizedProductItems($productList, $effectiveTenantId, [], $payload);
+                $this->assertProductItemsAvailable($items, $effectiveTenantId);
+            }
+
             $query = Db::name('biz_sale_project')->where('ID', $projectId);
             $this->whereNotDeleted($query, 'DELETE_FLAG');
             if ($effectiveTenantId !== '') {
@@ -2096,7 +2143,7 @@ SQL;
             $rebateAmount = $this->workflowMoney($variables['rebateAmount'] ?? null, 'rebateAmount', false);
             $freight = $this->workflowOptionalMoney($variables['freight'] ?? null, 'freight');
             $completionDate = $this->workflowDate($variables['completionDate'] ?? null, 'completionDate');
-            $dealAmount = $this->incrementCustomerDealAmount((string)($project['CUSTOMER'] ?? ''), $effectiveTenantId);
+            $dealAmount = $this->projectDealAmountForApproval($project, $effectiveTenantId);
             $projectState = $productList === [] ? self::SHIPPED_STATE : self::WAIT_DELIVER_STATE;
 
             $updates = [
@@ -2117,6 +2164,7 @@ SQL;
                 'DEAL_AMOUNT' => $dealAmount,
                 'PROCESS_ID' => $processInstanceId,
                 'PROJECT_STATE' => $projectState,
+                'REPEAL_CONTENT' => null,
                 'UPDATE_TIME' => $now,
                 'UPDATE_USER' => $auditUser !== '' ? $auditUser : null,
                 'VERSION' => Db::raw('VERSION + 1'),
@@ -5135,6 +5183,249 @@ SQL)
         return (int)$query->count() > 0;
     }
 
+    /**
+     * @param array<string, mixed> $project
+     */
+    private function assertProjectCanReturnToFollow(string $projectId, string $tenantId, array $project): void
+    {
+        if ((float)($project['AMOUNT_COLLECTED'] ?? 0) > 0.000001
+            || (float)($project['HISTORY_AMOUNT'] ?? 0) > 0.000001
+            || $this->hasProjectPaymentRecords($projectId, $tenantId)) {
+            throw new RuntimeException('项目已存在收款记录，不能作废或恢复跟进', 400);
+        }
+
+        if ($this->anyProductItemsDelivered($projectId, $tenantId)
+            || $this->activeProjectRelatedRowExists('biz_sale_project_invoice', 'PROJECT_ID', $projectId, $tenantId)
+            || $this->activeProjectRelatedRowExists('delivery_record', 'OBJECT_ID', $projectId, $tenantId)) {
+            throw new RuntimeException('项目已存在发货记录，不能作废或恢复跟进', 400);
+        }
+
+        if ($this->activeProjectRelatedRowExists('biz_sale_project_reissue_order', 'PROJECT_ID', $projectId, $tenantId)) {
+            throw new RuntimeException('项目已存在补发记录，不能作废或恢复跟进', 400);
+        }
+        if ($this->activeProjectRelatedRowExists('return_order', 'PROJECT_ID', $projectId, $tenantId)) {
+            throw new RuntimeException('项目已存在退货记录，不能作废或恢复跟进', 400);
+        }
+
+        $invoicingQuery = Db::name('biz_sale_project_invoicing')->where('PROJECT_ID', $projectId);
+        $this->whereNotDeleted($invoicingQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $invoicingQuery->where('TENANT_ID', $tenantId);
+        }
+        foreach ($invoicingQuery->lock(true)->column('INVOICING_STATE') as $state) {
+            if (!in_array((string)$state, [self::INVOICING_STATE_WAIT, 'WAIT'], true)) {
+                throw new RuntimeException('项目已存在完成或状态异常的开票记录，不能作废或恢复跟进', 400);
+            }
+        }
+    }
+
+    private function activeProjectRelatedRowExists(
+        string $table,
+        string $projectColumn,
+        string $projectId,
+        string $tenantId
+    ): bool {
+        $query = Db::name($table)->where($projectColumn, $projectId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return (int)$query->count() > 0;
+    }
+
+    private function deletePendingProjectInvoicing(
+        string $projectId,
+        string $tenantId,
+        string $now,
+        ?string $auditUser
+    ): void {
+        $query = Db::name('biz_sale_project_invoicing')->where('PROJECT_ID', $projectId);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+        $query->update([
+            'DELETE_FLAG' => self::DELETED,
+            'UPDATE_TIME' => $now,
+            'UPDATE_USER' => $auditUser,
+        ]);
+    }
+
+    private function assertStoredProjectProductsAvailable(string $projectId, string $tenantId): void
+    {
+        $itemQuery = Db::name('biz_sale_project_product_item')
+            ->where('PROJECT_ID', $projectId)
+            ->field('ID, PRODUCT_ID, NUMBER');
+        $this->whereNotDeleted($itemQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $itemQuery->where('TENANT_ID', $tenantId);
+        }
+        $rows = $itemQuery->lock(true)->select()->toArray();
+        if ($rows === []) {
+            return;
+        }
+
+        $itemIds = array_map(static fn (array $row): string => (string)$row['ID'], $rows);
+        $relationQuery = Db::name('sale_project_product_item_relation')
+            ->whereIn('OBJECT_ID', $itemIds)
+            ->field('OBJECT_ID, TARGET_ID, NUMBER');
+        $this->whereNotDeleted($relationQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $relationQuery->where('TENANT_ID', $tenantId);
+        }
+        $childrenByItemId = [];
+        foreach ($relationQuery->lock(true)->select()->toArray() as $relation) {
+            $childrenByItemId[(string)$relation['OBJECT_ID']][] = [
+                'productId' => (string)($relation['TARGET_ID'] ?? ''),
+                'number' => $relation['NUMBER'] ?? 0,
+            ];
+        }
+
+        $items = array_map(static fn (array $row): array => [
+            'productId' => (string)($row['PRODUCT_ID'] ?? ''),
+            'number' => $row['NUMBER'] ?? 0,
+            'children' => $childrenByItemId[(string)$row['ID']] ?? [],
+        ], $rows);
+        $this->assertProductItemsAvailable($items, $tenantId);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    private function assertProductItemsAvailable(array $items, string $tenantId): void
+    {
+        if ($items === []) {
+            return;
+        }
+
+        $requirements = $this->inventoryRequirementsForProductItems($items);
+        $allProductIds = array_keys($requirements);
+        foreach ($items as $item) {
+            $productId = trim((string)($item['productId'] ?? ''));
+            if ($productId !== '') {
+                $allProductIds[] = $productId;
+            }
+        }
+        $allProductIds = array_values(array_unique($allProductIds));
+
+        $productQuery = Db::name('biz_product')->whereIn('ID', $allProductIds);
+        $this->whereNotDeleted($productQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $productQuery->where('TENANT_ID', $tenantId);
+        }
+        $products = [];
+        foreach ($productQuery->field('ID, PRODUCT_NAME, CATEGORY, status')->lock(true)->select()->toArray() as $product) {
+            $products[(string)$product['ID']] = $product;
+        }
+
+        $issues = [];
+        foreach ($allProductIds as $productId) {
+            if (!isset($products[$productId])) {
+                $issues[] = "产品{$productId}不存在或已删除";
+                continue;
+            }
+            $status = trim((string)($products[$productId]['status'] ?? ''));
+            if ($status !== '' && $status !== self::PRODUCT_STATUS_ENABLE) {
+                $issues[] = (string)($products[$productId]['PRODUCT_NAME'] ?? $productId) . '已停用';
+            }
+        }
+        foreach ($items as $item) {
+            $productId = trim((string)($item['productId'] ?? ''));
+            if ($productId !== ''
+                && (($products[$productId]['CATEGORY'] ?? '') === self::KIT_PRODUCT)
+                && (($item['children'] ?? []) === [])) {
+                $issues[] = (string)($products[$productId]['PRODUCT_NAME'] ?? $productId) . '的组合产品配置不完整';
+            }
+        }
+
+        $inventoryCounts = [];
+        if ($requirements !== []) {
+            $inventoryQuery = Db::name('inventory')
+                ->alias('i')
+                ->join('warehouses w', 'w.ID = i.WAREHOUSES_ID', 'INNER')
+                ->whereIn('i.PRODUCT_ID', array_keys($requirements))
+                ->field('i.ID, i.PRODUCT_ID, i.CURRENT_COUNT');
+            $this->whereNotDeleted($inventoryQuery, 'i.DELETE_FLAG');
+            $this->whereNotDeleted($inventoryQuery, 'w.DELETE_FLAG');
+            if ($tenantId !== '') {
+                $inventoryQuery->where('i.TENANT_ID', $tenantId)->where('w.TENANT_ID', $tenantId);
+            }
+            foreach ($inventoryQuery->lock(true)->select()->toArray() as $inventory) {
+                $productId = (string)$inventory['PRODUCT_ID'];
+                $inventoryCounts[$productId] = ($inventoryCounts[$productId] ?? 0.0)
+                    + (float)($inventory['CURRENT_COUNT'] ?? 0);
+            }
+        }
+
+        foreach ($requirements as $productId => $required) {
+            $available = (float)($inventoryCounts[$productId] ?? 0);
+            if ($available + 0.000001 >= $required) {
+                continue;
+            }
+            $name = (string)($products[$productId]['PRODUCT_NAME'] ?? $productId);
+            $issues[] = sprintf(
+                '%s需要%s，当前库存%s',
+                $name,
+                $this->quantityText($required),
+                $this->quantityText($available)
+            );
+        }
+
+        if ($issues !== []) {
+            $visibleIssues = array_slice(array_values(array_unique($issues)), 0, 5);
+            $remaining = count(array_unique($issues)) - count($visibleIssues);
+            $message = '订单产品与当前库存不匹配：' . implode('；', $visibleIssues);
+            if ($remaining > 0) {
+                $message .= "；另有{$remaining}项";
+            }
+            throw new RuntimeException($message, 400);
+        }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @return array<string, float>
+     */
+    private function inventoryRequirementsForProductItems(array $items): array
+    {
+        $requirements = [];
+        foreach ($items as $item) {
+            $productId = trim((string)($item['productId'] ?? ''));
+            $number = (float)($item['number'] ?? 0);
+            if ($productId === '' || $number <= 0) {
+                throw new RuntimeException('订单产品或数量不正确，不能恢复跟进', 400);
+            }
+
+            $children = is_array($item['children'] ?? null) ? $item['children'] : [];
+            if ($children === []) {
+                $requirements[$productId] = ($requirements[$productId] ?? 0.0) + $number;
+                continue;
+            }
+
+            foreach ($children as $child) {
+                if (!is_array($child)) {
+                    throw new RuntimeException('组合产品配置不正确，不能恢复跟进', 400);
+                }
+                $childProductId = trim((string)($child['productId'] ?? $child['targetId'] ?? ''));
+                $childNumber = (float)($child['number'] ?? 0);
+                if ($childProductId === '' || $childNumber <= 0) {
+                    throw new RuntimeException('组合产品配置不正确，不能恢复跟进', 400);
+                }
+                $requirements[$childProductId] = ($requirements[$childProductId] ?? 0.0) + ($number * $childNumber);
+            }
+        }
+
+        return $requirements;
+    }
+
+    private function quantityText(float $quantity): string
+    {
+        $text = rtrim(rtrim(number_format($quantity, 6, '.', ''), '0'), '.');
+
+        return $text === '' ? '0' : $text;
+    }
+
     private function sumProjectPaymentRecordCents(string $projectId, string $tenantId): int
     {
         $query = $this->projectPaymentRecordQuery($projectId, $tenantId);
@@ -5561,7 +5852,7 @@ SQL)
     {
         $query = Db::name('biz_sale_project')
             ->where('ID', $projectId)
-            ->field('ID, CUSTOMER, PROJECT_NAME, PROJECT_STATE, PLAY_STATE, PROCESS_ID, TOTAL_PRICE, HISTORY_AMOUNT, AMOUNT_COLLECTED, TENANT_ID')
+            ->field('ID, CUSTOMER, PROJECT_NAME, PROJECT_STATE, PLAY_STATE, PROCESS_ID, DEAL_AMOUNT, TOTAL_PRICE, HISTORY_AMOUNT, AMOUNT_COLLECTED, TENANT_ID')
             ->lock(true);
         $this->whereNotDeleted($query, 'DELETE_FLAG');
         if ($tenantId !== '') {
@@ -5765,6 +6056,48 @@ SQL)
         }
 
         $dealAmount = number_format((float)($customer['DEAL_AMOUNT'] ?? 0) + 1, 2, '.', '');
+        Db::name('customer')->where('ID', $customerId)->update([
+            'DEAL_AMOUNT' => $dealAmount,
+            'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
+        ]);
+
+        return $dealAmount;
+    }
+
+    /**
+     * @param array<string, mixed> $project
+     */
+    private function projectDealAmountForApproval(array $project, string $tenantId): string
+    {
+        if (trim((string)($project['PROCESS_ID'] ?? '')) === '') {
+            return $this->incrementCustomerDealAmount((string)($project['CUSTOMER'] ?? ''), $tenantId);
+        }
+
+        $existing = (float)($project['DEAL_AMOUNT'] ?? 0);
+        if ($existing > 0.000001) {
+            return number_format($existing, 2, '.', '');
+        }
+
+        return $this->incrementCustomerDealAmount((string)($project['CUSTOMER'] ?? ''), $tenantId);
+    }
+
+    private function decrementCustomerDealAmount(string $customerId, string $tenantId): string
+    {
+        $customerId = trim($customerId);
+        if ($customerId === '') {
+            throw new RuntimeException('missing customer', 400);
+        }
+        $query = Db::name('customer')->where('ID', $customerId)->field('ID, DEAL_AMOUNT, TENANT_ID')->lock(true);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+        $customer = $query->find();
+        if (!is_array($customer) || $customer === []) {
+            throw new RuntimeException('customer not found', 404);
+        }
+
+        $dealAmount = number_format(max(0, (float)($customer['DEAL_AMOUNT'] ?? 0) - 1), 2, '.', '');
         Db::name('customer')->where('ID', $customerId)->update([
             'DEAL_AMOUNT' => $dealAmount,
             'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),

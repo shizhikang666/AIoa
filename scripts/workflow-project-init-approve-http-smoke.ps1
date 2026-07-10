@@ -543,6 +543,16 @@ echo json_encode([
     Assert-DecimalEqual -Actual ([string]$invoiceRows[0].AMOUNT) -Expected 12.34 -Name 'workflow invoicing amount'
     Assert-DecimalEqual -Actual ([string]$state.customer.DEAL_AMOUNT) -Expected 1.00 -Name 'customer deal amount increment'
 
+    $returnToFollow = Invoke-JsonPost -Url ($baseUrl + '/biz/saleproject/cancel') -Token $token -Body @{ id = $projectApproveId }
+    Assert-Code -Json $returnToFollow -Expected 200 -Name 'approved project return to follow'
+
+    $reapplyWithoutInventory = Invoke-JsonPost -Url ($baseUrl + '/biz/process/project/init/start') -Token $token -Body (New-StartBody -ProjectId $projectApproveId -FileId $fileApproveId)
+    Assert-Code -Json $reapplyWithoutInventory -Expected 400 -Name 'restored project reapply without inventory'
+
+    $reapplyState = Get-State -ProcessInstanceIds $processIds -ProjectIds @($projectApproveId) -CustomerId $customerId
+    Assert-Equal -Actual ([string]$reapplyState.projects.$projectApproveId.PROJECT_STATE) -Expected 'FOLLOW' -Name 'failed reapply keeps project in follow state'
+    Assert-DecimalEqual -Actual ([string]$reapplyState.customer.DEAL_AMOUNT) -Expected 0.00 -Name 'failed reapply keeps customer deal amount rolled back'
+
     Write-Host 'workflow project init approve smoke passed'
 } finally {
     Remove-SmokeRows -ProcessInstanceIds $processIds -ProjectIds @($projectCancelId, $projectRejectId, $projectApproveId) -FileIds @($fileCancelId, $fileRejectId, $fileApproveId) -CustomerId $customerId -ProductId $productId -AccountId $accountId
