@@ -42,6 +42,7 @@
 	import saleProjectProductItemRelationApi from '@/api/biz/saleProjectProductItemRelationApi'
 	import detail from '@/views/biz/saleproject/detail.vue'
 	import WarehousesApi from '@/api/biz/warehousesApi'
+	import { safeJsonParse } from '@/utils/json'
 
 	const { id } = defineProps({
 		id: {
@@ -93,7 +94,7 @@
 			  )
 			: []
 		productItems.forEach((v) => {
-			const product = v.extJson ? JSON.parse(v.extJson).product : {}
+			const product = safeJsonParse(v.extJson, {}).product || {}
 			const find = result.productList.find((f) => {
 				return f.projectProductItemId === v.objectId
 			})

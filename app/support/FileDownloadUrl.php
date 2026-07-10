@@ -14,11 +14,32 @@ class FileDownloadUrl
             return '/backend/dev/file/download?id=' . rawurlencode($id);
         }
 
-        $downloadPath = $downloadPath === null ? null : trim((string)$downloadPath);
-        if ($downloadPath !== null && str_starts_with($downloadPath, '/api/dev/file/download')) {
-            $downloadPath = '/backend' . substr($downloadPath, 4);
-        }
+        $downloadPath = self::normalizeLegacy($downloadPath);
 
         return $downloadPath === '' ? null : $downloadPath;
+    }
+
+    public static function normalizeLegacy(mixed $downloadPath): ?string
+    {
+        if ($downloadPath === null) {
+            return null;
+        }
+
+        $downloadPath = trim((string)$downloadPath);
+        if ($downloadPath === '') {
+            return null;
+        }
+
+        $parts = parse_url($downloadPath);
+        if (is_array($parts)) {
+            $path = preg_replace('#/+#', '/', (string)($parts['path'] ?? '')) ?? '';
+            parse_str((string)($parts['query'] ?? ''), $query);
+            $fileId = trim((string)($query['id'] ?? ''));
+            if ($fileId !== '' && preg_match('#(?:^|/)dev/file/download/?$#i', $path) === 1) {
+                return '/backend/dev/file/download?id=' . rawurlencode($fileId);
+            }
+        }
+
+        return $downloadPath;
     }
 }

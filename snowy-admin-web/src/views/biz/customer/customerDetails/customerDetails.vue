@@ -67,6 +67,7 @@
 </template>
 <script setup name="customerDetails">
 	import customerApi from '@/api/biz/customerApi'
+	import { normalizeFileUrl } from '@/utils/fileUrl'
 	import followup from './customerDetailsTab/followup/index.vue'
 	import saleProject from './customerDetailsTab/saleProject/index.vue'
 
@@ -91,11 +92,7 @@
 	// 示例用法
 
 	//兼容旧的
-	let oldDomain = 'http://47.95.5.233:7971'
-	let newDomain = 'https://oa.zhixinxinli888.com/api/backend'
-	const replaceUrlDomain = (originalUrl) => {
-		return originalUrl.replace(oldDomain, newDomain)
-	}
+	const replaceUrlDomain = (originalUrl) => normalizeFileUrl(originalUrl)
 
 	const onClose = () => {
 		open.value = false

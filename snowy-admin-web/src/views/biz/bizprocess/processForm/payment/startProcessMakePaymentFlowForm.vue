@@ -245,6 +245,7 @@
 	import { Decimal } from 'decimal.js'
 	import bizPurchaseOrderApi from '@/api/biz/bizPurchaseOrderApi'
 	import FileViewItem from '@/components/File/FileViewItem.vue'
+	import { safeJsonParse } from '@/utils/json'
 
 	const store = globalStore()
 
@@ -366,7 +367,7 @@
 
 			let supplier = {}
 			if (activeSelectObject.value.extJson) {
-				supplier = JSON.parse(activeSelectObject.value.extJson).supplier
+				supplier = safeJsonParse(activeSelectObject.value.extJson, {}).supplier || {}
 			}
 			let otherSupplier = {}
 

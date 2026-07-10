@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\service\user;
 
 use app\model\SysOrg;
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -25,16 +26,19 @@ class OrgService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function all(array $filters = []): array
+    public function all(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
+
         return array_map(
             fn (array $row): array => $this->orgRow($row),
             $this->rawRows($filters)
         );
     }
 
-    public function page(array $filters = []): array
+    public function page(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         [$page, $limit] = $this->pagination($filters);
         $total = $this->baseQuery($filters)->count();
         $records = $this->baseQuery($filters)
@@ -57,22 +61,26 @@ class OrgService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function tree(array $filters = []): array
+    public function tree(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
+
         return $this->normalizeTree($this->treeBuilder->build($this->rawRows($filters)));
     }
 
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function selector(array $filters = []): array
+    public function selector(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
+
         return $this->treeBuilder->toSelector($this->treeBuilder->build($this->rawRows($filters)));
     }
 
-    public function detail(string $id): ?array
+    public function detail(string $id, mixed $payload = []): ?array
     {
-        $row = $this->baseQuery(['id' => $id])->find();
+        $row = $this->baseQuery(TenantScope::scopedFilters(['id' => $id], $payload))->find();
 
         return $row ? $this->orgRow($row->toArray()) : null;
     }
@@ -87,9 +95,8 @@ class OrgService
         $data = $this->orgWriteData($input);
         $parent = $this->activeParentOrg($data['PARENT_ID']);
         $this->ensureOrgWriteAllowed($payload, $data, $bizScope, 'add', null);
-        $this->assertDuplicateOrgName($data['PARENT_ID'], $data['NAME'], null);
-
         $tenantId = $this->tenantIdForWrite($payload, $parent, null);
+        $this->assertDuplicateOrgName($data['PARENT_ID'], $data['NAME'], null, $tenantId);
         $this->assertDirector($data['DIRECTOR_ID'], $tenantId);
 
         $now = date('Y-m-d H:i:s');
@@ -127,9 +134,8 @@ class OrgService
         $parent = $this->activeParentOrg($data['PARENT_ID']);
         $this->ensureParentNotSelfOrChild($id, $data['PARENT_ID']);
         $this->ensureOrgWriteAllowed($payload, $data, $bizScope, 'edit', $existing);
-        $this->assertDuplicateOrgName($data['PARENT_ID'], $data['NAME'], $id);
-
         $tenantId = $this->tenantIdForWrite($payload, $parent, $existing);
+        $this->assertDuplicateOrgName($data['PARENT_ID'], $data['NAME'], $id, $tenantId);
         $this->assertDirector($data['DIRECTOR_ID'], $tenantId);
 
         $operatorId = $this->payloadUserId($payload);
@@ -373,11 +379,12 @@ class OrgService
         return $rows;
     }
 
-    private function assertDuplicateOrgName(string $parentId, string $name, ?string $ignoreId): void
+    private function assertDuplicateOrgName(string $parentId, string $name, ?string $ignoreId, string $tenantId): void
     {
         $query = Db::name('sys_org')
             ->where('PARENT_ID', $parentId)
             ->where('NAME', $name)
+            ->where('TENANT_ID', $tenantId)
             ->where(function ($query): void {
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             });
@@ -417,7 +424,7 @@ class OrgService
             if ($parentTenantId !== '' && $parentTenantId !== '0' && $existingTenantId !== '0' && $parentTenantId !== $existingTenantId) {
                 throw new RuntimeException('tenant mismatch', 403);
             }
-            if ($payloadTenantId !== '' && $payloadTenantId !== $existingTenantId && !$this->isAdminCompatible($payload)) {
+            if ($payloadTenantId !== '' && $payloadTenantId !== $existingTenantId && !TenantScope::canCrossTenant($payload)) {
                 throw new RuntimeException('permission denied', 403);
             }
 
@@ -425,7 +432,7 @@ class OrgService
         }
 
         if ($parentTenantId !== '') {
-            if ($payloadTenantId !== '' && $payloadTenantId !== $parentTenantId && !$this->isAdminCompatible($payload)) {
+            if ($payloadTenantId !== '' && $payloadTenantId !== $parentTenantId && !TenantScope::canCrossTenant($payload)) {
                 throw new RuntimeException('permission denied', 403);
             }
 
@@ -557,11 +564,7 @@ class OrgService
      */
     private function ensureTenantCompatible(array $payload, array $org): void
     {
-        $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
-        $orgTenantId = trim((string)($org['TENANT_ID'] ?? ''));
-        if ($payloadTenantId !== '' && $orgTenantId !== '' && $payloadTenantId !== $orgTenantId && !$this->isAdminCompatible($payload)) {
-            throw new RuntimeException('permission denied', 403);
-        }
+        TenantScope::assertCompatible($payload, $org['TENANT_ID'] ?? null);
     }
 
     /**

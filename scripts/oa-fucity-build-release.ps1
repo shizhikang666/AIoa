@@ -165,6 +165,7 @@ foreach ($file in @('composer.json', 'composer.lock', 'think', 'LICENSE.txt', 'R
 }
 
 Reset-ReleaseSubdirectory -ReleaseRoot $ReleaseRoot -RelativePath 'public\storage'
+Reset-ReleaseSubdirectory -ReleaseRoot $ReleaseRoot -RelativePath 'public\upload'
 $publicStorageGitignore = Join-Path $ProjectRoot 'public\storage\.gitignore'
 if (Test-Path -LiteralPath $publicStorageGitignore -PathType Leaf) {
     Copy-Item -LiteralPath $publicStorageGitignore -Destination (Join-Path $ReleaseRoot 'public\storage') -Force
@@ -176,7 +177,12 @@ Copy-Item -LiteralPath (Join-Path $ProjectRoot 'snowy-admin-web\dist') -Destinat
 
 $scriptReleaseRoot = Join-Path $ReleaseRoot 'scripts'
 New-Item -ItemType Directory -Force -Path $scriptReleaseRoot | Out-Null
-foreach ($script in @('deployment-readiness.ps1', 'deployment-readiness.sh', 'oa-fucity-remote-deploy.sh')) {
+foreach ($script in @(
+    'deployment-readiness.ps1',
+    'deployment-readiness.sh',
+    'migrate-legacy-files.php',
+    'oa-fucity-remote-deploy.sh'
+)) {
     Copy-Item -LiteralPath (Join-Path $ProjectRoot "scripts\$script") -Destination $scriptReleaseRoot -Force
 }
 
@@ -188,7 +194,8 @@ foreach ($dir in @(
     'runtime\storage',
     'runtime\upload',
     'runtime\backup',
-    'public\storage'
+    'public\storage',
+    'public\upload'
 )) {
     New-Item -ItemType Directory -Force -Path (Join-Path $ReleaseRoot $dir) | Out-Null
 }

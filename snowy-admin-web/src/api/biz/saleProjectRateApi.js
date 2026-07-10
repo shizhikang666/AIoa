@@ -1,4 +1,6 @@
 import { baseRequest } from '@/utils/request'
+import { normalizeFileUrl } from '@/utils/fileUrl'
+import { safeJsonParse } from '@/utils/json'
 
 const request = (url, ...arg) => baseRequest(`/biz/projectrate/` + url, ...arg)
 
@@ -12,14 +14,8 @@ export default {
 	async list(data) {
 		const res = await request(`list`, data, 'get')
 		res.forEach((item) => {
-			if (item.extJson) {
-				const { imgList } = JSON.parse(item.extJson)
-				item.imgList = imgList.map((item) => {
-					return item.replace('http://47.95.5.233:7971/', 'https://oa.zhixinxinli888.com/backend/')
-				})
-			} else {
-				item.imgList = []
-			}
+			const extJson = safeJsonParse(item.extJson, {})
+			item.imgList = Array.isArray(extJson.imgList) ? extJson.imgList.map(normalizeFileUrl).filter(Boolean) : []
 		})
 		return res
 	},

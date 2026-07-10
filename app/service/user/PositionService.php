@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\service\user;
 
 use app\model\SysPosition;
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -19,8 +20,9 @@ class PositionService
     private const CATEGORY_MIDDLE = 'MIDDLE';
     private const CATEGORY_LOW = 'LOW';
 
-    public function page(array $filters = []): array
+    public function page(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         [$page, $limit] = $this->pagination($filters);
         $total = $this->baseQuery($filters)->count();
         $records = $this->baseQuery($filters)
@@ -43,8 +45,9 @@ class PositionService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function all(array $filters = []): array
+    public function all(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         $rows = $this->baseQuery($filters)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->select()
@@ -53,9 +56,9 @@ class PositionService
         return array_map(fn (array $row): array => $this->positionRow($row), $rows);
     }
 
-    public function detail(string $id): ?array
+    public function detail(string $id, mixed $payload = []): ?array
     {
-        $row = $this->baseQuery(['id' => $id])->find();
+        $row = $this->baseQuery(TenantScope::scopedFilters(['id' => $id], $payload))->find();
 
         return $row ? $this->positionRow($row->toArray()) : null;
     }
@@ -167,8 +170,9 @@ class PositionService
     /**
      * @return array<string, mixed>
      */
-    public function selector(array $filters = []): array
+    public function selector(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         [$page, $limit] = $this->pagination($filters);
         $total = $this->baseQuery($filters)->count();
         $rows = $this->baseQuery($filters)
@@ -356,7 +360,7 @@ class PositionService
             if ($orgTenantId !== '' && $orgTenantId !== '0' && $existingTenantId !== '0' && $orgTenantId !== $existingTenantId) {
                 throw new RuntimeException('tenant mismatch', 403);
             }
-            if ($payloadTenantId !== '' && $payloadTenantId !== $existingTenantId && !$this->isAdminCompatible($payload)) {
+            if ($payloadTenantId !== '' && $payloadTenantId !== $existingTenantId && !TenantScope::canCrossTenant($payload)) {
                 throw new RuntimeException('permission denied', 403);
             }
 
@@ -364,7 +368,7 @@ class PositionService
         }
 
         if ($orgTenantId !== '') {
-            if ($payloadTenantId !== '' && $payloadTenantId !== $orgTenantId && !$this->isAdminCompatible($payload)) {
+            if ($payloadTenantId !== '' && $payloadTenantId !== $orgTenantId && !TenantScope::canCrossTenant($payload)) {
                 throw new RuntimeException('permission denied', 403);
             }
 
@@ -459,11 +463,7 @@ class PositionService
      */
     private function ensureTenantCompatible(array $payload, array $row): void
     {
-        $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
-        $rowTenantId = trim((string)($row['TENANT_ID'] ?? ''));
-        if ($payloadTenantId !== '' && $rowTenantId !== '' && $payloadTenantId !== $rowTenantId && !$this->isAdminCompatible($payload)) {
-            throw new RuntimeException('permission denied', 403);
-        }
+        TenantScope::assertCompatible($payload, $row['TENANT_ID'] ?? null);
     }
 
     /**

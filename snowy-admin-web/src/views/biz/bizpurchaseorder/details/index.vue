@@ -137,6 +137,7 @@
 	import bizPurchaseOrderApi from '@/api/biz/bizPurchaseOrderApi'
 	import purchaseOrderProcess from './process/index.vue'
 	import { useTemplateRef } from 'vue'
+	import { safeJsonParse } from '@/utils/json'
 
 	const productDetailsRef = useTemplateRef('productDetailsRef')
 	const visible = ref(false)
@@ -251,7 +252,7 @@
 			}
 
 			if (result.bizPurchaseOrder.extJson) {
-				supplier.value = JSON.parse(result.bizPurchaseOrder.extJson).supplier
+				supplier.value = safeJsonParse(result.bizPurchaseOrder.extJson, {}).supplier || {}
 			}
 		} catch (e) {
 			error.value = true

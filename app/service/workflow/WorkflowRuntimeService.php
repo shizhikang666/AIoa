@@ -446,7 +446,13 @@ class WorkflowRuntimeService
         }
 
         if (!self::ENABLE_PROJECT_DELIVERY_APPROVAL) {
-            $processInstanceId = $this->uuid();
+            $requestId = $this->optionalString($input['requestId'] ?? null, 128);
+            $processInstanceId = $this->projectDeliveryProcessInstanceId(
+                $requestId,
+                $tenantId,
+                $currentUserId,
+                $projectId
+            );
             $result = $this->saleProjectService->applyProjectDeliveryFromWorkflow(
                 $variables,
                 $processInstanceId,
@@ -3183,5 +3189,21 @@ class WorkflowRuntimeService
             . substr($hex, 12, 4) . '-'
             . substr($hex, 16, 4) . '-'
             . substr($hex, 20);
+    }
+
+    private function projectDeliveryProcessInstanceId(
+        ?string $requestId,
+        string $tenantId,
+        string $currentUserId,
+        string $projectId
+    ): string {
+        if ($requestId === null || $requestId === '') {
+            return $this->uuid();
+        }
+        if (preg_match('/^[A-Za-z0-9._:-]{8,128}$/', $requestId) !== 1) {
+            throw new RuntimeException('invalid requestId', 400);
+        }
+
+        return 'delivery_' . hash('sha256', implode('|', [$tenantId, $currentUserId, $projectId, $requestId]));
     }
 }

@@ -68,6 +68,7 @@
 	import warehousesApi from '@/api/biz/warehousesApi'
 	import detail from '@/views/biz/saleproject/detail.vue'
 	import saleProjectProductItemRelationApi from '@/api/biz/saleProjectProductItemRelationApi'
+	import { safeJsonParse } from '@/utils/json'
 
 	const projectDetail = ref()
 	const props = defineProps({
@@ -154,7 +155,7 @@
 				if (!current.children) {
 					current.children = []
 				}
-				v.productName = JSON.parse(v.extJson).product.productName
+				v.productName = safeJsonParse(v.extJson, {}).product?.productName || v.productName
 
 				v.amount = v.number
 				current.children.push(v)

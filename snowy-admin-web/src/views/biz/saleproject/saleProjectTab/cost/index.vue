@@ -80,6 +80,7 @@
 	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
 	import { useLoading } from '@/composables/useLoading'
 	import { Decimal } from 'decimal.js'
+	import { safeJsonParse } from '@/utils/json'
 
 	const columns = [
 		{
@@ -109,17 +110,20 @@
 	})
 	const { load, loading, error } = useLoading(async () => {
 		const res = await bizSaleProjectApi.costBizSaleProjectDetails({ id: projectId })
-		const { items, productItems, returnOrders } = res
-		// TODO: 处理退货订单，目前未处理套件中单产品退货
+		const { items = [], productItems = [], returnOrders = [] } = res || {}
+		const numberValue = (value) => new Decimal(value || 0)
+		const returnedByItem = {}
 		returnOrders.forEach((order) => {
-			order.productList.forEach((product) => {
-				const find = productItems.find((productItem) => {
-					return productItem.id === product.projectProductItemId
-				})
-				if (find) {
-					find.number = find.number - product.amount
-				}
+			;(order.productList || []).forEach((product) => {
+				const itemId = product.projectProductItemId
+				returnedByItem[itemId] = numberValue(returnedByItem[itemId]).add(product.amount || 0)
 			})
+		})
+		productItems.forEach((productItem) => {
+			productItem.number = Decimal.max(
+				0,
+				numberValue(productItem.number).sub(returnedByItem[productItem.id] || 0)
+			).toNumber()
 		})
 		let resultProduct = productItems.filter((item) => {
 			return item.number > 0
@@ -129,7 +133,6 @@
 		items.forEach((item) => {
 			keyMap[item.productId] = item
 		})
-		const numberValue = (value) => new Decimal(value || 0)
 		const costUnitAmount = (productId, fallback) => {
 			const item = keyMap[productId]
 			if (item && item.avgUnitAmount !== undefined && item.avgUnitAmount !== null && !numberValue(item.avgUnitAmount).isZero()) {
@@ -143,14 +146,14 @@
 			if (product.children && product.children.length > 0) {
 				let baseCountAmount = new Decimal(0)
 				product.children.forEach((child) => {
-					const extjson = child.extJson ? JSON.parse(child.extJson) : {}
+					const extjson = safeJsonParse(child.extJson, {})
 					const childProduct = extjson?.product || {}
 					const childProductId = child.targetId || childProduct.id
 					child.productName = child.productName || childProduct.productName
-					child.amount = child.number
+					child.amount = numberValue(child.number).mul(product.amount).toNumber()
 					child.avgUnitAmount = costUnitAmount(childProductId, child.purchasePrice || childProduct.purchasePrice)
 					child.countAmount = numberValue(child.amount).mul(child.avgUnitAmount).toNumber()
-					baseCountAmount = baseCountAmount.add(child.countAmount)
+					baseCountAmount = baseCountAmount.add(numberValue(child.number).mul(child.avgUnitAmount))
 				})
 				product.avgUnitAmount = baseCountAmount.toNumber()
 			} else {

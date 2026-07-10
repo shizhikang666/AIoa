@@ -19,27 +19,30 @@ class OrgController extends BaseSysController
 
     public function page(Request $request): Response
     {
-        return $this->guard(fn () => $this->orgService->page($request->get()));
+        return $this->guard(fn () => $this->orgService->page($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function list(Request $request): Response
     {
-        return $this->guard(fn () => $this->orgService->all($request->get()));
+        return $this->guard(fn () => $this->orgService->all($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function tree(Request $request): Response
     {
-        return $this->guard(fn () => $this->orgService->tree($request->get()));
+        return $this->guard(fn () => $this->orgService->tree($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function treeSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->orgService->selector($request->get()));
+        return $this->guard(fn () => $this->orgService->selector($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function detail(Request $request): Response
     {
-        return $this->guard(fn () => $this->orgService->detail($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->orgService->detail(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function add(Request $request): Response
@@ -106,7 +109,10 @@ class OrgController extends BaseSysController
 
     public function userSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->userSelector($request->get()));
+        return $this->guard(fn () => $this->userDirectoryService->userSelector(
+            $request->get(),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     /**

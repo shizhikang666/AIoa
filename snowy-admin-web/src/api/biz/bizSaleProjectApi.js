@@ -1,4 +1,5 @@
 import { baseRequest } from '@/utils/request'
+import { safeJsonParse } from '@/utils/json'
 
 const request = (url, ...arg) => baseRequest(`/biz/saleproject/` + url, ...arg)
 
@@ -71,7 +72,7 @@ export default {
 			result.productItems.forEach((v) => {
 				if (v.children) {
 					v.children.forEach((childrenItem) => {
-						const product = JSON.parse(childrenItem.extJson).product
+						const product = safeJsonParse(childrenItem.extJson, {}).product || {}
 						childrenItem.productName = product.productName
 						childrenItem.productSysCategory = product.category
 						childrenItem.specs = product.specs
@@ -86,11 +87,10 @@ export default {
 	//获取销售产品字表
 	async bizSaleProjectProductItemList(data) {
 		const result = await request('product', data, 'get')
-		console.log(result)
 		result.forEach((v) => {
 			if (v.children) {
 				v.children.forEach((childrenItem) => {
-					const product = JSON.parse(childrenItem.extJson).product
+					const product = safeJsonParse(childrenItem.extJson, {}).product || {}
 					childrenItem.productName = product.productName
 					childrenItem.productSysCategory = product.category
 					childrenItem.specs = product.specs

@@ -321,6 +321,7 @@ apply_staging() {
         --exclude='/runtime/storage/' \
         --exclude='/runtime/backup/' \
         --exclude='/public/storage/' \
+        --exclude='/public/upload/' \
         "$STAGING_DIR"/ "$TARGET_ROOT"/
 
     mkdir -p \
@@ -330,9 +331,10 @@ apply_staging() {
         "$TARGET_ROOT/runtime/storage" \
         "$TARGET_ROOT/runtime/upload" \
         "$TARGET_ROOT/runtime/backup" \
-        "$TARGET_ROOT/public/storage"
+        "$TARGET_ROOT/public/storage" \
+        "$TARGET_ROOT/public/upload/dev_file"
 
-    chmod -R u+rwX "$TARGET_ROOT/runtime" "$TARGET_ROOT/public/storage" || true
+    chmod -R u+rwX "$TARGET_ROOT/runtime" "$TARGET_ROOT/public/storage" "$TARGET_ROOT/public/upload" || true
     if [ -n "$OWNER" ]; then
         if id "${OWNER%%:*}" >/dev/null 2>&1; then
             chown_targets=()
@@ -351,7 +353,7 @@ apply_staging() {
 }
 
 fix_writable_ownership() {
-    chmod -R u+rwX "$TARGET_ROOT/runtime" "$TARGET_ROOT/public/storage" || true
+    chmod -R u+rwX "$TARGET_ROOT/runtime" "$TARGET_ROOT/public/storage" "$TARGET_ROOT/public/upload" || true
 
     if [ -z "$OWNER" ]; then
         return 0
@@ -363,7 +365,7 @@ fix_writable_ownership() {
         return 0
     fi
 
-    for writable_path in "$TARGET_ROOT/runtime" "$TARGET_ROOT/public/storage"; do
+    for writable_path in "$TARGET_ROOT/runtime" "$TARGET_ROOT/public/storage" "$TARGET_ROOT/public/upload"; do
         if [ -e "$writable_path" ]; then
             chown -R "$OWNER" "$writable_path" || true
         fi

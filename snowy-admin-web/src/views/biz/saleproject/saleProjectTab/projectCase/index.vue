@@ -124,6 +124,7 @@
 <script setup name="projectCase">
 	import BizFileRelationApi from '@/api/biz/bizFileRelationApi'
 	import { useLoading } from '@/composables/useLoading'
+	import { normalizeFileUrl } from '@/utils/fileUrl'
 	import UploadForm from '@/views/biz/file/uploadForm.vue'
 	import { required } from '@/utils/formRules'
 	import tool from '@/utils/tool'
@@ -168,12 +169,7 @@
 			objectId: projectId,
 			category: 'SALE_PROJECT_CASE'
 		})
-		imgList.value = res.map((v) => {
-			return {
-				...v,
-				downloadPath: v.downloadPath.replace('http://47.95.5.233:7971/', 'https://oa.zhixinxinli888.com/backend/')
-			}
-		})
+		imgList.value = res.map((v) => ({ ...v, downloadPath: normalizeFileUrl(v.downloadPath) }))
 
 		await loadRate()
 	})
@@ -201,9 +197,7 @@
 
 		const imgList = fileList.value
 			.filter((value) => value.response)
-			.map(({ response }) => {
-				return response.downloadPath.replace('http://47.95.5.233:7971/', 'https://oa.zhixinxinli888.com/backend/')
-			})
+			.map(({ response }) => normalizeFileUrl(response.downloadPath))
 
 		await SaleProjectRateApi.saleProjectRateSubmitForm({ ...formDataParam, projectId, imgList })
 		formData.value = {}

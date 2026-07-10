@@ -385,6 +385,7 @@
 	import { cloneDeep, debounce } from 'lodash-es'
 	import BizTeamProjectUserApi from '@/api/biz/bizTeamProjectUserApi'
 	import { useRoute } from 'vue-router'
+	import { safeJsonParse } from '@/utils/json'
 
 	const route = useRoute()
 	const uploadFormRef = useTemplateRef('uploadFormRef')
@@ -481,7 +482,7 @@
 			teamProjectTaskId: taskId.value
 		})
 		commentList.value = res.map((v) => {
-			const files = v.extJson ? JSON.parse(v.extJson).file : []
+			const files = safeJsonParse(v.extJson, {}).file || []
 			return {
 				...v,
 				files: files

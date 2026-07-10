@@ -6,6 +6,7 @@ namespace app\service\auth;
 
 use app\service\user\OrgService;
 use app\service\user\UserDirectoryService;
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -48,8 +49,9 @@ class RoleService
     ) {
     }
 
-    public function page(array $filters = []): array
+    public function page(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         [$page, $limit] = $this->pagination($filters);
         $total = $this->roleQuery($filters)->count();
         $records = $this->roleQuery($filters)
@@ -61,9 +63,9 @@ class RoleService
         return $this->pageResult(array_map(fn (array $row): array => $this->roleRow($row), $records), $total, $page, $limit);
     }
 
-    public function detail(string $id): ?array
+    public function detail(string $id, mixed $payload = []): ?array
     {
-        $role = $this->roleQuery(['id' => $id])->find();
+        $role = $this->roleQuery(TenantScope::scopedFilters(['id' => $id], $payload))->find();
 
         return is_array($role) && $role !== [] ? $this->roleRow($role) : null;
     }
@@ -76,7 +78,8 @@ class RoleService
     {
         $payload = is_array($payload) ? $payload : [];
         $data = $this->roleWriteData($input);
-        $this->assertDuplicateRoleName($data['ORG_ID'], $data['NAME'], null);
+        $tenantId = $this->tenantIdForWrite($payload, $data['ORG_ID']);
+        $this->assertDuplicateRoleName($data['ORG_ID'], $data['NAME'], null, $tenantId);
 
         $now = date('Y-m-d H:i:s');
         $operatorId = $this->payloadUserId($payload);
@@ -88,7 +91,7 @@ class RoleService
             'CREATE_USER' => $operatorId !== '' ? $operatorId : null,
             'UPDATE_TIME' => $now,
             'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
-            'TENANT_ID' => $this->tenantIdForWrite($payload, $data['ORG_ID']),
+            'TENANT_ID' => $tenantId,
         ]);
 
         Db::name('sys_role')->insert($row);
@@ -104,13 +107,20 @@ class RoleService
     {
         $id = $this->requiredInput($input, ['id', 'ID', 'roleId', 'role_id']);
         $payload = is_array($payload) ? $payload : [];
-        $existing = $this->activeRoleRow($id);
+        $existing = $this->activeRoleRow($id, $payload);
         if ($this->isBuiltInRole($existing)) {
             throw new RuntimeException('built-in role cannot be edited', 400);
         }
 
         $data = $this->roleWriteData($input);
-        $this->assertDuplicateRoleName($data['ORG_ID'], $data['NAME'], $id);
+        $tenantId = trim((string)($existing['TENANT_ID'] ?? ''));
+        $targetTenantId = $data['ORG_ID'] === null
+            ? $tenantId
+            : $this->tenantIdForWrite($payload, $data['ORG_ID']);
+        if ($targetTenantId !== $tenantId) {
+            throw new RuntimeException('tenant mismatch', 403);
+        }
+        $this->assertDuplicateRoleName($data['ORG_ID'], $data['NAME'], $id, $tenantId);
 
         $operatorId = $this->payloadUserId($payload);
         $update = array_merge($data, [
@@ -138,7 +148,7 @@ class RoleService
         }
 
         $payload = is_array($payload) ? $payload : [];
-        $roles = $this->activeRoleRows($ids);
+        $roles = $this->activeRoleRows($ids, $payload);
         foreach ($roles as $role) {
             if ($this->isBuiltInRole($role)) {
                 throw new RuntimeException('built-in role cannot be deleted', 400);
@@ -177,15 +187,17 @@ class RoleService
         ];
     }
 
-    public function ownResource(string $id): array
+    public function ownResource(string $id, mixed $payload = []): array
     {
+        $this->activeRoleRow($id, is_array($payload) ? $payload : []);
+
         return [
             'id' => $id,
             'grantInfoList' => $this->grantInfoList($id, self::ROLE_HAS_RESOURCE, 'menuId'),
         ];
     }
 
-    public function grantResource(array $input): array
+    public function grantResource(array $input, mixed $payload = []): array
     {
         return $this->saveGrant(
             $input,
@@ -195,19 +207,22 @@ class RoleService
             function (array $role, array $grantInfoList): void {
                 $this->assertActiveResourceGrantInfo($grantInfoList, 'sys_resource');
                 $this->assertSystemModuleResourceGrant($role, $grantInfoList);
-            }
+            },
+            is_array($payload) ? $payload : []
         );
     }
 
-    public function ownMobileMenu(string $id): array
+    public function ownMobileMenu(string $id, mixed $payload = []): array
     {
+        $this->activeRoleRow($id, is_array($payload) ? $payload : []);
+
         return [
             'id' => $id,
             'grantInfoList' => $this->grantInfoList($id, self::ROLE_HAS_MOBILE_MENU, 'menuId'),
         ];
     }
 
-    public function grantMobileMenu(array $input): array
+    public function grantMobileMenu(array $input, mixed $payload = []): array
     {
         return $this->saveGrant(
             $input,
@@ -216,53 +231,75 @@ class RoleService
             'menuId',
             function (array $role, array $grantInfoList): void {
                 $this->assertActiveResourceGrantInfo($grantInfoList, 'mobile_resource');
-            }
+            },
+            is_array($payload) ? $payload : []
         );
     }
 
-    public function ownPermission(string $id): array
+    public function ownPermission(string $id, mixed $payload = []): array
     {
+        $this->activeRoleRow($id, is_array($payload) ? $payload : []);
+
         return [
             'id' => $id,
             'grantInfoList' => $this->grantInfoList($id, self::ROLE_HAS_PERMISSION, 'apiUrl'),
         ];
     }
 
-    public function grantPermission(array $input): array
+    public function grantPermission(array $input, mixed $payload = []): array
     {
+        $payload = is_array($payload) ? $payload : [];
+
         return $this->saveGrant(
             $input,
             self::ROLE_HAS_PERMISSION,
             $this->permissionGrantInfoList($this->requiredGrantInfoList($input)),
             'apiUrl',
-            function (array $role, array $grantInfoList): void {
-                $this->assertActivePermissionScopeOrgs($grantInfoList);
-            }
+            function (array $role, array $grantInfoList) use ($payload): void {
+                $this->assertActivePermissionScopeOrgs(
+                    $grantInfoList,
+                    (string)($role['TENANT_ID'] ?? ''),
+                    $payload
+                );
+            },
+            $payload
         );
     }
 
     /**
      * @return array<int, string>
      */
-    public function ownUser(string $id): array
+    public function ownUser(string $id, mixed $payload = []): array
     {
-        return array_values(array_filter(Db::name('sys_relation')
-            ->where('TARGET_ID', $id)
-            ->where('CATEGORY', self::USER_HAS_ROLE)
-            ->column('OBJECT_ID')));
+        $payload = is_array($payload) ? $payload : [];
+        $role = $this->activeRoleRow($id, $payload);
+        $query = Db::name('sys_relation')
+            ->alias('r')
+            ->leftJoin('sys_user u', 'u.ID = r.OBJECT_ID')
+            ->where('r.TARGET_ID', $id)
+            ->where('r.CATEGORY', self::USER_HAS_ROLE)
+            ->where(function ($query): void {
+                $query->whereNull('u.DELETE_FLAG')->whereOr('u.DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if (!TenantScope::canCrossTenant($payload)) {
+            $query->where('u.TENANT_ID', (string)($role['TENANT_ID'] ?? ''));
+        }
+
+        return array_values(array_filter(array_map('strval', $query->column('r.OBJECT_ID'))));
     }
 
-    public function grantUser(array $input): array
+    public function grantUser(array $input, mixed $payload = []): array
     {
         $id = $this->requiredInput($input, ['id', 'ID', 'roleId', 'role_id']);
+        $payload = is_array($payload) ? $payload : [];
 
-        $role = $this->activeRoleRow($id);
+        $role = $this->activeRoleRow($id, $payload);
         $userIds = $this->stringList($this->requiredGrantInfoList($input));
         if ($userIds === [] && $this->isBuiltInRole($role)) {
             throw new RuntimeException('built-in role must keep at least one user', 400);
         }
 
-        $this->assertActiveUsers($userIds);
+        $this->assertActiveUsers($userIds, (string)($role['TENANT_ID'] ?? ''), $payload);
 
         return Db::transaction(function () use ($id, $userIds): array {
             Db::name('sys_relation')
@@ -296,9 +333,9 @@ class RoleService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function orgTreeSelector(array $filters = []): array
+    public function orgTreeSelector(array $filters = [], mixed $payload = []): array
     {
-        return $this->orgService->selector($filters);
+        return $this->orgService->selector($filters, $payload);
     }
 
     /**
@@ -331,9 +368,9 @@ class RoleService
             ->column('TARGET_ID')));
     }
 
-    public function roleSelector(array $filters = []): array
+    public function roleSelector(array $filters = [], mixed $payload = []): array
     {
-        $page = $this->page($filters);
+        $page = $this->page($filters, $payload);
         $page['records'] = array_map(static function (array $row): array {
             return [
                 'id' => $row['id'] ?? null,
@@ -351,9 +388,9 @@ class RoleService
         return $page;
     }
 
-    public function userSelector(array $filters = []): array
+    public function userSelector(array $filters = [], mixed $payload = []): array
     {
-        return $this->userDirectoryService->page($filters);
+        return $this->userDirectoryService->page($filters, $payload);
     }
 
     private function roleQuery(array $filters)
@@ -437,10 +474,17 @@ class RoleService
     /**
      * @param array<int, array<string, mixed>> $grantInfoList
      */
-    private function saveGrant(array $input, string $category, array $grantInfoList, string $targetKey, callable $validator): array
+    private function saveGrant(
+        array $input,
+        string $category,
+        array $grantInfoList,
+        string $targetKey,
+        callable $validator,
+        array $payload = []
+    ): array
     {
         $id = $this->requiredInput($input, ['id', 'ID', 'roleId', 'role_id']);
-        $role = $this->activeRoleRow($id);
+        $role = $this->activeRoleRow($id, $payload);
         $validator($role, $grantInfoList);
 
         return Db::transaction(function () use ($id, $category, $grantInfoList, $targetKey): array {
@@ -524,9 +568,9 @@ class RoleService
         return $value;
     }
 
-    private function activeRoleRow(string $id): array
+    private function activeRoleRow(string $id, array $payload = []): array
     {
-        $role = $this->roleQuery(['id' => $id])->find();
+        $role = $this->roleQuery(TenantScope::scopedFilters(['id' => $id], $payload))->find();
         if (!is_array($role) || $role === []) {
             throw new RuntimeException('role not found', 404);
         }
@@ -538,18 +582,21 @@ class RoleService
      * @param array<int, string> $ids
      * @return array<int, array<string, mixed>>
      */
-    private function activeRoleRows(array $ids): array
+    private function activeRoleRows(array $ids, array $payload = []): array
     {
         $ids = array_values(array_unique(array_filter(array_map('strval', $ids))));
         if ($ids === []) {
             return [];
         }
 
-        $roles = Db::name('sys_role')
+        $query = Db::name('sys_role')
             ->whereIn('ID', $ids)
-            ->where('DELETE_FLAG', self::NOT_DELETE)
-            ->select()
-            ->toArray();
+            ->where('DELETE_FLAG', self::NOT_DELETE);
+        $filters = TenantScope::scopedFilters([], $payload);
+        if (!empty($filters['tenantId'])) {
+            $query->where('TENANT_ID', (string)$filters['tenantId']);
+        }
+        $roles = $query->select()->toArray();
         $found = array_values(array_filter(array_map(static fn (array $row): string => (string)($row['ID'] ?? ''), $roles)));
         $missing = array_values(array_diff($ids, $found));
         if ($missing !== []) {
@@ -613,10 +660,11 @@ class RoleService
         return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: null;
     }
 
-    private function assertDuplicateRoleName(?string $orgId, string $name, ?string $ignoreId): void
+    private function assertDuplicateRoleName(?string $orgId, string $name, ?string $ignoreId, string $tenantId): void
     {
         $query = Db::name('sys_role')
             ->where('NAME', $name)
+            ->where('TENANT_ID', $tenantId)
             ->where('DELETE_FLAG', self::NOT_DELETE);
         if ($orgId === null || $orgId === '') {
             $query->where(function ($query): void {
@@ -658,7 +706,7 @@ class RoleService
 
         $org = $this->activeOrgRow($orgId);
         $orgTenantId = trim((string)($org['TENANT_ID'] ?? ''));
-        if ($payloadTenantId !== '' && $orgTenantId !== '' && $payloadTenantId !== $orgTenantId && !$this->isAdminCompatible($payload)) {
+        if ($payloadTenantId !== '' && $orgTenantId !== '' && $payloadTenantId !== $orgTenantId && !TenantScope::canCrossTenant($payload)) {
             throw new RuntimeException('permission denied', 403);
         }
 
@@ -763,7 +811,7 @@ class RoleService
     /**
      * @param array<int, array{apiUrl: string, scopeCategory: string, scopeDefineOrgIdList: array<int, string>}> $grantInfoList
      */
-    private function assertActivePermissionScopeOrgs(array $grantInfoList): void
+    private function assertActivePermissionScopeOrgs(array $grantInfoList, string $tenantId, array $payload): void
     {
         $orgIds = [];
         foreach ($grantInfoList as $grantInfo) {
@@ -772,7 +820,23 @@ class RoleService
             }
         }
 
-        $this->assertActiveIds('sys_org', array_values(array_unique($orgIds)), 'scope organization not found');
+        $orgIds = array_values(array_unique($orgIds));
+        if ($orgIds === []) {
+            return;
+        }
+
+        $query = Db::name('sys_org')
+            ->whereIn('ID', $orgIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if (!TenantScope::canCrossTenant($payload)) {
+            $query->where('TENANT_ID', $tenantId);
+        }
+        $validIds = array_values(array_filter(array_map('strval', $query->column('ID'))));
+        if (array_diff($orgIds, $validIds) !== []) {
+            throw new RuntimeException('scope organization not found', 404);
+        }
     }
 
     /**
@@ -941,9 +1005,26 @@ class RoleService
     /**
      * @param array<int, string> $userIds
      */
-    private function assertActiveUsers(array $userIds): void
+    private function assertActiveUsers(array $userIds, string $tenantId, array $payload): void
     {
-        $this->assertActiveIds('sys_user', $userIds, 'user not found');
+        $userIds = array_values(array_unique(array_filter(array_map('strval', $userIds))));
+        if ($userIds === []) {
+            return;
+        }
+
+        $query = Db::name('sys_user')
+            ->whereIn('ID', $userIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+        if (!TenantScope::canCrossTenant($payload)) {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $validIds = array_values(array_filter(array_map('strval', $query->column('ID'))));
+        if (array_diff($userIds, $validIds) !== []) {
+            throw new RuntimeException('user not found', 404);
+        }
     }
 
     private function stringList(mixed $value): array

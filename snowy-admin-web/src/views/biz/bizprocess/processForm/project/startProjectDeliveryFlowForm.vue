@@ -272,6 +272,12 @@
 	const error = ref(false)
 	const loading = ref(false)
 	let id = ''
+	const createRequestId = () => {
+		if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+			return crypto.randomUUID()
+		}
+		return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+	}
 	// 打开抽屉
 	const onOpen = async (record) => {
 		visible.value = true
@@ -280,6 +286,7 @@
 			approveUserIdList: approveUserIdList,
 			copyUserIdList: copyUserIdList,
 			projectProductItemList: [],
+			requestId: createRequestId(),
 			freightTime: dayjs().format('YYYY-MM-DD HH:mm:ss')
 		}
 
@@ -336,39 +343,37 @@
 
 	// 验证并提交数据
 	const onSubmit = async () => {
+		if (sendLoading.value) return
+		sendLoading.value = true
 		try {
-			await formRef.value.validate()
-		} catch (e) {
-			activeKey.value = 'baseInfo'
-			return
-		}
-
-		try {
-			await productFormRef.value.validate()
-		} catch (e) {
-			activeKey.value = 'product'
-			return
-		}
-
-		if (showApprovalFlow.value) {
 			try {
-				await approveFormRef.value.validate()
+				await formRef.value.validate()
 			} catch (e) {
-				activeKey.value = 'approve-info'
+				activeKey.value = 'baseInfo'
 				return
 			}
-		}
 
-		sendLoading.value = true
-		let form = cloneDeep(formData.value)
-		bizProcessApi
-			.bizProcessStartProjectDelivery(form)
-			.then((res) => {
-				onClose()
-			})
-			.finally(() => {
-				sendLoading.value = false
-			})
+			try {
+				await productFormRef.value.validate()
+			} catch (e) {
+				activeKey.value = 'product'
+				return
+			}
+
+			if (showApprovalFlow.value) {
+				try {
+					await approveFormRef.value.validate()
+				} catch (e) {
+					activeKey.value = 'approve-info'
+					return
+				}
+			}
+
+			await bizProcessApi.bizProcessStartProjectDelivery(cloneDeep(formData.value))
+			onClose()
+		} finally {
+			sendLoading.value = false
+		}
 	}
 	// 传递设计器需要的API
 	const selectorApiFunction = useUserSelector()

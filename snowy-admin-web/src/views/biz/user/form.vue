@@ -604,6 +604,7 @@
 	import { required } from '@/utils/formRules'
 	import tool from '@/utils/tool'
 	import userCenterApi from '@/api/sys/userCenterApi'
+	import { safeJsonParse } from '@/utils/json'
 	// 默认是关闭状态
 	const visible = ref(false)
 	const formRef = ref()
@@ -677,22 +678,22 @@
 		bizUserApi.userDetail(param).then((data) => {
 			if (data.positionJson) {
 				// 替换表单中的格式与后端查到的
-				data.positionJson = JSON.parse(data.positionJson)
+				data.positionJson = safeJsonParse(data.positionJson, [])
 			}
 
 			if (data.familyMembersAndSocialRelationshipsJson) {
 				// 替换表单中的格式与后端查到的
-				data.familyMembersAndSocialRelationshipsJson = JSON.parse(data.familyMembersAndSocialRelationshipsJson)
+				data.familyMembersAndSocialRelationshipsJson = safeJsonParse(data.familyMembersAndSocialRelationshipsJson, [])
 			}
 
 			if (data.fullTimeEducationJson) {
 				// 替换表单中的格式与后端查到的
-				data.fullTimeEducationJson = JSON.parse(data.fullTimeEducationJson)
+				data.fullTimeEducationJson = safeJsonParse(data.fullTimeEducationJson, [])
 			}
 
 			if (data.onJobEducationJson) {
 				// 替换表单中的格式与后端查到的
-				data.onJobEducationJson = JSON.parse(data.onJobEducationJson)
+				data.onJobEducationJson = safeJsonParse(data.onJobEducationJson, [])
 			}
 
 			formData.value = Object.assign(formData.value, data)

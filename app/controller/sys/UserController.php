@@ -27,12 +27,15 @@ class UserController extends BaseSysController
 
     public function page(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->page($request->get()));
+        return $this->guard(fn () => $this->userDirectoryService->page($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function detail(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->detail($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->userDirectoryService->detail(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function add(Request $request): Response
@@ -55,7 +58,10 @@ class UserController extends BaseSysController
 
     public function listDetail(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->listDetail($request->get()));
+        return $this->guard(fn () => $this->userDirectoryService->listDetail(
+            $request->get(),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function downloadImportUserTemplate(Request $request): Response
@@ -213,7 +219,10 @@ class UserController extends BaseSysController
 
     public function ownRole(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->ownRole($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->userDirectoryService->ownRole(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function grantRole(Request $request): Response
@@ -252,32 +261,44 @@ class UserController extends BaseSysController
 
     public function ownResource(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->ownResource($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->userDirectoryService->ownResource(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function ownPermission(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->ownPermission($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->userDirectoryService->ownPermission(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function orgTreeSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->orgService->selector($request->get()));
+        return $this->guard(fn () => $this->orgService->selector($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function positionSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->positionService->selector($request->get()));
+        return $this->guard(fn () => $this->positionService->selector($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function roleSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->roleSelector($request->get()));
+        return $this->guard(fn () => $this->userDirectoryService->roleSelector(
+            $request->get(),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function userSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->userSelector($request->get()));
+        return $this->guard(fn () => $this->userDirectoryService->userSelector(
+            $request->get(),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function migrationPreview(Request $request): Response

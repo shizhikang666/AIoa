@@ -396,6 +396,7 @@
 	import { useProduct } from '@/composables/useProduct'
 	import BizSaleProjectInvoicingApi from '@/api/biz/bizSaleProjectInvoicingApi'
 	import FileViewItem from '@/components/File/FileViewItem.vue'
+	import { safeJsonParse } from '@/utils/json'
 
 	const list = ref([])
 	const onUploadSuccess = (res) => {
@@ -607,10 +608,10 @@
 			approveUserIdList: []
 		}
 		if (baseForm && baseForm.extJson) {
-			const json = JSON.parse(baseForm.extJson)
+			const json = safeJsonParse(baseForm.extJson, {})
 
 			list.value = json.fileList ? json.fileList : []
-			const form = json.form
+			const form = json.form || {}
 			formData.value = Object.assign(formData.value, form)
 		} else {
 			let detail = await BizSaleProjectInvoicingApi.bizSaleProjectInvoicingQueryCustomer({

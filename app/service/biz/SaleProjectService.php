@@ -270,7 +270,12 @@ SQL;
                     continue;
                 }
 
-                $this->addProductCostAmount($productAmounts, $productNames, $item, -1);
+                $returnAmount = $this->number($returnItem['amount'] ?? 0);
+                if ($returnAmount <= 0) {
+                    continue;
+                }
+
+                $this->addProductCostAmount($productAmounts, $productNames, $item, -1, $returnAmount);
             }
         }
 
@@ -2933,9 +2938,15 @@ SQL)
      * @param array<string, float> $productAmounts
      * @param array<string, string|null> $productNames
      */
-    private function addProductCostAmount(array &$productAmounts, array &$productNames, array $item, int $direction): void
+    private function addProductCostAmount(
+        array &$productAmounts,
+        array &$productNames,
+        array $item,
+        int $direction,
+        int|float|null $itemNumberOverride = null
+    ): void
     {
-        $itemNumber = $this->number($item['number'] ?? 0);
+        $itemNumber = $itemNumberOverride ?? $this->number($item['number'] ?? 0);
         $children = is_array($item['children'] ?? null) ? $item['children'] : [];
 
         if ($children === []) {

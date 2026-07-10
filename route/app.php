@@ -11,12 +11,6 @@
 use app\middleware\AuthMiddleware;
 use think\facade\Route;
 
-Route::get('think', function () {
-    return 'hello,ThinkPHP6!';
-});
-
-Route::get('hello/:name', 'index/hello');
-
 Route::group('auth/b', function () {
     Route::get('getPicCaptcha', 'auth.AuthController/getPicCaptcha');
     Route::get('getPhoneValidCode', 'auth.AuthController/getPhoneValidCode');

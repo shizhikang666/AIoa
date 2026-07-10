@@ -226,6 +226,7 @@
 	import returnOrderModel from '@/views/biz/returnorder/model/index.vue'
 	import { Decimal } from 'decimal.js'
 	import leaveApplicationModel from '@/views/biz/bizleaveapplication/modal/index.vue'
+	import { safeJsonParse } from '@/utils/json'
 
 	const store = globalStore()
 
@@ -298,7 +299,7 @@
 			//const res = await supplierApi.supplierDetail({ id })
 			let supplier = {}
 			if (activeSelectObject.value.extJson) {
-				supplier = JSON.parse(activeSelectObject.value.extJson).supplier
+				supplier = safeJsonParse(activeSelectObject.value.extJson, {}).supplier || {}
 			}
 
 			formData.value.bankName = supplier.bankName

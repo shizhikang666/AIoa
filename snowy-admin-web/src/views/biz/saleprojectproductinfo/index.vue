@@ -141,6 +141,7 @@
 	import ExcelJS from 'exceljs'
 	import { saveAs } from 'file-saver'
 	import { cloneDeep } from 'lodash-es'
+	import { safeJsonParse } from '@/utils/json'
 
 	const formRef = useTemplateRef('formRef')
 
@@ -226,7 +227,7 @@
 				if (product.children?.length > 0) {
 					return product.children
 						.map((child) => {
-							const childProductId = JSON.parse(child.extJson).product.id
+							const childProductId = safeJsonParse(child.extJson, {}).product?.id
 							const childProduct = productMap[childProductId]
 							return childProduct
 								? {

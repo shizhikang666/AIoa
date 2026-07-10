@@ -11,6 +11,7 @@ use app\model\SysRelation;
 use app\model\SysRole;
 use app\model\SysUser;
 use app\model\SysUserProcessConfig;
+use app\support\TenantScope;
 use RuntimeException;
 use Throwable;
 use think\facade\Db;
@@ -59,8 +60,9 @@ class UserDirectoryService
     ) {
     }
 
-    public function page(array $filters = []): array
+    public function page(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         [$page, $limit] = $this->pagination($filters);
         $total = $this->baseQuery($filters)->count();
         $records = $this->baseQuery($filters)
@@ -80,9 +82,9 @@ class UserDirectoryService
         ];
     }
 
-    public function detail(string $id): ?array
+    public function detail(string $id, mixed $payload = []): ?array
     {
-        $row = $this->baseQuery(['id' => $id])->find();
+        $row = $this->baseQuery(TenantScope::scopedFilters(['id' => $id], $payload))->find();
         if (!$row) {
             return null;
         }
@@ -95,8 +97,9 @@ class UserDirectoryService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function listDetail(array $filters = []): array
+    public function listDetail(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         $queryFilters = $filters;
         unset($queryFilters['orgId']);
         $query = $this->baseQuery($queryFilters);
@@ -993,10 +996,13 @@ class UserDirectoryService
     /**
      * @return array<int, string>
      */
-    public function ownRole(string $id): array
+    public function ownRole(string $id, mixed $payload = []): array
     {
         $id = trim($id);
         if ($id === '') {
+            return [];
+        }
+        if ($this->detail($id, $payload) === null) {
             return [];
         }
 
@@ -1221,7 +1227,7 @@ class UserDirectoryService
 
         $this->ensureGrantRoleAllowed($payload, $user, $bizScope);
         $this->ensureTenantCompatible($payload, $user);
-        $this->assertActiveRoles($roleIds, (string)($user['TENANT_ID'] ?? ''));
+        $this->assertActiveRoles($roleIds, (string)($user['TENANT_ID'] ?? ''), $payload);
 
         return Db::transaction(function () use ($id, $roleIds): array {
             Db::name('sys_relation')
@@ -1333,7 +1339,11 @@ class UserDirectoryService
         }
 
         $this->ensureTenantCompatible($payload, $user);
-        $this->assertActivePermissionScopeOrgs($grantInfoList);
+        $this->assertActivePermissionScopeOrgs(
+            $grantInfoList,
+            (string)($user['TENANT_ID'] ?? ''),
+            $payload
+        );
 
         return Db::transaction(function () use ($id, $grantInfoList): array {
             Db::name('sys_relation')
@@ -1365,16 +1375,24 @@ class UserDirectoryService
         });
     }
 
-    public function ownResource(string $id): array
+    public function ownResource(string $id, mixed $payload = []): array
     {
+        if ($this->detail($id, $payload) === null) {
+            throw new RuntimeException('user not found', 404);
+        }
+
         return [
             'id' => $id,
             'grantInfoList' => $this->grantInfoList($id, self::USER_HAS_RESOURCE, 'menuId'),
         ];
     }
 
-    public function ownPermission(string $id): array
+    public function ownPermission(string $id, mixed $payload = []): array
     {
+        if ($this->detail($id, $payload) === null) {
+            throw new RuntimeException('user not found', 404);
+        }
+
         return [
             'id' => $id,
             'grantInfoList' => $this->grantInfoList($id, self::USER_HAS_PERMISSION, 'apiUrl'),
@@ -1500,8 +1518,9 @@ class UserDirectoryService
     /**
      * @return array<string, mixed>
      */
-    public function userSelector(array $filters = []): array
+    public function userSelector(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         [$page, $limit] = $this->pagination($filters);
         $total = $this->baseQuery($filters)->count();
         $rows = $this->baseQuery($filters)
@@ -1527,8 +1546,9 @@ class UserDirectoryService
     /**
      * @return array<string, mixed>
      */
-    public function roleSelector(array $filters = []): array
+    public function roleSelector(array $filters = [], mixed $payload = []): array
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         [$page, $limit] = $this->pagination($filters);
         $total = $this->roleQuery($filters)->count();
         $rows = $this->roleQuery($filters)
@@ -2196,7 +2216,7 @@ class UserDirectoryService
     {
         $orgTenantId = trim((string)($org['TENANT_ID'] ?? ''));
         $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
-        if ($payloadTenantId !== '' && $orgTenantId !== '' && $payloadTenantId !== $orgTenantId && !$this->isAdminCompatible($payload)) {
+        if ($payloadTenantId !== '' && $orgTenantId !== '' && $payloadTenantId !== $orgTenantId && !TenantScope::canCrossTenant($payload)) {
             throw new RuntimeException('permission denied', 403);
         }
 
@@ -2255,7 +2275,7 @@ class UserDirectoryService
     /**
      * @param array<int, string> $roleIds
      */
-    private function assertActiveRoles(array $roleIds, string $tenantId): void
+    private function assertActiveRoles(array $roleIds, string $tenantId, array $payload): void
     {
         if ($roleIds === []) {
             return;
@@ -2267,13 +2287,8 @@ class UserDirectoryService
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             });
 
-        if ($tenantId !== '') {
-            $query->where(function ($query) use ($tenantId): void {
-                $query->whereNull('TENANT_ID')
-                    ->whereOr('TENANT_ID', '=', '')
-                    ->whereOr('TENANT_ID', '=', '0')
-                    ->whereOr('TENANT_ID', '=', $tenantId);
-            });
+        if ($tenantId !== '' && !TenantScope::canCrossTenant($payload)) {
+            $query->where('TENANT_ID', $tenantId);
         }
 
         $validIds = array_values(array_filter(array_map('strval', $query->column('ID'))));
@@ -2482,12 +2497,7 @@ class UserDirectoryService
      */
     private function ensureTenantCompatible(array $payload, array $user): void
     {
-        $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
-        $userTenantId = trim((string)($user['TENANT_ID'] ?? ''));
-
-        if ($payloadTenantId !== '' && $userTenantId !== '' && $payloadTenantId !== $userTenantId && !$this->isAdminCompatible($payload)) {
-            throw new RuntimeException('permission denied', 403);
-        }
+        TenantScope::assertCompatible($payload, $user['TENANT_ID'] ?? null);
     }
 
     /**
@@ -2694,7 +2704,7 @@ class UserDirectoryService
     /**
      * @param array<int, array{apiUrl: string, scopeCategory: string, scopeDefineOrgIdList: array<int, string>}> $grantInfoList
      */
-    private function assertActivePermissionScopeOrgs(array $grantInfoList): void
+    private function assertActivePermissionScopeOrgs(array $grantInfoList, string $tenantId, array $payload): void
     {
         $orgIds = [];
         foreach ($grantInfoList as $grantInfo) {
@@ -2705,12 +2715,15 @@ class UserDirectoryService
             return;
         }
 
-        $validIds = array_values(array_filter(array_map('strval', Db::name('sys_org')
+        $query = Db::name('sys_org')
             ->whereIn('ID', $orgIds)
             ->where(function ($query): void {
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
-            })
-            ->column('ID'))));
+            });
+        if (!TenantScope::canCrossTenant($payload)) {
+            $query->where('TENANT_ID', $tenantId);
+        }
+        $validIds = array_values(array_filter(array_map('strval', $query->column('ID'))));
         $missing = array_values(array_diff($orgIds, $validIds));
         if ($missing !== []) {
             throw new RuntimeException('scope org not found', 404);
@@ -3074,7 +3087,7 @@ class UserDirectoryService
         }
 
         $payloadTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
-        if ($payloadTenantId !== '' && !$this->isAdminCompatible($payload)) {
+        if ($payloadTenantId !== '' && !TenantScope::canCrossTenant($payload)) {
             $query->where('TENANT_ID', $payloadTenantId);
         }
 

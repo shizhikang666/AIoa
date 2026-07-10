@@ -16,12 +16,18 @@ class RoleController extends BaseSysController
 
     public function page(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->page($request->get()));
+        return $this->guard(fn () => $this->roleService->page(
+            $request->get(),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function detail(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->detail($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->roleService->detail(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function add(Request $request): Response
@@ -50,47 +56,74 @@ class RoleController extends BaseSysController
 
     public function ownResource(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->ownResource($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->roleService->ownResource(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function grantResource(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->grantResource($this->body($request)));
+        return $this->guard(fn () => $this->roleService->grantResource(
+            $this->body($request),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function ownMobileMenu(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->ownMobileMenu($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->roleService->ownMobileMenu(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function grantMobileMenu(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->grantMobileMenu($this->body($request)));
+        return $this->guard(fn () => $this->roleService->grantMobileMenu(
+            $this->body($request),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function ownPermission(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->ownPermission($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->roleService->ownPermission(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function grantPermission(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->grantPermission($this->body($request)));
+        return $this->guard(fn () => $this->roleService->grantPermission(
+            $this->body($request),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function ownUser(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->ownUser($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->roleService->ownUser(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function grantUser(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->grantUser($this->body($request)));
+        return $this->guard(fn () => $this->roleService->grantUser(
+            $this->body($request),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function orgTreeSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->orgTreeSelector($request->get()));
+        return $this->guard(fn () => $this->roleService->orgTreeSelector(
+            $request->get(),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function resourceTreeSelector(): Response
@@ -110,12 +143,18 @@ class RoleController extends BaseSysController
 
     public function roleSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->roleSelector($request->get()));
+        return $this->guard(fn () => $this->roleService->roleSelector(
+            $request->get(),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function userSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->roleService->userSelector($request->get()));
+        return $this->guard(fn () => $this->roleService->userSelector(
+            $request->get(),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     private function body(Request $request): array

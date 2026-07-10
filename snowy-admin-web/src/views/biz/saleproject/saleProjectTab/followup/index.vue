@@ -96,6 +96,8 @@
 	import { cloneDeep } from 'lodash-es'
 	import { required } from '@/utils/formRules'
 	import tool from '@/utils/tool'
+	import { safeJsonParse } from '@/utils/json'
+	import { normalizeFileUrl } from '@/utils/fileUrl'
 
 	const uploadFormRef = ref()
 	const pops = defineProps({
@@ -156,9 +158,12 @@
 			pagination.total = res.total
 			listData.value = res.records.map((v) => {
 				if (v.extJson) {
-					let obj = JSON.parse(v.extJson)
+					let obj = safeJsonParse(v.extJson, {})
 					if (obj.fileList) {
-						v.fileList = obj.fileList
+						v.fileList = obj.fileList.map((file) => ({
+							...file,
+							downloadPath: normalizeFileUrl(file.downloadPath)
+						}))
 					} else {
 						v.fileList = []
 					}

@@ -15,6 +15,7 @@
 	import { cloneDeep } from 'lodash-es'
 	import randerTable from './randerTable/index.vue'
 	import bizHistoryExcelApi from '@/api/biz/bizHistoryExcelApi'
+	import { safeJsonParse } from '@/utils/json'
 	// 抽屉状态
 	const open = ref(false)
 	const emit = defineEmits({ successful: null })
@@ -34,8 +35,7 @@
 			let recordData = cloneDeep(record)
 			formData.value = Object.assign({}, recordData)
 		}
-		allData.value = JSON.parse(record.extJson)
-		console.log(JSON.parse(record.extJson))
+		allData.value = safeJsonParse(record.extJson, [])
 	}
 
 	// 关闭抽屉

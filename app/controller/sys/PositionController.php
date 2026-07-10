@@ -19,12 +19,15 @@ class PositionController extends BaseSysController
 
     public function page(Request $request): Response
     {
-        return $this->guard(fn () => $this->positionService->page($request->get()));
+        return $this->guard(fn () => $this->positionService->page($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function detail(Request $request): Response
     {
-        return $this->guard(fn () => $this->positionService->detail($this->requiredString($request, 'id')));
+        return $this->guard(fn () => $this->positionService->detail(
+            $this->requiredString($request, 'id'),
+            $request->middleware('auth_payload', [])
+        ));
     }
 
     public function add(Request $request): Response
@@ -60,17 +63,17 @@ class PositionController extends BaseSysController
 
     public function list(Request $request): Response
     {
-        return $this->guard(fn () => $this->positionService->all($request->get()));
+        return $this->guard(fn () => $this->positionService->all($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function selector(Request $request): Response
     {
-        return $this->guard(fn () => $this->positionService->selector($request->get()));
+        return $this->guard(fn () => $this->positionService->selector($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function orgTreeSelector(Request $request): Response
     {
-        return $this->guard(fn () => $this->orgService->selector($request->get()));
+        return $this->guard(fn () => $this->orgService->selector($request->get(), $request->middleware('auth_payload', [])));
     }
 
     public function bizAdd(Request $request): Response

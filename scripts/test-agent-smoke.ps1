@@ -210,6 +210,10 @@ Invoke-TestStep 'PHP syntax lint for app, config, and route' {
     Write-Host "[test-agent] linted PHP files: $($files.Count)"
 }
 
+Invoke-TestStep 'targeted regression safety smoke' {
+    Invoke-External php (Join-Path $PSScriptRoot 'regression-safety-smoke.php')
+}
+
 if (-not $SkipFrontendApiMethod) {
     Invoke-TestStep 'frontend API method smoke' {
         & (Join-Path $PSScriptRoot 'frontend-api-method-smoke.ps1')

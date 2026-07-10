@@ -126,8 +126,6 @@
 		:default-form="{
 			firstContactTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
 			sourceType: 'OperationsProvided',
-			downloadPath: 'http://47.95.5.233:7971/dev/file/download?id=1880068915797151746',
-			fileId: '1880068915797151746',
 			customType: 'NEW'
 		}"
 		:disabled-form="{
