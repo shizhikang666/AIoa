@@ -138,8 +138,8 @@ class UserCenterWriteService
         $workbenchData = $this->requiredInput($input, 'workbenchData');
 
         return Db::transaction(function () use ($workbenchData, $payload): array {
-            $user = $this->activeCurrentUser($payload, 'ID, TENANT_ID');
-            $this->upsertRelation((string)$user['ID'], self::WORKBENCH_CATEGORY, $workbenchData, (string)($user['TENANT_ID'] ?? '1'));
+            $user = $this->activeCurrentUser($payload, 'ID');
+            $this->upsertRelation((string)$user['ID'], self::WORKBENCH_CATEGORY, $workbenchData);
 
             return ['id' => (string)$user['ID']];
         });
@@ -375,7 +375,7 @@ class UserCenterWriteService
         return $row;
     }
 
-    private function upsertRelation(string $objectId, string $category, string $extJson, string $tenantId): void
+    private function upsertRelation(string $objectId, string $category, string $extJson): void
     {
         $relation = Db::name('sys_relation')
             ->where('OBJECT_ID', $objectId)
@@ -399,7 +399,6 @@ class UserCenterWriteService
             'TARGET_ID' => null,
             'CATEGORY' => $category,
             'EXT_JSON' => $extJson,
-            'TENANT_ID' => $tenantId,
         ]);
     }
 

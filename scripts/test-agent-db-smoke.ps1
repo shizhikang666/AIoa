@@ -1257,6 +1257,97 @@ try {
     Write-Host ([string]($output | Out-String)).Trim()
 }
 
+Invoke-TestStep 'UserCenterWriteService workbench upsert' {
+$probe = @'
+<?php
+
+require getcwd() . '/vendor/autoload.php';
+
+(new think\App(getcwd()))->initialize();
+
+$user = think\facade\Db::name('sys_user')
+    ->where('ACCOUNT', '__LOCAL_SMOKE_ACCOUNT__')
+    ->where('DELETE_FLAG', 'NOT_DELETE')
+    ->field('ID')
+    ->find();
+if (!is_array($user) || empty($user['ID'])) {
+    throw new RuntimeException('local smoke account not found');
+}
+
+$userId = (string)$user['ID'];
+$category = 'SYS_USER_WORKBENCH_DATA';
+$originalRows = think\facade\Db::name('sys_relation')
+    ->where('OBJECT_ID', $userId)
+    ->where('CATEGORY', $category)
+    ->select()
+    ->toArray();
+$firstData = '{"shortcut":[{"id":"smoke-menu-1","title":"Smoke One","icon":null,"path":"/smoke/one"}]}';
+$secondData = '{"shortcut":[{"id":"smoke-menu-2","title":"Smoke Two","icon":null,"path":"/smoke/two"}]}';
+
+try {
+    think\facade\Db::name('sys_relation')
+        ->where('OBJECT_ID', $userId)
+        ->where('CATEGORY', $category)
+        ->delete();
+
+    $service = new app\service\user\UserCenterWriteService();
+    $result = $service->updateWorkbench(['workbenchData' => $firstData], ['user_id' => $userId]);
+    if (($result['id'] ?? '') !== $userId) {
+        throw new RuntimeException('workbench insert returned the wrong user id');
+    }
+
+    $inserted = think\facade\Db::name('sys_relation')
+        ->where('OBJECT_ID', $userId)
+        ->where('CATEGORY', $category)
+        ->find();
+    if (!is_array($inserted) || ($inserted['EXT_JSON'] ?? '') !== $firstData || ($inserted['TARGET_ID'] ?? null) !== null) {
+        throw new RuntimeException('workbench first save did not insert the expected relation');
+    }
+    $relationId = (string)$inserted['ID'];
+
+    $service->updateWorkbench(['workbenchData' => $secondData], ['user_id' => $userId]);
+    $updated = think\facade\Db::name('sys_relation')
+        ->where('OBJECT_ID', $userId)
+        ->where('CATEGORY', $category)
+        ->find();
+    $relationCount = think\facade\Db::name('sys_relation')
+        ->where('OBJECT_ID', $userId)
+        ->where('CATEGORY', $category)
+        ->count();
+    if (!is_array($updated) || (string)$updated['ID'] !== $relationId || ($updated['EXT_JSON'] ?? '') !== $secondData || (int)$relationCount !== 1) {
+        throw new RuntimeException('workbench second save did not update the existing relation');
+    }
+
+    echo "UserCenterWriteService workbench upsert checks passed\n";
+} finally {
+    think\facade\Db::name('sys_relation')
+        ->where('OBJECT_ID', $userId)
+        ->where('CATEGORY', $category)
+        ->delete();
+    if ($originalRows !== []) {
+        think\facade\Db::name('sys_relation')->insertAll($originalRows);
+    }
+}
+?>
+'@
+
+    $probe = $probe.Replace('__LOCAL_SMOKE_ACCOUNT__', $localSmokeAccount.Replace("'", "\'"))
+    $probeFile = Join-Path ([System.IO.Path]::GetTempPath()) ('user_workbench_probe_' + [System.Guid]::NewGuid().ToString('N') + '.php')
+    try {
+        Set-Content -LiteralPath $probeFile -Value $probe -Encoding ASCII
+        $output = & php $probeFile 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "php UserCenterWriteService workbench probe failed: $output"
+        }
+    } finally {
+        if (Test-Path -LiteralPath $probeFile) {
+            Remove-Item -LiteralPath $probeFile -Force
+        }
+    }
+
+    Write-Host ([string]($output | Out-String)).Trim()
+}
+
 Invoke-TestStep 'UserDirectoryService exports' {
 $probe = @'
 <?php
