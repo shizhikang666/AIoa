@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use app\support\FileDownloadUrl;
+use app\support\LegacyFileSource;
 use think\App;
 use think\facade\Db;
 
@@ -13,9 +14,12 @@ require $root . '/vendor/autoload.php';
 
 $options = getopt('', [
     'source-root:',
+    'source-download-url:',
+    'source-cache-root:',
     'target-root:',
     'manifest:',
     'tenant-id:',
+    'file-id:',
     'limit:',
     'apply',
     'help',
@@ -25,11 +29,18 @@ if (isset($options['help'])) {
     fwrite(STDOUT, <<<TXT
 Usage:
   php scripts/migrate-legacy-files.php --source-root=/old/upload [options]
+  php scripts/migrate-legacy-files.php --source-download-url='https://old.example/download?id={id}' [options]
 
 Options:
+  --source-root=PATH  Existing legacy upload root; optional when a download URL is provided
+  --source-download-url=URL
+                      HTTP(S) fallback template containing exactly one {id} placeholder
+  --source-cache-root=PATH
+                      Verified remote source cache (default: runtime/legacy-file-source-cache)
   --target-root=PATH  New dev_file root (default: DEV_FILE_LOCAL_ROOT or public/upload/dev_file)
   --manifest=PATH     JSONL audit manifest (default: runtime/backup/legacy-file-migration-*.jsonl)
   --tenant-id=ID      Limit dev_file rows to one tenant
+  --file-id=ID        Process one dev_file row for a targeted rehearsal or retry
   --limit=N           Limit dev_file rows for a staged rehearsal
   --apply             Copy files and update metadata/legacy URLs; omitted means dry-run
 
@@ -38,8 +49,23 @@ TXT);
 }
 
 $sourceRoot = cliPath($options['source-root'] ?? '');
-if ($sourceRoot === '' || !is_dir($sourceRoot)) {
+if ($sourceRoot !== '' && !is_dir($sourceRoot)) {
     fail('source root does not exist: ' . $sourceRoot);
+}
+$sourceDownloadUrl = trim((string)($options['source-download-url'] ?? ''));
+if ($sourceDownloadUrl !== '') {
+    try {
+        $sourceDownloadUrl = LegacyFileSource::validateDownloadUrlTemplate($sourceDownloadUrl);
+    } catch (Throwable $exception) {
+        fail($exception->getMessage());
+    }
+}
+if ($sourceRoot === '' && $sourceDownloadUrl === '') {
+    fail('provide --source-root, --source-download-url, or both');
+}
+$sourceCacheRoot = cliPath($options['source-cache-root'] ?? ($root . '/runtime/legacy-file-source-cache'));
+if ($sourceDownloadUrl !== '' && $sourceCacheRoot === '') {
+    fail('source cache root is empty');
 }
 
 $configuredTarget = trim((string)(getenv('DEV_FILE_LOCAL_ROOT') ?: ''));
@@ -52,7 +78,9 @@ if ($targetRoot === '') {
 
 $apply = isset($options['apply']);
 $tenantId = trim((string)($options['tenant-id'] ?? ''));
+$fileId = trim((string)($options['file-id'] ?? ''));
 $limit = max(0, (int)($options['limit'] ?? 0));
+$scopedRun = $tenantId !== '' || $fileId !== '' || $limit > 0;
 $manifestPath = cliPath($options['manifest'] ?? (
     $root . '/runtime/backup/legacy-file-migration-' . date('Ymd-His') . '.jsonl'
 ));
@@ -77,8 +105,11 @@ manifest($manifest, [
     'time' => date(DATE_ATOM),
     'mode' => $summary['mode'],
     'sourceRoot' => $sourceRoot,
+    'sourceDownloadHost' => $sourceDownloadUrl !== '' ? LegacyFileSource::host($sourceDownloadUrl) : null,
+    'sourceCacheRoot' => $sourceDownloadUrl !== '' ? $sourceCacheRoot : null,
     'targetRoot' => $targetRoot,
     'tenantId' => $tenantId !== '' ? $tenantId : null,
+    'fileId' => $fileId !== '' ? $fileId : null,
     'limit' => $limit ?: null,
 ]);
 
@@ -96,15 +127,46 @@ try {
     if ($tenantId !== '') {
         $query->where('TENANT_ID', $tenantId);
     }
+    if ($fileId !== '') {
+        $query->where('ID', $fileId);
+    }
     if ($limit > 0) {
         $query->limit($limit);
     }
 
     foreach ($query->select()->toArray() as $row) {
-        migrateFileRow($row, $sourceRoot, $targetRoot, $apply, $manifest, $summary);
+        migrateFileRow(
+            $row,
+            $sourceRoot,
+            $sourceDownloadUrl,
+            $sourceCacheRoot,
+            $targetRoot,
+            $apply,
+            $manifest,
+            $summary
+        );
     }
 
-    migrateLegacyUrls($targetRoot, $apply, $manifest, $summary);
+    $fileUnresolved = ($summary['files']['missing'] ?? 0)
+        + ($summary['files']['conflict'] ?? 0)
+        + ($summary['files']['error'] ?? 0);
+    if ($scopedRun) {
+        recordJsonStatus($summary, 'skipped');
+        manifest($manifest, [
+            'type' => 'legacy-url-cleanup',
+            'status' => 'skipped',
+            'reason' => 'scoped file run',
+        ]);
+    } elseif ($apply && $fileUnresolved > 0) {
+        recordJsonStatus($summary, 'skipped');
+        manifest($manifest, [
+            'type' => 'legacy-url-cleanup',
+            'status' => 'skipped',
+            'reason' => 'unresolved file rows',
+        ]);
+    } else {
+        migrateLegacyUrls($targetRoot, $apply, $manifest, $summary);
+    }
 } catch (Throwable $exception) {
     $summary['errors']++;
     manifest($manifest, [
@@ -140,6 +202,8 @@ exit($unresolved > 0 ? 2 : 0);
 function migrateFileRow(
     array $row,
     string $sourceRoot,
+    string $sourceDownloadUrl,
+    string $sourceCacheRoot,
     string $targetRoot,
     bool $apply,
     $manifest,
@@ -149,7 +213,14 @@ function migrateFileRow(
     try {
         $relativeKey = relativeStorageKey($row);
         $target = safeJoin($targetRoot, $relativeKey);
-        $source = findSource($row, $sourceRoot, $target, $relativeKey);
+        $source = findSource(
+            $row,
+            $sourceRoot,
+            $sourceDownloadUrl,
+            $sourceCacheRoot,
+            $target,
+            $relativeKey
+        );
         $targetExists = is_file($target);
 
         if ($source === null && !$targetExists) {
@@ -362,13 +433,26 @@ function relativeStorageKey(array $row): string
 }
 
 /** @param array<string, mixed> $row */
-function findSource(array $row, string $sourceRoot, string $target, string $relativeKey): ?string
+function findSource(
+    array $row,
+    string $sourceRoot,
+    string $sourceDownloadUrl,
+    string $sourceCacheRoot,
+    string $target,
+    string $relativeKey
+): ?string
 {
-    $candidates = [trim((string)($row['STORAGE_PATH'] ?? '')), safeJoin($sourceRoot, $relativeKey)];
-    $sourceBase = basename(str_replace('\\', '/', rtrim($sourceRoot, '/\\')));
-    if ($sourceBase === firstPathPart($relativeKey)) {
-        $withoutBucket = implode('/', array_slice(explode('/', $relativeKey), 1));
-        $candidates[] = safeJoin($sourceRoot, $withoutBucket);
+    $candidates = [trim((string)($row['STORAGE_PATH'] ?? ''))];
+    if ($sourceRoot !== '') {
+        $candidates[] = safeJoin($sourceRoot, $relativeKey);
+        $sourceBase = basename(str_replace('\\', '/', rtrim($sourceRoot, '/\\')));
+        if ($sourceBase === firstPathPart($relativeKey)) {
+            $withoutBucket = implode('/', array_slice(explode('/', $relativeKey), 1));
+            $candidates[] = safeJoin($sourceRoot, $withoutBucket);
+        }
+    }
+    if ($sourceDownloadUrl !== '') {
+        $candidates[] = safeJoin($sourceCacheRoot, $relativeKey);
     }
     $candidates[] = $target;
 
@@ -378,7 +462,14 @@ function findSource(array $row, string $sourceRoot, string $target, string $rela
         }
     }
 
-    return null;
+    if ($sourceDownloadUrl === '') {
+        return null;
+    }
+
+    $id = trim((string)($row['ID'] ?? ''));
+    $cachePath = safeJoin($sourceCacheRoot, $relativeKey);
+
+    return LegacyFileSource::fetchToCache($sourceDownloadUrl, $id, $cachePath);
 }
 
 function copyVerified(?string $source, string $target): void

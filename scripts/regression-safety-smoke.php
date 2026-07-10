@@ -6,6 +6,7 @@ declare(strict_types=1);
 use app\service\biz\SaleProjectService;
 use app\service\workflow\WorkflowRuntimeService;
 use app\support\FileDownloadUrl;
+use app\support\LegacyFileSource;
 use app\support\TenantScope;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -15,6 +16,17 @@ function assertSameValue(mixed $expected, mixed $actual, string $message): void
     if ($expected !== $actual) {
         throw new RuntimeException($message . ': expected ' . var_export($expected, true) . ', got ' . var_export($actual, true));
     }
+}
+
+function assertThrows(callable $callback, string $message): void
+{
+    try {
+        $callback();
+    } catch (Throwable) {
+        return;
+    }
+
+    throw new RuntimeException($message . ': expected an exception');
 }
 
 assertSameValue(
@@ -31,6 +43,28 @@ assertSameValue(
     'https://example.com/manual.pdf',
     FileDownloadUrl::normalizeLegacy('https://example.com/manual.pdf'),
     'unrelated external URL'
+);
+assertSameValue(
+    'oa.xzx8.com',
+    LegacyFileSource::host('https://oa.xzx8.com/backend/dev/file/download?id={id}'),
+    'legacy file source host'
+);
+assertSameValue(
+    'https://oa.xzx8.com/backend/dev/file/download?id=file%2F123',
+    LegacyFileSource::urlFor('https://oa.xzx8.com/backend/dev/file/download?id={id}', 'file/123'),
+    'legacy file source URL encoding'
+);
+assertThrows(
+    static fn(): string => LegacyFileSource::validateDownloadUrlTemplate(
+        'https://user:password@oa.xzx8.com/backend/dev/file/download?id={id}'
+    ),
+    'legacy file source credentials'
+);
+assertThrows(
+    static fn(): string => LegacyFileSource::validateDownloadUrlTemplate(
+        'https://oa.xzx8.com/backend/dev/file/download'
+    ),
+    'legacy file source placeholder'
 );
 
 $tenantPayload = ['tenant_id' => '1', 'role_codes' => ['tenantAdmin']];
