@@ -138,7 +138,7 @@
 						</a-table>
 					</a-form>
 				</a-tab-pane>
-				<a-tab-pane v-if="isOpenProcess" :forceRender="true" key="approve-info" tab="审批人信息">
+				<a-tab-pane v-if="showApprovalFlow" :forceRender="true" key="approve-info" tab="审批人信息">
 					<a-form ref="approveFormRef" :model="formData" :rules="formRules" layout="vertical">
 						<a-form-item label="审批人：" name="approveUserIdList">
 							<xn-user-selector
@@ -229,7 +229,9 @@
 		freightTime: [required('发货时间')]
 	}
 	const { isOpenProcess, copyUserIdList, approveUserIdList } = useProcessParam('Process_sale_project_delivery')
-	if (isOpenProcess.value) {
+	const enableProjectDeliveryApproval = false
+	const showApprovalFlow = computed(() => enableProjectDeliveryApproval && isOpenProcess.value)
+	if (showApprovalFlow.value) {
 		formRules.approveUserIdList = [required('审批人不能为空')]
 	}
 
@@ -348,7 +350,7 @@
 			return
 		}
 
-		if (isOpenProcess.value) {
+		if (showApprovalFlow.value) {
 			try {
 				await approveFormRef.value.validate()
 			} catch (e) {

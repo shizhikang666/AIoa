@@ -43,6 +43,7 @@ class WorkflowRuntimeService
     private const STATUS_AGREE = 'AGREE';
     private const STATUS_REJECT = 'REJECT';
     private const STATUS_CANCEL = 'cancel';
+    private const ENABLE_PROJECT_DELIVERY_APPROVAL = false;
     private const ACTIVITY_RESULT_VARIABLES = [
         'approval' => true,
         'comment' => true,
@@ -390,14 +391,18 @@ class WorkflowRuntimeService
         $tenantId = $this->tenantId($input, $payload, $starter);
         $orgId = $this->orgId($payload, $starter);
         $projectId = $this->requiredProjectIdInput($input);
-        $approveUserIds = $this->requiredStringList($input['approveUserIdList'] ?? $input['approveUsers'] ?? []);
+        $approveUserIds = self::ENABLE_PROJECT_DELIVERY_APPROVAL
+            ? $this->requiredStringList($input['approveUserIdList'] ?? $input['approveUsers'] ?? [])
+            : $this->stringList($input['approveUserIdList'] ?? $input['approveUsers'] ?? []);
         $copyUserIds = $this->stringList($input['copyUserIdList'] ?? $input['copyUsers'] ?? []);
         $fileIds = $this->stringList($input['fileIdList'] ?? []);
         $projectProductItemList = $this->decodedArrayList(
             $input['projectProductItemList'] ?? $input['productList'] ?? null,
             'projectProductItemList'
         );
-        $this->assertUsers($approveUserIds, $tenantId, 'approve user not found');
+        if ($approveUserIds !== []) {
+            $this->assertUsers($approveUserIds, $tenantId, 'approve user not found');
+        }
         $this->assertUsers($copyUserIds, $tenantId, 'copy user not found');
         foreach (['consignee', 'logisticsCategory', 'phone', 'logisticsId', 'freightCategory', 'unit', 'address'] as $key) {
             $this->requiredInputString($input, $key);
@@ -411,7 +416,6 @@ class WorkflowRuntimeService
             $payload,
             $tenantId
         );
-        $assignee = $approveUserIds[0];
         $starterName = trim((string)($starter['NAME'] ?? $payload['name'] ?? $currentUserId));
         $projectName = trim((string)($project['PROJECT_NAME'] ?? $projectId));
         $title = $starterName . "\u{53d1}\u{8d77}\u{7684}" . $projectName . "\u{9879}\u{76ee}\u{53d1}\u{8d27}\u{5355}\u{7533}\u{8bf7}\u{786e}\u{8ba4}";
@@ -424,20 +428,41 @@ class WorkflowRuntimeService
         ]));
         $variables = array_merge($variables, [
             'initiator' => $currentUserId,
-            'approveUserIdList' => $approveUserIds,
+            'approveUserIdList' => self::ENABLE_PROJECT_DELIVERY_APPROVAL ? $approveUserIds : [],
             'copyUserIdList' => $copyUserIds,
             'fileIdList' => $fileIds === [] ? null : $fileIds,
             'org' => $orgId,
             'approval' => true,
             'title' => $title,
             'tenantId' => $tenantId,
-            'status' => self::STATUS_PROGRESS,
-            'nrOfInstances' => count($approveUserIds),
+            'status' => self::ENABLE_PROJECT_DELIVERY_APPROVAL ? self::STATUS_PROGRESS : self::STATUS_AGREE,
+            'nrOfInstances' => self::ENABLE_PROJECT_DELIVERY_APPROVAL ? count($approveUserIds) : 0,
             'nrOfCompletedInstances' => 0,
-            'nrOfActiveInstances' => 1,
+            'nrOfActiveInstances' => self::ENABLE_PROJECT_DELIVERY_APPROVAL ? 1 : 0,
             'loopCounter' => 0,
-            'user' => $assignee,
         ]);
+        if (!self::ENABLE_PROJECT_DELIVERY_APPROVAL) {
+            $variables['state'] = self::STATUS_AGREE;
+        }
+
+        if (!self::ENABLE_PROJECT_DELIVERY_APPROVAL) {
+            $processInstanceId = $this->uuid();
+            $result = $this->saleProjectService->applyProjectDeliveryFromWorkflow(
+                $variables,
+                $processInstanceId,
+                $tenantId,
+                $currentUserId
+            );
+
+            return array_merge([
+                'processInstanceId' => $processInstanceId,
+                'projectId' => $projectId,
+                'autoApproved' => true,
+            ], $result);
+        }
+
+        $assignee = $approveUserIds[0];
+        $variables['user'] = $assignee;
 
         return $this->startInitialApprovalProcess(
             self::PROCESS_SALE_PROJECT_DELIVERY,
