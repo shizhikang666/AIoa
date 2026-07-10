@@ -1737,7 +1737,7 @@ SQL;
             $tenantId = '';
             foreach ($rows as $row) {
                 if ((string)($row['PROJECT_STATE'] ?? '') !== self::FOLLOW_STATE) {
-                    throw new RuntimeException('sale project state is not FOLLOW', 400);
+                    throw new RuntimeException('sale project cannot be repealed unless it is FOLLOW', 400);
                 }
                 $rowTenantId = trim((string)($row['TENANT_ID'] ?? ''));
                 if ($tenantId === '' && $rowTenantId !== '') {

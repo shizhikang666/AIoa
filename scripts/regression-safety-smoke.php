@@ -8,6 +8,7 @@ use app\service\workflow\WorkflowRuntimeService;
 use app\support\FileDownloadUrl;
 use app\support\LegacyFileSource;
 use app\support\TenantScope;
+use app\support\ApiResponse;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
@@ -65,6 +66,13 @@ assertThrows(
         'https://oa.xzx8.com/backend/dev/file/download'
     ),
     'legacy file source placeholder'
+);
+
+$normalizeMessage = new ReflectionMethod(ApiResponse::class, 'normalizeMessage');
+assertSameValue(
+    '仅跟进中的项目可以作废',
+    $normalizeMessage->invoke(null, 'sale project cannot be repealed unless it is FOLLOW', '请求失败'),
+    'sale project repeal state message'
 );
 
 $tenantPayload = ['tenant_id' => '1', 'role_codes' => ['tenantAdmin']];
