@@ -19,6 +19,7 @@ class FileRelationService
         'SALE_PROJECT',
         'Process_reimbursement',
         'SALE_PROJECT_CASE',
+        'AFTER_SALES_RECORD',
     ];
     private const RELATION_FIELDS = <<<SQL
 r.ID AS ID,

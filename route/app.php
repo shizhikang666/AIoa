@@ -617,6 +617,18 @@ Route::group('biz/saleprojectfollowup', function () {
     Route::get('detail', 'biz.SaleProjectFollowUpController/detail');
 })->middleware(AuthMiddleware::class);
 
+Route::group('biz/aftersales', function () {
+    Route::get('page', 'biz.AfterSalesController/page');
+    Route::get('detail', 'biz.AfterSalesController/detail');
+    Route::post('add', 'biz.AfterSalesController/add');
+    Route::post('edit', 'biz.AfterSalesController/edit');
+    Route::post('delete', 'biz.AfterSalesController/delete');
+    Route::get('category/list', 'biz.AfterSalesController/categoryList');
+    Route::post('category/add', 'biz.AfterSalesController/categoryAdd');
+    Route::post('category/edit', 'biz.AfterSalesController/categoryEdit');
+    Route::post('category/delete', 'biz.AfterSalesController/categoryDelete');
+})->middleware(AuthMiddleware::class);
+
 Route::group('biz/salesprojectfieldchangelog', function () {
     Route::get('page', 'biz.SalesProjectFieldChangeLogController/page');
     Route::post('add', 'biz.SalesProjectFieldChangeLogController/add');

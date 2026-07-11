@@ -6,6 +6,7 @@ declare(strict_types=1);
 use app\service\biz\SaleProjectService;
 use app\service\biz\SaleProjectBillingService;
 use app\service\biz\ReturnOrderService;
+use app\service\biz\AfterSalesService;
 use app\service\workflow\WorkflowRuntimeService;
 use app\support\FileDownloadUrl;
 use app\support\LegacyFileSource;
@@ -230,6 +231,18 @@ assertSameValue(
     ]),
     'return amount is the authoritative sum of returned product values'
 );
+
+$afterSalesService = new AfterSalesService();
+$sanitizeAfterSalesHtml = new ReflectionMethod(AfterSalesService::class, 'sanitizeHtml');
+$sanitizedAfterSalesHtml = $sanitizeAfterSalesHtml->invoke(
+    $afterSalesService,
+    '<p onclick="alert(1)">处理完成</p><script>alert(2)</script><img src=&#106;avascript:alert(3)><a href="javascript:alert(4)">详情</a>'
+);
+assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), '<script'), 'after-sales HTML strips script tags');
+assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), 'onclick='), 'after-sales HTML strips event handlers');
+assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), 'javascript:'), 'after-sales HTML strips javascript URLs');
+$afterSalesSummary = new ReflectionMethod(AfterSalesService::class, 'summary');
+assertSameValue('处理完成', $afterSalesSummary->invoke($afterSalesService, '<p>处理完成</p>'), 'after-sales content summary');
 
 $deliveryMethod = new ReflectionMethod(WorkflowRuntimeService::class, 'projectDeliveryProcessInstanceId');
 $workflowService = new WorkflowRuntimeService();
