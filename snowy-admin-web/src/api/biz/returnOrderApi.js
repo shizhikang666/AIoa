@@ -24,5 +24,9 @@ export default {
 	// 删除退货单表
 	returnOrderDelete(data) {
 		return request('delete', data)
+	},
+	// 仓库确认收到退货，确认后才入库并进入财务退款环节
+	returnOrderWarehouseReceive(data) {
+		return request('warehouse/receive', data)
 	}
 }

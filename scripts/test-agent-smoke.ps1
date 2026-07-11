@@ -181,6 +181,7 @@ Invoke-TestStep 'ThinkPHP route list and required route coverage' {
         'mobile/button/edit',
         'mobile/button/delete',
         'biz/saleprojectinvoicing/complete',
+		'biz/returnorder/warehouse/receive',
         'biz/bizteamproject/add',
         'biz/bizteamproject/edit',
         'biz/bizteamproject/delete',

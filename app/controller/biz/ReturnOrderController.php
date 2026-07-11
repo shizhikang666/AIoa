@@ -45,6 +45,11 @@ class ReturnOrderController extends BaseSysController
         return $this->guard(fn () => $this->returnOrderService->delete($this->body($request), $this->authPayload($request)));
     }
 
+    public function warehouseReceive(Request $request): Response
+    {
+        return $this->guard(fn () => $this->returnOrderService->warehouseReceive($this->body($request), $this->authPayload($request)));
+    }
+
     private function authPayload(Request $request): array
     {
         $payload = $request->middleware('auth_payload', []);

@@ -474,11 +474,11 @@ foreach ([['$ProjectCancelId', '$ItemCancelId', '$RelationCancelId', 'cancel'], 
         'CUSTOMER' => '$CustomerId',
         'PROJECT_NAME' => '$safePrefix ' . `$project[3],
         'PROJECT_STATE' => 'SHIPPED',
-        'PLAY_STATE' => 'UNPAID',
+        'PLAY_STATE' => `$project[3] === 'approve' ? 'PAID' : 'UNPAID',
         'VISIBILITY' => 'PRIVATE',
         'INIT_PRICE' => '100.00',
         'TOTAL_PRICE' => '100.00',
-        'AMOUNT_COLLECTED' => '0.00',
+        'AMOUNT_COLLECTED' => `$project[3] === 'approve' ? '100.00' : '0.00',
         'PROJECT_CATEGORY' => 'DEFAULT',
         'USER' => `$userId,
         'ORG' => `$orgId !== '' ? `$orgId : null,
@@ -488,7 +488,7 @@ foreach ([['$ProjectCancelId', '$ItemCancelId', '$RelationCancelId', 'cancel'], 
         'TENANT_ID' => `$tenantId,
         'VERSION' => 0,
         'DEAL_AMOUNT' => '0.00',
-        'HISTORY_AMOUNT' => '0.00',
+        'HISTORY_AMOUNT' => `$project[3] === 'approve' ? '100.00' : '0.00',
         'TOTAL_RETURN_AMOUNT' => '0.00',
         'TOTAL_REFUND_AMOUNT' => '0.00',
         'ACCOUNT_ID' => `$project[3] === 'approve' ? '$safeSettlementAccountId' : null,
@@ -597,10 +597,45 @@ echo json_encode([
     Assert-Code -Json $approve -Expected 200 -Name 'project return approve'
     Assert-Equal -Actual ([string]$approve.data.processKey) -Expected 'Process_sale_project_product_return' -Name 'project return approve process key'
     Assert-IntEqual -Actual ([int]$approve.data.saleProjectReturn.productItemCount) -Expected 1 -Name 'project return response product item count'
-    Assert-IntEqual -Actual ([int]$approve.data.saleProjectReturn.deliveryRecordCount) -Expected 1 -Name 'project return response delivery record count'
-    Assert-Equal -Actual ([string]$approve.data.saleProjectReturn.autoRefund.accountId) -Expected $SettlementAccountId -Name 'project return response auto-refund account'
-    Assert-DecimalEqual -Actual ([string]$approve.data.saleProjectReturn.autoRefund.amount) -Expected 20.00 -Name 'project return response auto-refund amount'
-    Assert-Equal -Actual ([string]$approve.data.saleProjectReturn.autoRefund.returnRefund.state) -Expected 'AlreadySettled' -Name 'project return response auto-refund state'
+    Assert-IntEqual -Actual ([int]$approve.data.saleProjectReturn.deliveryRecordCount) -Expected 0 -Name 'approval does not receive inventory'
+    $responseOrderId = [string]$approve.data.saleProjectReturn.returnOrderId
+
+    $preReceiptState = Get-State -ProcessInstanceIds $processIds -ProjectIds @($ProjectCancelId, $ProjectRejectId, $ProjectApproveId) -WarehouseId $WarehouseId -ChildProductId $ChildProductId -AccountId $SettlementAccountId
+    Assert-IntEqual -Actual (@($preReceiptState.returnOrders).Count) -Expected 1 -Name 'approved return order row count'
+    Assert-IntEqual -Actual (@($preReceiptState.deliveryRecords).Count) -Expected 0 -Name 'warehouse receipt is required before inventory'
+    Assert-IntEqual -Actual ([int]$preReceiptState.expenditureCount) -Expected 0 -Name 'approval does not create refund expenditure'
+    Assert-DecimalEqual -Actual ([string]$preReceiptState.inventory.CURRENT_COUNT) -Expected 10 -Name 'approval leaves inventory unchanged'
+    $preReceiptProject = Get-MapValue -Map $preReceiptState.projects -Key $ProjectApproveId
+    Assert-DecimalEqual -Actual ([string]$preReceiptProject.TOTAL_REFUND_AMOUNT) -Expected 0.00 -Name 'approval leaves project return deduction unchanged'
+    Assert-DecimalEqual -Actual ([string]$preReceiptProject.TOTAL_PRICE) -Expected 100.00 -Name 'approval leaves project price unchanged'
+
+    $refundBeforeReceipt = Invoke-JsonPost -Url ($baseUrl + '/biz/settlementaccount/expenses/add') -Token $token -Body @{
+        targetId = $SettlementAccountId
+        settlementCategory = 'ReturnAndRefund'
+        payer = $UserId
+        payerTime = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+        amount = 40
+        objectId = $responseOrderId
+    }
+    Assert-Code -Json $refundBeforeReceipt -Expected 400 -Name 'finance refund blocked before warehouse receipt'
+
+    $warehouseReceive = Invoke-JsonPost -Url ($baseUrl + '/biz/returnorder/warehouse/receive') -Token $token -Body @{
+        id = $responseOrderId
+        remark = "$Prefix warehouse received"
+    }
+    Assert-Code -Json $warehouseReceive -Expected 200 -Name 'warehouse receives approved return order'
+    Assert-Equal -Actual ([string]$warehouseReceive.data.warehouseState) -Expected 'RECEIVED' -Name 'warehouse receipt state'
+
+    $financeRefund = Invoke-JsonPost -Url ($baseUrl + '/biz/settlementaccount/expenses/add') -Token $token -Body @{
+        targetId = $SettlementAccountId
+        settlementCategory = 'ReturnAndRefund'
+        payer = $UserId
+        payerTime = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+        amount = 40
+        objectId = $responseOrderId
+    }
+    Assert-Code -Json $financeRefund -Expected 200 -Name 'finance refund allowed after warehouse receipt'
+    Assert-Equal -Actual ([string]$financeRefund.data.returnRefund.state) -Expected 'AlreadySettled' -Name 'finance refund settles return order'
 
     $state = Get-State -ProcessInstanceIds $processIds -ProjectIds @($ProjectCancelId, $ProjectRejectId, $ProjectApproveId) -WarehouseId $WarehouseId -ChildProductId $ChildProductId -AccountId $SettlementAccountId
     foreach ($processId in $processIds) {
@@ -620,17 +655,16 @@ echo json_encode([
     Assert-IntEqual -Actual ([int]$state.invoiceItemCount) -Expected 0 -Name 'invoice item side-effect count'
     Assert-IntEqual -Actual ([int]$state.invoicingCount) -Expected 0 -Name 'invoicing side-effect count'
     Assert-IntEqual -Actual ([int]$state.paymentCount) -Expected 0 -Name 'payment side-effect count'
-    Assert-IntEqual -Actual ([int]$state.expenditureCount) -Expected 1 -Name 'auto-refund expenditure count'
-    Assert-IntEqual -Actual ([int]$state.statementCount) -Expected 1 -Name 'auto-refund statement count'
+    Assert-IntEqual -Actual ([int]$state.expenditureCount) -Expected 1 -Name 'finance refund expenditure count'
+    Assert-IntEqual -Actual ([int]$state.statementCount) -Expected 1 -Name 'finance refund statement count'
 
     $order = @($state.returnOrders)[0]
     $item = @($state.returnItems)[0]
     $deliveryRecord = @($state.deliveryRecords)[0]
-    $responseOrderId = [string]$approve.data.saleProjectReturn.returnOrderId
     Assert-Equal -Actual ([string]$order.ID) -Expected $responseOrderId -Name 'return order id'
     Assert-Equal -Actual ([string]$order.PROJECT_ID) -Expected $ProjectApproveId -Name 'return order project id'
     Assert-Equal -Actual ([string]$order.PROCESS_ID) -Expected $approveProcessId -Name 'return order process id'
-    Assert-DecimalEqual -Actual ([string]$order.AMOUNT) -Expected 20.00 -Name 'return order amount'
+    Assert-DecimalEqual -Actual ([string]$order.AMOUNT) -Expected 40.00 -Name 'return order amount'
     Assert-Equal -Actual ([string]$order.STATE) -Expected 'AlreadySettled' -Name 'return order state'
     Assert-Equal -Actual ([string]$order.WAREHOUSES_ID) -Expected $WarehouseId -Name 'return order warehouse'
     Assert-Equal -Actual ([string]$order.LOGISTICS_ID) -Expected $LogisticsId -Name 'return order logistics id'
@@ -649,19 +683,16 @@ echo json_encode([
 
     $expenditure = @($state.expenditures)[0]
     $statement = @($state.statements)[0]
-    Assert-Equal -Actual ([string]$expenditure.OBJECT_ID) -Expected $responseOrderId -Name 'auto-refund expenditure object id'
-    Assert-Equal -Actual ([string]$expenditure.TARGET_ID) -Expected $SettlementAccountId -Name 'auto-refund expenditure account'
-    Assert-Equal -Actual ([string]$expenditure.SETTLEMENT_CATEGORY) -Expected 'ReturnAndRefund' -Name 'auto-refund expenditure category'
-    Assert-Equal -Actual ([string]$expenditure.PROCESS_ID) -Expected $approveProcessId -Name 'auto-refund expenditure process id'
-    Assert-Equal -Actual ([string]$expenditure.SERIAL_ID) -Expected ([string]$statement.ID) -Name 'auto-refund expenditure statement link'
-    Assert-DecimalEqual -Actual ([string]$expenditure.AMOUNT) -Expected 20.00 -Name 'auto-refund expenditure amount'
-    Assert-Equal -Actual ([string]$statement.ACCOUNT_ID) -Expected $SettlementAccountId -Name 'auto-refund statement account'
-    Assert-Equal -Actual ([string]$statement.SETTLEMENT_TYPE) -Expected 'EXPEND' -Name 'auto-refund statement type'
-    Assert-Equal -Actual ([string]$statement.SETTLEMENT_CATEGORY) -Expected 'ReturnAndRefund' -Name 'auto-refund statement category'
-    Assert-Equal -Actual ([string]$statement.PROCESS_CATEGORY) -Expected 'Process_sale_project_product_return' -Name 'auto-refund statement process category'
-    Assert-DecimalEqual -Actual ([string]$statement.BEFORE_AMOUNT) -Expected 1000.00 -Name 'auto-refund statement before amount'
-    Assert-DecimalEqual -Actual ([string]$statement.AFTER_AMOUNT) -Expected 980.00 -Name 'auto-refund statement after amount'
-    Assert-DecimalEqual -Actual ([string]$state.account.CURRENT_AMOUNT) -Expected 980.00 -Name 'auto-refund account current amount'
+    Assert-Equal -Actual ([string]$expenditure.OBJECT_ID) -Expected $responseOrderId -Name 'refund expenditure object id'
+    Assert-Equal -Actual ([string]$expenditure.TARGET_ID) -Expected $SettlementAccountId -Name 'refund expenditure account'
+    Assert-Equal -Actual ([string]$expenditure.SETTLEMENT_CATEGORY) -Expected 'ReturnAndRefund' -Name 'refund expenditure category'
+    Assert-DecimalEqual -Actual ([string]$expenditure.AMOUNT) -Expected 40.00 -Name 'refund expenditure amount'
+    Assert-Equal -Actual ([string]$statement.ACCOUNT_ID) -Expected $SettlementAccountId -Name 'refund statement account'
+    Assert-Equal -Actual ([string]$statement.SETTLEMENT_TYPE) -Expected 'EXPEND' -Name 'refund statement type'
+    Assert-Equal -Actual ([string]$statement.SETTLEMENT_CATEGORY) -Expected 'ReturnAndRefund' -Name 'refund statement category'
+    Assert-DecimalEqual -Actual ([string]$statement.BEFORE_AMOUNT) -Expected 1000.00 -Name 'refund statement before amount'
+    Assert-DecimalEqual -Actual ([string]$statement.AFTER_AMOUNT) -Expected 960.00 -Name 'refund statement after amount'
+    Assert-DecimalEqual -Actual ([string]$state.account.CURRENT_AMOUNT) -Expected 960.00 -Name 'refund account current amount'
 
     foreach ($projectId in @($ProjectCancelId, $ProjectRejectId)) {
         $project = Get-MapValue -Map $state.projects -Key $projectId
@@ -671,10 +702,10 @@ echo json_encode([
         Assert-DecimalEqual -Actual ([string]$project.TOTAL_PRICE) -Expected 100.00 -Name "$projectId total price"
     }
     $approvedProject = Get-MapValue -Map $state.projects -Key $ProjectApproveId
-    Assert-Equal -Actual ([string]$approvedProject.PROJECT_STATE) -Expected 'SHIPPED' -Name 'approved project state'
-    Assert-DecimalEqual -Actual ([string]$approvedProject.TOTAL_REFUND_AMOUNT) -Expected 20.00 -Name 'approved project total refund amount'
-    Assert-DecimalEqual -Actual ([string]$approvedProject.TOTAL_RETURN_AMOUNT) -Expected 20.00 -Name 'approved project total return amount'
-    Assert-DecimalEqual -Actual ([string]$approvedProject.TOTAL_PRICE) -Expected 80.00 -Name 'approved project total price'
+    Assert-Equal -Actual ([string]$approvedProject.PROJECT_STATE) -Expected 'COMPLETED' -Name 'approved project state'
+    Assert-DecimalEqual -Actual ([string]$approvedProject.TOTAL_REFUND_AMOUNT) -Expected 40.00 -Name 'approved project total refund amount'
+    Assert-DecimalEqual -Actual ([string]$approvedProject.TOTAL_RETURN_AMOUNT) -Expected 40.00 -Name 'approved project refunded amount'
+    Assert-DecimalEqual -Actual ([string]$approvedProject.TOTAL_PRICE) -Expected 60.00 -Name 'approved project total price'
 
     foreach ($itemId in @($ItemCancelId, $ItemRejectId, $ItemApproveId)) {
         $projectItem = @($state.projectItems | Where-Object { [string]$_.ID -eq $itemId })[0]
@@ -686,6 +717,9 @@ echo json_encode([
     Assert-Code -Json $readback -Expected 200 -Name 'project return readback query'
     Assert-IntEqual -Actual (@($readback.data).Count) -Expected 1 -Name 'project return readback order count'
     Assert-Equal -Actual ([string]$readback.data[0].id) -Expected $responseOrderId -Name 'project return readback order id'
+    Assert-Equal -Actual ([string]$readback.data[0].warehouseState) -Expected 'RECEIVED' -Name 'project return readback warehouse state'
+    Assert-DecimalEqual -Actual ([string]$readback.data[0].refundAmount) -Expected 40.00 -Name 'project return readback refunded amount'
+    Assert-Equal -Actual ([string]$readback.data[0].businessState) -Expected 'COMPLETED' -Name 'project return readback business state'
     Assert-IntEqual -Actual (@($readback.data[0].productList).Count) -Expected 1 -Name 'project return readback product item count'
     Assert-Equal -Actual ([string]$readback.data[0].productList[0].projectProductItemId) -Expected $ItemApproveId -Name 'project return readback product item id'
 

@@ -576,8 +576,6 @@ class WorkflowRuntimeService
         $productList = $this->decodedArrayList($input['productList'] ?? null, 'productList');
         $this->assertUsers($approveUserIds, $tenantId, 'approve user not found');
         $this->assertUsers($copyUserIds, $tenantId, 'copy user not found');
-        $amount = $this->requiredNonNegativeInputDecimal($input, 'amount');
-
         $project = $this->returnOrderService->workflowProjectReturnStartInfo(
             $projectId,
             $warehouseId,
@@ -585,6 +583,7 @@ class WorkflowRuntimeService
             $payload,
             $tenantId
         );
+        $amount = (string)($project['RETURN_AMOUNT'] ?? '0.00');
         $assignee = $approveUserIds[0];
         $starterName = trim((string)($starter['NAME'] ?? $payload['name'] ?? $currentUserId));
         $projectName = trim((string)($project['PROJECT_NAME'] ?? $projectId));

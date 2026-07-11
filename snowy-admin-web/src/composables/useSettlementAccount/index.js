@@ -118,7 +118,8 @@ export function useSettlementAccount() {
 					createTime: false
 				},
 				defaultSearchFrom: {
-					state: 'Unsettled'
+					state: 'Unsettled',
+					warehouseState: 'RECEIVED'
 				},
 				rowSelection: {
 					type: 'radio',

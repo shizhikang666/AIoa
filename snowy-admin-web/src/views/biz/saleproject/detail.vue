@@ -73,13 +73,29 @@
 								</a-typography-text>
 							</a-descriptions-item>
 							<a-descriptions-item v-if="isDeal" label="累计收款金额">
-								{{ projectBaseInfo.amountCollected }}
+								￥ {{ projectBaseInfo.amountCollected }}
+							</a-descriptions-item>
+							<a-descriptions-item v-if="isDeal" label="退货减款">
+								￥ {{ projectBaseInfo.totalRefundAmount || 0 }}
+							</a-descriptions-item>
+							<a-descriptions-item v-if="isDeal" label="已退款">
+								￥ {{ projectBaseInfo.totalReturnAmount || 0 }}
+							</a-descriptions-item>
+							<a-descriptions-item v-if="isDeal" label="净收款">
+								￥ {{ netCollected }}
 							</a-descriptions-item>
 							<a-descriptions-item v-if="isDeal" label="实际金额">
 								{{ dealAmount }}
 							</a-descriptions-item>
-							<a-descriptions-item v-if="isDeal" color="error" label="累计应收款金额">
-								<a-typography-text :type="receivable >= 0 ? 'success' : 'danger'">{{ receivable }} </a-typography-text>
+							<a-descriptions-item v-if="isDeal" label="待收款">
+								<a-typography-text :type="Number(pendingCollection) > 0 ? 'danger' : 'success'">
+									￥ {{ pendingCollection }}
+								</a-typography-text>
+							</a-descriptions-item>
+							<a-descriptions-item v-if="isDeal" label="待退款">
+								<a-typography-text :type="Number(pendingRefund) > 0 ? 'warning' : 'success'">
+									￥ {{ pendingRefund }}
+								</a-typography-text>
 							</a-descriptions-item>
 						</a-descriptions>
 						<br />
@@ -531,14 +547,17 @@
 		}[status] || 'orange'
 	}
 	const { isDeal } = useProject(projectBaseInfo)
-	const receivable = computed(() => {
-		//console.log(projectBaseInfo.value.totalPrice)
-		let result = new Decimal(projectBaseInfo.value?.amountCollected)
-			.sub(new Decimal(projectBaseInfo.value?.totalPrice))
-			.sub(new Decimal(projectBaseInfo.value?.totalReturnAmount))
-
-		return result.toString()
-	})
+	const netCollected = computed(() =>
+		new Decimal(projectBaseInfo.value?.amountCollected || 0)
+			.sub(projectBaseInfo.value?.totalReturnAmount || 0)
+			.toFixed(2)
+	)
+	const pendingCollection = computed(() =>
+		Decimal.max(new Decimal(projectBaseInfo.value?.totalPrice || 0).sub(netCollected.value), 0).toFixed(2)
+	)
+	const pendingRefund = computed(() =>
+		Decimal.max(new Decimal(netCollected.value).sub(projectBaseInfo.value?.totalPrice || 0), 0).toFixed(2)
+	)
 	const dealAmount = computed(() => {
 		let rebateAmount = projectBaseInfo.value?.rebateAmount ? projectBaseInfo.value?.rebateAmount : 0
 

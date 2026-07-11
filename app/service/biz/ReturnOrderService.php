@@ -21,6 +21,13 @@ class ReturnOrderService
     private const RETURN_AND_REFUND = 'ReturnAndRefund';
     private const PROCESS_SALE_PROJECT_PRODUCT_RETURN = 'Process_sale_project_product_return';
     private const DELIVERY_CATEGORY_IN = 'IN';
+    private const WAREHOUSE_STATE_WAIT_RECEIVE = 'WAIT_RECEIVE';
+    private const WAREHOUSE_STATE_RECEIVED = 'RECEIVED';
+    private const REFUND_STATE_NOT_READY = 'NOT_READY';
+    private const REFUND_STATE_WAIT_REFUND = 'WAIT_REFUND';
+    private const REFUND_STATE_PARTIALLY_REFUNDED = 'PARTIALLY_REFUNDED';
+    private const REFUND_STATE_REFUNDED = 'REFUNDED';
+    private const REFUND_STATE_NOT_REQUIRED = 'NOT_REQUIRED';
     private const RETURNABLE_PROJECT_STATES = ['PARTIALLY_SHIPPED', 'SHIPPED', 'COMPLETED'];
     private const ORDER_FIELDS = <<<SQL
 r.ID AS ID,
@@ -43,8 +50,13 @@ r.EXT_JSON AS EXT_JSON,
 r.TENANT_ID AS TENANT_ID,
 p.PROJECT_NAME AS PROJECT_NAME,
 w.NAME AS WAREHOUSE_NAME,
+w.USER AS WAREHOUSE_USER,
+w.ORG AS WAREHOUSE_ORG,
 u.NAME AS HEAD_NAME,
-org.NAME AS ORG_NAME
+org.NAME AS ORG_NAME,
+p.AMOUNT_COLLECTED AS PROJECT_AMOUNT_COLLECTED,
+p.TOTAL_PRICE AS PROJECT_TOTAL_PRICE,
+p.TOTAL_RETURN_AMOUNT AS PROJECT_TOTAL_RETURN_AMOUNT
 SQL;
     private const ITEM_FIELDS = <<<SQL
 i.ID AS ID,
@@ -102,8 +114,10 @@ SQL;
             ->select()
             ->toArray();
 
+        $records = $this->enrichOrderLifecycle($this->orderRows($rows), $payload);
+
         return [
-            'records' => $this->orderRows($rows),
+            'records' => $records,
             'total' => $total,
             'page' => $page,
             'current' => $page,
@@ -126,7 +140,7 @@ SQL;
             ->field(self::ORDER_FIELDS)
             ->select()
             ->toArray();
-        $orders = $this->orderRows($rows);
+        $orders = $this->enrichOrderLifecycle($this->orderRows($rows), $payload);
         $itemsByOrderId = $this->itemsByOrderIds(array_column($orders, 'id'), $payload);
 
         foreach ($orders as &$order) {
@@ -146,7 +160,7 @@ SQL;
             throw new RuntimeException('return order not found', 404);
         }
 
-        $order = $this->orderRows([$row])[0];
+        $order = $this->enrichOrderLifecycle($this->orderRows([$row]), $payload)[0];
         $order['productList'] = $this->itemRowsByOrderId($id, $payload);
 
         return $order;
@@ -156,16 +170,18 @@ SQL;
     {
         $projectId = $this->requiredInput($input, 'projectId');
         $warehouseId = $this->requiredInput($input, 'warehousesId');
-        $amount = $this->moneyAmount($input['amount'] ?? null, 'amount', true);
         $productList = $this->productList($input, true);
 
-        return Db::transaction(function () use ($input, $payload, $projectId, $warehouseId, $amount, $productList): array {
+        return Db::transaction(function () use ($input, $payload, $projectId, $warehouseId, $productList): array {
             $project = $this->assertProjectWritable($projectId, $payload, 'add');
             $this->assertProjectReturnable($project);
             $tenantId = $this->tenantId($input, $payload, $project);
             $warehouse = $this->activeWarehouse($warehouseId, $tenantId);
             $this->assertWarehouseWritable($warehouse, $payload, 'add return order');
             $items = $this->validatedProductList($productList, $projectId, $tenantId, null);
+            $amount = $this->calculatedReturnAmount($items);
+            $this->assertSubmittedReturnAmount($input['amount'] ?? null, $amount);
+            $this->assertReturnAmountWithinProjectTotal($project, $amount, $tenantId, null);
 
             $id = $this->newId();
             $now = date('Y-m-d H:i:s');
@@ -200,18 +216,6 @@ SQL;
             ]);
 
             $this->insertItems($id, $items, $tenantId, $now, $currentUserId);
-            $this->createReturnDeliveryRecordsAndIncreaseInventory(
-                $id,
-                $warehouseId,
-                $items,
-                $processId ?? $id,
-                $tenantId,
-                $ownerUserId !== '' ? $ownerUserId : $currentUserId,
-                $currentUserId,
-                $now,
-                $remark ?? ''
-            );
-            $this->recalculateProjectReturnTotals($projectId, $tenantId, $now, $currentUserId);
 
             return $this->detail($id, $payload);
         });
@@ -238,6 +242,13 @@ SQL;
 
             $project['PRODUCT_ITEM_COUNT'] = count($items);
             $project['WAREHOUSE_ID'] = $warehouseId;
+            $project['RETURN_AMOUNT'] = $this->calculatedReturnAmount($items);
+            $this->assertReturnAmountWithinProjectTotal(
+                $project,
+                (string)$project['RETURN_AMOUNT'],
+                $effectiveTenantId,
+                null
+            );
 
             return $project;
         });
@@ -272,7 +283,8 @@ SQL;
             $this->activeWarehouse($warehouseId, $effectiveTenantId);
             $productList = $this->workflowList($variables['productList'] ?? null, 'productList');
             $items = $this->validatedProductList($productList, $projectId, $effectiveTenantId, null);
-            $amount = $this->moneyAmount($variables['amount'] ?? null, 'amount', true);
+            $amount = $this->calculatedReturnAmount($items);
+            $this->assertReturnAmountWithinProjectTotal($project, $amount, $effectiveTenantId, null);
             $initiator = trim((string)($variables['initiator'] ?? ''));
             if ($initiator === '') {
                 throw new RuntimeException('missing initiator', 400);
@@ -309,33 +321,8 @@ SQL;
             ]);
 
             $this->insertItems($returnOrderId, $items, $effectiveTenantId, $now, $auditUser);
-            $this->createReturnDeliveryRecordsAndIncreaseInventory(
-                $returnOrderId,
-                $warehouseId,
-                $items,
-                $processInstanceId,
-                $effectiveTenantId,
-                $initiator,
-                $auditUser,
-                $now,
-                $remark ?? ''
-            );
-            $autoRefund = $this->createWorkflowReturnRefundIfPossible(
-                $project,
-                $returnOrderId,
-                $processInstanceId,
-                $effectiveTenantId,
-                $auditUser,
-                $initiator,
-                $amount,
-                $now,
-                $remark
-            );
-            if ($autoRefund === null) {
-                $this->recalculateProjectReturnTotals($projectId, $effectiveTenantId, $now, $auditUser);
-            }
 
-            return $this->workflowReturnSummary($returnOrderId, $projectId, $processInstanceId, $effectiveTenantId, $autoRefund);
+            return $this->workflowReturnSummary($returnOrderId, $projectId, $processInstanceId, $effectiveTenantId);
         });
     }
 
@@ -373,14 +360,14 @@ SQL;
             $warehouse = $this->activeWarehouse($warehouseId, $tenantId);
             $this->assertWarehouseWritable($warehouse, $payload, 'edit return order');
 
-            $amount = array_key_exists('amount', $input)
-                ? $this->moneyAmount($input['amount'], 'amount', true)
-                : $this->moneyAmount($current['AMOUNT'] ?? 0, 'amount', true);
             $now = date('Y-m-d H:i:s');
             $currentUserId = $this->currentUserId($payload);
             $items = $hasProductList
                 ? $this->validatedProductList($productList, $projectId, $tenantId, $id)
                 : $this->currentReturnItemsForDelivery($id, $tenantId);
+            $amount = $this->calculatedReturnAmount($items);
+            $this->assertSubmittedReturnAmount($input['amount'] ?? null, $amount);
+            $this->assertReturnAmountWithinProjectTotal($project, $amount, $tenantId, $id);
 
             $updates = [
                 'PROJECT_ID' => $projectId,
@@ -422,9 +409,6 @@ SQL;
                 throw new RuntimeException('return order has workflow records', 400);
             }
 
-            $this->reverseReturnRefundFinance([$id], $tenantId, $now, $currentUserId);
-            $this->reverseReturnDeliveryRecordsAndInventory([$id], $tenantId, $now, $currentUserId);
-
             Db::name('return_order')->where('ID', $id)->update($updates);
 
             if ($hasProductList) {
@@ -439,31 +423,6 @@ SQL;
                         'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
                     ]);
                 $this->insertItems($id, $items, $tenantId, $now, $currentUserId);
-            }
-
-            $deliveryProcessId = trim((string)($updates['PROCESS_ID'] ?? $current['PROCESS_ID'] ?? ''));
-            if ($deliveryProcessId === '') {
-                $deliveryProcessId = $id;
-            }
-            $deliveryOperator = trim((string)($updates['USER'] ?? $current['USER'] ?? ''));
-            if ($deliveryOperator === '') {
-                $deliveryOperator = $currentUserId;
-            }
-            $this->createReturnDeliveryRecordsAndIncreaseInventory(
-                $id,
-                $warehouseId,
-                $items,
-                $deliveryProcessId,
-                $tenantId,
-                $deliveryOperator,
-                $currentUserId,
-                $now,
-                (string)($updates['REMARK'] ?? $current['REMARK'] ?? '')
-            );
-
-            $this->recalculateProjectReturnTotals($currentProjectId, (string)($current['TENANT_ID'] ?? $tenantId), $now, $currentUserId);
-            if ($projectId !== $currentProjectId) {
-                $this->recalculateProjectReturnTotals($projectId, $tenantId, $now, $currentUserId);
             }
 
             return $this->detail($id, $payload);
@@ -499,9 +458,6 @@ SQL;
                 'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
             ];
 
-            $this->reverseReturnRefundFinance($ids, $tenantId, $now, $currentUserId);
-            $this->reverseReturnDeliveryRecordsAndInventory($ids, $tenantId, $now, $currentUserId);
-
             $updated = Db::name('return_order')
                 ->whereIn('ID', $ids)
                 ->update($deleteData);
@@ -512,16 +468,132 @@ SQL;
                 })
                 ->update($deleteData);
 
-            $projects = [];
-            foreach ($rows as $row) {
-                $projects[(string)$row['PROJECT_ID']] = (string)($row['TENANT_ID'] ?? $tenantId);
-            }
-            foreach ($projects as $projectId => $projectTenantId) {
-                $this->recalculateProjectReturnTotals($projectId, $projectTenantId, $now, $currentUserId);
-            }
-
             return ['ids' => $ids, 'count' => $updated];
         });
+    }
+
+    public function warehouseReceive(array $input, array $payload = []): array
+    {
+        $id = $this->requiredInput($input, 'id');
+
+        return Db::transaction(function () use ($id, $input, $payload): array {
+            $order = $this->activeOrderForWarehouseReceive($id, $payload);
+            $tenantId = $this->tenantId($input, $payload, $order);
+            $warehouseId = trim((string)($order['WAREHOUSES_ID'] ?? ''));
+            if ($warehouseId === '') {
+                throw new RuntimeException('return warehouse not found', 404);
+            }
+
+            $warehouse = $this->activeWarehouse($warehouseId, $tenantId);
+            $this->assertWarehouseWritable($warehouse, $payload, 'receive return order');
+            if ($this->hasReturnDeliveryRecords([$id], $tenantId)) {
+                return $this->detail($id, $payload);
+            }
+
+            $items = $this->currentReturnItemsForDelivery($id, $tenantId);
+            $now = date('Y-m-d H:i:s');
+            $currentUserId = $this->currentUserId($payload);
+            if ($currentUserId === '') {
+                throw new RuntimeException('missing warehouse receiver', 400);
+            }
+            $processId = trim((string)($order['PROCESS_ID'] ?? ''));
+            if ($processId === '') {
+                $processId = $id;
+            }
+            $remark = $this->textInput($input, 'remark', false, 65535)
+                ?? trim((string)($order['REMARK'] ?? ''));
+
+            $this->createReturnDeliveryRecordsAndIncreaseInventory(
+                $id,
+                $warehouseId,
+                $items,
+                $processId,
+                $tenantId,
+                $currentUserId,
+                $currentUserId,
+                $now,
+                $remark
+            );
+            Db::name('return_order')->where('ID', $id)->update([
+                'UPDATE_TIME' => $now,
+                'UPDATE_USER' => $currentUserId,
+            ]);
+            $this->recalculateProjectReturnTotals((string)$order['PROJECT_ID'], $tenantId, $now, $currentUserId);
+            (new SaleProjectService())->refreshProjectPaymentStatusFromWorkflow(
+                (string)$order['PROJECT_ID'],
+                $tenantId,
+                $currentUserId
+            );
+
+            return $this->detail($id, $payload);
+        });
+    }
+
+    /**
+     * Validates a finance refund while locking its return order and project.
+     *
+     * @return array<string, mixed>
+     */
+    public function assertReturnRefundAllowed(string $returnOrderId, string $requestedAmount, string $tenantId = ''): array
+    {
+        $returnOrderId = trim($returnOrderId);
+        if ($returnOrderId === '') {
+            throw new RuntimeException('missing return order id', 400);
+        }
+        $requestedCents = $this->moneyCents($requestedAmount);
+        if ($requestedCents <= 0) {
+            throw new RuntimeException('refund amount must be greater than zero', 400);
+        }
+
+        $orderQuery = Db::name('return_order')->where('ID', $returnOrderId);
+        $this->whereNotDeleted($orderQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $orderQuery->where('TENANT_ID', $tenantId);
+        }
+        $order = $orderQuery->lock(true)->find();
+        if (!is_array($order) || $order === []) {
+            throw new RuntimeException('return order not found', 404);
+        }
+
+        $effectiveTenantId = $tenantId !== '' ? $tenantId : trim((string)($order['TENANT_ID'] ?? ''));
+        if (!$this->hasReturnDeliveryRecords([$returnOrderId], $effectiveTenantId)) {
+            throw new RuntimeException('warehouse has not received this return order', 400);
+        }
+
+        $projectId = trim((string)($order['PROJECT_ID'] ?? ''));
+        $projectQuery = Db::name('biz_sale_project')->where('ID', $projectId);
+        $this->whereNotDeleted($projectQuery, 'DELETE_FLAG');
+        if ($effectiveTenantId !== '') {
+            $projectQuery->where('TENANT_ID', $effectiveTenantId);
+        }
+        $project = $projectQuery->lock(true)->find();
+        if (!is_array($project) || $project === []) {
+            throw new RuntimeException('sale project not found', 404);
+        }
+
+        $orderAmountCents = $this->moneyCents($order['AMOUNT'] ?? 0);
+        $orderRefundedCents = $this->moneyCents($this->returnRefundExpenditureTotal($returnOrderId, $effectiveTenantId));
+        $orderRemainingCents = max(0, $orderAmountCents - $orderRefundedCents);
+        $projectRefundCapacityCents = max(
+            0,
+            $this->moneyCents($project['AMOUNT_COLLECTED'] ?? 0)
+                - $this->moneyCents($project['TOTAL_PRICE'] ?? 0)
+                - $this->moneyCents($project['TOTAL_RETURN_AMOUNT'] ?? 0)
+        );
+        $maximumCents = min($orderRemainingCents, $projectRefundCapacityCents);
+        if ($requestedCents > $maximumCents) {
+            throw new RuntimeException(
+                'refund amount exceeds refundable amount ' . $this->moneyFromCents($maximumCents),
+                400
+            );
+        }
+
+        return [
+            'id' => $returnOrderId,
+            'projectId' => $projectId,
+            'tenantId' => $effectiveTenantId,
+            'maximumRefundAmount' => $this->moneyFromCents($maximumCents),
+        ];
     }
 
     private function orderQuery(array $filters, array $payload)
@@ -530,6 +602,7 @@ SQL;
             ->alias('r')
             ->leftJoin('biz_sale_project p', 'p.ID = r.PROJECT_ID')
             ->leftJoin('warehouses w', 'w.ID = r.WAREHOUSES_ID')
+            ->leftJoin('settlement_account project_account', 'project_account.ID = p.ACCOUNT_ID')
             ->leftJoin('sys_user u', 'u.ID = r.USER')
             ->leftJoin('sys_org org', 'org.ID = r.ORG')
             ->where(function ($query): void {
@@ -553,6 +626,13 @@ SQL;
             if (!empty($filters[$filter])) {
                 $query->where($column, (string)$filters[$filter]);
             }
+        }
+
+        $warehouseState = strtoupper(trim((string)($filters['warehouseState'] ?? '')));
+        if ($warehouseState === self::WAREHOUSE_STATE_RECEIVED) {
+            $query->whereRaw($this->warehouseReceiptExistsSql());
+        } elseif ($warehouseState === self::WAREHOUSE_STATE_WAIT_RECEIVE) {
+            $query->whereRaw('NOT ' . $this->warehouseReceiptExistsSql());
         }
 
         if (array_key_exists('amount', $filters) && trim((string)$filters['amount']) !== '') {
@@ -605,7 +685,15 @@ SQL;
         if (is_array($scope)) {
             $scope = array_values(array_filter(array_map(static fn ($id): string => trim((string)$id), $scope)));
             if ($scope !== []) {
-                $query->whereIn('r.ORG', $scope);
+                $query->where(function ($query) use ($scope): void {
+                    $query->whereIn('r.ORG', $scope)
+                        ->whereOr(function ($query) use ($scope): void {
+                            $query->whereIn('w.ORG', $scope);
+                        })
+                        ->whereOr(function ($query) use ($scope): void {
+                            $query->whereIn('project_account.org', $scope);
+                        });
+                });
 
                 return;
             }
@@ -613,7 +701,11 @@ SQL;
 
         $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
         if ($userId !== '') {
-            $query->where('r.USER', $userId);
+            $query->where(function ($query) use ($userId): void {
+                $query->where('r.USER', $userId)
+                    ->whereOr('w.USER', $userId)
+                    ->whereOr('project_account.CREATE_USER', $userId);
+            });
         }
     }
 
@@ -643,6 +735,21 @@ SQL;
         return $query->order('r.ID', 'asc');
     }
 
+    private function warehouseReceiptExistsSql(): string
+    {
+        return <<<SQL
+EXISTS (
+    SELECT 1
+    FROM delivery_record return_receipt
+    WHERE return_receipt.OBJECT_ID = r.ID
+      AND return_receipt.TENANT_ID = r.TENANT_ID
+      AND return_receipt.CATEGORY = 'IN'
+      AND return_receipt.PROCESS_CATEGORY = 'Process_sale_project_product_return'
+      AND (return_receipt.DELETE_FLAG IS NULL OR return_receipt.DELETE_FLAG = 'NOT_DELETE')
+)
+SQL;
+    }
+
     /**
      * @param array<int, array<string, mixed>> $rows
      * @return array<int, array<string, mixed>>
@@ -664,12 +771,17 @@ SQL;
             'remark' => $this->value($row, 'REMARK', 'remark'),
             'warehousesId' => $this->value($row, 'WAREHOUSES_ID', 'warehousesId'),
             'warehouseName' => $this->value($row, 'WAREHOUSE_NAME', 'warehouseName'),
+            'warehouseUser' => $this->value($row, 'WAREHOUSE_USER', 'warehouseUser'),
+            'warehouseOrg' => $this->value($row, 'WAREHOUSE_ORG', 'warehouseOrg'),
             'logisticsCategory' => $this->value($row, 'LOGISTICS_CATEGORY', 'logisticsCategory'),
             'logisticsId' => $this->value($row, 'LOGISTICS_ID', 'logisticsId'),
             'user' => $this->value($row, 'USER', 'user'),
             'headName' => $this->value($row, 'HEAD_NAME', 'headName'),
             'org' => $this->value($row, 'ORG', 'org'),
             'orgName' => $this->value($row, 'ORG_NAME', 'orgName'),
+            'projectAmountCollected' => $this->decimal($this->value($row, 'PROJECT_AMOUNT_COLLECTED', 'projectAmountCollected')),
+            'projectTotalPrice' => $this->decimal($this->value($row, 'PROJECT_TOTAL_PRICE', 'projectTotalPrice')),
+            'projectTotalReturnAmount' => $this->decimal($this->value($row, 'PROJECT_TOTAL_RETURN_AMOUNT', 'projectTotalReturnAmount')),
             'deleteFlag' => $this->value($row, 'DELETE_FLAG', 'deleteFlag'),
             'createTime' => $this->value($row, 'CREATE_TIME', 'createTime'),
             'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
@@ -678,6 +790,133 @@ SQL;
             'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
             'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
         ];
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $orders
+     * @return array<int, array<string, mixed>>
+     */
+    private function enrichOrderLifecycle(array $orders, array $payload): array
+    {
+        $orderIds = array_values(array_filter(array_map(
+            static fn (array $order): string => trim((string)($order['id'] ?? '')),
+            $orders
+        )));
+        if ($orderIds === []) {
+            return $orders;
+        }
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $receiptQuery = Db::name('delivery_record')
+            ->alias('d')
+            ->leftJoin('sys_user receiver', 'receiver.ID = d.OPERATOR')
+            ->whereIn('d.OBJECT_ID', $orderIds)
+            ->where('d.CATEGORY', self::DELIVERY_CATEGORY_IN)
+            ->where('d.PROCESS_CATEGORY', self::PROCESS_SALE_PROJECT_PRODUCT_RETURN)
+            ->field('d.OBJECT_ID,d.DELIVERY_TIME,d.OPERATOR,d.REMARK,receiver.NAME AS RECEIVER_NAME');
+        $this->whereNotDeleted($receiptQuery, 'd.DELETE_FLAG');
+        if ($tenantId !== '') {
+            $receiptQuery->where('d.TENANT_ID', $tenantId);
+        }
+        $receipts = [];
+        foreach ($receiptQuery->order('d.DELIVERY_TIME', 'asc')->order('d.ID', 'asc')->select()->toArray() as $row) {
+            $orderId = (string)($row['OBJECT_ID'] ?? '');
+            $receipts[$orderId] ??= [
+                'receivedAt' => $row['DELIVERY_TIME'] ?? null,
+                'receiver' => $row['OPERATOR'] ?? null,
+                'receiverName' => $row['RECEIVER_NAME'] ?? null,
+                'receiptRemark' => $row['REMARK'] ?? null,
+            ];
+        }
+
+        $refundQuery = Db::name('biz_expenditure_record')
+            ->whereIn('OBJECT_ID', $orderIds)
+            ->where('SETTLEMENT_CATEGORY', self::RETURN_AND_REFUND);
+        $this->whereNotDeleted($refundQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $refundQuery->where('TENANT_ID', $tenantId);
+        }
+        $refundAmounts = [];
+        foreach ($refundQuery
+            ->field('OBJECT_ID,SUM(AMOUNT) AS REFUND_AMOUNT')
+            ->group('OBJECT_ID')
+            ->select()
+            ->toArray() as $row) {
+            $refundAmounts[(string)($row['OBJECT_ID'] ?? '')] = (float)($row['REFUND_AMOUNT'] ?? 0);
+        }
+
+        foreach ($orders as &$order) {
+            $orderId = (string)($order['id'] ?? '');
+            $receipt = $receipts[$orderId] ?? null;
+            $received = $receipt !== null;
+            $refundAmount = (float)($refundAmounts[$orderId] ?? 0);
+            $orderAmount = (float)($order['amount'] ?? 0);
+            $projectOutstandingRefund = max(
+                0.0,
+                (float)($order['projectAmountCollected'] ?? 0)
+                    - (float)($order['projectTotalPrice'] ?? 0)
+                    - (float)($order['projectTotalReturnAmount'] ?? 0)
+            );
+            $remainingOrderAmount = max(0.0, $orderAmount - $refundAmount);
+            $refundableAmount = $received ? min($remainingOrderAmount, $projectOutstandingRefund) : 0.0;
+
+            $refundState = self::REFUND_STATE_NOT_READY;
+            if ($received && $remainingOrderAmount <= 0.000001) {
+                $refundState = self::REFUND_STATE_REFUNDED;
+            } elseif ($received && $refundableAmount <= 0.000001) {
+                $refundState = self::REFUND_STATE_NOT_REQUIRED;
+            } elseif ($received && $refundAmount > 0.000001) {
+                $refundState = self::REFUND_STATE_PARTIALLY_REFUNDED;
+            } elseif ($received) {
+                $refundState = self::REFUND_STATE_WAIT_REFUND;
+            }
+
+            $order['warehouseState'] = $received ? self::WAREHOUSE_STATE_RECEIVED : self::WAREHOUSE_STATE_WAIT_RECEIVE;
+            $order['warehouseReceivedAt'] = $receipt['receivedAt'] ?? null;
+            $order['warehouseReceiver'] = $receipt['receiver'] ?? null;
+            $order['warehouseReceiverName'] = $receipt['receiverName'] ?? null;
+            $order['warehouseReceiptRemark'] = $receipt['receiptRemark'] ?? null;
+            $order['refundAmount'] = $this->decimal($refundAmount) ?? 0;
+            $order['remainingReturnAmount'] = $this->decimal($remainingOrderAmount) ?? 0;
+            $order['refundableAmount'] = $this->decimal($refundableAmount) ?? 0;
+            $order['refundState'] = $refundState;
+            $order['businessState'] = $this->returnOrderBusinessState($order['warehouseState'], $refundState);
+            $order['canWarehouseReceive'] = $this->canReceiveForWarehouse($order, $payload);
+        }
+        unset($order);
+
+        return $orders;
+    }
+
+    private function canReceiveForWarehouse(array $order, array $payload): bool
+    {
+        if ($this->canSeeAll($payload)) {
+            return true;
+        }
+
+        $userId = $this->currentUserId($payload);
+        if ($userId !== '' && $userId === trim((string)($order['warehouseUser'] ?? ''))) {
+            return true;
+        }
+
+        $warehouseOrg = trim((string)($order['warehouseOrg'] ?? ''));
+
+        return $warehouseOrg !== '' && in_array($warehouseOrg, $this->scopeOrgIds($payload), true);
+    }
+
+    private function returnOrderBusinessState(string $warehouseState, string $refundState): string
+    {
+        if ($warehouseState !== self::WAREHOUSE_STATE_RECEIVED) {
+            return 'WAIT_WAREHOUSE_RECEIPT';
+        }
+        if ($refundState === self::REFUND_STATE_WAIT_REFUND) {
+            return 'WAIT_FINANCE_REFUND';
+        }
+        if ($refundState === self::REFUND_STATE_PARTIALLY_REFUNDED) {
+            return 'PARTIALLY_REFUNDED';
+        }
+
+        return 'COMPLETED';
     }
 
     /**
@@ -786,6 +1025,23 @@ SQL;
         }
 
         return $rows[0];
+    }
+
+    private function activeOrderForWarehouseReceive(string $id, array $payload): array
+    {
+        $query = Db::name('return_order')->where('ID', $id);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $order = $query->lock(true)->find();
+        if (!is_array($order) || $order === []) {
+            throw new RuntimeException('return order not found', 404);
+        }
+
+        return $order;
     }
 
     /**
@@ -1073,45 +1329,6 @@ SQL;
     }
 
     /**
-     * @return array<string, mixed>|null
-     */
-    private function createWorkflowReturnRefundIfPossible(
-        array $project,
-        string $returnOrderId,
-        string $processInstanceId,
-        string $tenantId,
-        string $auditUser,
-        string $initiator,
-        string $amount,
-        string $now,
-        ?string $remark
-    ): ?array {
-        $accountId = trim((string)($project['ACCOUNT_ID'] ?? ''));
-        if ($accountId === '' || (float)$amount <= 0.0) {
-            return null;
-        }
-
-        $payer = $auditUser !== '' ? $auditUser : $initiator;
-
-        return (new SettlementAccountService())->expensesFromWorkflow(
-            [
-                'targetId' => $accountId,
-                'accountId' => $accountId,
-                'settlementCategory' => self::RETURN_AND_REFUND,
-                'payer' => $payer,
-                'payerTime' => $now,
-                'amount' => $amount,
-                'objectId' => $returnOrderId,
-                'remark' => $remark,
-            ],
-            $processInstanceId,
-            $tenantId,
-            $payer,
-            self::PROCESS_SALE_PROJECT_PRODUCT_RETURN
-        );
-    }
-
-    /**
      * @param array<int, array<string, mixed>> $productList
      * @return array<int, array<string, mixed>>
      */
@@ -1152,7 +1369,7 @@ SQL;
         }
 
         $rows = $query
-            ->field('ID,PROJECT_ID,PRODUCT_ID,NUMBER,STATE,TENANT_ID')
+            ->field('ID,PROJECT_ID,PRODUCT_ID,NUMBER,PRICE,STATE,TENANT_ID')
             ->lock(true)
             ->select()
             ->toArray();
@@ -1181,11 +1398,89 @@ SQL;
             if ($existing + $requested > $limit + 0.000001) {
                 throw new RuntimeException('return amount exceeds project product amount', 400);
             }
+            if ($limit <= 0.0) {
+                throw new RuntimeException('invalid project product amount', 400);
+            }
             $item['productId'] = (string)($row['PRODUCT_ID'] ?? $item['productId']);
+            $item['returnAmountCents'] = (int)round(
+                $this->moneyCents($row['PRICE'] ?? 0) * $requested / $limit
+            );
         }
         unset($item);
 
         return $normalized;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     */
+    private function calculatedReturnAmount(array $items): string
+    {
+        $cents = 0;
+        foreach ($items as $item) {
+            if (array_key_exists('returnAmountCents', $item)) {
+                $cents += (int)$item['returnAmountCents'];
+                continue;
+            }
+
+            $projectItemId = trim((string)($item['projectProductItemId'] ?? ''));
+            $row = Db::name('biz_sale_project_product_item')
+                ->where('ID', $projectItemId)
+                ->field('NUMBER,PRICE')
+                ->lock(true)
+                ->find();
+            if (!is_array($row) || $row === [] || (float)($row['NUMBER'] ?? 0) <= 0.0) {
+                throw new RuntimeException('sale project product item not found', 404);
+            }
+            $cents += (int)round(
+                $this->moneyCents($row['PRICE'] ?? 0)
+                    * (float)($item['amount'] ?? 0)
+                    / (float)$row['NUMBER']
+            );
+        }
+
+        return $this->moneyFromCents($cents);
+    }
+
+    private function assertSubmittedReturnAmount(mixed $submittedAmount, string $calculatedAmount): void
+    {
+        if ($submittedAmount === null || trim((string)$submittedAmount) === '') {
+            return;
+        }
+        if ($this->moneyCents($submittedAmount) !== $this->moneyCents($calculatedAmount)) {
+            throw new RuntimeException('return amount does not match selected products', 400);
+        }
+    }
+
+    private function assertReturnAmountWithinProjectTotal(
+        array $project,
+        string $newAmount,
+        string $tenantId,
+        ?string $excludeOrderId
+    ): void {
+        $projectId = trim((string)($project['ID'] ?? ''));
+        $returnQuery = Db::name('return_order')->where('PROJECT_ID', $projectId);
+        $this->whereNotDeleted($returnQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $returnQuery->where('TENANT_ID', $tenantId);
+        }
+        if ($excludeOrderId !== null && $excludeOrderId !== '') {
+            $returnQuery->where('ID', '<>', $excludeOrderId);
+        }
+
+        $reissueQuery = Db::name('biz_sale_project_reissue_order')->where('PROJECT_ID', $projectId);
+        $this->whereNotDeleted($reissueQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $reissueQuery->where('TENANT_ID', $tenantId);
+        }
+
+        $maximumCents = $this->moneyCents($project['INIT_PRICE'] ?? 0)
+            + $this->moneyCents($reissueQuery->sum('AMOUNT') ?? 0);
+        $requestedCents = $this->moneyCents($returnQuery->sum('AMOUNT') ?? 0)
+            + $this->moneyCents($newAmount);
+        if ($requestedCents > $maximumCents) {
+            throw new RuntimeException('return amount exceeds sale project total price', 400);
+        }
     }
 
     /**
@@ -1234,7 +1529,7 @@ SQL;
             ->alias('i')
             ->join('biz_sale_project_product_item pi', 'pi.ID = i.PROJECT_PRODUCT_ITEM_ID')
             ->where('i.RETURN_ORDER_ID', $orderId)
-            ->field('i.PROJECT_PRODUCT_ITEM_ID, i.AMOUNT, pi.PRODUCT_ID')
+            ->field('i.PROJECT_PRODUCT_ITEM_ID, i.AMOUNT, pi.PRODUCT_ID, pi.NUMBER, pi.PRICE')
             ->lock(true);
         $this->whereNotDeleted($query, 'i.DELETE_FLAG');
         $this->whereNotDeleted($query, 'pi.DELETE_FLAG');
@@ -1247,11 +1542,18 @@ SQL;
             throw new RuntimeException('return order product item not found', 404);
         }
 
-        return array_map(static function (array $row): array {
+        return array_map(function (array $row): array {
+            $number = (float)($row['NUMBER'] ?? 0);
+            if ($number <= 0.0) {
+                throw new RuntimeException('invalid project product amount', 400);
+            }
+            $amount = (float)($row['AMOUNT'] ?? 0);
+
             return [
                 'projectProductItemId' => (string)($row['PROJECT_PRODUCT_ITEM_ID'] ?? ''),
-                'amount' => number_format((float)($row['AMOUNT'] ?? 0), 2, '.', ''),
+                'amount' => number_format($amount, 2, '.', ''),
                 'productId' => (string)($row['PRODUCT_ID'] ?? ''),
+                'returnAmountCents' => (int)round($this->moneyCents($row['PRICE'] ?? 0) * $amount / $number),
             ];
         }, $rows);
     }
@@ -1285,7 +1587,10 @@ SQL;
             return false;
         }
 
-        $query = Db::name('delivery_record')->whereIn('OBJECT_ID', $orderIds);
+        $query = Db::name('delivery_record')
+            ->whereIn('OBJECT_ID', $orderIds)
+            ->where('CATEGORY', self::DELIVERY_CATEGORY_IN)
+            ->where('PROCESS_CATEGORY', self::PROCESS_SALE_PROJECT_PRODUCT_RETURN);
         $this->whereNotDeleted($query, 'DELETE_FLAG');
         if ($tenantId !== '') {
             $query->where('TENANT_ID', $tenantId);
@@ -1316,6 +1621,13 @@ SQL;
     {
         if ($this->workflowProcessExists((string)($order['PROCESS_ID'] ?? ''), $tenantId)) {
             throw new RuntimeException('return order has workflow records', 400);
+        }
+        $id = trim((string)($order['ID'] ?? ''));
+        if ($id !== '' && $this->hasReturnDeliveryRecords([$id], $tenantId)) {
+            throw new RuntimeException('warehouse has received this return order', 400);
+        }
+        if ($id !== '' && $this->hasReturnRefundExpenditure([$id], $tenantId)) {
+            throw new RuntimeException('return order has refund records', 400);
         }
     }
 
@@ -1512,6 +1824,9 @@ SQL;
             }
 
             $effectiveTenantId = $tenantId !== '' ? $tenantId : trim((string)($order['TENANT_ID'] ?? ''));
+            if (!$this->hasReturnDeliveryRecords([$returnOrderId], $effectiveTenantId)) {
+                throw new RuntimeException('warehouse has not received this return order', 400);
+            }
             $refundTotal = $this->returnRefundExpenditureTotal($returnOrderId, $effectiveTenantId);
             $orderAmount = (float)$this->moneyAmount($order['AMOUNT'] ?? 0, 'amount', true);
             if ($refundTotal > $orderAmount + 0.000001) {
@@ -1534,6 +1849,11 @@ SQL;
             $projectId = (string)($order['PROJECT_ID'] ?? '');
             if ($projectId !== '') {
                 $this->recalculateProjectReturnTotals($projectId, $effectiveTenantId, $now, $currentUserId);
+                (new SaleProjectService())->refreshProjectPaymentStatusFromWorkflow(
+                    $projectId,
+                    $effectiveTenantId,
+                    $currentUserId
+                );
             }
 
             return [
@@ -1585,6 +1905,18 @@ SQL;
         }
 
         $returnRows = $returnQuery->field('ID,AMOUNT')->select()->toArray();
+        $receivedOrderIds = $this->receivedReturnOrderIds(
+            array_values(array_filter(array_map(
+                static fn (array $row): string => trim((string)($row['ID'] ?? '')),
+                $returnRows
+            ))),
+            $tenantId
+        );
+        $receivedLookup = array_fill_keys($receivedOrderIds, true);
+        $returnRows = array_values(array_filter(
+            $returnRows,
+            static fn (array $row): bool => isset($receivedLookup[(string)($row['ID'] ?? '')])
+        ));
         $returnOrderIds = array_values(array_filter(array_map(static fn (array $row): string => trim((string)($row['ID'] ?? '')), $returnRows)));
         $totalRefundAmount = array_reduce(
             $returnRows,
@@ -1614,6 +1946,31 @@ SQL;
                 'UPDATE_TIME' => $now,
                 'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
             ]);
+    }
+
+    /**
+     * @param array<int, string> $orderIds
+     * @return array<int, string>
+     */
+    private function receivedReturnOrderIds(array $orderIds, string $tenantId): array
+    {
+        if ($orderIds === []) {
+            return [];
+        }
+
+        $query = Db::name('delivery_record')
+            ->whereIn('OBJECT_ID', $orderIds)
+            ->where('CATEGORY', self::DELIVERY_CATEGORY_IN)
+            ->where('PROCESS_CATEGORY', self::PROCESS_SALE_PROJECT_PRODUCT_RETURN);
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return array_values(array_unique(array_map(
+            static fn ($id): string => trim((string)$id),
+            $query->column('OBJECT_ID')
+        )));
     }
 
     private function workflowProjectForUpdate(string $projectId, string $tenantId): array
@@ -1652,8 +2009,7 @@ SQL;
         string $returnOrderId,
         string $projectId,
         string $processInstanceId,
-        string $tenantId,
-        ?array $autoRefund = null
+        string $tenantId
     ): array {
         $itemQuery = Db::name('return_order_item')->where('RETURN_ORDER_ID', $returnOrderId);
         $this->whereNotDeleted($itemQuery, 'DELETE_FLAG');
@@ -1689,10 +2045,6 @@ SQL;
             'totalPrice' => $project['TOTAL_PRICE'] ?? null,
             'projectState' => $project['PROJECT_STATE'] ?? null,
         ];
-        if ($autoRefund !== null) {
-            $summary['autoRefund'] = $autoRefund;
-        }
-
         return $summary;
     }
 

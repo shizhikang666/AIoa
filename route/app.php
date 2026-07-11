@@ -803,6 +803,7 @@ Route::group('biz/returnorder', function () {
     Route::post('add', 'biz.ReturnOrderController/add');
     Route::post('edit', 'biz.ReturnOrderController/edit');
     Route::post('delete', 'biz.ReturnOrderController/delete');
+    Route::post('warehouse/receive', 'biz.ReturnOrderController/warehouseReceive');
 })->middleware(AuthMiddleware::class);
 
 Route::group('biz/task', function () {

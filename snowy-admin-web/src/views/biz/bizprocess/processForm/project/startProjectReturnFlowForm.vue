@@ -17,7 +17,7 @@
 				<a-tab-pane :forceRender="true" key="baseInfo" tab="基本信息">
 					<a-form ref="formRef" :model="formData" :rules="formRules" layout="vertical">
 						<a-form-item label="退回金额：" name="amount">
-							<XnCurrencyInput :min="0" v-model:value="formData.amount" placeholder="请输入金额" />
+							<XnCurrencyInput :min="0" v-model:value="formData.amount" disabled placeholder="根据退货产品自动计算" />
 						</a-form-item>
 
 						<a-form-item label="退回仓库：" name="warehousesId">
@@ -167,7 +167,8 @@
 	import bizProcessApi from '@/api/biz/bizProcessApi'
 	import { useProcessParam } from '@/composables/useProcessParam'
 	import { useUserSelector } from '@/composables/useUserSelector'
-	import { createVNode, ref, useTemplateRef } from 'vue'
+	import { createVNode, ref, useTemplateRef, watch } from 'vue'
+	import { Decimal } from 'decimal.js'
 	import { required } from '@/utils/formRules'
 	import SelectProductModal from '@/views/biz/bizproduct/modal/selectProductModal/index.vue'
 	import warehousesApi from '@/api/biz/warehousesApi'
@@ -192,6 +193,8 @@
 				productName: v.productName,
 				amount: v.number,
 				productId: v.productId,
+				price: v.price,
+				number: v.number,
 				children: v.children,
 				remark: '',
 				max: max
@@ -215,7 +218,6 @@
 		Object.assign(rule, {
 			projectId: [required('项目编号必填')],
 			productList: [required('产品列表必选')],
-			amount: [required('金额必填')],
 			warehousesId: [required('仓库编号')]
 		})
 	)
@@ -300,6 +302,23 @@
 		}
 	]
 	const formData = ref({})
+	watch(
+		() => formData.value.productList,
+		(productList) => {
+			formData.value.amount = (productList || [])
+				.reduce((total, item) => {
+					const number = new Decimal(item.number || 0)
+					if (number.lte(0)) return total
+					const lineAmount = new Decimal(item.price || 0)
+						.mul(item.amount || 0)
+						.div(number)
+						.toDecimalPlaces(2)
+					return total.add(lineAmount)
+				}, new Decimal(0))
+				.toFixed(2)
+		},
+		{ deep: true }
+	)
 	const approveFormRef = useTemplateRef('approveFormRef')
 	const onOpen = async (record) => {
 		visible.value = true

@@ -684,7 +684,10 @@
 
 			v.totalPrice = v.totalPrice || 0
 			v.rebateAmount = v.rebateAmount || 0
-			const arrears = new Decimal(v.totalPrice).sub(new Decimal(v.amountCollected)).toString()
+			const arrears = new Decimal(v.totalPrice)
+				.sub(new Decimal(v.amountCollected))
+				.add(new Decimal(v.totalReturnAmount || 0))
+				.toString()
 			const date = new Date(v.completionDate)
 
 			// 获取年份和月份

@@ -492,8 +492,9 @@
 				v.paymentProgress = v.playState === 'PAID' ? 100 : 0
 				v.unAmountCollected = '--'
 			} else {
-				v.paymentProgress = calculatePaymentProgressPercentage(v.amountCollected, v.totalPrice)
-				v.unAmountCollected = new Decimal(v.totalPrice).sub(new Decimal(v.amountCollected)).toFixed(2)
+				const netCollected = new Decimal(v.amountCollected || 0).sub(v.totalReturnAmount || 0)
+				v.paymentProgress = calculatePaymentProgressPercentage(netCollected, v.totalPrice)
+				v.unAmountCollected = new Decimal(v.totalPrice).sub(netCollected).toFixed(2)
 			}
 			let obj = { ...v, dealPrice }
 

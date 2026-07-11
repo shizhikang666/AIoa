@@ -1455,11 +1455,12 @@ SQL;
 
             $paymentRecordCents = $this->sumProjectPaymentRecordCents($projectId, $tenantId);
             $amountCollectedCents = $paymentRecordCents + $historyAmountCents;
-            if ($amountCollectedCents > $oldTotalPriceCents) {
-                throw new RuntimeException('amount collected exceeds sale project total price', 400);
-            }
+            $netAmountCollectedCents = max(
+                0,
+                $amountCollectedCents - $this->moneyCents($project['TOTAL_RETURN_AMOUNT'] ?? '0')
+            );
 
-            if ($oldTotalPriceCents > $amountCollectedCents) {
+            if ($oldTotalPriceCents > $netAmountCollectedCents) {
                 $playState = $this->hasProjectPaymentRecords($projectId, $tenantId)
                     ? self::PARTIALLY_PAID_PLAY_STATE
                     : self::UNPAID_PLAY_STATE;
@@ -1909,7 +1910,9 @@ SQL;
         $totalPriceCents = $this->moneyCents($project['TOTAL_PRICE'] ?? '0');
         $historyAmountCents = $this->moneyCents($project['HISTORY_AMOUNT'] ?? '0');
         $receivedCents = $this->sumProjectPaymentRecordCents($projectId, $effectiveTenantId) + $historyAmountCents;
-        if ($receivedCents + $amountCents > $totalPriceCents) {
+        $returnOrderIds = array_column($this->activeReturnOrders($projectId, $effectiveTenantId), 'ID');
+        $refundedCents = $this->sumReturnExpenditureCents($this->stringList($returnOrderIds), $effectiveTenantId);
+        if ($receivedCents - $refundedCents + $amountCents > $totalPriceCents) {
             throw new RuntimeException('amount collected exceeds sale project total price', 400);
         }
     }
@@ -3049,6 +3052,15 @@ SQL;
     private function returnOrdersWithProductList(string $projectId, array $payload): array
     {
         $orders = $this->relatedRowsByIds('return_order', 'PROJECT_ID', [$projectId], $payload, 'CREATE_TIME')[$projectId] ?? [];
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $receivedOrderIds = array_fill_keys(
+            array_column($this->activeReturnOrders($projectId, $tenantId), 'ID'),
+            true
+        );
+        $orders = array_values(array_filter(
+            $orders,
+            static fn (array $order): bool => isset($receivedOrderIds[(string)($order['id'] ?? '')])
+        ));
         $itemsByOrderId = $this->returnOrderItemsByOrderIds(array_column($orders, 'id'), $payload);
 
         foreach ($orders as &$order) {
@@ -5215,11 +5227,11 @@ SQL)
     private function projectPaymentStatusFields(string $projectId, string $tenantId, int $totalPriceCents, int $historyAmountCents): array
     {
         $amountCollectedCents = $this->sumProjectPaymentRecordCents($projectId, $tenantId) + $historyAmountCents;
-        if ($amountCollectedCents > $totalPriceCents) {
-            throw new RuntimeException('amount collected exceeds sale project total price', 400);
-        }
+        $returnOrderIds = array_column($this->activeReturnOrders($projectId, $tenantId), 'ID');
+        $refundedCents = $this->sumReturnExpenditureCents($this->stringList($returnOrderIds), $tenantId);
+        $netAmountCollectedCents = max(0, $amountCollectedCents - $refundedCents);
 
-        if ($totalPriceCents > $amountCollectedCents) {
+        if ($totalPriceCents > $netAmountCollectedCents) {
             $playState = $this->hasProjectPaymentRecords($projectId, $tenantId)
                 ? self::PARTIALLY_PAID_PLAY_STATE
                 : self::UNPAID_PLAY_STATE;
@@ -5653,11 +5665,23 @@ SQL)
     private function activeReturnOrders(string $projectId, string $tenantId): array
     {
         $query = Db::name('return_order')
-            ->field('ID, AMOUNT')
-            ->where('PROJECT_ID', $projectId);
-        $this->whereNotDeleted($query, 'DELETE_FLAG');
+            ->alias('r')
+            ->field('r.ID, r.AMOUNT')
+            ->where('r.PROJECT_ID', $projectId)
+            ->whereRaw(<<<SQL
+EXISTS (
+    SELECT 1
+    FROM delivery_record return_receipt
+    WHERE return_receipt.OBJECT_ID = r.ID
+      AND return_receipt.TENANT_ID = r.TENANT_ID
+      AND return_receipt.CATEGORY = 'IN'
+      AND return_receipt.PROCESS_CATEGORY = 'Process_sale_project_product_return'
+      AND (return_receipt.DELETE_FLAG IS NULL OR return_receipt.DELETE_FLAG = 'NOT_DELETE')
+)
+SQL);
+        $this->whereNotDeleted($query, 'r.DELETE_FLAG');
         if ($tenantId !== '') {
-            $query->where('TENANT_ID', $tenantId);
+            $query->where('r.TENANT_ID', $tenantId);
         }
 
         return $query->select()->toArray();

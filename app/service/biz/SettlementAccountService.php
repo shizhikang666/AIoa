@@ -305,12 +305,21 @@ SQL;
             if (!$skipPermissionCheck) {
                 $account = $this->assertAccountRowWritable($account, $payload, 'add expenses', self::API_EXPENSES_ADD);
             }
-            $beforeAmount = $this->moneyFromCents($this->moneyCents($account['CURRENT_AMOUNT'] ?? '0'));
-            $afterAmount = $this->moneyFromCents($this->moneyCents($beforeAmount) - $amountCents);
             $tenantId = trim((string)($account['TENANT_ID'] ?? ''));
             if ($tenantId === '') {
                 $tenantId = $this->tenantId($input, $payload);
             }
+            if ($settlementCategory === 'ReturnAndRefund') {
+                if ($objectId === null || $objectId === '') {
+                    throw new RuntimeException('missing return order id', 400);
+                }
+                $returnInfo = (new ReturnOrderService())->assertReturnRefundAllowed($objectId, $amount, $tenantId);
+                if ((string)($returnInfo['tenantId'] ?? $tenantId) !== $tenantId) {
+                    throw new RuntimeException('return order does not belong to settlement account tenant', 403);
+                }
+            }
+            $beforeAmount = $this->moneyFromCents($this->moneyCents($account['CURRENT_AMOUNT'] ?? '0'));
+            $afterAmount = $this->moneyFromCents($this->moneyCents($beforeAmount) - $amountCents);
             $userId = trim((string)($operatorUserId ?? $this->currentUserId($payload)));
             $orgId = trim((string)($account['org'] ?? $account['ORG'] ?? ''));
             $now = date('Y-m-d H:i:s');

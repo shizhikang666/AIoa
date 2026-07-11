@@ -261,7 +261,8 @@
 				createTime: false
 			},
 			defaultSearchFrom: {
-				state: 'Unsettled'
+				state: 'Unsettled',
+				warehouseState: 'RECEIVED'
 			},
 			rowSelection: {
 				type: 'radio',
@@ -274,7 +275,7 @@
 		const onOk = () => {
 			formData.value.objectId = value.id
 			activeSelectObject.value = value
-			formData.value.amount = new Decimal(value.amount)
+			formData.value.amount = new Decimal(value.refundableAmount || 0)
 			ObjectIdChangeLoad()
 		}
 		modal.confirm({

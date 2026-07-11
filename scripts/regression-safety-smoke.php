@@ -5,6 +5,7 @@ declare(strict_types=1);
 
 use app\service\biz\SaleProjectService;
 use app\service\biz\SaleProjectBillingService;
+use app\service\biz\ReturnOrderService;
 use app\service\workflow\WorkflowRuntimeService;
 use app\support\FileDownloadUrl;
 use app\support\LegacyFileSource;
@@ -207,6 +208,28 @@ $kit = [
 $kitArgs = [&$amounts, &$names, $kit, -1, 2.0];
 $costMethod->invokeArgs($costService, $kitArgs);
 assertSameValue(-6.0, $amounts['component'], 'partial kit return cost');
+
+$returnOrderService = new ReturnOrderService();
+$returnBusinessStateMethod = new ReflectionMethod(ReturnOrderService::class, 'returnOrderBusinessState');
+assertSameValue(
+    'WAIT_WAREHOUSE_RECEIPT',
+    $returnBusinessStateMethod->invoke($returnOrderService, 'WAIT_RECEIVE', 'NOT_READY'),
+    'return order waits for warehouse receipt before finance'
+);
+assertSameValue(
+    'WAIT_FINANCE_REFUND',
+    $returnBusinessStateMethod->invoke($returnOrderService, 'RECEIVED', 'WAIT_REFUND'),
+    'received return order enters finance refund state'
+);
+$calculatedReturnAmountMethod = new ReflectionMethod(ReturnOrderService::class, 'calculatedReturnAmount');
+assertSameValue(
+    '125.35',
+    $calculatedReturnAmountMethod->invoke($returnOrderService, [
+        ['returnAmountCents' => 10000],
+        ['returnAmountCents' => 2535],
+    ]),
+    'return amount is the authoritative sum of returned product values'
+);
 
 $deliveryMethod = new ReflectionMethod(WorkflowRuntimeService::class, 'projectDeliveryProcessInstanceId');
 $workflowService = new WorkflowRuntimeService();

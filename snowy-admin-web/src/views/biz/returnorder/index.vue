@@ -58,6 +58,14 @@
 				</a-space>
 			</template>
 			<template #bodyCell="{ column, record }">
+				<template v-if="column.dataIndex === 'businessState'">
+					<a-tag :color="businessStateMap[record.businessState]?.color">
+						{{ businessStateMap[record.businessState]?.label || record.businessState }}
+					</a-tag>
+				</template>
+				<template v-if="column.dataIndex === 'refundProgress'">
+					{{ record.refundAmount || 0 }} / {{ record.amount || 0 }}
+				</template>
 				<template v-if="column.dataIndex === 'projectName'">
 					<a-typography-link @click="projectDetailsRef.onOpen({ id: record.projectId })">
 						{{ record.projectName }}
@@ -75,10 +83,16 @@
 				</template>
 				<template v-if="column.dataIndex === 'action'">
 					<a-space>
-						<a @click="formRef.onOpen(record)" v-if="hasPerm('returnOrderEdit')">编辑</a>
-						<a-divider type="vertical" v-if="hasPerm(['returnOrderEdit', 'returnOrderDelete'], 'and')" />
-						<a-popconfirm title="确定要删除吗？" @confirm="deleteReturnOrder(record)">
-							<a-button type="link" danger size="small" v-if="hasPerm('returnOrderDelete')">删除 </a-button>
+						<a-popconfirm
+							v-if="record.warehouseState === 'WAIT_RECEIVE' && record.canWarehouseReceive"
+							title="确认仓库已收到退货？确认后将增加库存并进入财务退款环节。"
+							@confirm="warehouseReceive(record)"
+						>
+							<a>确认收货</a>
+						</a-popconfirm>
+						<a @click="formRef.onOpen(record)" v-if="!record.processId && record.warehouseState === 'WAIT_RECEIVE' && hasPerm('returnOrderEdit')">编辑</a>
+						<a-popconfirm v-if="!record.processId && record.warehouseState === 'WAIT_RECEIVE'" title="确定要删除吗？" @confirm="deleteReturnOrder(record)">
+							<a-button type="link" danger size="small" v-if="hasPerm('returnOrderDelete')">删除</a-button>
 						</a-popconfirm>
 					</a-space>
 				</template>
@@ -105,6 +119,12 @@
 	const formRef = ref()
 	const toolConfig = { refresh: true, height: true, columnSetting: true, striped: false }
 	const processDetailsRef = useTemplateRef('processDetailsRef')
+	const businessStateMap = {
+		WAIT_WAREHOUSE_RECEIPT: { label: '待仓库收货', color: 'orange' },
+		WAIT_FINANCE_REFUND: { label: '待财务退款', color: 'blue' },
+		PARTIALLY_REFUNDED: { label: '部分退款', color: 'cyan' },
+		COMPLETED: { label: '已完成', color: 'green' }
+	}
 	// 查询区域显示更多控制
 	const advanced = ref(false)
 	const toggleAdvanced = () => {
@@ -120,9 +140,14 @@
 			dataIndex: 'amount'
 		},
 		{
-			title: '退款状态',
-			dataIndex: 'state',
-			width: '100px'
+			title: '业务状态',
+			dataIndex: 'businessState',
+			width: '120px'
+		},
+		{
+			title: '已退款/退货金额',
+			dataIndex: 'refundProgress',
+			width: '150px'
 		},
 		{
 			title: '流程编号',
@@ -145,6 +170,12 @@
 		{
 			title: '创建时间',
 			dataIndex: 'createTime'
+		},
+		{
+			title: '操作',
+			dataIndex: 'action',
+			fixed: 'right',
+			width: '180px'
 		}
 	]
 	// 操作栏通过权限判断是否显示
@@ -197,6 +228,11 @@
 	const deleteBatchReturnOrder = (params) => {
 		returnOrderApi.returnOrderDelete(params).then(() => {
 			tableRef.value.clearRefreshSelected()
+		})
+	}
+	const warehouseReceive = (record) => {
+		return returnOrderApi.returnOrderWarehouseReceive({ id: record.id }).then(() => {
+			tableRef.value.refresh(true)
 		})
 	}
 </script>

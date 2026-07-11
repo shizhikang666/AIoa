@@ -40,9 +40,14 @@
 			bordered
 			:row-key="(record) => record.id"
 			:tool-config="toolConfig"
-			:row-selection="rowSelection"
+			:row-selection="effectiveRowSelection"
 		>
 			<template #bodyCell="{ column, record }">
+				<template v-if="column.dataIndex === 'businessState'">
+					<a-tag :color="businessStateMap[record.businessState]?.color">
+						{{ businessStateMap[record.businessState]?.label || record.businessState }}
+					</a-tag>
+				</template>
 				<template v-if="column.dataIndex === 'state'">
 					<a-tag :color="$TOOL.dictTypeDataByPath('SETTLEMENT_ACCOUNT', 'Settlement_Status_Color', record.state)">
 						{{ $TOOL.dictTypeDataByPath('SETTLEMENT_ACCOUNT', 'Settlement_Status', record.state) }}
@@ -113,6 +118,18 @@
 	const tableRef = ref()
 	const formRef = ref()
 	const toolConfig = { refresh: true, height: true, columnSetting: true, striped: false }
+	const businessStateMap = {
+		WAIT_WAREHOUSE_RECEIPT: { label: '待仓库收货', color: 'orange' },
+		WAIT_FINANCE_REFUND: { label: '待财务退款', color: 'blue' },
+		PARTIALLY_REFUNDED: { label: '部分退款', color: 'cyan' },
+		COMPLETED: { label: '已完成', color: 'green' }
+	}
+	const effectiveRowSelection = computed(() => ({
+		...rowSelection,
+		getCheckboxProps: (record) => ({
+			disabled: Number(record.refundableAmount || 0) <= 0
+		})
+	}))
 	// 查询区域显示更多控制
 	const advanced = ref(true)
 	const toggleAdvanced = () => {
@@ -129,8 +146,16 @@
 			dataIndex: 'amount'
 		},
 		{
-			title: '退回状态',
-			dataIndex: 'state'
+			title: '业务状态',
+			dataIndex: 'businessState'
+		},
+		{
+			title: '可退款金额',
+			dataIndex: 'refundableAmount'
+		},
+		{
+			title: '已退款金额',
+			dataIndex: 'refundAmount'
 		},
 		{
 			title: '流程编号',
@@ -186,14 +211,12 @@
 				return data
 			})
 
-		const processInfo = await bizProcessApi.bizProcessQuery({
-			variableName: 'objectId',
-			variable: result.records
-				.map((value, index) => {
-					return value.id
+		const processInfo = result.records.length
+			? await bizProcessApi.bizProcessQuery({
+					variableName: 'objectId',
+					variable: result.records.map((value) => value.id).join(',')
 				})
-				.join(',')
-		})
+			: []
 
 		const processMap = {}
 
@@ -202,7 +225,7 @@
 		})
 
 		result.records.forEach((v) => {
-			v.processIdList = processMap[v.id]
+			v.processIdList = processMap[v.id] || []
 		})
 		return result
 	}
