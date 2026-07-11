@@ -84,15 +84,18 @@
 			:row-selection="rowSelection"
 		>
 			<template #bodyCell="{ column, record }">
-				<template v-if="column.dataIndex == 'projectName' && hasPerm('bizSaleProjectEdit')">
+				<template v-if="column.dataIndex == 'projectName'">
 					<a-typography-link
 						@click="detailRef.onOpen(record)"
-						v-if="record.projectState === 'DISCARD'"
+						v-if="hasPerm('bizSaleProjectEdit') && record.projectState === 'DISCARD'"
 						type="danger"
 						delete
-						>{{ record.projectName }}
+						>{{ projectDisplayName(record) }}
 					</a-typography-link>
-					<a-typography-link @click="detailRef.onOpen(record)" v-else>{{ record.projectName }} </a-typography-link>
+					<a-typography-link @click="detailRef.onOpen(record)" v-else-if="hasPerm('bizSaleProjectEdit')">
+						{{ projectDisplayName(record) }}
+					</a-typography-link>
+					<span v-else>{{ projectDisplayName(record) }}</span>
 				</template>
 				<template v-if="column.dataIndex === 'projectState'">
 					<a-tag :color="$TOOL.dictTypeDataByPath('SALE_PROJECT', 'SALE_PROJECT_STATE_COLOR', record.projectState)">
@@ -126,11 +129,24 @@
 	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
 	import Detail from '../detail.vue'
 
-	const { rowSelection } = defineProps({
+	const { rowSelection, travelRequired } = defineProps({
 		rowSelection: {
 			type: Object
+		},
+		travelRequired: {
+			type: Boolean,
+			default: false
 		}
 	})
+	const formatDays = (value) => Number(value || 0).toFixed(1)
+	const projectDisplayName = (record) => {
+		if (!travelRequired) {
+			return record.projectName
+		}
+		return `${record.projectName}（累计${formatDays(record.afterSalesTravelUsedDays)}天/计划${formatDays(
+			record.travelDays
+		)}天）`
+	}
 
 	const searchFormState = ref({})
 	const searchFormRef = ref()
@@ -203,7 +219,8 @@
 				Object.assign(parameter, searchFormParam, {
 					sortOrder: 'descend',
 					sortField: 'createTime',
-					specialType: 'PUBLIC_FOR_REIMBURSEMENT'
+					specialType: travelRequired ? undefined : 'PUBLIC_FOR_REIMBURSEMENT',
+					travelRequired: travelRequired || undefined
 				})
 			)
 			.then((data) => {

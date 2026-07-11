@@ -28,6 +28,17 @@
 						<a-form-item label="回扣金额：" name="rebateAmount">
 							<XnCurrencyInput v-model:value="formData.rebateAmount" placeholder="请输入回扣" style="width: 100%" />
 						</a-form-item>
+						<a-form-item label="计划出差天数：" name="travelDays">
+							<a-input-number
+								v-model:value="formData.travelDays"
+								:min="0"
+								:max="3650"
+								:step="0.5"
+								:precision="1"
+								placeholder="0表示无需出差"
+								style="width: 100%"
+							/>
+						</a-form-item>
 						<!--					<a-form-item label="成交日期：" name="completionDate">-->
 						<!--						<a-date-picker-->
 						<!--							placeholder="请选择收款方式"-->
@@ -590,7 +601,9 @@
 				value: v.id
 			}
 		})
-		const accountNames = Array.from(new Set(accountListRes.map((v) => String(v.accountName || '').trim()).filter(Boolean)))
+		const accountNames = Array.from(
+			new Set(accountListRes.map((v) => String(v.accountName || '').trim()).filter(Boolean))
+		)
 		invoiceCompanyOptions.value = accountNames.map((accountName) => {
 			return {
 				label: accountName,
@@ -599,6 +612,7 @@
 		})
 		formData.value = {
 			rebateAmount: 0,
+			travelDays: 0,
 			invoicingInfo: {
 				customerCompany: record.customerName
 			},
@@ -633,9 +647,17 @@
 		visible.value = false
 	}
 	// 默认要校验的
+	const validateTravelDays = async (_rule, value) => {
+		const days = Number(value)
+		if (!Number.isFinite(days) || days < 0 || days > 3650 || !Number.isInteger(days * 2)) {
+			return Promise.reject('计划出差天数只能按0.5天填写')
+		}
+		return Promise.resolve()
+	}
 	const formRules = {
 		// completionDate: [required('成交日期不能为空')],
 		rebateAmount: [required('回扣金额不能为空')],
+		travelDays: [required('计划出差天数不能为空'), { validator: validateTravelDays, trigger: ['blur', 'change'] }],
 		accountId: [required('收款账户不能为空')],
 		// consignee: [required('收货人不能为空')],
 		payerCategory: [required('收款方式不能为空')],

@@ -8,11 +8,7 @@
 
 				<a-form-item v-if="isBindProject(formData.category)" label="项目成交单：" name="objectId">
 					<a-typography-link :type="formData.objectId ? '' : 'danger'" @click="openProjectSelect">
-						{{
-							activeSelectObject.id
-								? activeSelectObject.id + '(' + activeSelectObject.projectName + ')'
-								: '选择项目成交单'
-						}}
+						{{ activeSelectObject.id ? projectSelectionLabel(activeSelectObject) : '选择项目成交单' }}
 					</a-typography-link>
 				</a-form-item>
 				<a-form-item :label="amountLabel" name="createTime">
@@ -121,6 +117,7 @@
 	const openProjectSelect = () => {
 		let value = {}
 		let content = createVNode(bizSaleProjectModal, {
+			travelRequired: formData.value.category === 'AfterSalesService',
 			rowSelection: {
 				type: 'radio',
 				onSelect: (v) => {
@@ -130,6 +127,10 @@
 			}
 		})
 		const onOk = () => {
+			if (!value.id) {
+				message.warning('请选择项目成交单')
+				return Promise.reject()
+			}
 			formData.value.objectId = value.id
 			activeSelectObject.value = value
 		}
@@ -139,6 +140,15 @@
 			width: '1200px',
 			onOk: onOk
 		})
+	}
+	const projectSelectionLabel = (project) => {
+		const base = `${project.id}(${project.projectName})`
+		if (formData.value.category !== 'AfterSalesService') {
+			return base
+		}
+		const usedDays = Number(project.afterSalesTravelUsedDays || 0).toFixed(1)
+		const plannedDays = Number(project.travelDays || 0).toFixed(1)
+		return `${base}（累计${usedDays}天/计划${plannedDays}天）`
 	}
 	// 获取当前日期并加上一天
 

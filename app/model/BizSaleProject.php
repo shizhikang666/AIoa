@@ -37,6 +37,7 @@ namespace app\model;
  * @property string|null $PROJECT_CODE 项目编号
  * @property string|null $COMPLETION_DATE 成交日期
  * @property string|float|null $REBATE_AMOUNT 回扣金额
+ * @property string|float $TRAVEL_DAYS 计划出差天数
  * @property string|float|null $TOTAL_RETURN_AMOUNT 累计退货金额
  * @property string|float|null $TOTAL_REFUND_AMOUNT 累计退款金额
  * @property string|null $REPEAL_CONTENT 作废原因

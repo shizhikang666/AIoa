@@ -48,6 +48,7 @@ class SaleProjectService
     private const SALE_PROJECT_FILE_CATEGORY = 'SALE_PROJECT';
     private const INVOICING_STATE_WAIT = 'INVOICING_STATE_WAIT';
     private const INVOICING_CATEGORIES = ['SpecialTicket', 'GeneralTicket'];
+    private const LEAVE_CATEGORY_AFTER_SALES = 'AfterSalesService';
 
     private const PROJECT_FIELDS = <<<SQL
 p.ID AS ID,
@@ -88,6 +89,13 @@ p.FREIGHT AS FREIGHT,
 p.FREIGHT_CATEGORY AS FREIGHT_CATEGORY,
 p.COMPLETION_DATE AS COMPLETION_DATE,
 p.REBATE_AMOUNT AS REBATE_AMOUNT,
+p.TRAVEL_DAYS AS TRAVEL_DAYS,
+(SELECT COALESCE(SUM(l.AMOUNT), 0)
+ FROM biz_leave_application l
+ WHERE l.OBJECT_ID = p.ID
+   AND l.`category` = 'AfterSalesService'
+   AND l.TENANT_ID = p.TENANT_ID
+   AND (l.DELETE_FLAG IS NULL OR l.DELETE_FLAG = 'NOT_DELETE')) AS AFTER_SALES_TRAVEL_USED_DAYS,
 p.DEAL_AMOUNT AS DEAL_AMOUNT,
 p.HISTORY_AMOUNT AS HISTORY_AMOUNT,
 p.TOTAL_RETURN_AMOUNT AS TOTAL_RETURN_AMOUNT,
@@ -153,6 +161,7 @@ SQL;
         'org' => 'p.ORG',
         'orgName' => 'org.NAME',
         'completionDate' => 'p.COMPLETION_DATE',
+        'travelDays' => 'p.TRAVEL_DAYS',
         'createTime' => 'p.CREATE_TIME',
         'updateTime' => 'p.UPDATE_TIME',
         'tenantId' => 'p.TENANT_ID',
@@ -1893,6 +1902,75 @@ SQL;
     }
 
     /**
+     * @return array{projectId: string, projectName: string, plannedDays: float|int, usedDays: float|int, remainingDays: float|int, requestedDays: float|int}
+     */
+    public function assertAfterSalesTravelRequest(
+        string $projectId,
+        mixed $requestedDays,
+        string $tenantId = '',
+        string $excludeProcessId = '',
+        bool $lockProject = false
+    ): array {
+        $projectId = trim($projectId);
+        if ($projectId === '') {
+            throw new RuntimeException('missing after-sales travel projectId', 400);
+        }
+        $requested = $this->workflowTravelDays($requestedDays, 'amount', false);
+        $query = Db::name('biz_sale_project')
+            ->where('ID', $projectId)
+            ->field('ID,PROJECT_NAME,PROJECT_STATE,PROCESS_ID,TRAVEL_DAYS,TENANT_ID');
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+        if ($lockProject) {
+            $query->lock(true);
+        }
+        $project = $query->find();
+        if (!is_array($project) || $project === []) {
+            throw new RuntimeException('after-sales travel project not found', 404);
+        }
+        if (!in_array((string)($project['PROJECT_STATE'] ?? ''), [
+            self::WAIT_DELIVER_STATE,
+            self::PARTIALLY_SHIPPED_STATE,
+            self::SHIPPED_STATE,
+            self::COMPLETED_STATE,
+        ], true) || trim((string)($project['PROCESS_ID'] ?? '')) === '') {
+            throw new RuntimeException('after-sales travel requires a completed deal project', 400);
+        }
+
+        $planned = (float)$this->workflowTravelDays($project['TRAVEL_DAYS'] ?? null, 'travelDays', true);
+        if ($planned <= 0) {
+            throw new RuntimeException('this project does not require after-sales travel', 400);
+        }
+        $effectiveTenantId = trim((string)($tenantId !== '' ? $tenantId : ($project['TENANT_ID'] ?? '')));
+        $usedQuery = Db::name('biz_leave_application')
+            ->where('OBJECT_ID', $projectId)
+            ->where('category', self::LEAVE_CATEGORY_AFTER_SALES);
+        $this->whereNotDeleted($usedQuery, 'DELETE_FLAG');
+        if ($effectiveTenantId !== '') {
+            $usedQuery->where('TENANT_ID', $effectiveTenantId);
+        }
+        if ($excludeProcessId !== '') {
+            $usedQuery->where('PROCESS_ID', '<>', $excludeProcessId);
+        }
+        $used = (float)($usedQuery->sum('AMOUNT') ?: 0);
+        $requestedNumber = (float)$requested;
+        if ($used + $requestedNumber > $planned + 0.00001) {
+            throw new RuntimeException('after-sales travel days exceed project planned travel days', 400);
+        }
+
+        return [
+            'projectId' => $projectId,
+            'projectName' => (string)($project['PROJECT_NAME'] ?? ''),
+            'plannedDays' => $this->decimal($planned) ?? 0,
+            'usedDays' => $this->decimal($used) ?? 0,
+            'remainingDays' => $this->decimal(max(0, $planned - $used)) ?? 0,
+            'requestedDays' => $this->decimal($requestedNumber) ?? 0,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $project
      */
     public function assertProjectPaymentAmountWithinRemaining(
@@ -2145,6 +2223,7 @@ SQL;
             $initPrice = $this->workflowMoney($variables['initPrice'] ?? null, 'initPrice', false);
             $rebateAmount = $this->workflowMoney($variables['rebateAmount'] ?? null, 'rebateAmount', false);
             $freight = $this->workflowOptionalMoney($variables['freight'] ?? null, 'freight');
+            $travelDays = $this->workflowTravelDays($variables['travelDays'] ?? null, 'travelDays', true);
             $completionDate = $this->workflowDate($variables['completionDate'] ?? null, 'completionDate');
             $dealAmount = $this->projectDealAmountForApproval($project, $effectiveTenantId);
             $projectState = $productList === [] ? self::SHIPPED_STATE : self::WAIT_DELIVER_STATE;
@@ -2164,6 +2243,7 @@ SQL;
                 'TOTAL_PRICE' => $initPrice,
                 'COMPLETION_DATE' => $completionDate,
                 'REBATE_AMOUNT' => $rebateAmount,
+                'TRAVEL_DAYS' => $travelDays,
                 'DEAL_AMOUNT' => $dealAmount,
                 'PROCESS_ID' => $processInstanceId,
                 'PROJECT_STATE' => $projectState,
@@ -2201,6 +2281,7 @@ SQL;
                 'productItemCount' => count($productList),
                 'fileRelationCount' => $fileRelationCount,
                 'invoicingCount' => $invoicingCount,
+                'travelDays' => $this->decimal($travelDays),
             ];
         });
     }
@@ -2476,6 +2557,15 @@ SQL;
 
         if (array_key_exists('showDiscard', $filters) && !$this->truthy($filters['showDiscard'])) {
             $query->where('p.PROJECT_STATE', '<>', self::DISCARD_STATE);
+        }
+        if ($this->truthy($filters['travelRequired'] ?? false)) {
+            $query->where('p.TRAVEL_DAYS', '>', 0);
+            $query->whereIn('p.PROJECT_STATE', [
+                self::WAIT_DELIVER_STATE,
+                self::PARTIALLY_SHIPPED_STATE,
+                self::SHIPPED_STATE,
+                self::COMPLETED_STATE,
+            ]);
         }
 
         foreach ([
@@ -3365,6 +3455,8 @@ SQL)
                 'freightCategory' => $this->value($row, 'FREIGHT_CATEGORY', 'freightCategory'),
                 'completionDate' => $this->value($row, 'COMPLETION_DATE', 'completionDate'),
                 'rebateAmount' => $this->decimal($this->value($row, 'REBATE_AMOUNT', 'rebateAmount')),
+                'travelDays' => $this->decimal($this->value($row, 'TRAVEL_DAYS', 'travelDays')) ?? 0,
+                'afterSalesTravelUsedDays' => $this->decimal($this->value($row, 'AFTER_SALES_TRAVEL_USED_DAYS', 'afterSalesTravelUsedDays')) ?? 0,
                 'dealAmount' => $this->decimal($this->value($row, 'DEAL_AMOUNT', 'dealAmount')),
                 'historyAmount' => $this->decimal($this->value($row, 'HISTORY_AMOUNT', 'historyAmount')),
                 'totalReturnAmount' => $this->decimal($this->value($row, 'TOTAL_RETURN_AMOUNT', 'totalReturnAmount')),
@@ -6179,6 +6271,23 @@ SQL);
         }
 
         return $this->workflowMoney($value, $label, false);
+    }
+
+    private function workflowTravelDays(mixed $value, string $label, bool $allowZero): string
+    {
+        if ($value === null || $value === '' || is_array($value) || is_object($value) || is_bool($value)) {
+            throw new RuntimeException("missing {$label}", 400);
+        }
+        $raw = trim((string)$value);
+        if ($raw === '' || !is_numeric($raw)) {
+            throw new RuntimeException("invalid {$label}", 400);
+        }
+        $days = (float)$raw;
+        if ($days < 0 || (!$allowZero && $days <= 0) || $days > 3650 || abs($days * 2 - round($days * 2)) > 0.00001) {
+            throw new RuntimeException("invalid {$label}", 400);
+        }
+
+        return number_format($days, 1, '.', '');
     }
 
     private function workflowDate(mixed $value, string $label): string

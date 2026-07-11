@@ -79,6 +79,21 @@ assertSameValue(true, TenantScope::canCrossTenant($superPayload), 'super admin c
 
 $costMethod = new ReflectionMethod(SaleProjectService::class, 'addProductCostAmount');
 $costService = new SaleProjectService();
+$projectFields = (new ReflectionClass(SaleProjectService::class))->getConstant('PROJECT_FIELDS');
+assertSameValue(
+    true,
+    is_string($projectFields)
+        && str_contains($projectFields, 'p.TRAVEL_DAYS AS TRAVEL_DAYS')
+        && str_contains($projectFields, 'AFTER_SALES_TRAVEL_USED_DAYS'),
+    'sale project fields expose planned and cumulative after-sales travel days'
+);
+$travelDaysMethod = new ReflectionMethod(SaleProjectService::class, 'workflowTravelDays');
+assertSameValue('0.0', $travelDaysMethod->invoke($costService, 0, 'travelDays', true), 'zero means no project travel');
+assertSameValue('1.5', $travelDaysMethod->invoke($costService, 1.5, 'travelDays', false), 'half-day project travel');
+assertThrows(
+    static fn(): mixed => $travelDaysMethod->invoke($costService, 1.3, 'travelDays', true),
+    'project travel days reject non-half-day values'
+);
 $productItemRowsMethod = new ReflectionMethod(SaleProjectService::class, 'productItemRows');
 $productItemRows = $productItemRowsMethod->invoke($costService, [[
     'ID' => 'item-1',
@@ -246,6 +261,33 @@ assertSameValue('处理完成', $afterSalesSummary->invoke($afterSalesService, '
 
 $deliveryMethod = new ReflectionMethod(WorkflowRuntimeService::class, 'projectDeliveryProcessInstanceId');
 $workflowService = new WorkflowRuntimeService();
+$projectInitInputMethod = new ReflectionMethod(WorkflowRuntimeService::class, 'assertProjectInitInput');
+$projectInitInputMethod->invoke($workflowService, [
+    'accountId' => 'account-1',
+    'payerCategory' => 'PAY_FIRST',
+    'initPrice' => 100,
+    'rebateAmount' => 0,
+    'travelDays' => 0,
+    'isInvoicing' => false,
+]);
+assertThrows(
+    static fn(): mixed => $projectInitInputMethod->invoke($workflowService, [
+        'accountId' => 'account-1',
+        'payerCategory' => 'PAY_FIRST',
+        'initPrice' => 100,
+        'rebateAmount' => 0,
+        'isInvoicing' => false,
+    ]),
+    'project init requires travel days'
+);
+$travelInstaller = file_get_contents(dirname(__DIR__) . '/scripts/install-sale-project-travel-days.php');
+assertSameValue(
+    true,
+    is_string($travelInstaller)
+        && str_contains($travelInstaller, 'ADD COLUMN `TRAVEL_DAYS`')
+        && str_contains($travelInstaller, 'idx_leave_after_sales_travel'),
+    'project travel installer contains required column and statistics index'
+);
 $requestId = '1d25a5df-3864-48fc-97b4-2c80f63a80a7';
 $expectedProcessId = 'delivery_' . hash('sha256', '1|user-1|project-1|' . $requestId);
 $actualProcessId = $deliveryMethod->invoke($workflowService, $requestId, '1', 'user-1', 'project-1');

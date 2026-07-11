@@ -59,6 +59,12 @@
 							<a-descriptions-item v-if="isDeal" :span="4" label="结算方式">
 								{{ $TOOL.dictTypeDataByPath('SALE_PROJECT', 'payerCategory', projectBaseInfo.payerCategory) }}
 							</a-descriptions-item>
+							<a-descriptions-item v-if="isDeal" label="计划出差天数">
+								{{ Number(projectBaseInfo.travelDays || 0).toFixed(1) }} 天
+							</a-descriptions-item>
+							<a-descriptions-item v-if="isDeal" label="累计售后出差天数">
+								{{ Number(projectBaseInfo.afterSalesTravelUsedDays || 0).toFixed(1) }} 天
+							</a-descriptions-item>
 							<a-descriptions-item label="回扣金额">
 								<a-typography-text style="padding-right: 6px" strong
 									>￥ {{ projectBaseInfo.rebateAmount }}
@@ -81,9 +87,7 @@
 							<a-descriptions-item v-if="isDeal" label="已退款">
 								￥ {{ projectBaseInfo.totalReturnAmount || 0 }}
 							</a-descriptions-item>
-							<a-descriptions-item v-if="isDeal" label="净收款">
-								￥ {{ netCollected }}
-							</a-descriptions-item>
+							<a-descriptions-item v-if="isDeal" label="净收款"> ￥ {{ netCollected }} </a-descriptions-item>
 							<a-descriptions-item v-if="isDeal" label="实际金额">
 								{{ dealAmount }}
 							</a-descriptions-item>
@@ -533,18 +537,22 @@
 	]
 	const reissueOrderList = ref([])
 	const reissueStatusText = (status) => {
-		return {
-			WAIT_REISSUE: '待补发',
-			PARTIALLY_REISSUED: '部分补发',
-			REISSUED: '补发完成'
-		}[status] || '待补发'
+		return (
+			{
+				WAIT_REISSUE: '待补发',
+				PARTIALLY_REISSUED: '部分补发',
+				REISSUED: '补发完成'
+			}[status] || '待补发'
+		)
 	}
 	const reissueStatusColor = (status) => {
-		return {
-			WAIT_REISSUE: 'orange',
-			PARTIALLY_REISSUED: 'blue',
-			REISSUED: 'green'
-		}[status] || 'orange'
+		return (
+			{
+				WAIT_REISSUE: 'orange',
+				PARTIALLY_REISSUED: 'blue',
+				REISSUED: 'green'
+			}[status] || 'orange'
+		)
 	}
 	const { isDeal } = useProject(projectBaseInfo)
 	const netCollected = computed(() =>

@@ -53,6 +53,7 @@ class WorkflowRuntimeService
     private const LEAVE_END_EVENT = 'Event_0kb2f2q';
     private const NOT_DELETE = 'NOT_DELETE';
     private const LEAVE_CATEGORY_ANNUAL = 'annualLeave';
+    private const LEAVE_CATEGORY_AFTER_SALES = 'AfterSalesService';
     private const PROJECT_PLAY_SETTLEMENT_CATEGORY = 'PROJECT_PLAY';
 
     private const LEAVE_CATEGORY_LABELS = [
@@ -134,6 +135,13 @@ class WorkflowRuntimeService
         $remark = $this->optionalString($input['remark'] ?? null, 4000);
         $objectId = $this->optionalString($input['objectId'] ?? null, 255) ?? '';
         $amount = $this->optionalString($input['amount'] ?? null, 100) ?? '';
+        if ($category === self::LEAVE_CATEGORY_AFTER_SALES) {
+            if ($objectId === '') {
+                throw new RuntimeException('missing after-sales travel projectId', 400);
+            }
+            $amount = $this->requiredPositiveInputDecimal($input, 'amount');
+            $this->saleProjectService->assertAfterSalesTravelRequest($objectId, $amount, $tenantId);
+        }
         $isEdit = array_key_exists('isEdit', $input) ? (bool)$input['isEdit'] : $endTime === null;
 
         $variables = [
@@ -940,6 +948,7 @@ class WorkflowRuntimeService
         $this->requiredInputString($input, 'payerCategory');
         $this->requiredNonNegativeInputDecimal($input, 'initPrice');
         $this->requiredNonNegativeInputDecimal($input, 'rebateAmount');
+        $this->requiredTravelDaysInput($input, 'travelDays');
         if (!array_key_exists('isInvoicing', $input)) {
             throw new RuntimeException('missing isInvoicing', 400);
         }
@@ -996,6 +1005,17 @@ class WorkflowRuntimeService
         }
 
         return number_format((float)$value, 2, '.', '');
+    }
+
+    private function requiredTravelDaysInput(array $input, string $key): string
+    {
+        $value = $this->requiredNonNegativeInputDecimal($input, $key);
+        $days = (float)$value;
+        if ($days > 3650 || abs($days * 2 - round($days * 2)) > 0.00001) {
+            throw new RuntimeException('invalid ' . $key, 400);
+        }
+
+        return number_format($days, 1, '.', '');
     }
 
     private function projectCompletionDate(mixed $value): string
@@ -2290,6 +2310,18 @@ class WorkflowRuntimeService
             'TENANT_ID' => $effectiveTenantId,
         ];
         $objectId = trim((string)($variables['objectId'] ?? ''));
+        if ($category === self::LEAVE_CATEGORY_AFTER_SALES) {
+            if ($objectId === '') {
+                throw new RuntimeException('missing after-sales travel projectId', 400);
+            }
+            $this->saleProjectService->assertAfterSalesTravelRequest(
+                $objectId,
+                $amount,
+                $effectiveTenantId,
+                $processInstanceId,
+                true
+            );
+        }
         if ($this->leaveHasObjectIdColumn() && strlen($objectId) <= 20) {
             $row['OBJECT_ID'] = $objectId;
         }
