@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS `biz_after_sales_category` (
   PRIMARY KEY (`ID`),
   KEY `idx_after_sales_category_tenant` (`TENANT_ID`,`DELETE_FLAG`,`STATUS`,`SORT_CODE`),
   KEY `idx_after_sales_category_name` (`TENANT_ID`,`NAME`,`DELETE_FLAG`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 SQL);
 
     Db::execute(<<<'SQL'
@@ -76,8 +76,22 @@ CREATE TABLE IF NOT EXISTS `biz_after_sales_record` (
   KEY `idx_after_sales_record_category` (`TENANT_ID`,`CATEGORY_ID`,`DELETE_FLAG`),
   KEY `idx_after_sales_record_project` (`TENANT_ID`,`PROJECT_ID`,`DELETE_FLAG`),
   KEY `idx_after_sales_record_creator` (`TENANT_ID`,`CREATE_USER`,`DELETE_FLAG`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 SQL);
+}
+
+$targetCollation = 'utf8mb4_general_ci';
+$summary['tableCollations'] = [];
+foreach ($summary['tables'] as $table) {
+    $rows = Db::query(
+        "SELECT TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '" . $table . "'"
+    );
+    $currentCollation = (string)($rows[0]['TABLE_COLLATION'] ?? '');
+    if ($apply && $currentCollation !== '' && $currentCollation !== $targetCollation) {
+        Db::execute("ALTER TABLE `{$table}` CONVERT TO CHARACTER SET utf8mb4 COLLATE {$targetCollation}");
+        $currentCollation = $targetCollation;
+    }
+    $summary['tableCollations'][$table] = $currentCollation !== '' ? $currentCollation : 'pending';
 }
 
 $existingMenu = active_row(Db::name('sys_resource')->where('CATEGORY', 'MENU')->where('PATH', '/biz/aftersales'))->find();

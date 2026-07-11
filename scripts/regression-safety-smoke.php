@@ -258,6 +258,15 @@ assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), 'oncli
 assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), 'javascript:'), 'after-sales HTML strips javascript URLs');
 $afterSalesSummary = new ReflectionMethod(AfterSalesService::class, 'summary');
 assertSameValue('处理完成', $afterSalesSummary->invoke($afterSalesService, '<p>处理完成</p>'), 'after-sales content summary');
+$afterSalesInstaller = file_get_contents(dirname(__DIR__) . '/scripts/install-after-sales-module.php');
+assertSameValue(
+    true,
+    is_string($afterSalesInstaller)
+        && str_contains($afterSalesInstaller, 'COLLATE=utf8mb4_general_ci')
+        && str_contains($afterSalesInstaller, "'tableCollations'")
+        && !str_contains($afterSalesInstaller, 'COLLATE=utf8mb4_unicode_ci'),
+    'after-sales installer matches production table collation'
+);
 
 $deliveryMethod = new ReflectionMethod(WorkflowRuntimeService::class, 'projectDeliveryProcessInstanceId');
 $workflowService = new WorkflowRuntimeService();
