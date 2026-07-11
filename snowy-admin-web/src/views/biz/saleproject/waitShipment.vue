@@ -138,7 +138,9 @@
 					</a-space>
 				</template>
 				<template v-if="column.dataIndex === 'action'">
-					<a @click="openAddProjectDelivery(record)">处理发货</a>
+					<a @click="openAddProjectDelivery(record)">
+						{{ record.hasPendingReissue && !record.hasPendingNormalShipment ? '处理补发' : '处理发货' }}
+					</a>
 				</template>
 			</template>
 		</s-table>

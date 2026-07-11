@@ -119,6 +119,7 @@ assertSameValue(
     'pending reissue shipment query category'
 );
 $reissueSummaryMethod = new ReflectionMethod(SaleProjectBillingService::class, 'reissueShipmentSummary');
+$billingService = new SaleProjectBillingService();
 assertSameValue(
     [
         'shipmentStatus' => 'PARTIALLY_REISSUED',
@@ -126,11 +127,45 @@ assertSameValue(
         'deliveredQuantity' => 2,
         'pendingQuantity' => 3,
     ],
-    $reissueSummaryMethod->invoke(new SaleProjectBillingService(), [
+    $reissueSummaryMethod->invoke($billingService, [
         ['number' => 2, 'delivery' => 2],
         ['number' => 3, 'delivery' => 0],
     ]),
     'reissue shipment progress summary'
+);
+$invoiceShipmentSummaryMethod = new ReflectionMethod(SaleProjectBillingService::class, 'invoiceShipmentSummary');
+assertSameValue(
+    [
+        'shipmentType' => 'MIXED',
+        'hasReissueShipment' => true,
+        'reissueOrders' => [[
+            'id' => 'reissue-1',
+            'createTime' => '2026-07-11 08:39:16',
+            'createUser' => 'user-1',
+            'createUserName' => 'Warehouse User',
+            'remark' => 'replacement',
+        ]],
+    ],
+    $invoiceShipmentSummaryMethod->invoke($billingService, [
+        ['projectProductItemCategory' => 'INIT'],
+        [
+            'projectProductItemCategory' => 'REISSUE_ORDER',
+            'projectReissueOrderId' => 'reissue-1',
+            'reissueOrderCreateTime' => '2026-07-11 08:39:16',
+            'reissueOrderCreateUser' => 'user-1',
+            'reissueOrderCreateUserName' => 'Warehouse User',
+            'reissueOrderRemark' => 'replacement',
+        ],
+    ]),
+    'delivery invoice summary links reissue order information'
+);
+$invoiceItemFieldsMethod = new ReflectionMethod(SaleProjectBillingService::class, 'invoiceItemFields');
+$invoiceItemFields = $invoiceItemFieldsMethod->invoke($billingService);
+assertSameValue(
+    true,
+    str_contains($invoiceItemFields, 'pi.PROJECT_REISSUE_ORDER_ID AS PROJECT_REISSUE_ORDER_ID')
+        && str_contains($invoiceItemFields, 'reissue.CREATE_TIME AS REISSUE_ORDER_CREATE_TIME'),
+    'delivery invoice item fields expose reissue relation'
 );
 $inventoryRequirementsMethod = new ReflectionMethod(SaleProjectService::class, 'inventoryRequirementsForProductItems');
 assertSameValue(

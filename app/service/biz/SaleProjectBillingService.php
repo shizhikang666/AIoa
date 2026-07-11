@@ -15,6 +15,8 @@ class SaleProjectBillingService
 {
     private const NOT_DELETE = 'NOT_DELETE';
     private const DELETED = 'DELETED';
+    private const PRODUCT_ITEM_CATEGORY_INIT = 'INIT';
+    private const PRODUCT_ITEM_CATEGORY_REISSUE_ORDER = 'REISSUE_ORDER';
 
     /**
      * Java BizSaleProjectStateEnum.getInvoiceableStates().
@@ -271,13 +273,57 @@ class SaleProjectBillingService
         $result = [];
         foreach ($invoices as $invoice) {
             $invoiceId = (string)($invoice['id'] ?? '');
+            $invoiceItems = $items[$invoiceId] ?? [];
             $result[] = [
-                'bizSaleProjectInvoice' => $invoice,
-                'invoiceItems' => $items[$invoiceId] ?? [],
+                'bizSaleProjectInvoice' => array_merge($invoice, $this->invoiceShipmentSummary($invoiceItems)),
+                'invoiceItems' => $invoiceItems,
             ];
         }
 
         return $result;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @return array{shipmentType: string, hasReissueShipment: bool, reissueOrders: array<int, array<string, mixed>>}
+     */
+    private function invoiceShipmentSummary(array $items): array
+    {
+        $hasNormal = false;
+        $hasReissue = false;
+        $reissueOrders = [];
+
+        foreach ($items as $item) {
+            $category = (string)($item['projectProductItemCategory'] ?? self::PRODUCT_ITEM_CATEGORY_INIT);
+            if ($category !== self::PRODUCT_ITEM_CATEGORY_REISSUE_ORDER) {
+                $hasNormal = true;
+                continue;
+            }
+
+            $hasReissue = true;
+            $orderId = trim((string)($item['projectReissueOrderId'] ?? ''));
+            if ($orderId === '' || isset($reissueOrders[$orderId])) {
+                continue;
+            }
+            $reissueOrders[$orderId] = [
+                'id' => $orderId,
+                'createTime' => $item['reissueOrderCreateTime'] ?? null,
+                'createUser' => $item['reissueOrderCreateUser'] ?? null,
+                'createUserName' => $item['reissueOrderCreateUserName'] ?? null,
+                'remark' => $item['reissueOrderRemark'] ?? null,
+            ];
+        }
+
+        $shipmentType = $hasReissue ? 'REISSUE' : 'NORMAL';
+        if ($hasNormal && $hasReissue) {
+            $shipmentType = 'MIXED';
+        }
+
+        return [
+            'shipmentType' => $shipmentType,
+            'hasReissueShipment' => $hasReissue,
+            'reissueOrders' => array_values($reissueOrders),
+        ];
     }
 
     public function invoiceItemPage(array $filters = [], array $payload = []): array
@@ -731,7 +777,9 @@ class SaleProjectBillingService
             ->alias('item')
             ->leftJoin('biz_sale_project_product_item pi', 'pi.ID = item.PROJECT_PRODUCT_ITEM_ID')
             ->leftJoin('biz_product product', 'product.ID = pi.PRODUCT_ID')
-            ->leftJoin('warehouses w', 'w.ID = item.WAREHOUSES_ID');
+            ->leftJoin('warehouses w', 'w.ID = item.WAREHOUSES_ID')
+            ->leftJoin('biz_sale_project_reissue_order reissue', 'reissue.ID = pi.PROJECT_REISSUE_ORDER_ID')
+            ->leftJoin('sys_user reissue_creator', 'reissue_creator.ID = reissue.CREATE_USER');
         $this->whereNotDeleted($query, 'item.DELETE_FLAG');
         $this->applyTenant($query, 'item', $filters, $payload);
 
@@ -762,7 +810,9 @@ class SaleProjectBillingService
             ->leftJoin('biz_sale_project_product_item pi', 'pi.ID = item.PROJECT_PRODUCT_ITEM_ID')
             ->leftJoin('biz_product product', 'product.ID = pi.PRODUCT_ID')
             ->leftJoin('warehouses w', 'w.ID = item.WAREHOUSES_ID')
-            ->field('item.*, pi.PROJECT_ID AS PROJECT_ID, pi.PRODUCT_ID AS PRODUCT_ID, product.PRODUCT_NAME AS PRODUCT_NAME, product.PRODUCT_CATEGORY AS PRODUCT_CATEGORY, product.CATEGORY AS PRODUCT_SYS_CATEGORY, product.SPECS AS SPECS, w.NAME AS WAREHOUSES_NAME')
+            ->leftJoin('biz_sale_project_reissue_order reissue', 'reissue.ID = pi.PROJECT_REISSUE_ORDER_ID')
+            ->leftJoin('sys_user reissue_creator', 'reissue_creator.ID = reissue.CREATE_USER')
+            ->field($this->invoiceItemFields())
             ->whereIn('item.INVOICE_ID', $ids);
         $this->whereNotDeleted($query, 'item.DELETE_FLAG');
         $this->applyTenant($query, 'item', [], $payload);
@@ -859,7 +909,20 @@ class SaleProjectBillingService
 
     private function invoiceItemFields(): string
     {
-        return 'item.*, pi.PROJECT_ID AS PROJECT_ID, pi.PRODUCT_ID AS PRODUCT_ID, product.PRODUCT_NAME AS PRODUCT_NAME, product.PRODUCT_CATEGORY AS PRODUCT_CATEGORY, product.CATEGORY AS PRODUCT_SYS_CATEGORY, product.SPECS AS SPECS, w.NAME AS WAREHOUSES_NAME';
+        return 'item.*, '
+            . 'pi.PROJECT_ID AS PROJECT_ID, '
+            . 'pi.PRODUCT_ID AS PRODUCT_ID, '
+            . 'pi.CATEGORY AS PROJECT_PRODUCT_ITEM_CATEGORY, '
+            . 'pi.PROJECT_REISSUE_ORDER_ID AS PROJECT_REISSUE_ORDER_ID, '
+            . 'product.PRODUCT_NAME AS PRODUCT_NAME, '
+            . 'product.PRODUCT_CATEGORY AS PRODUCT_CATEGORY, '
+            . 'product.CATEGORY AS PRODUCT_SYS_CATEGORY, '
+            . 'product.SPECS AS SPECS, '
+            . 'w.NAME AS WAREHOUSES_NAME, '
+            . 'reissue.CREATE_TIME AS REISSUE_ORDER_CREATE_TIME, '
+            . 'reissue.REMARK AS REISSUE_ORDER_REMARK, '
+            . 'reissue.CREATE_USER AS REISSUE_ORDER_CREATE_USER, '
+            . 'reissue_creator.NAME AS REISSUE_ORDER_CREATE_USER_NAME';
     }
 
     /**

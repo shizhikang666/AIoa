@@ -1,7 +1,7 @@
 <template>
 	<xn-form-container
 		:bodyStyle="{ paddingTop: 0 }"
-		title="添加发货记录"
+		:title="formTitle"
 		:width="800"
 		:visible="visible"
 		:destroy-on-close="true"
@@ -281,6 +281,8 @@
 		}
 	]
 	const allProductList = ref([])
+	const reissueOnly = ref(false)
+	const formTitle = computed(() => (reissueOnly.value ? '添加补发记录' : '添加发货记录'))
 	const shipmentCategoryText = (category) => (category === 'REISSUE_ORDER' ? '补发' : '正常发货')
 	const error = ref(false)
 	const loading = ref(false)
@@ -293,6 +295,7 @@
 	}
 	// 打开抽屉
 	const onOpen = async (record) => {
+		reissueOnly.value = Boolean(record.hasPendingReissue && !record.hasPendingNormalShipment)
 		visible.value = true
 		formData.value = {
 			projectId: record.id,
