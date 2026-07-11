@@ -310,10 +310,51 @@ class SaleProjectBillingService
 
         $items = $this->reissueProductItemsByOrderIds(array_column($orders, 'id'), $projectId, $payload);
 
-        return array_map(static fn (array $order): array => [
-            'order' => $order,
-            'productItemList' => $items[(string)($order['id'] ?? '')] ?? [],
-        ], $orders);
+        return array_map(function (array $order) use ($items): array {
+            $productItemList = $items[(string)($order['id'] ?? '')] ?? [];
+
+            return [
+                'order' => array_merge($order, $this->reissueShipmentSummary($productItemList)),
+                'productItemList' => $productItemList,
+            ];
+        }, $orders);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $items
+     * @return array{shipmentStatus: string, totalQuantity: int|float, deliveredQuantity: int|float, pendingQuantity: int|float}
+     */
+    private function reissueShipmentSummary(array $items): array
+    {
+        $total = 0.0;
+        $delivered = 0.0;
+        foreach ($items as $item) {
+            $number = max(0.0, (float)($item['number'] ?? 0));
+            $total += $number;
+            $delivered += min($number, max(0.0, (float)($item['delivery'] ?? 0)));
+        }
+
+        $pending = max(0.0, $total - $delivered);
+        $status = 'WAIT_REISSUE';
+        if ($total > 0.000001 && $pending <= 0.000001) {
+            $status = 'REISSUED';
+        } elseif ($delivered > 0.000001) {
+            $status = 'PARTIALLY_REISSUED';
+        }
+
+        return [
+            'shipmentStatus' => $status,
+            'totalQuantity' => $this->normalizedNumber($total),
+            'deliveredQuantity' => $this->normalizedNumber($delivered),
+            'pendingQuantity' => $this->normalizedNumber($pending),
+        ];
+    }
+
+    private function normalizedNumber(float $value): int|float
+    {
+        $rounded = round($value, 6);
+
+        return abs($rounded - round($rounded)) < 0.000001 ? (int)round($rounded) : $rounded;
     }
 
     public function ratePage(array $filters = [], array $payload = []): array

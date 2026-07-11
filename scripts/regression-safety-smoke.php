@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use app\service\biz\SaleProjectService;
+use app\service\biz\SaleProjectBillingService;
 use app\service\workflow\WorkflowRuntimeService;
 use app\support\FileDownloadUrl;
 use app\support\LegacyFileSource;
@@ -88,6 +89,49 @@ $productItemRows = $productItemRowsMethod->invoke($costService, [[
 ]]);
 assertSameValue('cover', $productItemRows[0]['productSpecs'] ?? null, 'sale project product specification alias');
 assertSameValue(0, $productItemRows[0]['delivery'] ?? null, 'sale project delivered quantity zero');
+$shipmentSummaryMethod = new ReflectionMethod(SaleProjectService::class, 'summarizePendingShipmentItems');
+assertSameValue(
+    [
+        'project-1' => [
+            'pendingNormalQuantity' => 2,
+            'pendingReissueQuantity' => 3,
+            'pendingReissueOrderCount' => 1,
+            'hasPendingNormalShipment' => true,
+            'hasPendingReissue' => true,
+        ],
+    ],
+    $shipmentSummaryMethod->invoke($costService, [
+        ['PROJECT_ID' => 'project-1', 'CATEGORY' => 'INIT', 'NUMBER' => 3, 'DELIVERY' => 1],
+        [
+            'PROJECT_ID' => 'project-1',
+            'CATEGORY' => 'REISSUE_ORDER',
+            'NUMBER' => 5,
+            'DELIVERY' => 2,
+            'PROJECT_REISSUE_ORDER_ID' => 'reissue-1',
+        ],
+    ]),
+    'pending shipment summary separates normal and reissue quantities'
+);
+$shipmentExistsSqlMethod = new ReflectionMethod(SaleProjectService::class, 'pendingShipmentExistsSql');
+assertSameValue(
+    true,
+    str_contains($shipmentExistsSqlMethod->invoke($costService, 'REISSUE_ORDER'), "shipment_item.CATEGORY = 'REISSUE_ORDER'"),
+    'pending reissue shipment query category'
+);
+$reissueSummaryMethod = new ReflectionMethod(SaleProjectBillingService::class, 'reissueShipmentSummary');
+assertSameValue(
+    [
+        'shipmentStatus' => 'PARTIALLY_REISSUED',
+        'totalQuantity' => 5,
+        'deliveredQuantity' => 2,
+        'pendingQuantity' => 3,
+    ],
+    $reissueSummaryMethod->invoke(new SaleProjectBillingService(), [
+        ['number' => 2, 'delivery' => 2],
+        ['number' => 3, 'delivery' => 0],
+    ]),
+    'reissue shipment progress summary'
+);
 $inventoryRequirementsMethod = new ReflectionMethod(SaleProjectService::class, 'inventoryRequirementsForProductItems');
 assertSameValue(
     [

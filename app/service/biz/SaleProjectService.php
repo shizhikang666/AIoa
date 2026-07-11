@@ -568,7 +568,7 @@ SQL;
 
             $projectState = $this->correctedProjectState(
                 (string)($project['PLAY_STATE'] ?? ''),
-                $this->allProductItemsShipped($projectId, $tenantId)
+                $this->allPrimaryProductItemsShipped($projectId, $tenantId)
             );
             $projectUpdate = Db::name('biz_sale_project')->where('ID', $projectId);
             $this->whereNotDeleted($projectUpdate, 'DELETE_FLAG');
@@ -930,7 +930,7 @@ SQL;
                     'PLAY_STATE' => (string)($project['PLAY_STATE'] ?? self::UNPAID_PLAY_STATE),
                     'PROJECT_STATE' => $this->correctedProjectState(
                         (string)($project['PLAY_STATE'] ?? self::UNPAID_PLAY_STATE),
-                        $this->allProductItemsShipped($projectId, $tenantId)
+                        $this->allPrimaryProductItemsShipped($projectId, $tenantId)
                     ),
                 ];
             }
@@ -1450,7 +1450,7 @@ SQL;
             $oldTotalPriceCents = $this->moneyCents($project['TOTAL_PRICE'] ?? '0');
             $historyAmountCents = $this->moneyCents($project['HISTORY_AMOUNT'] ?? '0');
 
-            $allShipped = $this->allProductItemsShipped($projectId, $tenantId);
+            $allShipped = $this->allPrimaryProductItemsShipped($projectId, $tenantId);
             $projectState = $this->correctedProjectState((string)($project['PLAY_STATE'] ?? ''), $allShipped);
 
             $paymentRecordCents = $this->sumProjectPaymentRecordCents($projectId, $tenantId);
@@ -2346,7 +2346,7 @@ SQL;
 
             $projectState = $this->correctedProjectState(
                 (string)($project['PLAY_STATE'] ?? ''),
-                $this->allProductItemsShipped($projectId, $effectiveTenantId)
+                $this->allPrimaryProductItemsShipped($projectId, $effectiveTenantId)
             );
             $projectQuery = Db::name('biz_sale_project')->where('ID', $projectId);
             $this->whereNotDeleted($projectQuery, 'DELETE_FLAG');
@@ -2423,9 +2423,20 @@ SQL;
             ->toArray();
         $records = $this->projectRows($rows);
         $returnOrders = $this->relatedRowsByIds('return_order', 'PROJECT_ID', array_column($records, 'id'), $payload, 'CREATE_TIME');
+        $includeShipmentSummary = $this->shipmentScope($filters) !== '';
+        $shipmentSummaries = [];
+        if ($includeShipmentSummary) {
+            $shipmentSummaries = $this->pendingShipmentSummariesByProjectIds(array_column($records, 'id'), $payload);
+        }
 
         foreach ($records as &$record) {
             $record['returnOrders'] = $returnOrders[(string)$record['id']] ?? [];
+            if ($includeShipmentSummary) {
+                $record = array_merge(
+                    $record,
+                    $shipmentSummaries[(string)$record['id']] ?? $this->emptyPendingShipmentSummary()
+                );
+            }
         }
         unset($record);
 
@@ -2494,7 +2505,17 @@ SQL;
             }
         }
 
-        $this->whereInIfPresent($query, 'p.PROJECT_STATE', $this->stringList($filters['projectState'] ?? []));
+        $shipmentScope = $this->shipmentScope($filters);
+        if ($shipmentScope !== '') {
+            $category = match ($shipmentScope) {
+                'NORMAL' => self::PRODUCT_ITEM_CATEGORY_INIT,
+                'REISSUE' => self::PRODUCT_ITEM_CATEGORY_REISSUE_ORDER,
+                default => null,
+            };
+            $query->whereRaw($this->pendingShipmentExistsSql($category));
+        } else {
+            $this->whereInIfPresent($query, 'p.PROJECT_STATE', $this->stringList($filters['projectState'] ?? []));
+        }
         $this->whereInIfPresent($query, 'p.PLAY_STATE', $this->stringList($filters['playState'] ?? []));
         $this->whereInIfPresent($query, 'c.SOURCE_TYPE', $this->stringList($filters['customerSourceType'] ?? []));
 
@@ -2531,6 +2552,118 @@ SQL;
         }
 
         return $query;
+    }
+
+    private function shipmentScope(array $filters): string
+    {
+        $scope = strtoupper(trim((string)($filters['shipmentScope'] ?? '')));
+
+        return in_array($scope, ['ALL', 'NORMAL', 'REISSUE'], true) ? $scope : '';
+    }
+
+    private function pendingShipmentExistsSql(?string $category = null): string
+    {
+        $categorySql = $category === null
+            ? "AND shipment_item.CATEGORY IN ('" . self::PRODUCT_ITEM_CATEGORY_INIT . "', '" . self::PRODUCT_ITEM_CATEGORY_REISSUE_ORDER . "')"
+            : "AND shipment_item.CATEGORY = '" . $category . "'";
+
+        return <<<SQL
+EXISTS (
+    SELECT 1
+    FROM biz_sale_project_product_item shipment_item
+    WHERE shipment_item.PROJECT_ID = p.ID
+      AND shipment_item.TENANT_ID = p.TENANT_ID
+      AND (shipment_item.DELETE_FLAG IS NULL OR shipment_item.DELETE_FLAG = 'NOT_DELETE')
+      AND shipment_item.STATE IN ('WAIT_DELIVER', 'PART_WAIT_DELIVER')
+      AND COALESCE(shipment_item.NUMBER, 0) > COALESCE(shipment_item.DELIVERY, 0)
+      {$categorySql}
+)
+SQL;
+    }
+
+    /**
+     * @param array<int, string> $projectIds
+     * @return array<string, array<string, mixed>>
+     */
+    private function pendingShipmentSummariesByProjectIds(array $projectIds, array $payload): array
+    {
+        $ids = $this->stringList($projectIds);
+        if ($ids === []) {
+            return [];
+        }
+
+        $query = Db::name('biz_sale_project_product_item')
+            ->whereIn('PROJECT_ID', $ids)
+            ->whereIn('CATEGORY', [self::PRODUCT_ITEM_CATEGORY_INIT, self::PRODUCT_ITEM_CATEGORY_REISSUE_ORDER])
+            ->whereIn('STATE', [self::PRODUCT_ITEM_STATE_WAIT_DELIVER, self::PART_WAIT_DELIVER_PRODUCT_ITEM_STATE])
+            ->whereRaw('COALESCE(NUMBER, 0) > COALESCE(DELIVERY, 0)')
+            ->field('PROJECT_ID,CATEGORY,NUMBER,DELIVERY,PROJECT_REISSUE_ORDER_ID');
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return $this->summarizePendingShipmentItems($query->select()->toArray());
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<string, array<string, mixed>>
+     */
+    private function summarizePendingShipmentItems(array $rows): array
+    {
+        $summaries = [];
+        $reissueOrderIds = [];
+
+        foreach ($rows as $row) {
+            $projectId = trim((string)($row['PROJECT_ID'] ?? $row['projectId'] ?? ''));
+            if ($projectId === '') {
+                continue;
+            }
+
+            $remaining = max(0.0, $this->number($row['NUMBER'] ?? $row['number'] ?? 0)
+                - $this->number($row['DELIVERY'] ?? $row['delivery'] ?? 0));
+            if ($remaining <= 0.000001) {
+                continue;
+            }
+
+            $summaries[$projectId] ??= $this->emptyPendingShipmentSummary();
+            $category = (string)($row['CATEGORY'] ?? $row['category'] ?? '');
+            if ($category === self::PRODUCT_ITEM_CATEGORY_REISSUE_ORDER) {
+                $summaries[$projectId]['pendingReissueQuantity'] += $remaining;
+                $orderId = trim((string)($row['PROJECT_REISSUE_ORDER_ID'] ?? $row['projectReissueOrderId'] ?? ''));
+                if ($orderId !== '') {
+                    $reissueOrderIds[$projectId][$orderId] = true;
+                }
+            } elseif ($category === self::PRODUCT_ITEM_CATEGORY_INIT) {
+                $summaries[$projectId]['pendingNormalQuantity'] += $remaining;
+            }
+        }
+
+        foreach ($summaries as $projectId => &$summary) {
+            $summary['pendingNormalQuantity'] = $this->decimal($summary['pendingNormalQuantity']) ?? 0;
+            $summary['pendingReissueQuantity'] = $this->decimal($summary['pendingReissueQuantity']) ?? 0;
+            $summary['pendingReissueOrderCount'] = count($reissueOrderIds[$projectId] ?? []);
+            $summary['hasPendingNormalShipment'] = (float)$summary['pendingNormalQuantity'] > 0.000001;
+            $summary['hasPendingReissue'] = (float)$summary['pendingReissueQuantity'] > 0.000001;
+        }
+        unset($summary);
+
+        return $summaries;
+    }
+
+    /** @return array<string, mixed> */
+    private function emptyPendingShipmentSummary(): array
+    {
+        return [
+            'pendingNormalQuantity' => 0,
+            'pendingReissueQuantity' => 0,
+            'pendingReissueOrderCount' => 0,
+            'hasPendingNormalShipment' => false,
+            'hasPendingReissue' => false,
+        ];
     }
 
     private function canReadProjectFromWorkflow(string $projectId, array $payload): bool
@@ -3684,7 +3817,7 @@ SQL)
                     + $this->moneyCents($project['HISTORY_AMOUNT'] ?? '0')
                 ),
                 'PLAY_STATE' => $playState,
-                'PROJECT_STATE' => $this->correctedProjectState($playState, $this->allProductItemsShipped($projectId, $tenantId)),
+                'PROJECT_STATE' => $this->correctedProjectState($playState, $this->allPrimaryProductItemsShipped($projectId, $tenantId)),
             ];
         }
 
@@ -5095,7 +5228,7 @@ SQL)
         }
 
         $projectState = self::PARTIALLY_SHIPPED_STATE;
-        if ($this->allProductItemsShipped($projectId, $tenantId)) {
+        if ($this->allPrimaryProductItemsShipped($projectId, $tenantId)) {
             $projectState = $playState === self::PAID_PLAY_STATE ? self::COMPLETED_STATE : self::SHIPPED_STATE;
         }
 
@@ -5137,11 +5270,11 @@ SQL)
 
     private function correctedProjectStateAfterDeliveryCorrection(string $projectId, string $tenantId, string $playState): string
     {
-        if ($this->allProductItemsShipped($projectId, $tenantId)) {
+        if ($this->allPrimaryProductItemsShipped($projectId, $tenantId)) {
             return $this->correctedProjectState($playState, true);
         }
 
-        if (!$this->anyProductItemsDelivered($projectId, $tenantId)) {
+        if (!$this->anyPrimaryProductItemsDelivered($projectId, $tenantId)) {
             return self::WAIT_DELIVER_STATE;
         }
 
@@ -5159,17 +5292,36 @@ SQL)
         return (int)$query->count() > 0;
     }
 
-    private function allProductItemsShipped(string $projectId, string $tenantId): bool
+    private function allPrimaryProductItemsShipped(string $projectId, string $tenantId): bool
     {
         $query = Db::name('biz_sale_project_product_item')
             ->where('PROJECT_ID', $projectId)
-            ->where('STATE', '<>', self::SHIPPED_PRODUCT_ITEM_STATE);
+            ->where('STATE', '<>', self::SHIPPED_PRODUCT_ITEM_STATE)
+            ->where(function ($query): void {
+                $query->whereNull('CATEGORY')->whereOr('CATEGORY', '<>', self::PRODUCT_ITEM_CATEGORY_REISSUE_ORDER);
+            });
         $this->whereNotDeleted($query, 'DELETE_FLAG');
         if ($tenantId !== '') {
             $query->where('TENANT_ID', $tenantId);
         }
 
         return (int)$query->count() === 0;
+    }
+
+    private function anyPrimaryProductItemsDelivered(string $projectId, string $tenantId): bool
+    {
+        $query = Db::name('biz_sale_project_product_item')
+            ->where('PROJECT_ID', $projectId)
+            ->where('DELIVERY', '>', 0)
+            ->where(function ($query): void {
+                $query->whereNull('CATEGORY')->whereOr('CATEGORY', '<>', self::PRODUCT_ITEM_CATEGORY_REISSUE_ORDER);
+            });
+        $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        return (int)$query->count() > 0;
     }
 
     private function anyProductItemsDelivered(string $projectId, string $tenantId): bool

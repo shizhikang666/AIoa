@@ -90,6 +90,11 @@
 								<template v-if="column.dataIndex === 'productCategory'">
 									{{ $TOOL.dictTypeDataByPath('PRODUCT_DICT', 'PRODUCT_TYPE', record.productCategory) }}
 								</template>
+								<template v-if="column.dataIndex === 'category'">
+									<a-tag :color="record.category === 'REISSUE_ORDER' ? 'orange' : 'blue'">
+										{{ shipmentCategoryText(record.category) }}
+									</a-tag>
+								</template>
 								<template v-if="column.dataIndex === 'warehousesId'">
 									<a-form-item
 										:key="formData.projectProductItemList[index].warehousesId"
@@ -172,7 +177,9 @@
 			<a-table rowKey="id" :rowSelection="rowSelection" :data-source="modalProductList" :columns="modalColumn">
 				<template #bodyCell="{ column, record }">
 					<template v-if="column.dataIndex === 'category'">
-						{{ $TOOL.dictTypeDataByPath('SALE_PROJECT', 'SALE_PROJECT_ITEM_CATEGORY', record.category) }}
+						<a-tag :color="record.category === 'REISSUE_ORDER' ? 'orange' : 'blue'">
+							{{ shipmentCategoryText(record.category) }}
+						</a-tag>
 					</template>
 					<template v-if="column.dataIndex === 'productSpecs'">
 						{{ $TOOL.dictTypeDataByPath('PRODUCT_DICT', 'PRODUCT_SPECS', record.productSpecs || record.specs) }}
@@ -248,6 +255,11 @@
 			width: '20%'
 		},
 		{
+			title: '发货类型',
+			dataIndex: 'category',
+			width: '15%'
+		},
+		{
 			title: '数量',
 			width: '10%',
 			dataIndex: 'amount'
@@ -269,6 +281,7 @@
 		}
 	]
 	const allProductList = ref([])
+	const shipmentCategoryText = (category) => (category === 'REISSUE_ORDER' ? '补发' : '正常发货')
 	const error = ref(false)
 	const loading = ref(false)
 	let id = ''
@@ -440,6 +453,7 @@
 			let max = v.number - v.delivery
 			return {
 				projectProductItemId: v.id,
+				category: v.category,
 				productCategory: v.productCategory,
 				warehousesId: defaultWarehouseId.value
 					? defaultWarehouseId.value

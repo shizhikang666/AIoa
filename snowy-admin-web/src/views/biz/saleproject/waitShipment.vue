@@ -13,6 +13,11 @@
 						<a-input v-model:value="searchFormState.projectCode" placeholder="请输入项目编号" />
 					</a-form-item>
 				</a-col>
+				<a-col :span="6">
+					<a-form-item label="发货类型" name="shipmentScope">
+						<a-select v-model:value="searchFormState.shipmentScope" :options="shipmentScopeOptions" />
+					</a-form-item>
+				</a-col>
 
 				<a-col :span="6" v-show="advanced">
 					<a-form-item label="付款状态" name="playState">
@@ -118,8 +123,22 @@
 				<template v-if="column.dataIndex === 'projectCategory'">
 					{{ $TOOL.dictTypeDataByPath('SALE_PROJECT', 'PROJECT_CATEGORY', record.projectCategory) }}
 				</template>
+				<template v-if="column.dataIndex === 'shipmentType'">
+					<a-space :size="4" wrap>
+						<a-tag v-if="record.hasPendingNormalShipment" color="blue">正常发货</a-tag>
+						<a-tag v-if="record.hasPendingReissue" color="orange">
+							补发待发<span v-if="record.pendingReissueOrderCount">（{{ record.pendingReissueOrderCount }}单）</span>
+						</a-tag>
+					</a-space>
+				</template>
+				<template v-if="column.dataIndex === 'pendingQuantity'">
+					<a-space direction="vertical" :size="0">
+						<span v-if="record.hasPendingNormalShipment">正常：{{ record.pendingNormalQuantity }}</span>
+						<span v-if="record.hasPendingReissue" class="reissue-quantity">补发：{{ record.pendingReissueQuantity }}</span>
+					</a-space>
+				</template>
 				<template v-if="column.dataIndex === 'action'">
-					<a @click="openAddProjectDelivery(record)">添加发货单</a>
+					<a @click="openAddProjectDelivery(record)">处理发货</a>
 				</template>
 			</template>
 		</s-table>
@@ -148,7 +167,7 @@
 	const { treeData, loadingTreeData, findTopCompanyByOrgId } = useOrg()
 	const { message, modal, notification } = App.useApp()
 
-	const searchFormState = ref({})
+	const searchFormState = ref({ shipmentScope: 'ALL' })
 	const searchFormRef = ref()
 	const tableRef = ref()
 	const formRef = ref()
@@ -167,6 +186,16 @@
 		{
 			title: '项目名称',
 			dataIndex: 'projectName'
+		},
+		{
+			title: '发货类型',
+			dataIndex: 'shipmentType',
+			width: 150
+		},
+		{
+			title: '待发数量',
+			dataIndex: 'pendingQuantity',
+			width: 110
 		},
 		{
 			title: '项目状态',
@@ -237,16 +266,12 @@
 			searchFormParam.playState = searchFormParam.playState.join(',')
 		}
 
-		if (searchFormParam.projectState) {
-			searchFormParam.projectState = searchFormParam.projectState.join(',')
-		}
-
 		await loadingTreeData()
 
 		return bizSaleProjectApi
 			.bizSaleProjectPage(
 				Object.assign(parameter, searchFormParam, {
-					projectState: 'PARTIALLY_SHIPPED,WAIT_DELIVER',
+					shipmentScope: searchFormParam.shipmentScope || 'ALL',
 					sortField: 'updateTime'
 				})
 			)
@@ -268,6 +293,7 @@
 	// 重置
 	const reset = () => {
 		searchFormRef.value.resetFields()
+		searchFormState.value.shipmentScope = 'ALL'
 		tableRef.value.refresh(true)
 	}
 
@@ -276,6 +302,11 @@
 	const playStateOptions = tool.dictListByPath('SALE_PROJECT', 'SALE_PROJECT_PLAY_STATE')
 	const visibilityOptions = tool.dictListByPath('SALE_PROJECT', 'SALE_PROJECT_VISIBILITY')
 	const projectCategoryOptions = tool.dictListByPath('SALE_PROJECT', 'PROJECT_CATEGORY')
+	const shipmentScopeOptions = [
+		{ label: '全部待发', value: 'ALL' },
+		{ label: '正常发货', value: 'NORMAL' },
+		{ label: '补发', value: 'REISSUE' }
+	]
 
 	const openAddProjectDelivery = (record) => {
 		startProjectDeliveryFlowForm.value.onOpen(record)
@@ -289,3 +320,9 @@
 		record.visibility = record.visibility === 'PUBLIC' ? 'PRIVATE' : 'PUBLIC'
 	}
 </script>
+
+<style scoped>
+	.reissue-quantity {
+		color: #d46b08;
+	}
+</style>

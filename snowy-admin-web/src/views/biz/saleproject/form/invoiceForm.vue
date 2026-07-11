@@ -15,6 +15,20 @@
 	const projectProductItemList = ref([])
 	const projectBaseInfo = ref({})
 	const reissueOrderList = ref([])
+	const reissueStatusText = (status) => {
+		return {
+			WAIT_REISSUE: '待补发',
+			PARTIALLY_REISSUED: '部分补发',
+			REISSUED: '补发完成'
+		}[status] || '待补发'
+	}
+	const reissueStatusColor = (status) => {
+		return {
+			WAIT_REISSUE: 'orange',
+			PARTIALLY_REISSUED: 'blue',
+			REISSUED: 'green'
+		}[status] || 'orange'
+	}
 	const activeKey = ref('baseInfo')
 	const open = ref(false)
 	const onClose = () => {
@@ -89,7 +103,7 @@
 		reissueOrderList.value = reissueOrderListResult
 		//获取项目基本信息
 		projectBaseInfo.value = result?.bizSaleProject
-		projectProductItemList.value = result?.productItems
+		projectProductItemList.value = (result?.productItems || []).filter((item) => item.category !== 'REISSUE_ORDER')
 	})
 
 	const { load: exportWord, loading: exportWordLoading } = useLoading(async () => {
@@ -223,6 +237,12 @@
 					<template :key="item.order.id" v-for="(item, i) in reissueOrderList">
 						<a-descriptions bordered :title="`补发单(${item.order.createTime})`" size="small">
 							<a-descriptions-item label="创建人">{{ item.order.createUserName }}</a-descriptions-item>
+							<a-descriptions-item label="补发状态">
+								<a-tag :color="reissueStatusColor(item.order.shipmentStatus)">
+									{{ reissueStatusText(item.order.shipmentStatus) }}
+								</a-tag>
+								<span v-if="item.order.pendingQuantity">待发 {{ item.order.pendingQuantity }}</span>
+							</a-descriptions-item>
 
 							<a-descriptions-item label="备注">{{ item.order.remark }}</a-descriptions-item>
 						</a-descriptions>

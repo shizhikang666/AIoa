@@ -273,6 +273,12 @@
 						<template :key="item.order.id" v-for="item in reissueOrderList">
 							<a-descriptions bordered :title="`补发单(${item.order.createTime})`" size="small">
 								<a-descriptions-item label="创建人">{{ item.order.createUserName }} </a-descriptions-item>
+								<a-descriptions-item label="补发状态">
+									<a-tag :color="reissueStatusColor(item.order.shipmentStatus)">
+										{{ reissueStatusText(item.order.shipmentStatus) }}
+									</a-tag>
+									<span v-if="item.order.pendingQuantity">待发 {{ item.order.pendingQuantity }}</span>
+								</a-descriptions-item>
 								<a-descriptions-item label="增加金额">{{ item.order.amount }}</a-descriptions-item>
 
 								<a-descriptions-item label="备注">{{ item.order.remark }}</a-descriptions-item>
@@ -510,6 +516,20 @@
 		}
 	]
 	const reissueOrderList = ref([])
+	const reissueStatusText = (status) => {
+		return {
+			WAIT_REISSUE: '待补发',
+			PARTIALLY_REISSUED: '部分补发',
+			REISSUED: '补发完成'
+		}[status] || '待补发'
+	}
+	const reissueStatusColor = (status) => {
+		return {
+			WAIT_REISSUE: 'orange',
+			PARTIALLY_REISSUED: 'blue',
+			REISSUED: 'green'
+		}[status] || 'orange'
+	}
 	const { isDeal } = useProject(projectBaseInfo)
 	const receivable = computed(() => {
 		//console.log(projectBaseInfo.value.totalPrice)
@@ -573,11 +593,13 @@
 			// 更新项目基本信息
 			projectBaseInfo.value = projectDetail.bizSaleProject
 			changeLogs.value = projectDetail.changeLogs
-			projectProductItemList.value = projectDetail.productItems.map((item) => ({
-				...item,
-				isReturn: !!returnMap[item.id],
-				returnAmount: returnMap[item.id] || 0
-			}))
+			projectProductItemList.value = projectDetail.productItems
+				.filter((item) => item.category !== 'REISSUE_ORDER')
+				.map((item) => ({
+					...item,
+					isReturn: !!returnMap[item.id],
+					returnAmount: returnMap[item.id] || 0
+				}))
 			// 更新补发单列表
 			reissueOrderList.value = reissueOrderListResult.map((item) => ({
 				...item,
