@@ -76,6 +76,18 @@ assertSameValue(true, TenantScope::canCrossTenant($superPayload), 'super admin c
 
 $costMethod = new ReflectionMethod(SaleProjectService::class, 'addProductCostAmount');
 $costService = new SaleProjectService();
+$productItemRowsMethod = new ReflectionMethod(SaleProjectService::class, 'productItemRows');
+$productItemRows = $productItemRowsMethod->invoke($costService, [[
+    'ID' => 'item-1',
+    'PROJECT_ID' => 'project-1',
+    'PRODUCT_ID' => 'product-1',
+    'NUMBER' => '1',
+    'DELIVERY' => '0',
+    'SPECS' => 'cover',
+    'PURCHASE_PRICE' => '12.5',
+]]);
+assertSameValue('cover', $productItemRows[0]['productSpecs'] ?? null, 'sale project product specification alias');
+assertSameValue(0, $productItemRows[0]['delivery'] ?? null, 'sale project delivered quantity zero');
 $inventoryRequirementsMethod = new ReflectionMethod(SaleProjectService::class, 'inventoryRequirementsForProductItems');
 assertSameValue(
     [

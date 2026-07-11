@@ -175,7 +175,7 @@
 						{{ $TOOL.dictTypeDataByPath('SALE_PROJECT', 'SALE_PROJECT_ITEM_CATEGORY', record.category) }}
 					</template>
 					<template v-if="column.dataIndex === 'productSpecs'">
-						{{ $TOOL.dictTypeDataByPath('PRODUCT_DICT', 'PRODUCT_SPECS', record.productSpecs) }}
+						{{ $TOOL.dictTypeDataByPath('PRODUCT_DICT', 'PRODUCT_SPECS', record.productSpecs || record.specs) }}
 					</template>
 				</template>
 			</a-table>
