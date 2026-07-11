@@ -35,7 +35,10 @@ p.SALE_PRICE AS SALE_PRICE,
 p.MIN_PRICE AS MIN_PRICE,
 p.CATEGORY AS CATEGORY,
 p.SPECS AS SPECS,
-p.status AS PRODUCT_STATUS
+p.status AS PRODUCT_STATUS,
+w.NAME AS WAREHOUSE_NAME,
+w.CODE AS WAREHOUSE_CODE,
+w.ADDRESS AS WAREHOUSE_ADDRESS
 SQL;
     private const SORT_FIELD_MAP = [
         'id' => 'i.ID',
@@ -241,6 +244,7 @@ SQL;
         $query = Db::name('inventory')
             ->alias('i')
             ->leftJoin('biz_product p', 'p.ID = i.PRODUCT_ID')
+            ->leftJoin('warehouses w', 'w.ID = i.WAREHOUSES_ID')
             ->where(function ($query): void {
                 $query->whereNull('i.DELETE_FLAG')->whereOr('i.DELETE_FLAG', '=', self::NOT_DELETE);
             });
@@ -334,6 +338,9 @@ SQL;
             'category' => $this->value($row, 'CATEGORY', 'category'),
             'specs' => $this->value($row, 'SPECS', 'specs'),
             'status' => $this->value($row, 'PRODUCT_STATUS', 'status'),
+            'warehouseName' => $this->value($row, 'WAREHOUSE_NAME', 'warehouseName'),
+            'warehouseCode' => $this->value($row, 'WAREHOUSE_CODE', 'warehouseCode'),
+            'warehouseAddress' => $this->value($row, 'WAREHOUSE_ADDRESS', 'warehouseAddress'),
             'inventory' => $inventory,
         ];
     }

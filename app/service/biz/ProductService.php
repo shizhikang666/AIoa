@@ -50,7 +50,7 @@ class ProductService
             ->toArray();
 
         return [
-            'records' => $this->productRows($rows),
+            'records' => $this->productRows($rows, $payload, true),
             'total' => $total,
             'page' => $page,
             'current' => $page,
@@ -80,7 +80,7 @@ class ProductService
         }
 
         return [
-            'bizProduct' => $this->productRows([$row])[0],
+            'bizProduct' => $this->productRows([$row], $payload, true)[0],
             'productList' => $this->kitProductsForObject($id),
         ];
     }
@@ -743,11 +743,99 @@ class ProductService
      * @param array<int, array<string, mixed>> $rows
      * @return array<int, array<string, mixed>>
      */
-    private function productRows(array $rows): array
+    private function productRows(array $rows, array $payload = [], bool $includeInventory = false): array
     {
         $orgNames = $this->orgNames($rows);
+        $products = array_map(fn (array $row): array => $this->productRow($row, $orgNames), $rows);
+        if (!$includeInventory || $products === []) {
+            return $products;
+        }
 
-        return array_map(fn (array $row): array => $this->productRow($row, $orgNames), $rows);
+        $productIds = array_values(array_filter(array_map(
+            static fn (array $product): string => trim((string)($product['id'] ?? '')),
+            $products
+        )));
+
+        return $this->attachInventoryDistribution(
+            $products,
+            $this->inventoryDistribution($productIds, $payload)
+        );
+    }
+
+    /**
+     * @param array<int, string> $productIds
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    private function inventoryDistribution(array $productIds, array $payload): array
+    {
+        if ($productIds === []) {
+            return [];
+        }
+
+        $query = Db::name('inventory')
+            ->alias('i')
+            ->leftJoin('warehouses w', 'w.ID = i.WAREHOUSES_ID')
+            ->whereIn('i.PRODUCT_ID', $productIds)
+            ->where(function ($query): void {
+                $query->whereNull('i.DELETE_FLAG')->whereOr('i.DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->where(function ($query): void {
+                $query->whereNull('w.DELETE_FLAG')->whereOr('w.DELETE_FLAG', '=', self::NOT_DELETE);
+            });
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            $query->where('i.TENANT_ID', $tenantId)->where('w.TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field('i.ID AS INVENTORY_ID,i.PRODUCT_ID,i.CURRENT_COUNT,i.UPDATE_TIME,w.ID AS WAREHOUSE_ID,w.NAME AS WAREHOUSE_NAME,w.CODE AS WAREHOUSE_CODE,w.ADDRESS AS WAREHOUSE_ADDRESS')
+            ->order('w.SORT_CODE', 'asc')
+            ->order('w.NAME', 'asc')
+            ->select()
+            ->toArray();
+
+        $distribution = [];
+        foreach ($rows as $row) {
+            $productId = trim((string)($row['PRODUCT_ID'] ?? ''));
+            $warehouseId = trim((string)($row['WAREHOUSE_ID'] ?? ''));
+            if ($productId === '' || $warehouseId === '') {
+                continue;
+            }
+            $distribution[$productId][] = [
+                'inventoryId' => $row['INVENTORY_ID'] ?? null,
+                'warehouseId' => $warehouseId,
+                'warehouseName' => $row['WAREHOUSE_NAME'] ?? null,
+                'warehouseCode' => $row['WAREHOUSE_CODE'] ?? null,
+                'warehouseAddress' => $row['WAREHOUSE_ADDRESS'] ?? null,
+                'currentCount' => $this->decimal($row['CURRENT_COUNT'] ?? 0) ?? 0,
+                'updateTime' => $row['UPDATE_TIME'] ?? null,
+            ];
+        }
+
+        return $distribution;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $products
+     * @param array<string, array<int, array<string, mixed>>> $distribution
+     * @return array<int, array<string, mixed>>
+     */
+    private function attachInventoryDistribution(array $products, array $distribution): array
+    {
+        return array_map(function (array $product) use ($distribution): array {
+            $items = $distribution[(string)($product['id'] ?? '')] ?? [];
+            $total = array_reduce(
+                $items,
+                static fn (float $sum, array $item): float => $sum + (float)($item['currentCount'] ?? 0),
+                0.0
+            );
+            $product['warehouseInventory'] = $items;
+            $product['warehouseCount'] = count($items);
+            $product['totalInventory'] = $this->decimal($total) ?? 0;
+
+            return $product;
+        }, $products);
     }
 
     /**

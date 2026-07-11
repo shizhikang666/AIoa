@@ -27,6 +27,8 @@
 						<a-descriptions-item label="安全库存">{{ result.bizProduct.safetyStock }}</a-descriptions-item>
 						<a-descriptions-item label="售价">{{ result.bizProduct.salePrice }}</a-descriptions-item>
 						<a-descriptions-item label="采购价">{{ result.bizProduct.purchasePrice }}</a-descriptions-item>
+						<a-descriptions-item label="库存仓库数">{{ result.bizProduct.warehouseCount ?? 0 }}</a-descriptions-item>
+						<a-descriptions-item label="总库存">{{ result.bizProduct.totalInventory ?? 0 }}</a-descriptions-item>
 						<a-descriptions-item span="4" label="封面图片">
 							<a-image
 								v-if="result.bizProduct.coverImage"
@@ -69,6 +71,30 @@
 						</template>
 					</a-result>
 				</a-tab-pane>
+				<a-tab-pane key="warehouse" tab="库存分布">
+					<a-table
+						:columns="warehouseColumns"
+						:data-source="result.bizProduct.warehouseInventory || []"
+						:pagination="false"
+						:row-key="(row) => row.warehouseId"
+						bordered
+						size="small"
+					>
+						<template #bodyCell="{ column, record }">
+							<template v-if="column.dataIndex === 'currentCount'">
+								<span :style="{ color: Number(record.currentCount || 0) < 0 ? '#ff4d4f' : '' }">
+									{{ record.currentCount ?? 0 }}
+								</span>
+							</template>
+							<template v-if="column.dataIndex === 'updateTime'">
+								{{ record.updateTime || '--' }}
+							</template>
+						</template>
+						<template #emptyText>
+							<a-empty description="该产品尚未录入任何仓库" />
+						</template>
+					</a-table>
+				</a-tab-pane>
 				<a-tab-pane key="inventory" tab="出入库记录">
 					<inventory-info :product-id="record.id"></inventory-info>
 				</a-tab-pane>
@@ -95,6 +121,7 @@
 	// 打开抽屉
 	const onOpen = (record_object) => {
 		record.value = record_object
+		activeKey.value = 'baseInfo'
 		open.value = true
 		loadData()
 	}
@@ -118,6 +145,30 @@
 		{
 			title: '类别',
 			dataIndex: 'category'
+		}
+	]
+	const warehouseColumns = [
+		{
+			title: '仓库名称',
+			dataIndex: 'warehouseName'
+		},
+		{
+			title: '仓库编码',
+			dataIndex: 'warehouseCode'
+		},
+		{
+			title: '仓库地址',
+			dataIndex: 'warehouseAddress'
+		},
+		{
+			title: '当前库存',
+			dataIndex: 'currentCount',
+			width: 100
+		},
+		{
+			title: '更新时间',
+			dataIndex: 'updateTime',
+			width: 180
 		}
 	]
 

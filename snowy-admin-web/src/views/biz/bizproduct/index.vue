@@ -115,6 +115,22 @@
 				<template v-if="column.dataIndex === 'productName'">
 					<a-typography-link @click="productDetail.onOpen(record)">{{ record.productName }} </a-typography-link>
 				</template>
+				<template v-if="column.dataIndex === 'warehouseInventory'">
+					<a-space v-if="record.warehouseInventory?.length" :size="[0, 4]" wrap>
+						<a-tag v-for="item in record.warehouseInventory" :key="item.warehouseId" color="blue">
+							{{ item.warehouseName || item.warehouseCode || '未命名仓库' }}：
+							<span :style="{ color: Number(item.currentCount || 0) < 0 ? '#ff4d4f' : '' }">
+								{{ item.currentCount ?? 0 }}
+							</span>
+						</a-tag>
+					</a-space>
+					<a-typography-text v-else type="secondary">未录入仓库</a-typography-text>
+				</template>
+				<template v-if="column.dataIndex === 'totalInventory'">
+					<span :style="{ color: Number(record.totalInventory || 0) < 0 ? '#ff4d4f' : '' }">
+						{{ record.totalInventory ?? 0 }}
+					</span>
+				</template>
 				<template v-if="column.dataIndex === 'productCategory'">
 					{{ $TOOL.dictTypeDataByPath('PRODUCT_DICT', 'PRODUCT_TYPE', record.productCategory) }}
 				</template>
@@ -248,6 +264,16 @@
 		{
 			title: '安全库存',
 			dataIndex: 'safetyStock'
+		},
+		{
+			title: '库存仓库',
+			dataIndex: 'warehouseInventory',
+			width: 260
+		},
+		{
+			title: '总库存',
+			dataIndex: 'totalInventory',
+			width: 90
 		},
 		{
 			title: '采购价格',

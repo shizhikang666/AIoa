@@ -3,8 +3,15 @@
 		<a-form ref="searchFormRef" name="advanced_search" :model="searchFormState" class="ant-advanced-search-form">
 			<a-row :gutter="24">
 				<a-col :span="6">
-					<a-form-item label="仓库编号" name="warehousesId">
-						<a-input v-model:value="searchFormState.warehousesId" placeholder="请输入仓库编号" />
+					<a-form-item label="仓库" name="warehousesId">
+						<a-select
+							v-model:value="searchFormState.warehousesId"
+							:options="warehouseOptions"
+							placeholder="请选择仓库"
+							allow-clear
+							show-search
+							option-filter-prop="label"
+						/>
 					</a-form-item>
 				</a-col>
 
@@ -75,11 +82,13 @@
 	import { cloneDeep } from 'lodash-es'
 
 	import deliveryRecordApi from '@/api/biz/deliveryRecordApi'
+	import warehousesApi from '@/api/biz/warehousesApi'
 
 	const searchFormState = ref({})
 	const searchFormRef = ref()
 	const tableRef = ref()
 	const processDetailsRef = ref()
+	const warehouseOptions = ref([])
 	const toolConfig = { refresh: true, height: true, columnSetting: true, striped: false }
 	// 查询区域显示更多控制
 	const advanced = ref(false)
@@ -159,4 +168,13 @@
 		searchFormRef.value.resetFields()
 		tableRef.value.refresh(true)
 	}
+
+	warehousesApi.warehousesList().then((warehouses) => {
+		warehouseOptions.value = warehouses.map((warehouse) => ({
+			label: warehouse.code ? `${warehouse.name}（${warehouse.code}）` : warehouse.name,
+			value: warehouse.id
+		}))
+	}).catch(() => {
+		warehouseOptions.value = []
+	})
 </script>

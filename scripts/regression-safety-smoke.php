@@ -7,6 +7,7 @@ use app\service\biz\SaleProjectService;
 use app\service\biz\SaleProjectBillingService;
 use app\service\biz\ReturnOrderService;
 use app\service\biz\AfterSalesService;
+use app\service\biz\ProductService;
 use app\service\workflow\WorkflowRuntimeService;
 use app\support\FileDownloadUrl;
 use app\support\LegacyFileSource;
@@ -258,6 +259,21 @@ assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), 'oncli
 assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), 'javascript:'), 'after-sales HTML strips javascript URLs');
 $afterSalesSummary = new ReflectionMethod(AfterSalesService::class, 'summary');
 assertSameValue('处理完成', $afterSalesSummary->invoke($afterSalesService, '<p>处理完成</p>'), 'after-sales content summary');
+$productService = new ProductService();
+$attachInventoryDistribution = new ReflectionMethod(ProductService::class, 'attachInventoryDistribution');
+$productsWithInventory = $attachInventoryDistribution->invoke(
+    $productService,
+    [['id' => 'product-1', 'productName' => '测试产品'], ['id' => 'product-2', 'productName' => '无库存产品']],
+    [
+        'product-1' => [
+            ['warehouseId' => 'warehouse-1', 'warehouseName' => '一号仓库', 'currentCount' => 5],
+            ['warehouseId' => 'warehouse-2', 'warehouseName' => '二号仓库', 'currentCount' => -1.5],
+        ],
+    ]
+);
+assertSameValue(2, $productsWithInventory[0]['warehouseCount'] ?? null, 'product warehouse distribution count');
+assertSameValue(3.5, $productsWithInventory[0]['totalInventory'] ?? null, 'product warehouse total inventory');
+assertSameValue([], $productsWithInventory[1]['warehouseInventory'] ?? null, 'product without warehouse inventory');
 $afterSalesInstaller = file_get_contents(dirname(__DIR__) . '/scripts/install-after-sales-module.php');
 assertSameValue(
     true,

@@ -47,6 +47,14 @@
 						>{{ record.productName }}
 					</a-typography-link>
 				</template>
+				<template v-if="column.dataIndex === 'warehouseName'">
+					<a-space direction="vertical" :size="0">
+						<span>{{ record.warehouseName || '--' }}</span>
+						<a-typography-text v-if="record.warehouseCode" type="secondary">
+							{{ record.warehouseCode }}
+						</a-typography-text>
+					</a-space>
+				</template>
 				<template v-if="column.dataIndex === 'currentCount'">
 					<a-space>
 						<span
@@ -136,6 +144,10 @@
 		{
 			title: '产品名称',
 			dataIndex: 'productName'
+		},
+		{
+			title: '所属仓库',
+			dataIndex: 'warehouseName'
 		},
 		{
 			title: '产品分类',
