@@ -11,7 +11,7 @@ $app = new think\App(dirname(__DIR__));
 $app->initialize();
 
 $apply = in_array('--apply', $argv, true);
-$operator = 'after-sales-installer';
+$operator = 'aftersales-installer';
 
 function installer_id(): string
 {

@@ -181,6 +181,8 @@ foreach ($script in @(
     'deployment-readiness.ps1',
     'deployment-readiness.sh',
     'migrate-legacy-files.php',
+    'install-after-sales-module.php',
+    'install-sale-project-travel-days.php',
     'oa-fucity-remote-deploy.sh'
 )) {
     Copy-Item -LiteralPath (Join-Path $ProjectRoot "scripts\$script") -Destination $scriptReleaseRoot -Force
