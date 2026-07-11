@@ -6,79 +6,112 @@
 	import bizDataReportApi from '@/api/biz/bizDataReportApi'
 	import { Decimal } from 'decimal.js'
 	import { useOrg } from '@/composables/useOrg'
+	import { useRouter } from 'vue-router'
 
+	const router = useRouter()
 	const { treeData, loadingTreeData } = useOrg()
 	loadingTreeData().then()
-	const searchFormState = ref({})
+
+	const createDefaultSearch = () => ({
+		statisticsMonth: dayjs()
+	})
+	const searchFormState = ref(createDefaultSearch())
+	const appliedSearchState = ref(createDefaultSearch())
 	const saleProjectList = ref([])
 
+	const selectedMonth = computed(() => appliedSearchState.value.statisticsMonth || dayjs())
+	const selectedMonthLabel = computed(() => selectedMonth.value.format('YYYY年MM月'))
+	const getMonthRange = (month) => ({
+		startCreateTime: month.startOf('month').format('YYYY-MM-DD HH:mm:ss'),
+		endCreateTime: month.endOf('month').format('YYYY-MM-DD HH:mm:ss')
+	})
+
 	const reset = async () => {
-		searchFormRef.value.resetFields()
+		searchFormState.value = createDefaultSearch()
 		await load()
 	}
-	const { load, loading, error } = useLoading(async () => {
-		const now = dayjs()
-		// 获取本月的第一天
-		const firstDayOfMonth = now.startOf('month')
-		// 获取本月的最后一天
-		const lastDayOfMonth = now.endOf('month')
-		// 设置时间为 00:00:00
-		const startOfMonth = firstDayOfMonth.hour(0).minute(0).second(0)
 
-		// 设置时间为 23:59:59
-		const endOfMonth = lastDayOfMonth.hour(23).minute(59).second(59)
-		const startCreateTime = startOfMonth.format('YYYY-MM-DD HH:mm:ss')
-		const endCreateTime = endOfMonth.format('YYYY-MM-DD HH:mm:ss')
+	const { load, loading, error } = useLoading(async () => {
+		const requestedMonth = searchFormState.value.statisticsMonth || dayjs()
 		const param = {
-			endCreateTime,
-			startCreateTime
+			...getMonthRange(requestedMonth)
 		}
 		if (searchFormState.value.orgId) {
 			param.orgId = searchFormState.value.orgId
 		}
-
-		if (searchFormState.value.orgId) {
+		if (searchFormState.value.headName) {
 			param.headName = searchFormState.value.headName
 		}
 
-		saleProjectList.value = await bizDataReportApi.bizSaleProjectDataList({
-			...param
-		})
+		const projects = await bizDataReportApi.bizSaleProjectDataList(param)
+		saleProjectList.value = projects
+		appliedSearchState.value = {
+			...searchFormState.value,
+			statisticsMonth: requestedMonth
+		}
 	})
-	const totalAmount = computed(() => {
-		let total = new Decimal(0)
-		saleProjectList.value.forEach((v) => {
-			total = total.add(v.totalPrice)
-		})
 
-		return total.toString()
+	const totalAmount = computed(() => {
+		return saleProjectList.value
+			.reduce((total, project) => total.add(project.totalPrice || 0), new Decimal(0))
+			.toString()
 	})
 	const amountCollected = computed(() => {
-		let total = new Decimal(0)
-		saleProjectList.value.forEach((v) => {
-			total = total.add(v.amountCollected)
-		})
+		return saleProjectList.value
+			.reduce((total, project) => total.add(project.amountCollected || 0), new Decimal(0))
+			.toString()
+	})
+	const rebateProjectCount = computed(() => {
+		return saleProjectList.value.filter((project) => new Decimal(project.rebateAmount || 0).greaterThan(0)).length
+	})
 
-		return total.toString()
-	})
-	watchEffect(() => {
-		load()
-	})
+	const openRebateProjects = () => {
+		const selectedRange = getMonthRange(selectedMonth.value)
+		const query = {
+			startCompletionTime: selectedRange.startCreateTime,
+			endCompletionTime: selectedRange.endCreateTime,
+			kickback: 'true'
+		}
+		if (appliedSearchState.value.orgId) {
+			query.orgId = appliedSearchState.value.orgId
+		}
+		if (appliedSearchState.value.headName) {
+			query.user = appliedSearchState.value.headName
+		}
+
+		router.push({
+			path: '/biz/saleproject/dealProjectList',
+			query
+		})
+	}
+
+	onMounted(load)
 </script>
 
 <template>
 	<a-col :xs="24" :sm="24" :md="24" :lg="19" :xl="19">
 		<a-card>
-			<a-form ref="searchFormRef" name="advanced_search" :model="searchFormState" class="ant-advanced-search-form">
-				<a-row :gutter="24">
-					<a-col :span="6">
-						<a-form-item label="负责人" name="headName">
-							<a-input v-model:value="searchFormState.headName" placeholder="请输入负责人名称" />
+			<a-form name="advanced_search" :model="searchFormState" class="ant-advanced-search-form">
+				<a-row :gutter="16">
+					<a-col :xs="24" :sm="12" :lg="6">
+						<a-form-item label="统计年月" name="statisticsMonth">
+							<a-date-picker
+								v-model:value="searchFormState.statisticsMonth"
+								picker="month"
+								format="YYYY年MM月"
+								placeholder="请选择统计年月"
+								:allow-clear="false"
+								class="xn-wd"
+							/>
 						</a-form-item>
 					</a-col>
-
-					<a-col :span="6">
-						<a-form-item label="所属组织：" name="orgId">
+					<a-col :xs="24" :sm="12" :lg="6">
+						<a-form-item label="负责人" name="headName">
+							<a-input v-model:value="searchFormState.headName" placeholder="请输入负责人名称" allow-clear />
+						</a-form-item>
+					</a-col>
+					<a-col :xs="24" :sm="12" :lg="6">
+						<a-form-item label="所属组织" name="orgId">
 							<a-tree-select
 								v-model:value="searchFormState.orgId"
 								class="xn-wd"
@@ -86,49 +119,64 @@
 								placeholder="请选择组织"
 								allow-clear
 								:tree-data="treeData"
-								:field-names="{
-									children: 'children',
-									label: 'name',
-									value: 'id'
-								}"
+								:field-names="{ children: 'children', label: 'name', value: 'id' }"
 								selectable="false"
 								tree-line
-							></a-tree-select>
+							/>
 						</a-form-item>
 					</a-col>
-					<a-col :span="6">
-						<a-button type="primary" @click="load">查询</a-button>
-						<a-button style="margin: 0 8px" @click="reset">重置</a-button>
+					<a-col :xs="24" :sm="12" :lg="6">
+						<a-form-item>
+							<a-space>
+								<a-button type="primary" :loading="loading" @click="load">查询</a-button>
+								<a-button @click="reset">重置</a-button>
+							</a-space>
+						</a-form-item>
 					</a-col>
 				</a-row>
 			</a-form>
-			<a-row :gutter="10" :wrap="true">
-				<a-col class="gutter-row">
-					<div class="gutter-box">
-						<!--本月业绩营收-->
-						<a-card title="本月销售额">
-							<a-statistic :precision="2" :value="totalAmount" style="margin-right: 50px"></a-statistic>
+
+			<error-result v-if="error" @reload="load" />
+			<a-spin v-else :spinning="loading">
+				<a-row :gutter="16">
+					<a-col :xs="24" :md="8">
+						<a-card size="small" :title="`${selectedMonthLabel}销售额`">
+							<a-statistic :precision="2" :value="totalAmount" />
 						</a-card>
-					</div>
-				</a-col>
-				<a-col class="gutter-row">
-					<div class="gutter-box">
-						<!--本月业绩营收-->
-						<a-card title="已回款销售额">
-							<a-statistic :precision="2" :value="amountCollected" style="margin-right: 50px"></a-statistic>
+					</a-col>
+					<a-col :xs="24" :md="8">
+						<a-card size="small" :title="`${selectedMonthLabel}已回款销售额`">
+							<a-statistic :precision="2" :value="amountCollected" />
 						</a-card>
-					</div>
-				</a-col>
-			</a-row>
+					</a-col>
+					<a-col :xs="24" :md="8">
+						<a-card
+							size="small"
+							:title="`${selectedMonthLabel}回扣项目数`"
+							hoverable
+							class="rebate-statistic-card"
+							@click="openRebateProjects"
+						>
+							<a-statistic :precision="0" :value="rebateProjectCount" suffix="个" />
+						</a-card>
+					</a-col>
+				</a-row>
+			</a-spin>
 		</a-card>
 
 		<br />
 
 		<saleproject-statistics
-			:head-name="searchFormState.headName"
-			:org-id="searchFormState.orgId"
-		></saleproject-statistics>
+			:key="`${selectedMonth.format('YYYY')}-${appliedSearchState.orgId || ''}-${appliedSearchState.headName || ''}`"
+			:year="selectedMonth"
+			:head-name="appliedSearchState.headName"
+			:org-id="appliedSearchState.orgId"
+		/>
 	</a-col>
 </template>
 
-<style scoped></style>
+<style scoped>
+	.rebate-statistic-card {
+		cursor: pointer;
+	}
+</style>

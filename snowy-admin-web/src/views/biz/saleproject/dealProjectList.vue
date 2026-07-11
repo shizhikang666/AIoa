@@ -391,6 +391,9 @@
 			if (route.query.orgId) {
 				searchFormState.value.orgId = route.query.orgId
 			}
+			if (route.query.user) {
+				searchFormState.value.user = String(route.query.user)
+			}
 			if (route.query.startCompletionTime && route.query.endCompletionTime) {
 				const startCompletionTime = dayjs(route.query.startCompletionTime).format('YYYY-MM-DD HH:mm:ss')
 				const endCompletionTime = dayjs(route.query.endCompletionTime).format('YYYY-MM-DD HH:mm:ss')

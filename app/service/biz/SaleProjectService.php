@@ -2614,7 +2614,7 @@ SQL;
 
         if (array_key_exists('kickback', $filters) && trim((string)$filters['kickback']) !== '') {
             $this->truthy($filters['kickback'])
-                ? $query->where('p.REBATE_AMOUNT', '>=', 1)
+                ? $query->where('p.REBATE_AMOUNT', '>', 0)
                 : $query->where('p.REBATE_AMOUNT', '<=', 0);
         }
 
