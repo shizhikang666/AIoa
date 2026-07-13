@@ -38,6 +38,8 @@ Then use targeted `rg` / `Select-String -Context` searches for the active module
 
 Read full `PLANS.md`, `IMPLEMENT.md`, or `STATUS.md` only for cross-module audits, release/merge work, or when targeted search cannot answer the current task.
 
+`STATUS.md` is an append-only slice log that has grown very large. When no other session is editing it, run `php scripts/archive-status.php --keep=40` (dry-run) then `--apply` to move older sections into `STATUS-archive-2026H1.md` and keep the active log readable. Commit that on its own as `docs(status): archive older slices`.
+
 Treat existing local changes as another Agent's work unless the user explicitly says otherwise. Do not revert unrelated changes.
 
 Detailed low-token continuation rules are in:
@@ -51,6 +53,20 @@ Parallel conversation and sub-agent coordination rules are in:
 Recurring problems and workflow optimizations are tracked in:
 
 `docs/tasks/problem-optimization-log.md`
+
+The one-page pre-flight of basic mistakes that keep recurring (data-shape mapping, Chinese API messages, login/auth, smoke scripting, browser smoke) is:
+
+`docs/tasks/regression-checklist.md`
+
+Run the sections that match the layer you are about to change, and verify any `Open` MT-/P- row against current code before acting on it (it may already be fixed).
+
+One-time per clone/worktree, enable the pre-commit baseline gate:
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+The hook lints staged PHP and boots the route table before each commit. On demand, run the same gate with `composer check`.
 
 Long-context handoff rules and the new conversation starter are tracked in:
 

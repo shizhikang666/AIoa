@@ -56,13 +56,15 @@ Update this file whenever a new recurring problem, blocker, confusing workflow, 
 | P-038 | 2026-06-18 | Execution granularity | Route-by-route safe slices are too slow for the remaining business flows and can miss related pages, side effects, and rollback behavior. | A feature may need repeated revisits, and downstream frontend or report behavior can stay inconsistent after one isolated route is replaced. | The earlier strategy optimized for low risk while many deferred wrappers were still missing. | Active workflow now prioritizes complete feature-closure blocks with dependency maps, side-effect maps, non-goals, and end-to-end smoke plans. | Start with sale-project foundation closure, then apply the same pattern to workflow, finance, stock, provider, and remaining side-effect modules. | Mitigated |
 | P-039 | 2026-06-18 | Runtime readiness | Checking the Windows `MySQL80` service can falsely report the project database as unavailable while the configured local runtime is listening on `127.0.0.1:3306`. | DB-backed smoke work may be delayed even though ThinkPHP can connect to the actual local database. | The project uses a user-provided runtime bundle and ignored `.env` credentials, not necessarily the Windows service named `MySQL80`. | Use `scripts/runtime-ready.ps1`, `scripts/project-preflight.ps1`, and app-level DB checks through ThinkPHP before treating database access as blocked. | Keep future status notes tied to the configured runtime targets from `docs/tasks/local-runtime-services.md`, not unrelated service names. | Mitigated |
 | P-040 | 2026-06-25 | Deployment readiness | Deployment prerequisites were tracked in dashboard notes but had no repeatable command for PHP, Composer, `.env`, writable paths, and ThinkPHP route boot. | A later staging rehearsal could discover basic runtime gaps only after business/API work is complete. | Existing helpers focused on local TCP/web readiness, not deployable PHP runtime shape. | Added `scripts/deployment-readiness.ps1` and optional `scripts/project-progress.ps1 -CheckDeploy` output. | Add target-host Nginx/PHP-FPM and backup checklist once the staging host and vhost path are confirmed. | Mitigated |
+| P-041 | 2026-07-13 | Tracking-doc drift | A tracking item can stay marked `Open` after the code is already fixed (found on MT-002: role rows were mapped to the Vue shape and smoke-covered, but `manual-test-issues.md` still said Open). | A future Agent may re-investigate or re-implement an already-solved problem, which is exactly the "same basic problem every time" symptom. | Status logs are append-only and issue tables are updated by hand, so status can lag the code. | Verify an issue's status against current code before acting on it; when confirming a fix, set the row to `Fixed` with code + smoke evidence and the regression check. Consolidated recurring checks into `docs/tasks/regression-checklist.md`. | When closing any slice, re-check related MT-/P- rows against code and update status in the same change. | Mitigated |
 
 ## Review Checklist
 
 Before starting a new implementation slice:
 
 1. Run `.\scripts\project-progress.ps1 -Lean`.
-2. Scan this table for `Open` problems related to the slice.
-3. Update an existing row if the same problem repeats.
-4. Add a new row if the problem is new and likely to recur.
-5. Mention important new or changed problem rows in `STATUS.md` for the completed slice.
+2. Open `docs/tasks/regression-checklist.md` and run the sections that match the layer you are about to touch.
+3. Scan this table for `Open` problems related to the slice.
+4. Before acting on any `Open` MT-/P- row, verify its status against current code — it may already be fixed (see P-041).
+5. Update an existing row if the same problem repeats; add a new row if the problem is new and likely to recur.
+6. Mention important new or changed problem rows in `STATUS.md` for the completed slice.
