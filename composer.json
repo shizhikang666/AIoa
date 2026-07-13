@@ -44,6 +44,15 @@
         "post-autoload-dump": [
             "@php think service:discover",
             "@php think vendor:publish"
+        ],
+        "lint": "@php scripts/php-lint.php",
+        "check": [
+            "@php scripts/php-lint.php",
+            "@php think route:list"
         ]
+    },
+    "scripts-descriptions": {
+        "lint": "Run php -l over app/config/route (syntax gate).",
+        "check": "Baseline gate: PHP syntax lint + route table boot check."
     }
 }
