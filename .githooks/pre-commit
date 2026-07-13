@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# Baseline gate: block commits that break PHP syntax or the route table.
+# Versioned in .githooks and shared across worktrees via core.hooksPath.
+# One-time setup per clone:  git config core.hooksPath .githooks
+#
+# See docs/tasks/regression-checklist.md section 1.
+# Bypass in a genuine emergency only:  git commit --no-verify
+
+set -e
+
+# Resolve the repo root so the hook works from any worktree/subdir.
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# 1. Lint only staged PHP files (added / copied / modified).
+STAGED_PHP="$(git diff --cached --name-only --diff-filter=ACM -- '*.php')"
+
+if [ -n "$STAGED_PHP" ]; then
+    echo "pre-commit: linting staged PHP files..."
+    # shellcheck disable=SC2086
+    php scripts/php-lint.php $STAGED_PHP || {
+        echo "pre-commit: BLOCKED — fix the PHP syntax error(s) above, or use --no-verify to override." >&2
+        exit 1
+    }
+
+    # 2. If any PHP under app/config/route changed, verify the route table still boots.
+    if echo "$STAGED_PHP" | grep -qE '^(app|config|route)/'; then
+        echo "pre-commit: verifying route table (php think route:list)..."
+        if ! php think route:list >/dev/null 2>&1; then
+            echo "pre-commit: BLOCKED — 'php think route:list' failed; a route/namespace/class error was introduced." >&2
+            echo "pre-commit: run 'php think route:list' to see the error, or use --no-verify to override." >&2
+            exit 1
+        fi
+    fi
+else
+    echo "pre-commit: no staged PHP files; skipping PHP baseline."
+fi
+
+echo "pre-commit: baseline OK."
+exit 0

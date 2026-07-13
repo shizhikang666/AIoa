@@ -1,11 +1,13 @@
 <?php
+$sessionName = function_exists('env') ? env('SESSION_NAME', 'OA_THINKPHP_SESSID') : 'OA_THINKPHP_SESSID';
+
 // +----------------------------------------------------------------------
 // | 会话设置
 // +----------------------------------------------------------------------
 
 return [
     // session name
-    'name'           => 'PHPSESSID',
+    'name'           => $sessionName,
     // SESSION_ID的提交变量,解决flash上传跨域
     'var_session_id' => '',
     // 驱动方式 支持file cache

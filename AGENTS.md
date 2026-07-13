@@ -4,6 +4,10 @@
 
 This repository uses a main architect Agent plus multiple module Agents.
 
+Future new Codex conversations should default to the real multi-Agent mode for this project. The main conversation acts as the merge/coordinator session, and work is split into explicit worker roles such as `frontend-agent`, `api-agent`, `test-agent`, `docs-agent`, and other module Agents defined below.
+
+New conversation startup details are tracked in `docs/tasks/new-conversation-bootstrap.md`. Use the lean startup packet there together with `docs/tasks/lean-continuation-workflow.md` before continuing project work. Read full `PLANS.md`, `IMPLEMENT.md`, and `STATUS.md` only when targeted search or the current task requires deeper history.
+
 The current main architect Agent is responsible for:
 
 - architecture control
@@ -11,8 +15,13 @@ The current main architect Agent is responsible for:
 - module boundaries
 - final merge planning
 - conflict and integration strategy
+- assigning scoped worker tasks
+- integrating worker results into the final target project
+- committing only after reviewing the combined changes
 
-The main architect Agent does not implement business features directly unless the user explicitly changes the task.
+The main architect Agent may implement a small scoped slice directly when acting as the merge/coordinator and the user has asked to continue project execution. It must still preserve the multi-Agent discipline: define scope, use explorers/workers when available and useful, review the result, run acceptance checks, and commit only coherent reviewed changes.
+
+Worker Agents must only operate inside their explicitly assigned task scope. They do not broaden the task, take over merge/coordinator responsibilities, or edit unrelated modules. The main conversation is responsible for consolidating worker output, resolving overlap, and preparing the final commit.
 
 ## Project Goal
 
@@ -70,12 +79,25 @@ Each Agent:
 
 - must work only in its assigned worktree
 - must work only on its assigned module
+- must follow the explicit role and file/task scope from the current user request
 - must check `git status --short --branch` before editing
 - must commit its completed work
 - must not modify unrelated modules
 - must not modify the Java source project
 - must not delete database fields
 - must not do broad unrelated refactors
+
+## Lean Continuation Rules
+
+Use `docs/tasks/lean-continuation-workflow.md` for faster continuation with the same quality bar.
+
+Key rules:
+
+- Start with `git status`, `AGENTS.md`, `new-conversation-bootstrap.md`, `lean-continuation-workflow.md`, the dashboard head, and the latest `STATUS.md` tail.
+- Use targeted `rg` / `Select-String` searches before reading large logs.
+- Classify each slice as read-only, isolated write, side-effect write, frontend-visible fix, or infrastructure.
+- Run risk-appropriate checks; do not skip DB/negative/side-effect smoke for write routes.
+- If sub-Agent tools or quota are unavailable, emulate explorer, implementation, test, and docs passes in the main conversation and report the limitation when relevant.
 
 ## Module Scope
 
@@ -208,6 +230,34 @@ php think route:list
 Get-ChildItem -Recurse app,config,route -Include *.php | ForEach-Object { php -l $_.FullName }
 ```
 
+## Local Runtime Services
+
+Use the user-provided local runtime bundle for database-backed and Redis-backed checks.
+
+Start it from:
+
+```powershell
+Set-Location F:\project\socket\AI\testPhp\files
+.\startServer1.bat
+```
+
+Expected local endpoints:
+
+- MySQL: `127.0.0.1:3306`, database `phpoa20026`
+- Redis: `127.0.0.1:6379`
+- PHP FastCGI: `127.0.0.1:9000`
+
+The ThinkPHP project reads credentials from the ignored local `.env` in `F:\AI\projects\testJava\OA-ThinkPHP`. Do not print or commit `DB_PASS`, `REDIS_PASSWD`, or other secrets.
+
+Local browser/login smoke credentials must also come from the ignored local `.env`. Use:
+
+- `LOCAL_SUPER_ADMIN_ACCOUNT`
+- `LOCAL_SUPER_ADMIN_PASSWORD`
+
+Do not write plaintext login accounts, passwords, tokens, or other secrets into tracked files, task notes, test logs, commits, or final reports.
+
+Detailed runtime notes: `docs/tasks/local-runtime-services.md`.
+
 Composer checks:
 
 ```powershell
@@ -231,18 +281,21 @@ Unified JSON response:
 ```json
 {
   "code": 200,
-  "message": "ok",
+  "message": "成功",
   "data": {}
 }
 ```
 
 Status code convention:
 
+- API 响应的 `message`/`msg` 必须使用中文；不得向前端返回英文异常、校验、未实现、鉴权或服务器错误文案。技术细节写入服务端日志或文档，不写入接口返回消息。
 - `200`: success
 - `400`: bad request or validation error
 - `401`: unauthenticated or invalid Token
 - `403`: permission denied
 - `500`: server error
+
+Response field shape: the copied Vue frontend expects camelCase keys, not raw `UPPER_SNAKE` DB columns. Read routes (list/detail/tree-select/form) must return the frontend shape. For plain key-case conversion use the canonical `app\support\RowMapper` (`RowMapper::toCamel($row)` / `toCamelList($rows)` / `camelKey($k)`); do not hand-roll new per-service `camelKey()` copies. Field-shape mismatch is the most recurring bug class in this refactor (MT-001, MT-002, P-022); the pre-commit baseline gate (`git config core.hooksPath .githooks`, or `composer check`) lints PHP and boots the route table before each commit.
 
 ## Token + Redis Convention
 

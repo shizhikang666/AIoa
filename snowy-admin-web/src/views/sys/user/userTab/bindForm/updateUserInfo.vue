@@ -1,0 +1,705 @@
+<template>
+	<xn-form-container
+		title="编辑人员"
+		:width="800"
+		:visible="visible"
+		:destroy-on-close="true"
+		:body-style="{ 'padding-top': '0px' }"
+		@close="onClose"
+	>
+		<a-form ref="formRef" :model="formData" :rules="formRules" layout="vertical">
+			<a-tabs v-model:activeKey="activeTabsKey">
+				<a-tab-pane key="1" tab="更多信息" force-render>
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="民族：" name="nation">
+								<a-select v-model:value="formData.nation" placeholder="请选择民族" :options="nationOptions"></a-select>
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="籍贯：" name="nativePlace">
+								<a-input v-model:value="formData.nativePlace" placeholder="请输入籍贯" allow-clear />
+							</a-form-item>
+						</a-col>
+					</a-row>
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="籍贯地址：" name="homeAddress">
+								<a-textarea
+									v-model:value="formData.homeAddress"
+									placeholder="请输入籍贯地址"
+									:auto-size="{ minRows: 2, maxRows: 5 }"
+									allow-clear
+								/>
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="现住地址：" name="mailingAddress">
+								<a-textarea
+									v-model:value="formData.mailingAddress"
+									placeholder="请输入现住地址"
+									:auto-size="{ minRows: 2, maxRows: 5 }"
+									allow-clear
+								/>
+							</a-form-item>
+						</a-col>
+					</a-row>
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="证件类型：" name="idCardType">
+								<a-select v-model:value="formData.idCardType" placeholder="请选择证件类型" :options="idcardTypeOptions">
+								</a-select>
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="证件号码：" name="idCardNumber">
+								<a-input v-model:value="formData.idCardNumber" placeholder="请输入证件号码" allow-clear />
+							</a-form-item>
+						</a-col>
+					</a-row>
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="文化程度：" name="cultureLevel">
+								<a-select
+									v-model:value="formData.cultureLevel"
+									placeholder="请选择文化程度"
+									:options="cultureLevelOptions"
+								>
+								</a-select>
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="政治面貌：" name="politicalOutlook">
+								<a-input v-model:value="formData.politicalOutlook" placeholder="请输入政治面貌" allow-clear />
+							</a-form-item>
+						</a-col>
+					</a-row>
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="毕业学校：" name="college">
+								<a-input v-model:value="formData.college" placeholder="请输入毕业学校" allow-clear />
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="学历：" name="education">
+								<a-input v-model:value="formData.education" placeholder="请输入学历" allow-clear />
+							</a-form-item>
+						</a-col>
+					</a-row>
+
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="学制：" name="eduLength">
+								<a-input v-model:value="formData.eduLength" placeholder="请输入学制" allow-clear />
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="学位：" name="degree">
+								<a-input v-model:value="formData.degree" placeholder="请输入学位" allow-clear />
+							</a-form-item>
+						</a-col>
+					</a-row>
+
+					<a-form-item label="全日制教育" name="fullTimeEducationJson">
+						<a-button
+							type="primary"
+							class="childAddButton"
+							@click="addArray('fullTimeEducationJson', { name: '', school: '' })"
+						>
+							<PlusOutlined />
+							全日制教育
+						</a-button>
+						<a-row :gutter="10" class="form-row">
+							<a-col :span="7" class="form-row-con"> 学历</a-col>
+							<a-col :span="7" class="form-row-con"> 毕业院校及专业</a-col>
+						</a-row>
+						<div v-for="(item, index) in formData.fullTimeEducationJson" class="form-div">
+							<a-row :gutter="10">
+								<a-col :span="7">
+									<a-form-item
+										:name="['fullTimeEducationJson', index, 'name']"
+										:rules="{ required: true, message: '请输入学历' }"
+									>
+										<a-input v-model:value="item.name"></a-input>
+									</a-form-item>
+								</a-col>
+								<a-col :span="7">
+									<a-form-item
+										:name="['fullTimeEducationJson', index, 'school']"
+										:rules="{ required: true, message: '毕业院校及专业' }"
+									>
+										<a-textarea type="textarea" v-model:value="item.school"></a-textarea>
+									</a-form-item>
+								</a-col>
+								<a-col :span="3" class="xn-mt4">
+									<a-button
+										size="small"
+										type="primary"
+										danger
+										ghost
+										@click="formData.fullTimeEducationJson.splice(index, 1)"
+										>移除
+									</a-button>
+								</a-col>
+							</a-row>
+						</div>
+					</a-form-item>
+					<a-form-item label="在职教育" name="onJobEducationJson">
+						<a-button
+							type="primary"
+							class="childAddButton"
+							@click="addArray('onJobEducationJson', { name: '', school: '' })"
+						>
+							<PlusOutlined />
+							在职教育
+						</a-button>
+						<a-row :gutter="10" class="form-row">
+							<a-col :span="7" class="form-row-con"> 学历</a-col>
+
+							<a-col :span="7" class="form-row-con"> 毕业院校及专业</a-col>
+						</a-row>
+						<div v-for="(item, index) in formData.onJobEducationJson" class="form-div">
+							<a-row :gutter="10">
+								<a-col :span="7">
+									<a-form-item
+										:name="['onJobEducationJson', index, 'name']"
+										:rules="{ required: true, message: '请输入学历' }"
+									>
+										<a-input v-model:value="item.name"></a-input>
+									</a-form-item>
+								</a-col>
+								<a-col :span="7">
+									<a-form-item
+										:name="['onJobEducationJson', index, 'school']"
+										:rules="{ required: true, message: '毕业院校及专业' }"
+									>
+										<a-textarea type="textarea" v-model:value="item.school"></a-textarea>
+									</a-form-item>
+								</a-col>
+								<a-col :span="3" class="xn-mt4">
+									<a-button
+										size="small"
+										type="primary"
+										danger
+										ghost
+										@click="formData.onJobEducationJson.splice(index, 1)"
+										>移除
+									</a-button>
+								</a-col>
+							</a-row>
+						</div>
+					</a-form-item>
+
+					<a-row :gutter="16">
+						<a-col :span="8">
+							<a-form-item label="熟悉专业和特长：" name="specialtySkills">
+								<a-input v-model:value="formData.specialtySkills" placeholder="请输入熟悉专业和特长" allow-clear />
+							</a-form-item>
+						</a-col>
+						<a-col :span="8">
+							<a-form-item label="健康状况：" name="healthStatus">
+								<a-input v-model:value="formData.healthStatus" placeholder="请输入健康状况" allow-clear />
+							</a-form-item>
+						</a-col>
+						<a-col :span="8">
+							<a-form-item label="参加工作时间：" name="workStartDate">
+								<a-date-picker v-model:value="formData.workStartDate" value-format="YYYY-MM-DD" class="xn-wd" />
+							</a-form-item>
+						</a-col>
+					</a-row>
+					<a-row :gutter="16">
+						<a-col :span="8">
+							<a-form-item label="职称：" name="jobTitle">
+								<a-input v-model:value="formData.jobTitle" placeholder="请输入职称" allow-clear />
+							</a-form-item>
+						</a-col>
+						<a-col :span="8">
+							<a-form-item label="社会兼职：" name="socialAppointments">
+								<a-input v-model:value="formData.socialAppointments" placeholder="请输入社会兼职" allow-clear />
+							</a-form-item>
+						</a-col>
+						<a-col :span="8">
+							<a-form-item label="入企方式：" name="entryMethod">
+								<a-input v-model:value="formData.entryMethod" placeholder="请输入入企方式" allow-clear />
+							</a-form-item>
+						</a-col>
+					</a-row>
+
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="工作部门属性：" name="departmentAttribute">
+								<a-select
+									v-model:value="formData.departmentAttribute"
+									placeholder="请选择文化程度"
+									:options="workDepartmentAttributesOptions"
+								/>
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="个人情况：" name="personalInformation">
+								<a-select
+									v-model:value="formData.personalInformation"
+									placeholder="请选择个人情况"
+									:options="personalSituationOptions"
+								/>
+							</a-form-item>
+						</a-col>
+					</a-row>
+
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="主要学习及工作经历：" name="mainStudyAndWorkExperience">
+								<a-textarea
+									v-model:value="formData.mainStudyAndWorkExperience"
+									placeholder="请输主要学习及工作经历"
+									:auto-size="{ minRows: 2, maxRows: 10 }"
+									allow-clear
+								/>
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="获奖情况及主要成就：" name="awardsAndAchievements">
+								<a-textarea
+									v-model:value="formData.awardsAndAchievements"
+									placeholder="请输入获奖情况及主要成就"
+									:auto-size="{ minRows: 2, maxRows: 5 }"
+									allow-clear
+								/>
+							</a-form-item>
+						</a-col>
+					</a-row>
+					<a-row :gutter="16">
+						<a-col :span="24">
+							<a-form-item label="所在单位中共党组织意见 ：" name="partyOrganizationOpinion">
+								<a-textarea
+									v-model:value="formData.partyOrganizationOpinion"
+									placeholder="请输入所在单位中共党组织意见"
+									:auto-size="{ minRows: 5, maxRows: 10 }"
+									allow-clear
+								/>
+							</a-form-item>
+						</a-col>
+					</a-row>
+
+					<a-form-item label="家庭主要成员及重要社会关系" name="familyMembersAndSocialRelationshipsJson">
+						<a-button
+							type="primary"
+							class="childAddButton"
+							@click="
+								addArray('familyMembersAndSocialRelationshipsJson', {
+									title: '',
+									name: '',
+									age: '',
+									politicalStatus: '',
+									unit: ''
+								})
+							"
+						>
+							<PlusOutlined />
+							添加信息
+						</a-button>
+						<a-row :gutter="10" class="form-row">
+							<a-col :span="3" class="form-row-con"> 称谓</a-col>
+							<a-col :span="3" class="form-row-con"> 姓名</a-col>
+							<a-col :span="3" class="form-row-con"> 年龄</a-col>
+							<a-col :span="5" class="form-row-con"> 政治面貌</a-col>
+							<a-col :span="5" class="form-row-con"> 工作单位及职务</a-col>
+						</a-row>
+						<div v-for="(item, index) in formData.familyMembersAndSocialRelationshipsJson" class="form-div">
+							<a-row :gutter="10">
+								<a-col :span="3">
+									<a-form-item
+										:name="['familyMembersAndSocialRelationshipsJson', index, 'title']"
+										:rules="{ required: true, message: '请输入称谓' }"
+									>
+										<a-input v-model:value="item.title"></a-input>
+									</a-form-item>
+								</a-col>
+								<a-col :span="3">
+									<a-form-item
+										:name="['familyMembersAndSocialRelationshipsJson', index, 'name']"
+										:rules="{ required: true, message: '请输入姓名' }"
+									>
+										<a-input v-model:value="item.name"></a-input>
+									</a-form-item>
+								</a-col>
+								<a-col :span="3">
+									<a-form-item
+										:name="['familyMembersAndSocialRelationshipsJson', index, 'age']"
+										:rules="{ required: true, message: '请输入年龄' }"
+									>
+										<a-input v-model:value="item.age"></a-input>
+									</a-form-item>
+								</a-col>
+
+								<a-col :span="5">
+									<a-form-item
+										:name="['familyMembersAndSocialRelationshipsJson', index, 'politicalStatus']"
+										:rules="{ required: true, message: '政治面貌' }"
+									>
+										<a-input v-model:value="item.politicalStatus"></a-input>
+									</a-form-item>
+								</a-col>
+								<a-col :span="5">
+									<a-form-item
+										:name="['familyMembersAndSocialRelationshipsJson', index, 'unit']"
+										:rules="{ required: true, message: '工作单位及职务' }"
+									>
+										<a-input v-model:value="item.unit"></a-input>
+									</a-form-item>
+								</a-col>
+
+								<a-col :span="3" class="xn-mt4">
+									<a-button
+										size="small"
+										type="primary"
+										danger
+										ghost
+										@click="formData.familyMembersAndSocialRelationshipsJson.splice(index, 1)"
+										>移除
+									</a-button>
+								</a-col>
+							</a-row>
+						</div>
+					</a-form-item>
+
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="家庭电话：" name="homeTel">
+								<a-input v-model:value="formData.homeTel" placeholder="请输入家庭电话" allow-clear />
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="办公电话：" name="officeTel">
+								<a-input v-model:value="formData.officeTel" placeholder="请输入办公电话" allow-clear />
+							</a-form-item>
+						</a-col>
+					</a-row>
+
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="紧急联系人：" name="emergencyContact">
+								<a-input v-model:value="formData.emergencyContact" placeholder="请输入紧急联系人" allow-clear />
+							</a-form-item>
+						</a-col>
+						<a-col :span="12">
+							<a-form-item label="紧急联系电话：" name="emergencyPhone">
+								<a-input v-model:value="formData.emergencyPhone" placeholder="请输入紧急联系电话" allow-clear />
+							</a-form-item>
+						</a-col>
+					</a-row>
+
+					<a-row :gutter="16">
+						<a-col :span="12">
+							<a-form-item label="紧急联系人地址：" name="emergencyAddress">
+								<a-textarea
+									v-model:value="formData.emergencyAddress"
+									placeholder="请输入紧急联系人地址"
+									:auto-size="{ minRows: 2, maxRows: 5 }"
+									allow-clear
+								/>
+							</a-form-item>
+						</a-col>
+					</a-row>
+				</a-tab-pane>
+			</a-tabs>
+		</a-form>
+		<template #footer>
+			<a-button class="xn-mr8" @click="onClose">关闭</a-button>
+			<a-button type="primary" :loading="formLoading" @click="onSubmit">保存</a-button>
+		</template>
+	</xn-form-container>
+</template>
+
+<script setup name="bizUser">
+	import bizUserApi from '@/api/biz/bizUserApi'
+	import { required } from '@/utils/formRules'
+	import tool from '@/utils/tool'
+	import userCenterApi from '@/api/sys/userCenterApi'
+	import { globalStore } from '@/store'
+	// 默认是关闭状态
+	const visible = ref(false)
+	const formRef = ref()
+	const activeTabsKey = ref('1')
+	const emit = defineEmits({ successful: null })
+	const formLoading = ref(false)
+	const treeData = ref([])
+	const treeDefaultExpandedKeys = ref([])
+	// 分页select组件dom定义
+	const xnPositionPageSelectRef = ref()
+	const xnUserPageSelectRef = ref()
+	const xnChildPositionPageSelectRef = ref()
+	const xnChildUserPageSelectRef = ref()
+	// 表单数据
+	const formData = ref({})
+
+	// 打开抽屉
+	const onOpen = () => {
+		visible.value = true
+
+		formData.value = {
+			gender: '男',
+			positionJson: [],
+			onJobEducationJson: [],
+			fullTimeEducationJson: [],
+			familyMembersAndSocialRelationshipsJson: []
+		}
+
+		const store = globalStore()
+		if (store.userInfo) {
+			convertFormData(store.userInfo)
+		}
+
+		nextTick(() => {
+			// 机构选择器数据
+			bizUserApi.userOrgTreeSelector().then((res) => {
+				if (res !== null) {
+					treeData.value = res
+					// 默认展开2级
+					treeData.value.forEach((item) => {
+						// 因为0的顶级
+						if (item.parentId === '0') {
+							treeDefaultExpandedKeys.value.push(item.id)
+							// 取到下级ID
+							if (item.children) {
+								item.children.forEach((items) => {
+									treeDefaultExpandedKeys.value.push(items.id)
+								})
+							}
+						}
+					})
+				}
+			})
+		})
+	}
+	// 关闭抽屉
+	const onClose = () => {
+		treeData.value = []
+		treeDefaultExpandedKeys.value = []
+		visible.value = false
+	}
+	// 回显数据
+	const convertFormData = (record) => {
+		const param = {
+			id: record.id
+		}
+		// 查询详情
+		bizUserApi.userDetail(param).then((data) => {
+			if (data.positionJson) {
+				// 替换表单中的格式与后端查到的
+				data.positionJson = JSON.parse(data.positionJson)
+			}
+
+			if (data.familyMembersAndSocialRelationshipsJson) {
+				// 替换表单中的格式与后端查到的
+				data.familyMembersAndSocialRelationshipsJson = JSON.parse(data.familyMembersAndSocialRelationshipsJson)
+			}
+
+			if (data.fullTimeEducationJson) {
+				// 替换表单中的格式与后端查到的
+				data.fullTimeEducationJson = JSON.parse(data.fullTimeEducationJson)
+			}
+
+			if (data.onJobEducationJson) {
+				// 替换表单中的格式与后端查到的
+				data.onJobEducationJson = JSON.parse(data.onJobEducationJson)
+			}
+
+			formData.value = Object.assign(formData.value, data)
+			// 这里再写一次是因为上面需要先加载增行，下面再进行循环赋值
+			if (data.positionJson) {
+				// 遍历进行补充
+				data.positionJson.map((item, index) => {
+					childOrgSelect(item, 1, index)
+					return item
+				})
+			}
+			selePositionData(formData.value.orgId)
+		})
+	}
+
+	const addArray = (filed, object) => {
+		formData.value[filed] ? formData.value[filed].push(object) : (formData.value[filed] = [object])
+	}
+
+	// 默认要校验的
+	const formRules = {
+		account: [required('请输入账号')],
+		name: [required('请输入姓名')],
+		sex: [required('请选择性别')],
+		orgId: [required('请选择组织')],
+		positionId: [required('请选择岗位')]
+	}
+	// 机构选择后查询对应的职位
+	const selePositionData = (orgId, type) => {
+		if (orgId) {
+			const xnPositionPageSelectParam = {
+				orgId: orgId
+			}
+			xnPositionPageSelectRef.value.onPage(xnPositionPageSelectParam)
+			xnUserPageSelectRef.value.onPage()
+			// 此类型代表选择的时候重置后面的职位
+			if (type === 0) {
+				formData.value.positionId = undefined
+				formData.value.directorId = undefined
+			}
+		} else {
+			formData.value.positionId = undefined
+			formData.value.directorId = undefined
+		}
+	}
+	// 传递选择组件需要的API
+	const selectApiFunction = {
+		positionSelector: (param) => {
+			return bizUserApi.userPositionSelector(param).then((data) => {
+				return Promise.resolve(data)
+			})
+		},
+		userSelector: (param) => {
+			return bizUserApi.userSelector(param).then((data) => {
+				return Promise.resolve(data)
+			})
+		},
+		childPositionSelector: (param) => {
+			return bizUserApi.userPositionSelector(param).then((data) => {
+				return Promise.resolve(data)
+			})
+		},
+		childUserSelector: (param) => {
+			return bizUserApi.userSelector(param).then((data) => {
+				return Promise.resolve(data)
+			})
+		},
+		// 通过id回显数据接口
+		echoPosition: (param) => {
+			return userCenterApi.userCenterGetPositionListByIdList(param).then((data) => {
+				return Promise.resolve(data)
+			})
+		},
+		echoUser: (param) => {
+			return userCenterApi.userCenterGetUserListByIdList(param).then((data) => {
+				return Promise.resolve(data)
+			})
+		}
+	}
+	// 附属职位信息增行
+	const addDomains = () => {
+		if (formData.value.positionJson === null) {
+			formData.value.positionJson = []
+		}
+		formData.value.positionJson.push({
+			orgId: undefined,
+			positionId: undefined,
+			directorId: undefined
+		})
+	}
+	// 删减行
+	const delDomains = (index) => {
+		formData.value.positionJson.splice(index, 1)
+	}
+	// 子表行内选择机构
+	const childOrgSelect = async (data, type, index) => {
+		// 说明正在切换机构，我们就将他的后面的设置空
+		if (type === 0) {
+			formData.value.positionJson.filter((item, serial) => {
+				if (item.orgId === data.orgId && serial === index) {
+					item.positionId = undefined
+					item.directorId = undefined
+				}
+			})
+		}
+		const param = {
+			orgId: data.orgId
+		}
+		nextTick(() => {
+			xnChildPositionPageSelectRef.value[index].onPage(param)
+			xnChildUserPageSelectRef.value[index].onPage(param)
+		})
+	}
+	// 验证并提交数据
+	const onSubmit = () => {
+		formRef.value
+			.validate()
+			.then(() => {
+				// 因为不切断，我下面转换数据格式，影响上面表单会报错
+				let formDatas = JSON.parse(JSON.stringify(formData.value))
+				if (formDatas.positionJson && formDatas.positionJson.length > 0) {
+					formDatas.positionJson = JSON.stringify(formDatas.positionJson)
+				} else {
+					delete formDatas.positionJson
+				}
+				if (formDatas.onJobEducationJson && formDatas.onJobEducationJson.length > 0) {
+					formDatas.onJobEducationJson = JSON.stringify(formDatas.onJobEducationJson)
+				} else {
+					delete formDatas.onJobEducationJson
+				}
+				if (formDatas.fullTimeEducationJson && formDatas.fullTimeEducationJson.length > 0) {
+					formDatas.fullTimeEducationJson = JSON.stringify(formDatas.fullTimeEducationJson)
+				} else {
+					delete formDatas.fullTimeEducationJson
+				}
+				if (
+					formDatas.familyMembersAndSocialRelationshipsJson &&
+					formDatas.familyMembersAndSocialRelationshipsJson.length > 0
+				) {
+					formDatas.familyMembersAndSocialRelationshipsJson = JSON.stringify(
+						formDatas.familyMembersAndSocialRelationshipsJson
+					)
+				} else {
+					delete formDatas.familyMembersAndSocialRelationshipsJson
+				}
+
+				formLoading.value = true
+				bizUserApi
+					.submitCenterForm(formDatas)
+					.then(() => {
+						onClose()
+						emit('successful')
+					})
+					.finally(() => {
+						formLoading.value = false
+					})
+			})
+			.catch(() => {})
+	}
+	// 性别
+	const genderOptions = tool.dictList('GENDER')
+	// 民族
+	const nationOptions = tool.dictList('NATION')
+	// 身份证件
+	const idcardTypeOptions = tool.dictList('IDCARD_TYPE')
+	// 文化程度
+	const cultureLevelOptions = tool.dictList('CULTURE_LEVEL')
+	const workDepartmentAttributesOptions = tool.dictList('WorkDepartmentAttributes')
+	const personalSituationOptions = tool.dictList('PersonalSituation')
+	// 调用这个函数将子组件的一些数据和方法暴露出去
+	defineExpose({
+		onOpen
+	})
+</script>
+
+<style scoped type="less">
+	.childAddButton {
+		margin-bottom: 10px;
+	}
+
+	.form-row {
+		background-color: var(--item-hover-bg);
+		margin-left: 0px !important;
+	}
+
+	.form-row-con {
+		padding-bottom: 5px;
+		padding-top: 5px;
+		padding-left: 15px;
+	}
+
+	.dashedButton {
+		margin-top: 10px;
+		width: 100%;
+	}
+
+	.form-div {
+		padding-top: 10px;
+	}
+</style>

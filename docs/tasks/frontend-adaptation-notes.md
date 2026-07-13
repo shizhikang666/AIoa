@@ -1,0 +1,2284 @@
+# Frontend Adaptation Notes
+
+Date: 2026-06-01
+
+Agent: frontend-agent
+
+## Scope
+
+This slice keeps the imported Vue frontend as a copied baseline and only adapts the request boundary needed for local ThinkPHP joint testing.
+
+## Changes
+
+- Use `VITE_API_PREFIX` as the browser request prefix so Vite can proxy local development traffic to ThinkPHP.
+- Keep `VITE_API_BASEURL` as the proxy target in Vite configuration.
+- Send tokens with `Authorization: Bearer <token>` to match the ThinkPHP `AuthMiddleware`.
+- Apply the same token header convention to upload and SSE connections.
+- Use `VITE_PUBLIC_KEY` for SM2 encryption. If no public key is configured in local development, password submission falls back to plaintext so the current ThinkPHP password compatibility path can be tested.
+- Leave the Axios instance `baseURL` empty so `baseRequest` does not double-prefix requests with `/api`.
+- Treat menu nodes with `children: []` as leaf nodes when picking the first route after login.
+
+## Local URLs
+
+- Backend: `http://127.0.0.1:82`
+- Frontend: `http://127.0.0.1:83`
+- Frontend API prefix: `/api`
+- Production API prefix: `/backend`
+
+## Verification
+
+- `composer dump-autoload`: passed.
+- `php think`: passed.
+- `php think route:list`: passed.
+- `npm ci --no-audit --no-fund`: passed.
+- `npm run build`: passed with upstream warnings only.
+- Local MySQL/Redis helper: started.
+- ThinkPHP dev server: `http://127.0.0.1:82`, started.
+- Vue dev server: `http://127.0.0.1:83`, started.
+- Browser smoke on a fresh local origin: login succeeded and redirected to `/sys/org`.
+- Browser smoke: `/sys/org` and `/sys/user` pages loaded with menus, tables, and pagination.
+
+## Deferred
+
+- Missing frontend API gap map.
+- API wrapper cleanup for routes that are still read-only or not yet implemented.
+- Field/dictionary display alignment for org/user tables.
+- Missing SSE route `/dev/message/createSseConnect`.
+
+## 2026-06-22 Workflow General Start Runtime
+
+Agent: api-agent / test-agent
+
+### Scope
+
+No frontend source changes were required. The existing copied workflow start forms can now submit `payment`, `reimbursement`, `makePayment`, `procure`, and `procure/warehouse` start requests to ThinkPHP.
+
+### Backend Result
+
+- The five non-project start routes create first-step workflow runtime/history rows and an active `Activity_approval` task.
+- Submitted `copyUserIdList` values create workflow CC rows, and submitted `fileIdList` values create workflow file relations.
+- The created first-step processes can be read through existing task/process/detail/query routes and cancelled before approval.
+- `Process_payment` approval now completes and creates the payment-in settlement statement/payment record through the ThinkPHP settlement-account service.
+- `Process_reimbursement` and `Process_make_payment` approval now advances the first approval task into `Activity_pay_approval`; finance approval creates the payment-out settlement statement/expenditure record through the ThinkPHP settlement-account service.
+- `Process_procure` approval now advances first approval into procurement confirmation, supports optional general-office approval, and creates purchase-order rows through the ThinkPHP purchase-order service.
+- `Process_procure_in_warehouse` approval now completes and performs purchase-order stock-in through the ThinkPHP purchase-order service.
+- Existing copied project-init forms can now submit `/biz/process/project/init/start` without frontend source changes. The backend creates `Process_sale_project_init`, moves the sale project to `PENDING_APPROVAL`, and handles cancel/reject/approve side effects.
+- Existing copied project-play forms can now submit `/biz/process/project/play/start` without frontend source changes. The backend creates `Process_sale_project_play`; first approval opens the finance confirmation task, and final finance approval writes collection payment rows and recalculates project payment status.
+- Other project workflow forms for delivery, reissue, and return remain deferred where project Java delegate side effects are not yet replaced in PHP.
+
+### Frontend Impact
+
+- Existing submit buttons should no longer receive a controlled-deferred response for these five starts.
+- Existing task detail/read pages can show the newly created first-step tasks.
+- Approving payment tasks now performs payment-in settlement; approving reimbursement/makePayment tasks now opens the finance confirmation step and performs payment-out settlement on finance approval; approving procurement tasks now opens procurement confirmation and can create purchase-order rows after final approval; approving procurement-warehouse tasks now performs stock-in; approving project-init tasks now applies the bounded sale-project init side effects; approving project-play tasks now opens finance confirmation and applies bounded project collection side effects on final finance approval. Remaining delivery/reissue/return project side effects still return a controlled error until implemented.
+
+## 2026-06-03 Summary Statistics Joint Smoke
+
+Agent: test-agent
+
+### Scope
+
+This smoke verifies the existing frontend page against the new ThinkPHP read-only summary-statistics endpoint. No frontend page code or backend business code was changed.
+
+### Services
+
+- Backend: `http://127.0.0.1:82`
+- Frontend: `http://127.0.0.1:83`
+
+### Result
+
+- Login reached the authenticated layout.
+- Direct route `/biz/bizdatareport/summaryStatistics` loaded successfully.
+- Browser title was `汇总统计 - 福地科技`.
+- Visible page content included `汇总统计表`, annual month columns, company finance rows, and `未回款统计表`.
+- The page finished loading without a visible loading state.
+- ThinkPHP runtime log did not show a new runtime exception for this smoke.
+
+### Observed Non-Blocking Issues
+
+- Browser console still reports WebPush permission failure in local development.
+- Browser console still reports repeated realtime message connection disconnects from `src/layout/components/panel-message/index.vue`.
+- Vite still reports upstream `docx-templates` browser compatibility warnings for Node built-ins.
+- In-app browser screenshot capture timed out on this heavy table page; visible DOM text was used as the smoke evidence.
+
+### Next Frontend Follow-Up
+
+- Keep summary-statistics as browser-smoked read-only coverage.
+- Add a dedicated test-agent slice for realtime message/SSE console noise after remaining read-only pages are covered.
+- Continue joint backend/frontend smoke for the next visible business report or detail page.
+
+## 2026-06-03 Sale Project Page Smoke
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This smoke followed the sale-project cost read-only API slice. No frontend files were changed.
+
+### Result
+
+- Direct route `/biz/saleproject` loaded.
+- Browser title was `销售项目管理 - 福地科技`.
+- Visible table header content included project name/status/payment columns.
+- The page was not stuck in a loading state.
+- The current visible table showed `暂无数据`.
+- Backend API smoke with the same local login reached `/biz/saleproject/page` successfully, so the empty frontend table should be investigated later as a frontend query/filter/display compatibility issue rather than as a blocker for the cost route registration.
+
+### Observed Non-Blocking Issues
+
+- Realtime message connection console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.
+- Cost tab deep smoke needs a currently visible project with product items; the current local account/page result did not expose one in the browser flow.
+
+## 2026-06-03 Sale Project Follow-Up Read Smoke
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This smoke followed the sale-project follow-up read-only API slice. No frontend files were changed.
+
+### Backend Result
+
+- `/biz/saleprojectfollowup/page` returned `code = 200` with local authenticated requests.
+- `/biz/saleprojectfollowup/detail` returned `code = 200` for a sampled follow-up record.
+- Unauthenticated `/biz/saleprojectfollowup/page` returned `code = 401`.
+- Direct service smoke found 836 follow-up rows in the local database and preserved `extJson` for file-list parsing.
+
+### Browser Result
+
+- Direct route `/biz/saleprojectfollowup` returned the copied Vue 404 page.
+- The frontend source contains `snowy-admin-web/src/views/biz/saleprojectfollowup/index.vue`, but the current route/menu data does not expose it as a standalone browser path.
+- The sale-project detail follow-up tab uses the same API wrapper, so the backend read route is available once a sale-project detail flow reaches that component.
+- Browser was restored to `/biz/saleproject` after the smoke.
+
+### Observed Non-Blocking Issues
+
+- Standalone sale-project follow-up page route/menu exposure remains a frontend adaptation task.
+- Sale-project detail tab deep smoke remains tied to the existing sale-project table visibility mismatch.
+
+## 2026-06-03 Sale Project Product Item Relation Read Smoke
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This smoke followed the sale-project product item relation read-only API slice. No frontend files were changed.
+
+### Backend Result
+
+- `/biz/saleprojectproductitemrelation/list` was added as a protected read-only POST route.
+- Direct service smoke used a sampled sale-project product item id and returned 10 combo child relation rows.
+- Response rows include relation ids, `objectId`, `targetId`, `productId`, `mark`, `number`, product display fields, and `extJson`.
+
+### Browser Result
+
+- No standalone browser page was opened for this slice because the copied frontend currently references this API from sale-project delivery/invoice helpers rather than a direct page route.
+- The current browser tab remains on `/biz/saleproject`.
+
+### Observed Non-Blocking Issues
+
+- Relation mark editing remains deferred because `/biz/saleprojectproductitemrelation/mark/edit` mutates data.
+- Product item mark editing remains deferred because `/biz/saleprojectproductitem/mark/edit` mutates data.
+
+## 2026-06-06 Sale Project Product Mark Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied sale-project product mark helpers:
+
+- `snowy-admin-web/src/api/biz/saleProjectProductItemRelationApi.js`
+- `snowy-admin-web/src/api/biz/bizSaleProjectProductItemApi.js`
+
+### Result
+
+- `/biz/saleprojectproductitemrelation/mark/edit` is now routed as a protected POST endpoint.
+- `/biz/saleprojectproductitem/mark/edit` is now routed as a protected POST endpoint.
+- Relation mark edit updates only `sale_project_product_item_relation.MARK`.
+- Product item mark edit updates only `biz_sale_project_product_item.MARK`.
+- Both endpoints validate visibility through the owning active sale project and apply the existing admin/data-scope/current-user compatibility guard.
+
+### Deferred
+
+- Sale-project product item add/edit/delete, delivery, invoice, return, inventory, finance, workflow, and sale-project state side effects remain out of scope.
+
+## 2026-06-03 Sale Project Page Data Scope Smoke Fix
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This smoke followed the sale-project product item relation slice. Frontend source files were not changed.
+
+### Result
+
+- Root cause: the copied sale-project page forces `projectState=FOLLOW`; ThinkPHP `SaleProjectService` then applied fallback current-user data scope to the local admin smoke account, hiding all imported `FOLLOW` projects.
+- Fix: `SaleProjectService` now mirrors existing customer/follow-up/billing services by allowing admin-compatible accounts and roles to bypass fallback current-user filtering.
+- Frontend-shaped HTTP smoke returned `/biz/saleproject/page` `code = 200`, `total = 254`, and 10 rows for `projectState=FOLLOW`.
+- `/biz/process/query` returned `code = 200` and 10 workflow lookup items for those page rows.
+- Browser reload of `/biz/saleproject` showed pagination `1-10 共 254 条` instead of the previous empty-table state.
+
+### Observed Non-Blocking Issues
+
+- Realtime message connection console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.
+- Deep browser smoke for delivery/invoice helper actions still depends on a visible sale-project detail flow and should be handled in a later frontend-agent pass.
+
+## 2026-06-03 Sale Project Detail Tab Smoke
+
+Agent: test-agent / frontend-agent
+
+### Scope
+
+This smoke verifies the copied sale-project detail modal after the local admin data-scope list fix. No frontend source, backend business code, route file, database schema, or Java source was changed.
+
+### Result
+
+- Browser remained on `/biz/saleproject`.
+- The visible sale-project table opened the detail modal for `赣州开放大学心理中心`.
+- `项目信息` rendered project and customer details.
+- `项目跟进记录` rendered one existing follow-up record and pagination.
+- `项目案例` rendered the current empty/read state and did not raise a new backend runtime failure.
+- `审核中的流程 0` rendered the current empty/read state and did not raise a new backend runtime failure.
+- Write controls were not exercised.
+
+### Observed Non-Blocking Issues
+
+- The detail modal still exposes write controls for adding follow-ups, uploading case images, editing, discarding, and related business actions; these remain deferred.
+- Realtime message disconnect console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.
+
+### Next Frontend Follow-Up
+
+- Keep sale-project list and detail tabs as browser-smoked read-only coverage.
+- Continue with the next visible read-only page before opening sale-project writes.
+- Schedule realtime message/WebPush console noise as a later test-agent slice.
+
+## 2026-06-03 Completed Sale Project Cost Tab Route Fix
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This fixes the completed-project detail cost tab at `/biz/saleproject/dealProjectList`. Frontend files were not changed.
+
+### Result
+
+- Browser opened `/biz/saleproject/dealProjectList` and found completed special projects.
+- Opening the first project detail exposed the `成本核算` tab.
+- The cost tab initially rendered a 500 result because `/biz/saleproject/cost/details` matched the shorter `/biz/saleproject/cost` route and returned a numeric aggregate.
+- The sale-project route group now registers `cost/details` before `cost`.
+
+### Observed Non-Blocking Issues
+
+- Cost tab display for historical zero-amount projects can still show zero-value statistics, which is expected for imported history data.
+- Realtime message disconnect console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.
+
+## 2026-06-03 Completed Sale Project Cost Zero-Revenue Display Fix
+
+Agent: frontend-agent
+
+### Scope
+
+This fixes only the copied Vue cost tab display for completed sale projects with zero sales revenue. Backend cost payloads and business calculations were not changed.
+
+### Result
+
+- `grossProfitLv` now guards zero or empty `salesRevenue` before running the Decimal.js division.
+- Zero-revenue historical projects display a numeric zero-value gross profit rate instead of `NaN%`.
+- Non-zero revenue projects continue to use the existing Decimal gross-profit-rate formula.
+
+### Verification
+
+- `npm run build` passed.
+- Browser automation against the already-open local `/biz/saleproject/dealProjectList` page was blocked by the browser URL policy; visual confirmation remains a manual/user smoke item.
+
+### Observed Non-Blocking Issues
+
+- Realtime message disconnect console noise still appears from the layout message panel.
+- Vite `docx-templates` browser compatibility warnings still appear.
+
+## 2026-06-16 Payment Record Payer-Time Edit
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/bizpaymentrecord/edit` is now active as a narrow payer-time correction endpoint. It accepts `id` and `payerTime`, updates only the payment record timestamp plus the linked settlement-account statement timestamp, and ignores copied-form fields such as amount, account, object, process, category, user, and org.
+
+### Frontend Notes
+
+- Payment-record form save can now use `/biz/bizpaymentrecord/edit` only for payer-time correction.
+- `/biz/bizpaymentrecord/add` and `/biz/bizpaymentrecord/delete` moved to bounded direct manual writes on 2026-06-26; see the payment/expenditure direct add-delete note below.
+- `scripts/biz-payment-record-edit-http-smoke.ps1` covers no-token rejection, missing-field rejection, detail readback, linked-statement sync, ignored client-spoofed fields, missing-statement rollback, and unchanged related-table counts.
+
+## 2026-06-17 Payment Record Account Switch
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/bizpaymentrecord/edit/account` is now active as a narrow Java-compatible settlement-account switch endpoint. It accepts `id`, `currentTargetId`, and `targetId`, validates the current record and linked statement account, subtracts the stored payment amount from the current settlement account, adds it to the target settlement account, updates the payment record target/org, and syncs the linked statement account.
+
+### Frontend Notes
+
+- Payment-record account switch controls can now call `/biz/bizpaymentrecord/edit/account` for stored-amount account reassignment.
+- The backend ignores client-spoofed amount, object, serial, process, category, user, org, audit, and delete fields.
+- `/biz/bizpaymentrecord/add` and `/biz/bizpaymentrecord/delete` moved to bounded direct manual writes on 2026-06-26; see the payment/expenditure direct add-delete note below.
+- `scripts/biz-payment-record-edit-account-http-smoke.ps1` covers no-token rejection, missing target, same-account rejection, current-account mismatch, missing-statement rollback, detail readback, balance movement, statement account sync, ignored spoofed fields, and unchanged related-table counts.
+
+## 2026-06-16 Expenditure Record Correction
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/bizexpenditurerecord/edit` is now active as a narrow correction endpoint. It accepts `id` with optional `payerTime` and optional `settlementCategory`, updates the expenditure row, and syncs the linked settlement-account statement timestamp only when `payerTime` is supplied.
+
+### Frontend Notes
+
+- The settlement-account detail expenditure tab can save payer-time corrections through the existing expenditure-record API wrapper.
+- The expenditure-record list/category form can save allowed `settlementCategory` corrections through the same route.
+- Object-linked expenditure records and protected category transitions are rejected by the backend.
+- `/biz/bizexpenditurerecord/add` and `/biz/bizexpenditurerecord/delete` moved to bounded direct manual writes on 2026-06-26; see the payment/expenditure direct add-delete note below.
+- `scripts/biz-expenditure-record-edit-http-smoke.ps1` covers no-token and missing-id rejection, detail readback, linked-statement sync, category guard rejection, object guard rejection, missing-statement rollback, ignored client-spoofed fields, and unchanged related-table counts.
+
+## 2026-06-17 Expenditure Record Account Switch
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/bizexpenditurerecord/edit/account` is now active as a narrow Java-compatible settlement-account switch endpoint. It accepts `id`, `currentTargetId`, and `targetId`, validates the current record and linked statement account, adds the stored expenditure amount back to the current settlement account, subtracts it from the target settlement account, updates the expenditure record target account, and syncs the linked statement account.
+
+### Frontend Notes
+
+- Expenditure-record account switch controls can now call `/biz/bizexpenditurerecord/edit/account` for stored-amount account reassignment.
+- The backend ignores client-spoofed amount, object, serial, process, category, user, org, audit, and delete fields.
+- The expenditure record `org` is preserved during account switch, matching Java's record update behavior.
+- `/biz/bizexpenditurerecord/add` and `/biz/bizexpenditurerecord/delete` moved to bounded direct manual writes on 2026-06-26; see the payment/expenditure direct add-delete note below.
+- `scripts/biz-expenditure-record-edit-account-http-smoke.ps1` covers no-token rejection, missing target, same-account rejection, current-account mismatch, missing-statement rollback, detail readback, balance movement, statement account sync, ignored spoofed fields, and unchanged related-table counts.
+
+## 2026-06-26 Payment/Expenditure Direct Add-Delete
+
+Agent: merge-agent / api-agent / docs-agent
+
+### Scope
+
+`/biz/bizpaymentrecord/add`, `/biz/bizpaymentrecord/delete`, `/biz/bizexpenditurerecord/add`, and `/biz/bizexpenditurerecord/delete` are now active as bounded product behavior after explicit user approval. This is not Java-public route parity; Java exposes read/edit/edit-account, while the ThinkPHP direct CRUD route exists to support copied frontend maintenance controls.
+
+### Frontend Notes
+
+- Payment add delegates to settlement-account quick income creation, writing one settlement statement, one payment record, and increasing the settlement account balance.
+- Expenditure add delegates to settlement-account quick expense creation, writing one settlement statement, one expenditure record, and decreasing the settlement account balance.
+- Payment delete only accepts guarded manual `Process_sys` rows, rejects transfer rows, marks the payment record and linked income statement deleted, and subtracts the stored amount from the settlement account.
+- Expenditure delete only accepts guarded manual `Process_sys` rows, rejects transfer/refund/purchase/repayment/travel/customer-rebate categories, marks the expenditure record and linked expense statement deleted, and adds the stored amount back to the settlement account.
+- Workflow-owned, transfer-owned, refund-owned, and other linked finance rows remain protected from direct delete.
+
+## 2026-06-26 Collection/Debit Direct CRUD
+
+Agent: merge-agent / api-agent / docs-agent
+
+### Scope
+
+`/biz/bizcollectionreceipt/add`, `/edit`, `/delete`, `/biz/bizdebitnote/add`, `/edit`, and `/delete` are now active as bounded product behavior after explicit user approval. This is not Java-public route parity; Java comments out these CRUD controller mappings, while the ThinkPHP routes exist to support copied frontend maintenance controls.
+
+### Frontend Notes
+
+- No frontend source change is required for the existing copied API wrappers.
+- Collection-receipt add/edit accept payment-record binding, amount, optional settlement amount, and remark. Delete accepts Java-style array payloads, `idList`, `ids`, or `id`.
+- Debit-note add accepts expenditure-record binding, amount, optional settlement amount, and remark. Edit updates note fields only; delete accepts Java-style array payloads, `idList`, `ids`, or `id`.
+- The backend rejects over-amount and over-settlement values, duplicate active bindings, and direct deletion of settled rows.
+- Direct collection/debit CRUD does not create settlement-account statements or change account balances. Repayment/loan-repayment side effects stay under `/biz/bizcollectionreceipt/batchExpenditure/edit` and `/biz/bizdebitnote/batchRepayment/edit`.
+
+## 2026-06-17 Settlement Account Payment Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/settlementaccount/payment/add` is now active as the settlement-account income form's quick-add endpoint. It accepts `targetId`, `settlementCategory`, `payer`, `payerTime`, positive `amount`, and optional object/bank/remark fields, then creates the linked income statement and payment record while incrementing the selected settlement account balance.
+
+### Frontend Notes
+
+- The existing `settlementAccountApi.settlementAccountPayment(data)` wrapper can submit the income form without frontend source changes.
+- The backend accepts both the frontend's joined category string and array-style category values by joining arrays with `/`.
+- `/biz/settlementaccount/expenses/add` and `/transfer/add` are now covered by the subsequent quick-expense and transfer slices; `/delete` remains controlled-deferred.
+- Java data-change events and workflow hooks remain out of scope.
+- `scripts/settlement-account-payment-add-http-smoke.ps1` covers no-token rejection, validation failures, missing-account rollback, detail readback through `/biz/bizpaymentrecord/detail`, statement/payment/account state, unchanged unrelated finance counts, and cleanup.
+
+## 2026-06-17 Settlement Account Expenses Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/settlementaccount/expenses/add` is now active as the settlement-account expense form's quick-add endpoint. It accepts `targetId`, `settlementCategory`, `payer`, `payerTime`, positive `amount`, and optional object/bank/remark fields, then creates the linked expense statement and expenditure record while decrementing the selected settlement account balance.
+
+### Frontend Notes
+
+- The existing `settlementAccountApi.settlementAccountExpenses(data)` wrapper can submit the expense form without frontend source changes.
+- `/biz/settlementaccount/transfer/add` is covered by the subsequent transfer slice, and `/biz/settlementaccount/delete` is covered by the protected logical-delete slice.
+- Java data-change events, workflow hooks, and collection-receipt settlement propagation remain out of scope.
+- `scripts/settlement-account-expenses-add-http-smoke.ps1` covers no-token rejection, validation failures, missing-account rollback, detail readback through `/biz/bizexpenditurerecord/detail`, statement/expenditure/account state, unchanged unrelated finance counts, and cleanup.
+
+## 2026-06-17 Settlement Account Transfer Add
+
+Agent: merge-agent / api-agent / test-agent / docs-agent
+
+### Scope
+
+`/biz/settlementaccount/transfer/add` is now active as the settlement-account transfer form endpoint. It accepts `expensesAccountId`, `revenueAccountId`, `payerTime`, positive `amount`, and optional `remark`, then creates an expense-side statement/expenditure record and an income-side statement/payment record while moving the amount between the two selected settlement-account balances.
+
+### Frontend Notes
+
+- The existing `settlementAccountApi.settlementAccountTransfer(data)` wrapper can submit the transfer form without frontend source changes.
+- The backend uses fixed settlement category `dealings`, matching Java transfer behavior.
+- The backend derives payer and bank account fields from the opposite settlement account, matching Java `getSettlementAccountCorrectParam`.
+- Same-account transfers are rejected before any write.
+- `/biz/settlementaccount/delete` is covered by the protected logical-delete slice; referenced accounts are rejected.
+- Java data-change events, workflow hooks, collection-receipt settlement propagation, and debit-note repayment propagation remain out of scope.
+- `scripts/settlement-account-transfer-add-http-smoke.ps1` covers no-token rejection, validation failures, same-account rejection, missing-account rollback, detail readback through expenditure/payment detail routes, both statement rows, both finance rows, both account balances, unchanged unrelated finance counts, and cleanup.
+
+## 2026-06-03 Sale Project Detail Remaining Tab API Smoke
+
+Agent: test-agent / frontend-agent
+
+### Scope
+
+This smoke verifies existing read-only data paths for sale-project detail tabs beyond information, follow-up, case, pending-process, and cost. No frontend or backend business source files were changed.
+
+### Result
+
+- Sample project: `2007642126725550081`.
+- Payment tab source path `bizPaymentRecordApi.bizPaymentRecordPage` passed through `PaymentRecordService::page` with `2/2` rows.
+- Return-order tab source path `returnOrderApi.returnOrderPage` passed through `ReturnOrderService::page` with `0/0` rows for the sampled project.
+- Invoice tab source path `BizSaleProjectInvoiceApi.bizSaleProjectInvoiceList` passed through `SaleProjectBillingService::invoiceList` with `1` row.
+- File tab source path `BizFileRelationApi.bizFileRelationList` passed through `FileRelationService::list` with `2` rows.
+
+### Observed Non-Blocking Issues
+
+- Empty return-order data is valid for the sampled imported project.
+- Browser automation for the already-open local sale-project page remains blocked by URL policy in this session, so the direct service smoke was used.
+- Realtime message disconnect console noise still appears from the layout message panel.
+
+## 2026-06-03 Message SSE Noise Fallback
+
+Agent: frontend-agent
+
+### Scope
+
+This slice adapts only the copied layout message panel's SSE client to the current ThinkPHP short-lived compatibility stream. It does not implement backend realtime push.
+
+### Result
+
+- The component now closes its EventSource and reconnect timer on unmount.
+- Short-lived disconnects retry every 30 seconds instead of every 5 seconds.
+- The retry loop stops after 3 short-lived disconnects and logs a compatibility-mode warning instead of continuously treating the short stream as a hard error.
+- Reconnect requests use the latest stored `CLIENTID`.
+- The backend compatibility stream now emits both `FlushMessageNotice` and `FlushProcessNotice` once on connect, so the existing layout handlers refresh message and task counts without adding long-lived push.
+
+### Verification
+
+- `npm run build` passed.
+- `php think route:list` passed.
+- Browser smoke opened the authenticated `/sys/org` page and observed logs for 42 seconds after reload; no relevant SSE/message connection error or warning logs were captured.
+
+### Deferred
+
+- Full Redis/queue-backed realtime push remains deferred.
+- Long-lived process/message push, Redis pub/sub fanout, and workflow-triggered realtime events remain deferred.
+
+## 2026-06-03 Sys User Grant Echo Read-Only Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied `/sys/user` page grant dialogs by adding read-only grant echo endpoints. It does not implement grant save behavior.
+
+### Result
+
+- `/sys/user/list/detail` is now routed to the existing sanitized user list-detail reader.
+- `/sys/user/ownRole` is now routed for role id echo.
+- `/sys/user/ownResource` returns existing direct user menu/button resource grants from `sys_relation`.
+- `/sys/user/ownPermission` returns existing direct user API/data-scope grants from `sys_relation`.
+
+### Deferred
+
+- `/sys/user/grantRole`, `/sys/user/grantResource`, and `/sys/user/grantPermission` remain deferred.
+- User add/edit/delete, enable/disable, reset password, import/export, and profile writes remain deferred.
+
+## 2026-06-04 Biz CC Records Read-Only Compatibility
+
+Agent: api-agent / workflow-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied workflow copy-task page at `snowy-admin-web/src/views/biz/biztask/copytask.vue`.
+
+### Result
+
+- `/biz/ccrecords/page` is now routed as a protected read-only GET endpoint.
+- `/biz/ccrecords/detail` is now routed as a protected read-only GET endpoint.
+- Page reads are filtered to the current token user, matching Java's `USER = StpUtil.getLoginId()` behavior.
+- Rows include `promoterName`, `userName`, and `instanceId` for the copied table and process-detail drawer.
+
+### Deferred
+
+- `/biz/ccrecords/delete` remains deferred because it mutates copy/CC records.
+- Workflow copy delegate writes and approval actions remain deferred.
+
+Subsequent state on 2026-06-16: `/biz/ccrecords/delete` is covered as current-user logical delete, and `/biz/ccrecords/add` plus `/edit` are covered as narrow current-user row maintenance. Workflow copy delegate writes, notifications, and approval actions remain deferred.
+
+## 2026-06-04 Biz Draft Detail Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied sale-project draft detail call in `snowy-admin-web/src/api/biz/bizDraftApi.js`.
+
+### Result
+
+- `/biz/bizdraft/detail` is now routed as a protected read-only GET endpoint.
+- The service reads by `TARGET_ID`, matching Java `BizDraftServiceImpl.detail`.
+- The raw `extJson` string is preserved for the copied sale-project form to parse saved draft form/file data.
+
+### Deferred
+
+- `/biz/bizdraft/saleproject/add` was deferred in the original read-only slice and is now covered by the 2026-06-12 draft save compatibility slice.
+- Sale-project add/edit, workflow start, and file upload side effects remain deferred.
+
+## 2026-06-04 Biz User Vacation Detail Read-Only Compatibility
+
+Agent: workflow-agent / api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied leave-process pages that call `bizUserVacationApi.bizUserVacationDetail`.
+
+### Result
+
+- `/biz/bizuservacation/detail` is now routed as a protected read-only GET endpoint.
+- The service defaults to the current token user and `annualLeave`, matching Java behavior.
+- Records are filtered to the current year by `CREATE_TIME`.
+- Missing rows return a zero-balance annual-leave object so the copied leave form can still calculate remaining days.
+
+### Deferred
+
+- `/biz/bizuservacation/page` was deferred in this slice and is handled by the later page-read slice.
+- `/biz/bizuservacation/add`, `/edit`, and `/delete` remain deferred.
+- Vacation generation/reduction, leave approval balance deductions, workflow writes, and payroll-facing side effects remain deferred.
+
+## 2026-06-05 Biz User Vacation Page Read-Only Compatibility
+
+Agent: workflow-agent / api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied vacation-balance API wrapper `snowy-admin-web/src/api/biz/bizUserVacationApi.js`.
+
+### Result
+
+- `/biz/bizuservacation/page` is now routed as a protected read-only GET endpoint.
+- Page reads existing non-deleted vacation-balance rows with pagination.
+- Rows expose `userId`, `userName`, `amount`, `usedAmount`, `category`, audit fields, tenant id, and version.
+
+### Deferred
+
+- `/biz/bizuservacation/add`, `/edit`, and `/delete` remain deferred.
+- Vacation generation/reduction, leave approval deductions, workflow writes, and payroll-facing side effects remain out of scope.
+
+## 2026-06-04 Biz History Excel Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied historical EXCEL page wrapper at `snowy-admin-web/src/api/biz/bizHistoryExcelApi.js`.
+
+### Result
+
+- `/biz/bizhistoryexcel/page` is now routed as a protected read-only GET endpoint.
+- `/biz/bizhistoryexcel/detail` is now routed as a protected read-only GET endpoint.
+- Rows preserve the raw `extJson` spreadsheet payload and add camelCase aliases for the copied Vue table/detail components.
+- Logical deleted rows stay hidden.
+
+### Deferred
+
+- `/biz/bizhistoryexcel/add`, `/edit`, and `/delete` remain deferred.
+- Excel import/export, spreadsheet parsing changes, and storage writes remain deferred.
+
+## 2026-06-04 Sale Project Invoice Item Page Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied sale-project invoice/detail components that need Java-compatible delivery invoice item pagination.
+
+### Result
+
+- `/biz/saleprojectinvoiceItem/page` is now routed as a protected read-only GET endpoint.
+- Page filtering supports `invoiceId` and `warehousesId`, matching Java `BizSaleProjectInvoiceItemServiceImpl.page`.
+- Rows include product and warehouse display aliases already used by sale-project invoice detail reads.
+- The compatibility path keeps Java's uppercase `I` in `invoiceItem`.
+
+### Deferred
+
+- Invoice item add/edit/delete routes remain deferred.
+- Invoice creation/edit, delivery shipment, stock, project state, and finance side effects remain deferred.
+
+## 2026-06-04 Sales Project Field Change Log Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports Java-compatible sale-project field change log browsing and keeps the copied sale-project detail/history data shape available to future frontend entries.
+
+### Result
+
+- `/biz/salesprojectfieldchangelog/page` is now routed as a protected read-only GET endpoint.
+- `/biz/salesprojectfieldchangelog/detail` is now routed as a protected read-only GET endpoint.
+- Rows expose `objectId`, `fieldName`, `fieldLabel`, `beforeValue`, `afterValue`, `changeReason`, audit fields, `projectName`, and `createUserName`.
+- Existing sale-project detail still receives nested `changeLogs`; this route adds compatibility for the standalone Java controller path.
+
+### Deferred
+
+- `/biz/salesprojectfieldchangelog/add`, `/edit`, and `/delete` remain deferred.
+- Sale-project amount/change writes, workflow, finance, and audit side effects remain deferred.
+
+## 2026-06-04 Team Project Task User Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports Java-compatible team-project task user browsing and keeps standalone controller-path compatibility for copied team task/member consumers.
+
+### Result
+
+- `/biz/bizteamprojecttaskuser/page` is now routed as a protected read-only GET endpoint.
+- `/biz/bizteamprojecttaskuser/detail` is now routed as a protected read-only GET endpoint.
+- Rows expose `userId`, `headName`, `avatar`, `teamProjectId`, `teamProjectTaskId`, `roleType`, `extJson`, audit fields, and tenant id.
+- Reads keep the existing ThinkPHP team-project visibility boundary by requiring current-user project membership.
+
+### Deferred
+
+- `/biz/bizteamprojecttaskuser/add`, `/edit`, and `/delete` remain deferred.
+- Task assignment writes, task status/progress writes, notifications, and side effects remain deferred.
+
+## 2026-06-04 Dev Monitor Network Info Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied monitor API wrapper `snowy-admin-web/src/api/dev/monitorApi.js`.
+
+### Result
+
+- `/dev/monitor/networkInfo` is now routed as a protected read-only GET endpoint.
+- The response includes `devMonitorNetworkInfo.upLinkRate` and `devMonitorNetworkInfo.downLinkRate`.
+- Unsupported OS counter reads degrade to `0 B/s` instead of breaking the monitor page.
+
+### Deferred
+
+- Monitor writes, server process control, and metric persistence remain out of scope.
+
+## 2026-06-05 Sale Project Rate Detail Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied rating API wrapper `snowy-admin-web/src/api/biz/saleProjectRateApi.js`.
+
+### Result
+
+- `/biz/projectrate/detail` is now routed as a protected read-only GET endpoint.
+- Detail reads a single non-deleted rating row by `id`.
+- The row keeps the same normalized shape used by `/biz/projectrate/page` and `/biz/projectrate/list`, including `projectName`, `customerName`, and raw `extJson`.
+
+### Deferred
+
+- `/biz/projectrate/add`, `/edit`, and `/delete` remain deferred.
+- Rating image upload, sale-project writes, file storage, project state, and workflow/finance side effects remain out of scope.
+
+## 2026-06-05 Team Project Comment Reply Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied team-project comment wrappers:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentApi.js`
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentReplyApi.js`
+
+### Result
+
+- `/biz/bizteamprojectcomment/detail` is now routed as a protected read-only GET endpoint.
+- `/biz/bizteamprojectcommentreply/page` is now routed as a protected read-only GET endpoint.
+- `/biz/bizteamprojectcommentreply/detail` is now routed as a protected read-only GET endpoint.
+- Comment detail includes nested `bizTeamProjectCommentReplies`.
+- Standalone reply reads use the reply target comment and owning project membership to keep the current user visibility boundary.
+
+### Deferred
+
+- `/biz/bizteamprojectcomment/add` and `/delete` remain deferred.
+- `/biz/bizteamprojectcommentreply/add`, `/edit`, and `/delete` remain deferred.
+- Notifications, data-change events, file uploads, and team-project write behavior remain out of scope.
+
+## 2026-06-05 Sys Field Read-Only Compatibility
+
+Agent: user-agent / api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied system-resource field wrapper and drawer:
+
+- `snowy-admin-web/src/api/sys/resource/fieldApi.js`
+- `snowy-admin-web/src/views/sys/resource/field/index.vue`
+- `snowy-admin-web/src/views/sys/resource/field/form.vue`
+
+### Result
+
+- `/sys/field/page` is now routed as a protected read-only GET endpoint.
+- `/sys/field/tree` is now routed as a protected read-only GET endpoint.
+- `/sys/field/detail` is now routed as a protected read-only GET endpoint.
+- `/sys/field/MenuTreeSelector` is now routed to the existing menu tree selector data.
+- Field page/tree read `sys_resource` with `CATEGORY = FIELD`.
+- The imported local database currently has no `FIELD` resource rows, so field reads return stable empty page/tree structures.
+
+### Deferred
+
+- `/sys/field/add`, `/edit`, and `/delete` remain deferred.
+- Menu, button, module, and field write behavior remains out of scope.
+
+## 2026-06-05 Gen Basic Metadata Read-Only Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied generator form metadata calls:
+
+- `snowy-admin-web/src/api/gen/genBasicApi.js`
+- `snowy-admin-web/src/views/gen/basic.vue`
+
+### Result
+
+- `/gen/basic/tables` is now routed as a protected read-only GET endpoint.
+- `/gen/basic/tableColumns` is now routed as a protected read-only GET endpoint.
+- Table metadata returns `tableName` and `tableRemark`.
+- Column metadata returns upper-case `columnName`, upper-case `typeName`, and `columnRemark`, matching the Java generator form expectations.
+- `ACT_` workflow engine tables are excluded from generator table options.
+
+### Deferred
+
+- `/gen/basic/add`, `/edit`, and `/delete` remain deferred.
+- `/gen/basic/previewGen` is now covered as a safe metadata-only preview route.
+- `/gen/basic/execGenZip` is now covered as a protected temporary ZIP download that reuses preview output and writes no project files.
+- `/gen/basic/execGenPro` remains deferred because it writes generated code into project directories and creates menu/role side effects in Java.
+- Generator templates, generated code output, and frontend source remain unchanged.
+
+## 2026-06-05 Auth Third User Page Read-Only Compatibility
+
+Agent: auth-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied third-party user binding wrapper:
+
+- `snowy-admin-web/src/api/auth/thirdApi.js`
+
+### Result
+
+- `/auth/third/page` is now routed as a protected read-only GET endpoint.
+- Page reads `auth_third_user` rows and returns Java-compatible third-party binding fields.
+- The endpoint supports `category`, `searchKey`, pagination, and safe sort fields.
+
+### Deferred
+
+- `/auth/third/render` and `/auth/third/callback` remain deferred.
+- Third-party OAuth provider configuration, login callback binding, user creation, token issuing, and frontend source changes remain out of scope.
+
+## 2026-06-05 Customer Follow-Up Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied customer follow-up wrapper:
+
+- `snowy-admin-web/src/api/biz/customerFollowUpApi.js`
+
+### Result
+
+- `/biz/customerfollowup/add` is now routed as a protected POST endpoint.
+- `/biz/customerfollowup/edit` is now routed as a protected POST endpoint.
+- `/biz/customerfollowup/delete` is now routed as a protected POST endpoint.
+- The backend accepts the frontend submit-form wrapper without changing copied frontend source.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Writes validate permission through the owning customer and use logical delete for data safety.
+
+### Deferred
+
+- Customer add/edit/delete and head-owner reassignment remain deferred.
+- Follow-up attachment upload/storage cleanup, notifications, and customer encrypted-field writes remain out of scope.
+
+## 2026-06-05 Sale Project Follow-Up Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied sale-project follow-up wrapper and visible sale-project detail follow-up tab:
+
+- `snowy-admin-web/src/api/biz/saleProjectFollowUpApi.js`
+- `snowy-admin-web/src/views/biz/saleproject/saleProjectTab/followup/index.vue`
+- `snowy-admin-web/src/views/biz/saleprojectfollowup/form.vue`
+
+### Result
+
+- `/biz/saleprojectfollowup/add` is now routed as a protected POST endpoint.
+- `/biz/saleprojectfollowup/edit` is now routed as a protected POST endpoint.
+- `/biz/saleprojectfollowup/delete` is now routed as a protected POST endpoint.
+- The sale-project detail tab can submit a follow-up record with `projectId`, `followUpTime`, `category`, `content`, and optional `fileList`.
+- Submitted `fileList` is stored under `EXT_JSON` as `{"fileList":[...]}`, preserving the frontend's existing parser.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Writes validate permission through the owning sale project and use logical delete for data safety.
+
+### Deferred
+
+- File upload/storage implementation and physical file cleanup remain deferred.
+- Sale-project state, workflow, finance, inventory, and notification side effects remain out of scope.
+
+## 2026-06-05 Sale Project Product Info Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied software package/version info page:
+
+- `snowy-admin-web/src/api/biz/bizSaleProjectProductInfoApi.js`
+- `snowy-admin-web/src/views/biz/saleprojectproductinfo/index.vue`
+- `snowy-admin-web/src/views/biz/saleprojectproductinfo/form.vue`
+
+### Result
+
+- `/biz/saleprojectproductinfo/add` is now routed as a protected POST endpoint.
+- `/biz/saleprojectproductinfo/edit` is now routed as a protected POST endpoint.
+- `/biz/saleprojectproductinfo/delete` is now routed as a protected POST endpoint.
+- Add requires `productId`, `targetId`, and `contentText`.
+- Edit only requires `id` and updates submitted fields.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Product master-data writes, sale-project product-item changes, inventory, delivery, workflow, finance, import/export, and report-generation side effects remain out of scope.
+
+## 2026-06-05 Sale Project Field Change Log Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports Java-compatible field-change-log writes for the sale-project history/change log route group:
+
+- `/biz/salesprojectfieldchangelog/add`
+- `/biz/salesprojectfieldchangelog/edit`
+- `/biz/salesprojectfieldchangelog/delete`
+
+### Result
+
+- `/biz/salesprojectfieldchangelog/add` is now routed as a protected POST endpoint.
+- `/biz/salesprojectfieldchangelog/edit` is now routed as a protected POST endpoint.
+- `/biz/salesprojectfieldchangelog/delete` is now routed as a protected POST endpoint.
+- Add and edit require `objectId`, `fieldName`, `fieldLabel`, `beforeValue`, `afterValue`, and `changeReason`, matching Java parameter validation.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Sale-project amount/change writes, generated history creation from main project forms, workflow, finance, and audit side effects remain out of scope.
+
+## 2026-06-05 Biz History Excel Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied historical Excel page wrapper:
+
+- `snowy-admin-web/src/api/biz/bizHistoryExcelApi.js`
+- `snowy-admin-web/src/views/biz/bizhistoryexcel/index.vue`
+- `snowy-admin-web/src/views/biz/bizhistoryexcel/form.vue`
+
+### Result
+
+- `/biz/bizhistoryexcel/add` is now routed as a protected POST endpoint.
+- `/biz/bizhistoryexcel/edit` is now routed as a protected POST endpoint.
+- `/biz/bizhistoryexcel/delete` is now routed as a protected POST endpoint.
+- Add stores frontend-submitted `name` and `extJson` into `biz_history_excel`.
+- Edit updates submitted `extJson`, matching the Java edit parameter shape.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Frontend Excel parser changes, import/export, file storage, and `biz_history_excel_row` row-table writes remain out of scope.
+
+## 2026-06-05 Sale Project Rate Write Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied sale-project case/rating tab wrapper:
+
+- `snowy-admin-web/src/api/biz/saleProjectRateApi.js`
+- `snowy-admin-web/src/views/biz/saleproject/saleProjectTab/projectCase/index.vue`
+
+### Result
+
+- `/biz/projectrate/add` is now routed as a protected POST endpoint.
+- `/biz/projectrate/delete` is now routed as a protected POST endpoint.
+- Add accepts the frontend's `projectId`, `subject`, optional `content`, optional `rateAmount`, and `imgList`.
+- Submitted `imgList` is stored under `EXT_JSON` as `{"imgList":[...]}`, preserving the frontend's existing parser.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- `/biz/projectrate/edit` remains deferred because the Java controller does not expose it in the current reference.
+- Image upload/storage, sale-project state, workflow, finance, inventory, and notification side effects remain out of scope.
+
+## 2026-06-05 CC Records Delete Compatibility
+
+Agent: api-agent / frontend-agent / workflow-agent
+
+### Scope
+
+This slice supports the copied workflow copy-task page delete action:
+
+- `snowy-admin-web/src/api/biz/bizCcRecordsApi.js`
+- `snowy-admin-web/src/views/biz/biztask/copytask.vue`
+
+### Result
+
+- `/biz/ccrecords/delete` is now routed as a protected POST endpoint.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads.
+- Delete is guarded by the current token user id, matching Java's `USER = StpUtil.getLoginId()` behavior.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- `/biz/ccrecords/add` and `/edit` remain deferred.
+- Workflow copy-user delegate writes, approval/reject/start/cancel side effects, and notification behavior remain out of scope.
+
+Subsequent state on 2026-06-16: `/biz/ccrecords/add` and `/edit` are covered as narrow current-user row maintenance. Workflow copy-user delegate writes, approval/reject/start/cancel side effects, and notification behavior remain out of scope.
+
+## 2026-06-05 Team Project Comment Add Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied team-project timeline comment and reply submission:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentApi.js`
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentReplyApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/composables/index.js`
+
+### Result
+
+- `/biz/bizteamprojectcomment/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectcommentreply/add` is now routed as a protected POST endpoint.
+- Comment add accepts `teamProjectId`, `status`, `statusColor`, `contentText`, and `mentionableUsers`.
+- Submitted `mentionableUsers` is stored under `EXT_JSON` as `{"mentionableUsers":[...]}`.
+- Reply add accepts `targetId` and `contentText`.
+- Both writes are guarded by current-user membership of the owning team project.
+
+### Deferred
+
+- `/biz/bizteamprojectcomment/delete` remains deferred.
+- `/biz/bizteamprojectcommentreply/edit` and `/delete` remain deferred.
+- Notification push, data-change events, team-project mutations, task mutations, and task state/progress writes remain out of scope.
+
+## 2026-06-05 Team Project Comment Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice completes the remaining copied team-project comment/reply wrapper maintenance endpoints:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentApi.js`
+- `snowy-admin-web/src/api/biz/bizTeamProjectCommentReplyApi.js`
+
+### Result
+
+- `/biz/bizteamprojectcomment/delete` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectcommentreply/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectcommentreply/delete` is now routed as a protected POST endpoint.
+- Comment delete accepts Java-style array bodies, `idList`, `ids`, or single `id` payloads.
+- Reply edit requires `id`, `targetId`, and `contentText`.
+- Reply delete accepts Java-style array bodies, `idList`, `ids`, or single `id` payloads.
+- Comment delete requires imported project resource permission `delComment`.
+- Reply edit/delete allows the reply creator or a project user with imported `delComment` permission.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Notification push and data-change events remain deferred.
+- Team-project mutations, task/category/task-user writes, task comment writes, and task state/progress writes remain out of scope.
+
+## 2026-06-05 Team Project Task User Edit Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project task detail assignee selector:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/taskDetail.vue`
+
+### Result
+
+- `/biz/bizteamprojecttask/user/edit` is now routed as a protected POST endpoint.
+- The endpoint accepts `id` plus `user`, `users`, or `userIds`.
+- Submitted assignees may be id strings, comma-separated ids, or user objects containing `id`, `userId`, or `value`.
+- Assignment writes require current-user membership of the owning team project plus imported `addUser` project permission or task-level `MANAGE` role.
+- Submitted assignees must already be non-deleted members of the same team project.
+- Removed task-user rows use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- `/biz/bizteamprojecttask/add`, `/edit`, and `/delete` remain deferred.
+- Task category writes, task comments, task status/progress/content writes, notification push, and data-change events remain out of scope.
+
+## 2026-06-05 Team Project Task Comment Add Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project task detail comment submit form:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskCommentApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/taskDetail.vue`
+
+### Result
+
+- `/biz/bizteamprojecttaskcomment/add` is now routed as a protected POST endpoint.
+- Add accepts `teamProjectTaskId`, optional `contentText`, and optional `files`.
+- The owning `teamProjectId` is derived from the existing task row.
+- Submitted `files` are stored under `EXT_JSON` as `{"file":[...]}`, matching the copied task detail drawer parser.
+- The row is stored with `CATEGORY = COMMENT` and `DELETE_FLAG = NOT_DELETE`.
+- The write is guarded by current-user membership of the owning team project.
+
+### Deferred
+
+- `/biz/bizteamprojecttaskcomment/edit` and `/delete` remain deferred.
+- Task add/edit/delete, task category writes, task status/progress/content writes, notification push, and data-change events remain out of scope.
+
+## 2026-06-05 Team Project Task Comment Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice completes the copied team-project task-comment wrapper maintenance endpoints:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskCommentApi.js`
+
+### Result
+
+- `/biz/bizteamprojecttaskcomment/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttaskcomment/delete` is now routed as a protected POST endpoint.
+- Edit accepts `id`, optional `contentText`, optional `files`/`file`/`fileList`, and optional raw `extJson`.
+- File lists are stored under `EXT_JSON` as `{"file":[...]}`.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Maintenance is limited to `CATEGORY = COMMENT` rows. Generated `CATEGORY = LOG` rows remain read-only.
+- Maintenance is allowed for the comment creator, a project user with imported `delComment`, or a task-level `MANAGE` user.
+- Deletes use `DELETE_FLAG = DELETED` so imported rows are not physically removed.
+
+### Deferred
+
+- Generated task-log edit/delete remains deferred.
+- Task add/edit/delete, task category writes, task status/progress/content writes, notification push, and data-change events remain out of scope.
+
+## 2026-06-05 Team Project Task Category Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project kanban category wrapper:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskCategoryApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/index.vue`
+
+### Result
+
+- `/biz/bizteamprojecttaskcategory/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttaskcategory/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttaskcategory/sort/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttaskcategory/delete` is now routed as a protected POST endpoint.
+- Add accepts `teamProjectId`, `title`, optional `extJson`, and optional `sortCode`; default `SORT_CODE` is `99`.
+- Edit accepts `id`, `title`, optional `teamProjectId`, optional `extJson`, and optional `sortCode`.
+- Sort accepts Java-style ordered `[{id: ...}]` bodies and rewrites `SORT_CODE` by submitted order.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Maintenance requires team-project `LEADER`, team-project `MANAGE`, or imported `addUser` project resource permission.
+- Deletes use `DELETE_FLAG = DELETED`, and categories containing active tasks are rejected.
+
+### Deferred
+
+- Task add/edit/delete remains deferred.
+- Task drag-to-category, task status/progress/content writes, notification push, and data-change events remain out of scope.
+
+## 2026-06-05 Team Project Task Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project kanban task wrappers:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectTaskApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/addTaskForm.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/taskDetail.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/task/taskItemListView.vue`
+
+### Result
+
+- `/biz/bizteamprojecttask/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttask/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojecttask/delete` is now routed as a protected POST endpoint.
+- Add accepts `teamProjectId`, `teamProjectTaskCategoryId`, optional `contentText`, optional `title`, optional `users`, optional `sortCode`, and optional `extJson`.
+- Add inserts `STATUS = TODO`, `PROGRESS = 0`, `DELETE_FLAG = NOT_DELETE`, and `VERSION = 0`.
+- Add creates the current user as task `MANAGE`, and submitted project members as task `MEMBER`.
+- Edit accepts `id` and submitted base task fields: `title`, `status`, `contentText`, `progress`, `teamProjectTaskCategoryId`, `sortCode`, and `extJson`.
+- Edit validates status values against `TODO`, `CANCEL`, and `COMPLETE`.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED` for the task and active task-user rows.
+
+### Deferred
+
+- Generated task `CATEGORY = LOG` comments remain deferred.
+- Notification push, data-change events, workflow actions, and full drag ordering remain out of scope.
+
+## 2026-06-05 Team Project Member Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied team-project member wrappers:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectUserApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/addUserForm.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/composables/index.js`
+
+### Result
+
+- `/biz/bizteamprojectuser/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectuser/manage/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamprojectuser/delete` is now routed as a protected POST endpoint.
+- Add accepts `teamProjectId` and `users`/`user`/`userIds`, rejects users already active in the same project, and creates `ROLE_TYPE = MEMBER`.
+- Manage add uses the same payload shape but creates `ROLE_TYPE = MANAGE`.
+- Previously deleted member rows are restored instead of creating another duplicate active row.
+- Member relation permissions are synchronized under `TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` to match Java role defaults.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED`, and rejects project leader or current-user removal.
+
+### Deferred
+
+- `/biz/bizteamprojectuser/edit` was later opened as a Java-compatible audit-refresh route; role-changing member edit remains deferred.
+- Notification push, data-change events, team-project base writes, and frontend source changes remain out of scope.
+
+## 2026-06-05 Customer Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied customer maintenance wrapper and visible customer table/form consumers:
+
+- `snowy-admin-web/src/api/biz/customerApi.js`
+- `snowy-admin-web/src/views/biz/customer/index.vue`
+- `snowy-admin-web/src/views/biz/customer/form.vue`
+
+### Result
+
+- `/biz/customer/add` is now routed as a protected POST endpoint.
+- `/biz/customer/edit` is now routed as a protected POST endpoint.
+- `/biz/customer/delete` is now routed as a protected POST endpoint.
+- Add accepts the copied form fields, requires `fileId`, defaults owner/user plus organization from the current token user when the payload does not submit them, and rejects submitted owner/org values outside the token user's write scope.
+- Edit validates write scope through the existing customer owner/org data-scope and updates only submitted mutable fields.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED`; imported customer rows are not physically removed.
+
+### Deferred
+
+- SM4 plaintext phone/detail-address compatibility, file upload/storage cleanup, customer data-change events, and sale-project/customer side effects remain out of scope.
+
+## 2026-06-06 Customer Head Reassignment Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied customer owner reassignment wrapper:
+
+- `snowy-admin-web/src/api/biz/customerApi.js`
+
+### Result
+
+- `/biz/customer/head/edit` is now routed as a protected POST endpoint.
+- The endpoint accepts `id` and `user`.
+- It validates current-user customer write scope and validates that the target user is assignable through admin-compatible roles, token data-scope org ids, or current-user fallback.
+- It updates only `customer.USER`, `customer.ORG`, update audit fields, and `VERSION`.
+
+### Deferred
+
+- Customer import/export, file upload/storage cleanup, SM4 plaintext search, sale-project/customer side effects, notifications, and Java data-change events remain out of scope.
+
+## 2026-06-05 Supplier Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied supplier maintenance wrapper and visible supplier table/form consumers:
+
+- `snowy-admin-web/src/api/biz/supplierApi.js`
+- `snowy-admin-web/src/views/biz/supplier/index.vue`
+- `snowy-admin-web/src/views/biz/supplier/form.vue`
+
+### Result
+
+- `/biz/supplier/add` is now routed as a protected POST endpoint.
+- `/biz/supplier/edit` is now routed as a protected POST endpoint.
+- `/biz/supplier/delete` is now routed as a protected POST endpoint.
+- Add requires `name`, `contacts`, and `phone`; empty `status` defaults to `ENABLE`.
+- Add writes the current token user's organization to the lower-case physical `supplier.org` column.
+- Edit requires `id`, `name`, `contacts`, `phone`, and `status`, and validates supplier write scope.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED`; imported supplier rows are not physically removed.
+
+### Deferred
+
+- Supplier import/export remains deferred.
+- Purchase, payment, procurement, inventory, workflow, and other supplier side effects remain out of scope.
+
+## 2026-06-06 Warehouse Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied warehouse maintenance wrapper and visible warehouse table/form consumers:
+
+- `snowy-admin-web/src/api/biz/warehousesApi.js`
+- `snowy-admin-web/src/views/biz/warehouses/index.vue`
+- `snowy-admin-web/src/views/biz/warehouses/form.vue`
+
+### Result
+
+- `/biz/warehouses/add` is now routed as a protected POST endpoint.
+- `/biz/warehouses/edit` is now routed as a protected POST endpoint.
+- `/biz/warehouses/delete` is now routed as a protected POST endpoint.
+- Add accepts `name`, `code`, `address`, `sortCode`, and optional `extJson`.
+- Add writes `USER` from the current token user and `ORG` from the current token user's organization.
+- Edit accepts submitted base fields and validates submitted `org` against token write scope.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`.
+- Delete uses `DELETE_FLAG = DELETED`; imported warehouse rows are not physically removed.
+
+### Deferred
+
+- Inventory stock updates, delivery records, purchase-order writes, sale-project invoice writes, workflow behavior, and warehouse side effects remain out of scope.
+
+## 2026-06-17 Inventory Add Registration Compatibility
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports the copied inventory page registration action:
+
+- `snowy-admin-web/src/api/biz/inventoryApi.js`
+- `snowy-admin-web/src/views/biz/inventory/index.vue`
+
+### Result
+
+- `/biz/inventory/add` is now routed as a protected POST endpoint.
+- The endpoint accepts Java/frontend `warehousesId` and `productIds`.
+- It validates the active warehouse and active enabled products in the current tenant.
+- It rejects duplicate product ids and deleted unique-key conflicts.
+- It inserts missing warehouse/product inventory rows with `CURRENT_COUNT = 0`.
+- It preserves existing active row counts, normalizes null counts to zero, refreshes audit fields, and increments `VERSION`.
+- `scripts/inventory-add-http-smoke.ps1` verifies no-token, validation, missing-product rollback, existing-row preservation, inserted-row detail readback, and no delivery-row creation.
+
+### Deferred
+
+- Inventory delete, stock movement, delivery records, purchase-order warehouse entry, workflow behavior, Java data-change event publishing, and warehouse stock side effects remain out of scope.
+
+## 2026-06-26 Purchase Order Add/Delete And Inventory Delete
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports the copied purchase-order and inventory write wrappers after explicit product approval:
+
+- `snowy-admin-web/src/api/biz/bizPurchaseOrderApi.js`
+- `snowy-admin-web/src/api/biz/inventoryApi.js`
+
+### Result
+
+- `/biz/bizpurchaseorder/add` now creates one direct purchase order plus submitted item rows with `NOT_COMPLETED` settlement and `NOT_IN_WAREHOUSE` storage state.
+- Purchase add accepts the existing frontend/Java `supplier`, `supplierId`, `desirePurchaseDate`, `amount`, `remark`, `org`, and `productList` shape, defaulting direct `instanceId` to `Process_sys`.
+- `/biz/bizpurchaseorder/delete` now logically deletes only orders and item rows that have no completed settlement, warehouse state, goods expenditure records, delivery rows, or warehoused items.
+- `/biz/inventory/delete` now logically deletes only active zero-count inventory rows after warehouse/product write-scope checks.
+- `scripts/frontend-deferred-write-wrapper-smoke.ps1` no longer treats these three routes as deferred wrappers.
+
+### Deferred
+
+- Purchase-order delete with stock or finance rollback, purchase expenditure creation, settlement-account statements, nonzero inventory deletion, inventory stock rollback, workflow hooks, Java data-change event publishing, frontend source changes, Java source changes, database schema changes, Composer/npm changes, `.env` changes, and production data sync remain out of scope.
+
+## 2026-06-18 Delivery Record Add Stocktake Compatibility
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports the copied inventory page stocktake action:
+
+- `snowy-admin-web/src/api/biz/warehouses/deliveryRecordApi.js`
+- `snowy-admin-web/src/views/biz/inventory/index.vue`
+
+### Result
+
+- `/biz/warehouses/delivery/add` is now routed as a protected POST endpoint.
+- The endpoint accepts Java/frontend `warehousesId`, `productId`, target `amount`, `deliveryTime`, and optional `remark`.
+- Submitted `amount` is treated as the desired final inventory count, matching Java's delivery service behavior.
+- It validates the active warehouse, active enabled product, and existing active warehouse/product inventory row.
+- It locks the inventory row, writes one system `IN` or `OUT` `delivery_record` row for non-zero movement, updates `inventory.CURRENT_COUNT` to the submitted target, and increments `VERSION`.
+- `scripts/delivery-record-add-http-smoke.ps1` covers no-token, validation, missing-inventory rollback, IN movement, OUT movement, no-op same target, detail readback, and cleanup. Execution is pending because local MySQL `MySQL80` was stopped and failed to start on 2026-06-18.
+
+### Deferred
+
+- Purchase-order warehouse entry, broader stock workflows, finance, workflow, Java event bus/data-change publishing, frontend source changes, Java source changes, database schema changes, Composer/npm changes, `.env` changes, and production data sync remain out of scope.
+
+## 2026-06-06 Product Status And Reconciliation Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports two copied product list operations:
+
+- `snowy-admin-web/src/api/biz/bizProductApi.js`
+- `snowy-admin-web/src/views/biz/bizproduct/index.vue`
+
+### Result
+
+- `/biz/bizproduct/edit/status` is now routed as a protected POST endpoint.
+- `/biz/bizproduct/reconciliation/edit` is now routed as a protected POST endpoint.
+- Status edit accepts only `ENABLE` and `DISABLE`.
+- Reconciliation edit accepts selected product ids, `reconciliationType`, and optional non-negative `reconciliationAmount`.
+- Both writes validate active product visibility through admin-compatible roles, scoped organization ids, or matching product creator.
+
+### Deferred
+
+- Product add, edit, delete, kit product relation writes, inventory, purchase, sale-project, finance transaction, workflow, file upload/storage, and Java data-change/cache event behavior remain out of scope.
+
+## 2026-06-06 Product Base Maintenance Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied product table and form maintenance flow:
+
+- `snowy-admin-web/src/api/biz/bizProductApi.js`
+- `snowy-admin-web/src/views/biz/bizproduct/index.vue`
+- `snowy-admin-web/src/views/biz/bizproduct/form.vue`
+
+### Result
+
+- `/biz/bizproduct/add` is now routed as a protected POST endpoint.
+- `/biz/bizproduct/edit` is now routed as a protected POST endpoint.
+- `/biz/bizproduct/delete` is now routed as a protected POST endpoint.
+- Add validates Java-required product fields and writes active `biz_product` rows with audit, tenant, organization, and default `status = ENABLE`.
+- Kit product add/edit validates unique child products and quantities, then writes Java-compatible `product_relation` rows with `CATEGORY = KIT_PRODUCT_DATA`.
+- Edit updates only submitted base fields and does not change `CATEGORY`, matching Java `BizProductEditParam`.
+- Delete accepts Java-style array bodies and common `idList`/`ids`/single `id` payloads, blocks products referenced as kit children, and uses logical deletion.
+
+### Deferred
+
+- Inventory stock updates, purchase-order writes, sale-project item writes, finance transaction writes, workflow actions, file upload/storage implementation, and Java data-change/cache event behavior remain out of scope.
+
+## 2026-06-06 User Center Self-Service Write Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied personal-center API wrappers and forms:
+
+- `snowy-admin-web/src/api/sys/userCenterApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/userCenter.vue`
+- `snowy-admin-web/src/views/sys/user/userTab/bindForm/updatePassword.vue`
+- `snowy-admin-web/src/views/sys/user/userTab/bindForm/updateUserInfo.vue`
+- `snowy-admin-web/src/views/sys/user/userTab/shortcutSetting.vue`
+- `snowy-admin-web/src/views/sys/user/userTab/userProcessConfig.vue`
+
+### Result
+
+- `/sys/userCenter/updatePassword` is now routed as a protected POST endpoint.
+- `/sys/userCenter/updateAvatar` is now routed as a protected POST endpoint.
+- `/sys/userCenter/updateSignature` is now routed as a protected POST endpoint.
+- `/sys/userCenter/updateUserInfo` is now routed as a protected POST endpoint.
+- `/sys/userCenter/updateUserWorkbench` is now routed as a protected POST endpoint.
+- `/sys/userCenter/process/config/edit` is now routed as a protected POST endpoint.
+- `/biz/user/center/edit` is now routed as a protected POST endpoint for the copied "more info" form.
+- All writes are constrained to the current token user.
+
+### Deferred
+
+- Admin-side user CRUD, enable/disable, reset password, grants, import/export.
+- Java SM4 encrypted-field migration.
+- Full file-provider storage and avatar cleanup.
+
+## 2026-06-06 User Message Detail Mark-Read Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied user-center message detail behavior:
+
+- `snowy-admin-web/src/api/sys/userCenterApi.js`
+- `snowy-admin-web/src/views/sys/user/userTab/userMessage.vue`
+
+### Result
+
+- `/sys/userCenter/loginUnreadMessageDetail` now marks only the current token user's `dev_relation` receiver row as read.
+- The response detail returns `read = true` after the detail call.
+- The current user's `receiveInfoList` entry also returns `read = true`.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Message send/delete, all-mark-read, WebPush, and full realtime push remain out of scope.
+
+## 2026-06-06 Index Message All-Mark-Read Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied homepage message drawer behavior:
+
+- `snowy-admin-web/src/api/sys/indexApi.js`
+- `snowy-admin-web/src/layout/components/message.vue`
+- `snowy-admin-web/src/views/index/components/miniMessage.vue`
+
+### Result
+
+- `/sys/index/message/allMessageMarkRead` is now routed as a protected POST endpoint.
+- The endpoint marks only the current token user's `dev_relation` rows with `CATEGORY = MSG_TO_USER` as read.
+- Existing valid `EXT_JSON` keys are preserved while `read` is set to `true`.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Message send/delete, WebPush, and full realtime push remain out of scope.
+
+## 2026-06-06 Index Schedule Self-Service Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied homepage schedule widget behavior:
+
+- `snowy-admin-web/src/api/sys/indexApi.js`
+- `snowy-admin-web/src/views/index/components/schedule.vue`
+
+### Result
+
+- `/sys/index/schedule/add` is now routed as a protected POST endpoint.
+- `/sys/index/schedule/deleteSchedule` is now routed as a protected POST endpoint.
+- Add stores current-user schedule rows in `sys_relation` with `CATEGORY = SYS_USER_SCHEDULE_DATA`.
+- Delete accepts Java-style array bodies, `idList`, `ids`, or a single `id`, and is constrained to current-user schedule rows.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Shared calendars, schedule editing, notifications, and cross-user schedule management remain out of scope.
+
+## 2026-06-06 Auth Session And Token Exit Compatibility
+
+Agent: auth-agent / frontend-agent
+
+### Scope
+
+This slice supports copied auth monitor behavior:
+
+- `snowy-admin-web/src/api/auth/monitorApi.js`
+- `snowy-admin-web/src/views/auth/monitor/bTab.vue`
+- `snowy-admin-web/src/views/auth/monitor/cTab.vue`
+- `snowy-admin-web/src/views/auth/monitor/tokenInfoList.vue`
+
+### Result
+
+- `/auth/session/b/exit` is now routed as a protected POST endpoint.
+- `/auth/session/c/exit` is now routed as a protected POST endpoint with client-auth no-op compatibility.
+- `/auth/token/b/exit` is now routed as a protected POST endpoint.
+- `/auth/token/c/exit` is now routed as a protected POST endpoint with client-auth no-op compatibility.
+- B-side tokens created after this slice are indexed in cache by user id so monitor pages can revoke active tokens.
+- Ordinary users can only operate on their own user id/token; admin-compatible accounts or roles may manage all indexed B-side sessions.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- C-side login/client token storage, third-party OAuth render/callback, and fine-grained route permission middleware remain out of scope.
+
+## 2026-06-06 Dev Message Delete Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied station-message management behavior:
+
+- `snowy-admin-web/src/api/dev/messageApi.js`
+- `snowy-admin-web/src/views/dev/message/index.vue`
+
+### Result
+
+- `/dev/message/delete` is now routed as a protected POST endpoint.
+- The endpoint accepts Java-style arrays of `{ id }`, `idList`, `ids`, or a single `id`.
+- Delete removes selected `dev_message` rows and their `MSG_TO_USER` receiver relations.
+- Admin-compatible accounts or roles may delete tenant messages; ordinary users may delete only messages they created.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Message send, SSE/WebPush realtime push behavior, and file/storage cleanup remain out of scope.
+
+## 2026-06-06 Dev Message Send Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports copied station-message send behavior:
+
+- `snowy-admin-web/src/api/dev/messageApi.js`
+- `snowy-admin-web/src/views/dev/message/form.vue`
+
+### Result
+
+- `/dev/message/send` is now routed as a protected POST endpoint.
+- The endpoint accepts copied frontend fields: `subject`, `category`, `content`, `href`, and `receiverIdList`.
+- Receiver values can be strings or selector objects containing `id`, `userId`, `value`, or `key`.
+- Send creates one `dev_message` row and one `MSG_TO_USER` `dev_relation` row per active receiver.
+- `content` defaults to `subject`; `category` defaults to `SYS`; relation `EXT_JSON.read` is initialized as `false`.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Full SSE/WebPush realtime push parity, message templates, file/storage cleanup, and unrelated user/workflow/business writes remain out of scope.
+
+## 2026-06-06 Dev Message Detail Mark-Read Compatibility
+
+Agent: api-agent / frontend-agent
+
+### Scope
+
+This slice supports Java-compatible station-message detail behavior:
+
+- `snowy-admin-web/src/api/dev/messageApi.js`
+- `snowy-admin-web/src/views/dev/message/detail.vue`
+
+### Result
+
+- `/dev/message/detail` keeps the same protected GET route and response shape.
+- When the current token user is one of the message receivers, that user's `MSG_TO_USER` relation is marked as read.
+- Existing relation `EXT_JSON` keys are preserved while `read` is set to `true`.
+- `receiveInfoList` and `readCount` reflect the updated relation state.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Full SSE/WebPush detail refresh parity and unrelated user/workflow/business writes remain out of scope.
+
+## 2026-06-06 User Role Grant Save Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user role-grant dialogs:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/grantRole` is now routed as a protected POST endpoint.
+- `/biz/user/grantRole` is now routed as a protected POST endpoint.
+- Both endpoints accept `{ id, roleIdList }` from the copied frontend forms.
+- Save clears existing direct user role relations and rewrites `SYS_USER_HAS_ROLE` rows with active role ids.
+- Empty `roleIdList` clears direct role grants.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Resource grants, permission grants, admin-side user CRUD, enable/disable, reset-password-by-admin, import/export, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Resource Grant Save Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied system user resource-grant dialog:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/views/sys/user/grantResourceForm.vue`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+
+### Result
+
+- `/sys/user/grantResource` is now routed as a protected POST endpoint.
+- The endpoint accepts `{ id, grantInfoList: [{ menuId, buttonInfo }] }` from the copied frontend form.
+- Save clears existing direct user resource relations and rewrites `SYS_USER_HAS_RESOURCE` rows.
+- Each relation stores Java-compatible `EXT_JSON` with `menuId` and `buttonInfo`.
+- System-module resources are rejected when the target user does not have the super-admin-compatible role.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Permission grants, role resource grants, mobile resource grants, admin-side user CRUD, enable/disable, reset-password-by-admin, import/export, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Permission Grant Save Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports the copied system user permission-grant dialog:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/views/sys/user/grantPermissionForm.vue`
+- `snowy-admin-web/src/views/sys/user/scopeDefineOrg.vue`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+
+### Result
+
+- `/sys/user/grantPermission` is now routed as a protected POST endpoint.
+- The endpoint accepts `{ id, grantInfoList: [{ apiUrl, scopeCategory, scopeDefineOrgIdList }] }` from the copied frontend form.
+- Save clears existing direct user permission relations and rewrites `SYS_USER_HAS_PERMISSION` rows.
+- Each relation stores Java-compatible `EXT_JSON` with API url, data-scope category, and custom organization ids.
+- Custom organization ids are validated against active organization rows.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Role resource grants, mobile resource grants, admin-side user CRUD, enable/disable, reset-password-by-admin, import/export, route-permission middleware, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Enable Disable Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user table status switches:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/disableUser` is now routed as a protected POST endpoint.
+- `/sys/user/enableUser` is now routed as a protected POST endpoint.
+- `/biz/user/disableUser` is now routed as a protected POST endpoint.
+- `/biz/user/enableUser` is now routed as a protected POST endpoint.
+- The endpoints accept `{ id }` and update only `sys_user.USER_STATUS`.
+- Business routes enforce conservative organization data-scope or current-user fallback.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Admin-side user add/edit/delete, reset-password-by-admin, import/export, route-permission middleware, token/session invalidation on status change, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Reset Password Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user reset-password row actions:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/resetPassword` is now routed as a protected POST endpoint.
+- `/biz/user/resetPassword` is now routed as a protected POST endpoint.
+- Both endpoints accept `{ id }` from the copied frontend row action.
+- Save updates only `sys_user.PASSWORD` to the configured default password SM3 hash.
+- The default password value and hash are never returned to the frontend.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Admin-side user add/edit/delete, import/export, route-permission middleware, token/session invalidation after reset, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Delete Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user delete actions:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/delete` is now routed as a protected POST endpoint.
+- `/biz/user/delete` is now routed as a protected POST endpoint.
+- Both endpoints accept copied frontend batch payloads such as `[{ id }]`.
+- Delete uses logical `sys_user.DELETE_FLAG = DELETED`.
+- Affected supervisor references are cleared from direct user director fields, extra position JSON, and organization director fields.
+- Business delete enforces conservative organization data-scope or current-user fallback.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Admin-side user add/edit, import/export, route-permission middleware, token/session invalidation after delete, Java data-change events, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-06 User Add Edit Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user add/edit forms:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/form.vue`
+- `snowy-admin-web/src/views/biz/user/form.vue`
+
+### Result
+
+- `/sys/user/add` is now routed as a protected POST endpoint.
+- `/sys/user/edit` is now routed as a protected POST endpoint.
+- `/biz/user/add` is now routed as a protected POST endpoint.
+- `/biz/user/edit` is now routed as a protected POST endpoint.
+- The backend accepts the existing camelCase form payload and stores matching `sys_user` physical columns.
+- Detail/page responses expose camelCase aliases for the extended profile fields used by the forms.
+- Add sets default password hash, enabled status, not-deleted flag, tenant id, avatar fallback, bank defaults, and company employee id.
+- Edit preserves password, status, tenant id, delete flag, and create metadata.
+- Business add/edit enforces conservative organization data-scope or current-user edit fallback.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Import/export, route-permission middleware, token/session invalidation after profile changes, Java data-change events, and full SM4 encrypted-field migration remain out of scope.
+
+## 2026-06-06 Organization Add Edit Delete Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business organization maintenance pages:
+
+- `snowy-admin-web/src/api/sys/orgApi.js`
+- `snowy-admin-web/src/api/biz/bizOrgApi.js`
+- `snowy-admin-web/src/views/sys/org/index.vue`
+- `snowy-admin-web/src/views/sys/org/form.vue`
+- `snowy-admin-web/src/views/biz/org/index.vue`
+- `snowy-admin-web/src/views/biz/org/form.vue`
+
+### Result
+
+- `/sys/org/add` is now routed as a protected POST endpoint.
+- `/sys/org/edit` is now routed as a protected POST endpoint.
+- `/sys/org/delete` is now routed as a protected POST endpoint.
+- `/biz/org/add` is now routed as a protected POST endpoint.
+- `/biz/org/edit` is now routed as a protected POST endpoint.
+- `/biz/org/delete` is now routed as a protected POST endpoint.
+- Add/edit accept the existing camelCase form payload: `parentId`, `name`, `category`, `sortCode`, `directorId`, and `extJson`.
+- Delete accepts copied frontend batch payloads such as `[{ id }]`.
+- Delete blocks organizations referenced by users, user extra-position JSON, roles, or positions, then logically deletes safe rows.
+- Business add/edit/delete enforces conservative organization data-scope checks.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Position add/edit/delete, user import/export, route-permission middleware, Java data-change events, Java physical delete behavior, and unrelated workflow/business side effects remain out of scope.
+
+## 2026-06-06 Position Add Edit Delete Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business position maintenance pages:
+
+- `snowy-admin-web/src/api/sys/positionApi.js`
+- `snowy-admin-web/src/api/biz/bizPositionApi.js`
+- `snowy-admin-web/src/views/sys/position/index.vue`
+- `snowy-admin-web/src/views/sys/position/form.vue`
+- `snowy-admin-web/src/views/biz/position/index.vue`
+- `snowy-admin-web/src/views/biz/position/form.vue`
+
+### Result
+
+- `/sys/position/add` is now routed as a protected POST endpoint.
+- `/sys/position/edit` is now routed as a protected POST endpoint.
+- `/sys/position/delete` is now routed as a protected POST endpoint.
+- `/biz/position/add` is now routed as a protected POST endpoint.
+- `/biz/position/edit` is now routed as a protected POST endpoint.
+- `/biz/position/delete` is now routed as a protected POST endpoint.
+- Add/edit accept the existing camelCase form payload: `orgId`, `name`, `category`, `sortCode`, and `extJson`.
+- Delete accepts copied frontend batch payloads such as `[{ id }]`.
+- Delete blocks positions referenced by direct user `POSITION_ID` or user `POSITION_JSON[*].positionId`, then logically deletes safe rows.
+- Business add/edit/delete enforces conservative organization data-scope checks.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- User import/export, route-permission middleware, Java data-change events, Java physical delete behavior, and unrelated workflow/business side effects remain out of scope.
+
+## 2026-06-06 User Export Download Compatibility
+
+Agent: user-agent / frontend-agent
+
+### Scope
+
+This slice supports copied system and business user download actions:
+
+- `snowy-admin-web/src/api/sys/userApi.js`
+- `snowy-admin-web/src/api/biz/bizUserApi.js`
+- `snowy-admin-web/src/views/sys/user/index.vue`
+- `snowy-admin-web/src/views/sys/user/impExp.vue`
+- `snowy-admin-web/src/views/biz/user/index.vue`
+
+### Result
+
+- `/sys/user/downloadImportUserTemplate` is now routed as a protected GET endpoint.
+- `/sys/user/export` is now routed as a protected GET endpoint.
+- `/sys/user/exportUserInfo` is now routed as a protected GET endpoint.
+- `/biz/user/export` is now routed as a protected GET endpoint.
+- `/biz/user/exportUserInfo` is now routed as a protected GET endpoint.
+- Download endpoints return blobs compatible with existing frontend `responseType: 'blob'` calls.
+- Export data is sanitized and excludes password/token fields.
+- Business export applies conservative organization data-scope or current-user fallback.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- `POST /sys/user/import`, real `.xlsx` generation, real `.docx` rendering, upload/storage behavior, route-permission middleware, Java data-change events, and encrypted profile-field migration remain out of scope.
+
+## 2026-06-08 Team Project Base Add Edit Delete Compatibility
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports copied team-project project-card and project-detail maintenance calls:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/index.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/form.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/index.vue`
+
+### Result
+
+- `/biz/bizteamproject/add` is now routed as a protected POST endpoint.
+- `/biz/bizteamproject/edit` is now routed as a protected POST endpoint.
+- `/biz/bizteamproject/delete` is now routed as a protected POST endpoint.
+- Add accepts the copied form payload `name` and `description`.
+- Add creates the current user as project owner and inserts a `LEADER` row in `biz_team_project_user`.
+- Add syncs `biz_relation.CATEGORY = TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` with Java leader permission codes.
+- Edit accepts `id`, `name`, `description`, `projectStatus`, and `completionTime`, then increments `VERSION`.
+- Edit/delete require existing `delProject` team-project permission.
+- Delete accepts copied frontend batch payloads such as `[{ id }]` and logically deletes project plus active member rows.
+- No frontend source change is required for this compatibility slice.
+
+### Deferred
+
+- Member role edit, notification push, Java data-change events, Java physical delete behavior, relation cleanup policy, and unrelated task/comment/workflow side effects remain out of scope.
+
+## 2026-06-08 Team Project User Edit Compatibility
+
+Agent: api-agent / test-agent
+
+### Scope
+
+This slice supports the Java-generated team-project member edit endpoint:
+
+- `snowy-admin-web/src/api/biz/bizTeamProjectUserApi.js`
+- `snowy-admin-web/src/views/biz/bizteamproject/details/addUserForm.vue`
+- `snowy-admin-web/src/views/biz/bizteamproject/composables/index.js`
+
+### Result
+
+- `/biz/bizteamprojectuser/edit` is now routed as a protected POST endpoint.
+- The route accepts Java `BizTeamProjectUserEditParam` payload shape: `id` only.
+- The service validates the active member row under the token tenant and refreshes `UPDATE_TIME` and `UPDATE_USER`.
+- Submitted `roleType`, `userId`, `teamProjectId`, or permission fields are ignored.
+- Role values and `TEAM_PROJECT_USER_HAS_RESOURCE_PERMISSION` relation JSON are not changed.
+- No frontend source change is required; the copied frontend edit submit wrapper remains commented out.
+
+### Deferred
+
+- Role-changing member edit, notification push, Java data-change events, Java physical delete behavior, and relation cleanup policy remain out of scope.
+
+## 2026-06-11 System Menu Field Drawer Entry
+
+Agent: main control agent / frontend browser smoke
+
+### Scope
+
+This slice connects the copied system field drawer to the copied system menu page:
+
+- `snowy-admin-web/src/views/sys/resource/menu/index.vue`
+- `snowy-admin-web/src/views/sys/resource/field/index.vue`
+- `snowy-admin-web/src/api/sys/resource/fieldApi.js`
+
+### Result
+
+- `MENU` rows now expose `字段权限` in the row-level `更多` dropdown.
+- The menu page mounts the existing field drawer and opens it with the selected menu row.
+- The drawer keeps using the existing `/sys/field/page`, `/add`, `/edit`, and `/delete` wrappers.
+- Production build passes after the import/mount change.
+- Browser smoke used the real dynamic route `/sys/menu`, expanded a catalog row, opened a menu row's `更多`, clicked `字段权限`, and verified the drawer called `/api/sys/field/page`.
+
+### Notes
+
+- The current local admin menu data did not include `/sys/menu`; browser smoke used temporary marked `sys_relation` authorization rows and deleted them after verification.
+- No credentials, tokens, database passwords, or Redis passwords are stored in tracked files.
+
+## 2026-06-11 Mobile Resource Browser Smoke
+
+Agent: main control agent / frontend browser smoke
+
+### Scope
+
+This browser smoke covers the copied mobile resource maintenance pages:
+
+- `snowy-admin-web/src/views/mobile/resource/module/index.vue`
+- `snowy-admin-web/src/views/mobile/resource/menu/index.vue`
+- `snowy-admin-web/src/views/mobile/resource/button/index.vue`
+- `snowy-admin-web/src/api/mobile/resource/moduleApi.js`
+- `snowy-admin-web/src/api/mobile/resource/menuApi.js`
+- `snowy-admin-web/src/api/mobile/resource/buttonApi.js`
+
+### Result
+
+- `/mobile/module` loaded and called `/api/mobile/module/page`.
+- `/mobile/menu` loaded and called `/api/mobile/menu/moduleSelector` plus `/api/mobile/menu/tree`.
+- Selecting a temporary mobile module showed its temporary root and child menu rows.
+- Opening the child menu row's more dropdown exposed the mobile button permission drawer entry.
+- Opening the button drawer called `/api/mobile/button/page` and displayed the temporary button row.
+
+### Notes
+
+- The imported database did not include dynamic `sys_resource` menu rows for the copied mobile resource pages. The smoke inserted temporary marked `sys_resource` menu rows and `SYS_USER_HAS_RESOURCE` relations, then deleted them.
+- Temporary marked `mobile_resource` module/menu/button rows were inserted for deterministic browser targets and deleted after verification.
+- Cleanup verification showed zero remaining temporary `sys_relation`, `sys_resource`, and `mobile_resource` rows.
+- No credentials, tokens, database passwords, or Redis passwords are stored in tracked files.
+
+## 2026-06-16 Dev Config EditBatch Maintenance
+
+The copied Vue configuration forms post Java-style arrays to `/dev/config/editBatch`. This route is now covered as narrow existing-row `dev_config.CONFIG_VALUE` maintenance with full-batch validation, sensitive-mask preservation for `******`, and rollback on mixed missing keys.
+
+### Deferred
+
+- Provider send/test actions, external service calls, Redis/cache invalidation hooks, and unmasking sensitive values remain out of scope.
+
+## 2026-06-16 Payroll Export Download
+
+The copied payroll list page calls `/biz/bizpayroll/export` with `responseType: 'blob'` from its batch export button. This route is now covered as an authenticated CSV download that reuses the existing payroll filter and data-scope behavior.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing `downloadUtil.resultDownload(res)` path handles the blob response.
+- The CSV filename uses the salary month when supplied and remains Excel-readable through UTF-8 BOM output.
+
+### Deferred
+
+- Payroll import parsing, salary generation, payroll add, EasyExcel-style xlsx rendering/styling, workflow hooks, leave recalculation, and business side effects remain out of scope.
+
+## 2026-06-18 Payroll Generate Add
+
+The copied payroll list page can post the selected user ids, salary month, and social-security value to `/biz/bizpayroll/generate/add`. This route is now active as Java-compatible payroll generation.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing Java-style payload is accepted as-is: `user`, `salaryTime`, and `socialSecurity`.
+- Successful submissions create payroll rows for the selected users and can be followed by the existing payroll list refresh.
+
+### Deferred
+
+- Payroll import parsing, payroll add, EasyExcel-style xlsx rendering/styling, workflow hooks, Java data-change events, and duplicate-month prevention remain out of scope.
+
+## 2026-06-18 Payroll Import
+
+The copied payroll import dialog can post multipart `file` plus `orgId` to `/biz/bizpayroll/import`. This route is now active as focused Java-template payroll import.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing Java template layout is accepted: salary month in row 1 column A and data rows after the three header rows.
+- The response includes `totalCount`, `successCount`, `errorCount`, and `errorDetail`, so existing import-result UI can display partial success.
+
+### Deferred
+
+- Payroll add, EasyExcel-style xlsx export rendering/styling, workflow hooks, Java data-change events, and duplicate-month prevention remain out of scope.
+
+## 2026-06-17 Collection Receipt Batch Expenditure
+
+The copied collection-receipt quick-settlement form posts `accountId`, `payer`, `payerTime`, `remark`, and selected `items` to `/biz/bizcollectionreceipt/batchExpenditure/edit`. This route is now active as a narrow repayment quick-settlement endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing form payload is accepted as-is.
+- Successful submissions create repayment expenditure/statement rows, update the selected receipt settlement amount/status, and refresh the existing page through the copied `successful` event flow.
+
+### Deferred
+
+- Collection-receipt add/edit/delete, Java event-bus wiring, workflow hooks, and broader finance rollback/delete behavior remain out of scope.
+
+## 2026-06-17 Debit Note Batch Repayment
+
+The copied debit-note quick-repayment form posts `accountId`, `payer`, `payerTime`, `remark`, and selected `items` to `/biz/bizdebitnote/batchRepayment/edit`. This route is now active as a narrow loan-repayment quick-settlement endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing form payload is accepted as-is.
+- Successful submissions create `LoanRepayment` payment/statement rows, update the selected debit-note settlement amount/status, and refresh the existing page through the copied `successful` event flow.
+
+### Deferred
+
+- Debit-note add/edit/delete, Java event-bus wiring, workflow hooks, collection-receipt settlement, and broader finance rollback/delete behavior remain out of scope.
+
+## 2026-06-17 Debit Note History Add
+
+The copied debit-note historical entry form posts `accountId`, `amount`, `historyAmount`, `createTime`, and `remark` to `/biz/bizdebitnote/history/add`. This route is now active as a narrow historical debit-note creation endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing form payload is accepted as-is.
+- Successful submissions create one debit-note row, set its historical settlement amount, and refresh the existing page through the copied `successful` event flow.
+- The selected settlement account supplies organization/tenant context only; account balances and finance ledgers are not changed.
+
+### Deferred
+
+- Debit-note add/edit/delete, Java event-bus wiring, workflow hooks, collection-receipt settlement, and broader finance rollback/delete behavior remain out of scope.
+
+## 2026-06-17 Purchase Order Cancel
+
+The copied purchase-order page posts `{ id }` to `/biz/bizpurchaseorder/cancel` from the row-level cancel confirmation. This route is now active as a narrow purchase-order status marker.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing cancel payload is accepted as-is.
+- Successful submissions set the order `settlementStatus` to `Canceled` and refresh the existing table through the copied page flow.
+- Completed settlement and in-warehouse orders are rejected server-side in addition to the existing frontend disabled states.
+
+### Deferred
+
+- Purchase-order add/delete, inventory rollback, expenditure creation, workflow hooks, Java data-change events, and broader purchase rollback behavior remain out of scope. Normal edit, audit edit, single-order warehouse one add, and batch warehouse add are covered by separate narrow slices.
+
+## 2026-06-17 Purchase Order Edit
+
+The copied purchase-order edit drawer posts the existing order form to `/biz/bizpurchaseorder/edit`. This route is now active as a narrow Java-compatible normal-order edit.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing payload is accepted as-is, including `id`, `amount`, and `productList`.
+- Submitted product items update only existing purchase-order item amount and cost fields.
+- Completed settlement orders, orders with goods-expenditure rows, missing orders, empty product lists, duplicate item ids, and item ids from another order are rejected server-side.
+- Successful submissions return the edited order id and updated item count, then the copied page can refresh through its existing flow.
+
+### Deferred
+
+- Purchase-order add/delete, inventory rollback, expenditure creation, settlement-account statements, workflow hooks, Java data-change events, frontend source changes, and broader purchase rollback behavior remain out of scope. Audit edit, single-order warehouse one add, and batch warehouse add are covered separately as narrow slices.
+
+## 2026-06-17 Purchase Order Audit Edit
+
+The copied purchase-order audit remediation drawer posts the existing order form to `/biz/bizpurchaseorder/audit/edit`. This route is now active as a narrow Java-compatible audit-remediation edit.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing payload is accepted as-is, including `id`, `amount`, and `productList`.
+- Submitted product items update only existing purchase-order item amount and cost fields.
+- Unlike normal `/biz/bizpurchaseorder/edit`, audit edit intentionally allows completed orders and orders with goods-expenditure rows, matching Java `editAudit`.
+- Missing orders, empty product lists, duplicate item ids, and item ids from another order are rejected server-side.
+- Successful submissions return the edited order id and updated item count, then the copied page can refresh through its existing flow.
+
+### Deferred
+
+- Purchase-order add/delete, inventory rollback, expenditure creation, settlement-account statements, workflow hooks, Java data-change events, frontend source changes, and broader purchase rollback behavior remain out of scope. Single-order warehouse one add and batch warehouse add are covered separately as narrow stock-in slices.
+
+## 2026-06-18 Purchase Order Warehouse One Add
+
+The copied purchase-order one-click warehouse form posts `orderId`, `warehousesId`, and optional `remark` to `/biz/bizpurchaseorder/warehouse/one/add`. This route is now active as a Java-compatible single-order warehouse stock-in endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing form payload is accepted as-is.
+- Successful submissions create one `IN` delivery row per purchase-order item, update or create inventory rows, mark the order and items `IN_WAREHOUSE`, and refresh through the existing successful flow.
+- Already warehoused orders/items, missing warehouses, missing products, empty item lists, and unauthorized warehouse/order scopes are rejected server-side.
+
+### Deferred
+
+- Purchase-order add/delete, expenditure creation, settlement-account statements, workflow hooks, Java data-change event publishing, frontend source changes, and broader purchase rollback behavior remain out of scope. Batch warehouse add is covered separately as a narrow completed-order stock-in slice.
+
+## 2026-06-18 Purchase Order Warehouse Add
+
+The copied purchase-order batch warehouse action posts `warehousesId` to `/biz/bizpurchaseorder/warehouse/add`. This route is now active as a Java-compatible completed-order batch stock-in endpoint.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing payload is accepted as-is.
+- Successful submissions process visible completed purchase orders that are still `NOT_IN_WAREHOUSE`, create `IN` delivery rows, update or create inventory rows, mark processed orders/items `IN_WAREHOUSE`, and return the processed order ids/count for the existing page refresh flow.
+- Non-completed and already-in-warehouse orders are skipped by the server-side selection. No eligible orders returns `count = 0`.
+- Missing warehouses, missing products, invalid item quantities, and unauthorized order/warehouse scopes roll back the batch without partial delivery, inventory, item, or order mutation.
+
+### Deferred
+
+- Purchase-order add/delete, expenditure creation, settlement-account statements, workflow hooks, Java data-change event publishing, frontend source changes, and broader purchase rollback behavior remain out of scope.
+
+## 2026-06-18 Sale Project Visibility Edit
+
+The copied sale-project visibility controls post `projectId`, `visibilityState`, and optionally specimen fields to `/biz/saleproject/visibility/edit`. This route is now active as narrow sale-project visibility/specimen field maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing public visibility payload with `specimenCategory` is accepted as-is.
+- Existing copied private toggles that submit only `projectId` and `visibilityState` are accepted; the backend preserves existing specimen fields when those fields are omitted.
+- Successful submissions update only the sale-project visibility/specimen/audit/version fields and can use the existing page refresh flow.
+
+### Deferred
+
+- Sale-project add/edit/delete, deal edit, cancel, repeal, history add, special add, finance, invoice, inventory, delivery, workflow, attachment, notification, customer, and broader project-state side effects remain out of scope. Amount edit is covered separately below.
+
+## 2026-06-18 Sale Project Amount Edit
+
+The copied sale-project amount controls post `id`, `initPrice`, and optional `remark` to `/biz/saleproject/amount/edit`. This route is now active as focused Java-compatible sale-project amount maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing amount-change payload is accepted as-is.
+- Successful submissions update sale-project amount, collection/payment/project status, total/refund/return totals, audit/version fields, and create one `INIT_PRICE` field-change log row.
+- Over-collected projects are rejected server-side and roll back without extra version or change-log changes.
+
+### Deferred
+
+- Sale-project add/edit/delete, deal edit, cancel, repeal, history add, special add, workflow, attachment, notification, inventory, delivery, invoice, customer, and broader project-state side effects remain out of scope.
+
+## 2026-06-18 Sale Project Cancel
+
+The copied sale-project cancel control posts `id` to `/biz/saleproject/cancel`. This route is now active as Java-compatible WAIT_DELIVER rollback.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing cancel payload is accepted as-is.
+- Successful submissions move eligible projects from `WAIT_DELIVER` back to `FOLLOW`, refresh audit/version fields, and logically delete active invoicing rows for that project.
+- Projects in other states are rejected server-side and roll back without changing project or invoicing rows.
+
+### Deferred
+
+- Sale-project add/edit/delete, deal edit, repeal, history add, special add, workflow, payment/settlement correction, inventory, delivery, notifications, file cleanup, and Java data-change events remain out of scope.
+
+## 2026-06-18 Sale Project Repeal
+
+The copied sale-project repeal controls post Java-style arrays such as `[{ id, repealContent }]` to `/biz/saleproject/repeal`. This route is now active as Java-compatible FOLLOW-to-DISCARD discard maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing single-row and batch repeal payloads are accepted as-is.
+- Successful submissions move all selected visible `FOLLOW` projects to `DISCARD`, write `REPEAL_CONTENT` from the first submitted row/top-level field, and refresh audit/version fields.
+- Missing, unauthorized, deleted, or non-`FOLLOW` projects are rejected server-side and roll back without changing project or invoicing rows.
+
+### Deferred
+
+- Sale-project add/edit, deal edit, history add, special add, workflow, payment/settlement correction, inventory, delivery, invoice mutation, notifications, file cleanup, and Java data-change events remain out of scope. Delete is covered separately below.
+
+## 2026-06-18 Sale Project Delete
+
+The copied sale-project delete controls post Java-style arrays such as `[{ id }]` to `/biz/saleproject/delete`. This route is now active as Java-compatible FOLLOW-only logical delete maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing single-row and batch delete payloads are accepted as-is.
+- Successful submissions move all selected visible `FOLLOW` projects to `DISCARD`, set `DELETE_FLAG = DELETED`, and refresh audit/version fields.
+- Missing, unauthorized, already-deleted, or non-`FOLLOW` projects are rejected server-side and roll back without changing project or invoicing rows.
+
+### Deferred
+
+- Sale-project add/edit, history add, special add, workflow, payment/settlement correction, inventory, delivery, invoice mutation, product-item mutation, notifications, file cleanup, and Java data-change events remain out of scope. Deal edit is covered separately below.
+
+## 2026-06-18 Sale Project Deal Edit
+
+The copied sale-project deal form posts the cloned project record to `/biz/saleproject/deal/edit` when the project is no longer `FOLLOW`. This route is now active as Java-compatible delivery/freight field maintenance.
+
+### Frontend Impact
+
+- No frontend source change is required.
+- The existing copied payload is accepted as-is.
+- Successful submissions update only receipt unit, address, logistics category, consignee, phone, project remark, freight, freight payment category, delivery note, and audit/version fields.
+- Spoofed protected fields such as project state, delete flag, and amount totals are ignored server-side.
+
+### Deferred
+
+- Sale-project add/edit, history add, special add, workflow, payment/settlement correction, inventory, delivery, invoice mutation, product-item mutation, notifications, file cleanup, and Java data-change events remain out of scope.
