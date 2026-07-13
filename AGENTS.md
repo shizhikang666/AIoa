@@ -295,6 +295,8 @@ Status code convention:
 - `403`: permission denied
 - `500`: server error
 
+Response field shape: the copied Vue frontend expects camelCase keys, not raw `UPPER_SNAKE` DB columns. Read routes (list/detail/tree-select/form) must return the frontend shape. For plain key-case conversion use the canonical `app\support\RowMapper` (`RowMapper::toCamel($row)` / `toCamelList($rows)` / `camelKey($k)`); do not hand-roll new per-service `camelKey()` copies. Field-shape mismatch is the most recurring bug class in this refactor (MT-001, MT-002, P-022); the pre-commit baseline gate (`git config core.hooksPath .githooks`, or `composer check`) lints PHP and boots the route table before each commit.
+
 ## Token + Redis Convention
 
 - Use `Authorization: Bearer <token>`.
