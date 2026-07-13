@@ -11,7 +11,13 @@
 				<a-row :gutter="16">
 					<a-col :span="12">
 						<a-form-item label="售后分类" name="categoryId">
-							<a-select v-model:value="formData.categoryId" :options="categoryOptions" placeholder="请选择分类" />
+							<a-select
+								v-model:value="formData.categoryId"
+								show-search
+								option-filter-prop="label"
+								:options="categoryOptions"
+								placeholder="请选择分类"
+							/>
 						</a-form-item>
 					</a-col>
 					<a-col :span="12">
@@ -41,11 +47,16 @@
 					/>
 				</a-form-item>
 				<a-form-item label="售后处理内容" name="content">
-					<xn-editor v-model="formData.content" :height="390" placeholder="填写处理经过、结论，可直接插入图片" />
+					<xn-editor
+						v-model="formData.content"
+						:height="390"
+						:convert-urls="false"
+						placeholder="填写处理经过、结论，可直接插入图片"
+					/>
 				</a-form-item>
 				<a-form-item label="附件">
 					<xn-upload
-						:value="formData.fileIdList"
+						v-model:value="formData.fileIdList"
 						upload-mode="drag"
 						upload-result-type="id"
 						upload-result-category="array"
@@ -127,8 +138,17 @@
 		}
 	}
 
+	const normalizeFileIds = (value) => {
+		const list = value?.value ?? value
+		if (!Array.isArray(list)) return []
+		return list
+			.map((item) => item?.response?.data ?? item?.id ?? item)
+			.map((item) => String(item || '').trim())
+			.filter(Boolean)
+	}
+
 	const onFilesChange = (value) => {
-		formData.value.fileIdList = value?.value ?? value ?? []
+		formData.value.fileIdList = normalizeFileIds(value)
 	}
 
 	const onClose = () => {
@@ -141,7 +161,7 @@
 		submitLoading.value = true
 		try {
 			const params = cloneDeep(formData.value)
-			params.fileIdList = Array.isArray(params.fileIdList) ? params.fileIdList : []
+			params.fileIdList = normalizeFileIds(params.fileIdList)
 			await afterSalesApi.afterSalesSubmit(params, Boolean(params.id))
 			onClose()
 			emit('successful')

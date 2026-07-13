@@ -12,7 +12,10 @@
 						<a-select
 							v-model:value="searchFormState.categoryId"
 							allow-clear
+							show-search
+							option-filter-prop="label"
 							:options="categoryOptions"
+							:filter-option="filterCategoryOption"
 							placeholder="全部分类"
 						/>
 					</a-form-item>
@@ -131,6 +134,10 @@
 		const data = await afterSalesApi.categoryList()
 		categoryOptions.value = data.map((item) => ({ label: item.name, value: item.id }))
 	}
+	const filterCategoryOption = (input, option) =>
+		String(option?.label || '')
+			.toLocaleLowerCase()
+			.includes(String(input || '').trim().toLocaleLowerCase())
 
 	const loadData = (parameter) => {
 		const params = cloneDeep(searchFormState.value)

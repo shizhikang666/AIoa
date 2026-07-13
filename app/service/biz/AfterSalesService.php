@@ -270,7 +270,6 @@ SQL;
             ->leftJoin('sys_org creatorOrg', 'creatorOrg.ID = creator.ORG_ID')
             ->where('r.TENANT_ID', $this->tenantId($payload));
         $this->whereNotDeleted($query, 'r.DELETE_FLAG');
-        $this->whereNotDeleted($query, 'c.DELETE_FLAG');
         if (!empty($filters['id'])) {
             $query->where('r.ID', (string)$filters['id']);
         }
@@ -302,7 +301,7 @@ SQL;
 
     private function recordRow(array $row, array $payload): array
     {
-        $content = (string)($row['CONTENT'] ?? '');
+        $content = $this->normalizeRichTextUrls((string)($row['CONTENT'] ?? ''));
 
         return [
             'id' => $row['ID'] ?? null,
@@ -514,7 +513,26 @@ SQL;
             $result .= $document->saveHTML($child);
         }
 
-        return trim($result);
+        return trim($this->normalizeRichTextUrls($result));
+    }
+
+    private function normalizeRichTextUrls(string $html): string
+    {
+        return preg_replace_callback(
+            '/\b(src|href)\s*=\s*(["\'])(.*?)\2/isu',
+            static function (array $matches): string {
+                $url = html_entity_decode((string)$matches[3], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $normalized = FileDownloadUrl::normalizeLegacy($url);
+                if ($normalized === null || $normalized === $url) {
+                    return $matches[0];
+                }
+
+                return $matches[1] . '=' . $matches[2]
+                    . htmlspecialchars($normalized, ENT_QUOTES | ENT_HTML5, 'UTF-8')
+                    . $matches[2];
+            },
+            $html
+        ) ?? $html;
     }
 
     private function isSafeRichTextUrl(string $url, bool $allowImageData): bool

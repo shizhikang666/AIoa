@@ -37,6 +37,7 @@
 		v-model:open="formOpen"
 		:title="formData.id ? '编辑分类' : '新增分类'"
 		:confirm-loading="saving"
+		:z-index="1200"
 		@ok="saveCategory"
 	>
 		<a-form ref="formRef" :model="formData" :rules="rules" layout="vertical">

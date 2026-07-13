@@ -303,6 +303,15 @@ $sanitizedAfterSalesHtml = $sanitizeAfterSalesHtml->invoke(
 assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), '<script'), 'after-sales HTML strips script tags');
 assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), 'onclick='), 'after-sales HTML strips event handlers');
 assertSameValue(false, str_contains(strtolower($sanitizedAfterSalesHtml), 'javascript:'), 'after-sales HTML strips javascript URLs');
+$normalizedAfterSalesHtml = $sanitizeAfterSalesHtml->invoke(
+    $afterSalesService,
+    '<p>image</p><img src="backend/dev/file/download?id=image-1" alt="image">'
+);
+assertSameValue(
+    true,
+    str_contains($normalizedAfterSalesHtml, 'src="/backend/dev/file/download?id=image-1"'),
+    'after-sales HTML normalizes uploaded image URLs'
+);
 $afterSalesSummary = new ReflectionMethod(AfterSalesService::class, 'summary');
 assertSameValue('处理完成', $afterSalesSummary->invoke($afterSalesService, '<p>处理完成</p>'), 'after-sales content summary');
 $productService = new ProductService();
@@ -321,6 +330,10 @@ assertSameValue(2, $productsWithInventory[0]['warehouseCount'] ?? null, 'product
 assertSameValue(3.5, $productsWithInventory[0]['totalInventory'] ?? null, 'product warehouse total inventory');
 assertSameValue([], $productsWithInventory[1]['warehouseInventory'] ?? null, 'product without warehouse inventory');
 $afterSalesInstaller = file_get_contents(dirname(__DIR__) . '/scripts/install-after-sales-module.php');
+$afterSalesForm = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/aftersales/form.vue');
+$afterSalesIndex = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/aftersales/index.vue');
+$afterSalesCategoryManager = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/aftersales/categoryManager.vue');
+$xnUpload = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/components/XnUpload/index.vue');
 assertSameValue(
     true,
     is_string($afterSalesInstaller)
@@ -328,9 +341,25 @@ assertSameValue(
         && str_contains($afterSalesInstaller, "'tableCollations'")
         && str_contains($afterSalesInstaller, "'ICON' => null")
         && str_contains($afterSalesInstaller, "'menuIconCleared'")
+        && str_contains($afterSalesInstaller, "'legacyDefaultCategoriesRemoved'")
+        && !str_contains($afterSalesInstaller, "'defaultCategories' =>")
         && !str_contains($afterSalesInstaller, 'FileTextOutlined')
         && !str_contains($afterSalesInstaller, 'COLLATE=utf8mb4_unicode_ci'),
     'after-sales installer matches production table collation and keeps the submenu icon-free'
+);
+assertSameValue(
+    true,
+    is_string($afterSalesForm)
+        && str_contains($afterSalesForm, 'v-model:value="formData.fileIdList"')
+        && str_contains($afterSalesForm, ':convert-urls="false"')
+        && is_string($afterSalesIndex)
+        && str_contains($afterSalesIndex, ':filter-option="filterCategoryOption"')
+        && is_string($afterSalesCategoryManager)
+        && str_contains($afterSalesCategoryManager, ':z-index="1200"')
+        && is_string($xnUpload)
+        && str_contains($xnUpload, "emit('update:value', resultArrayValue.value)")
+        && !str_contains($xnUpload, "emit('update:value', resultArrayValue)"),
+    'after-sales frontend keeps category and attachment fixes wired'
 );
 
 $deliveryMethod = new ReflectionMethod(WorkflowRuntimeService::class, 'projectDeliveryProcessInstanceId');

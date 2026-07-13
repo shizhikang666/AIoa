@@ -306,8 +306,8 @@
 					resultIntervalValue.value =
 						data.response.data + (resultIntervalValue.value ? ',' + resultIntervalValue.value : '')
 				})
-				emit('update:value', resultIntervalValue)
-				emit('onChange', resultIntervalValue)
+				emit('update:value', resultIntervalValue.value)
+				emit('onChange', resultIntervalValue.value)
 			} else if (props.uploadResultCategory === 'array') {
 				if (props.completeResult) {
 					// 得去掉数组里面的thumbUrl，一个base64太大，无用
@@ -324,8 +324,8 @@
 					result.forEach((data) => {
 						resultArrayValue.value.push(data.response.data)
 					})
-					emit('update:value', resultArrayValue)
-					emit('onChange', resultArrayValue)
+					emit('update:value', resultArrayValue.value)
+					emit('onChange', resultArrayValue.value)
 				}
 			}
 			return

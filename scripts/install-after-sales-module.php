@@ -35,7 +35,7 @@ $summary = [
     'menuIconCleared' => false,
     'roleMenuGrants' => 0,
     'roleApiGrants' => 0,
-    'defaultCategories' => 0,
+    'legacyDefaultCategoriesRemoved' => 0,
 ];
 
 if ($apply) {
@@ -195,34 +195,21 @@ if ($apply) {
     });
 }
 
-$tenantIds = array_values(array_unique(array_filter(array_map(
-    static fn (array $row): string => trim((string)($row['TENANT_ID'] ?? '')),
-    $roles
-))));
-if ($tenantIds === []) {
-    $tenantIds = ['1'];
-}
-$defaultCategories = ['质量问题', '使用指导', '维修处理', '退换货', '其他'];
+$legacyDefaultCategoryNames = ['质量问题', '使用指导', '维修处理', '退换货', '其他'];
 if ($apply) {
-    foreach ($tenantIds as $tenantId) {
-        foreach ($defaultCategories as $index => $name) {
-            $exists = (int)active_row(Db::name('biz_after_sales_category')->where('TENANT_ID', $tenantId)->where('NAME', $name))->count() > 0;
-            if ($exists) {
-                continue;
-            }
-            Db::name('biz_after_sales_category')->insert([
-                'ID' => installer_id(),
-                'NAME' => $name,
-                'SORT_CODE' => ($index + 1) * 10,
-                'STATUS' => 'ENABLE',
-                'REMARK' => null,
-                'DELETE_FLAG' => 'NOT_DELETE',
-                'CREATE_TIME' => date('Y-m-d H:i:s'),
-                'CREATE_USER' => $operator,
-                'TENANT_ID' => $tenantId,
+    $legacyDefaults = active_row(
+        Db::name('biz_after_sales_category')
+            ->whereIn('NAME', $legacyDefaultCategoryNames)
+            ->where('CREATE_USER', $operator)
+    )->column('ID');
+    if ($legacyDefaults !== []) {
+        $summary['legacyDefaultCategoriesRemoved'] = Db::name('biz_after_sales_category')
+            ->whereIn('ID', $legacyDefaults)
+            ->update([
+                'DELETE_FLAG' => 'DELETED',
+                'UPDATE_TIME' => date('Y-m-d H:i:s'),
+                'UPDATE_USER' => $operator,
             ]);
-            $summary['defaultCategories']++;
-        }
     }
 }
 

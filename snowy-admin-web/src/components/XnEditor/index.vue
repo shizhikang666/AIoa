@@ -51,6 +51,10 @@
 		fileUploadFunction: {
 			type: Function,
 			default: undefined
+		},
+		convertUrls: {
+			type: Boolean,
+			default: true
 		}
 	})
 	const contentValue = ref()
@@ -70,6 +74,7 @@
 		resize: true,
 		elementpath: true,
 		content_style: '',
+		convert_urls: props.convertUrls,
 		selector: '#textarea1',
 		skin: 'oxide-dark',
 		images_upload_handler(blobInfo, progress) {
