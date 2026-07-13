@@ -326,8 +326,11 @@ assertSameValue(
     is_string($afterSalesInstaller)
         && str_contains($afterSalesInstaller, 'COLLATE=utf8mb4_general_ci')
         && str_contains($afterSalesInstaller, "'tableCollations'")
+        && str_contains($afterSalesInstaller, "'ICON' => null")
+        && str_contains($afterSalesInstaller, "'menuIconCleared'")
+        && !str_contains($afterSalesInstaller, 'FileTextOutlined')
         && !str_contains($afterSalesInstaller, 'COLLATE=utf8mb4_unicode_ci'),
-    'after-sales installer matches production table collation'
+    'after-sales installer matches production table collation and keeps the submenu icon-free'
 );
 
 $deliveryMethod = new ReflectionMethod(WorkflowRuntimeService::class, 'projectDeliveryProcessInstanceId');

@@ -32,6 +32,7 @@ $summary = [
     'tables' => ['biz_after_sales_category', 'biz_after_sales_record'],
     'menuPath' => '/biz/aftersales',
     'menuCreated' => false,
+    'menuIconCleared' => false,
     'roleMenuGrants' => 0,
     'roleApiGrants' => 0,
     'defaultCategories' => 0,
@@ -117,7 +118,7 @@ if ($apply && (!is_array($existingMenu) || $existingMenu === [])) {
         'MENU_TYPE' => 'MENU',
         'PATH' => '/biz/aftersales',
         'COMPONENT' => 'biz/aftersales/index',
-        'ICON' => 'FileTextOutlined',
+        'ICON' => null,
         'COLOR' => null,
         'VISIBLE' => 'TRUE',
         'SORT_CODE' => ((int)($sibling['SORT_CODE'] ?? 100)) + 1,
@@ -129,6 +130,15 @@ if ($apply && (!is_array($existingMenu) || $existingMenu === [])) {
         'UPDATE_USER' => null,
     ]);
     $summary['menuCreated'] = true;
+}
+
+if ($apply && is_array($existingMenu) && $existingMenu !== [] && trim((string)($existingMenu['ICON'] ?? '')) !== '') {
+    Db::name('sys_resource')->where('ID', $menuId)->update([
+        'ICON' => null,
+        'UPDATE_TIME' => date('Y-m-d H:i:s'),
+        'UPDATE_USER' => $operator,
+    ]);
+    $summary['menuIconCleared'] = true;
 }
 
 $apiPaths = [
