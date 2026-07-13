@@ -334,6 +334,7 @@ $afterSalesForm = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/vie
 $afterSalesIndex = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/aftersales/index.vue');
 $afterSalesCategoryManager = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/aftersales/categoryManager.vue');
 $xnUpload = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/components/XnUpload/index.vue');
+$frontendRoutes = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/config/route.js');
 $dealProjectList = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/saleproject/dealProjectList.vue');
 $saleProjectReport = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/saleproject/report.vue');
 assertSameValue(
@@ -362,6 +363,15 @@ assertSameValue(
         && str_contains($xnUpload, "emit('update:value', resultArrayValue.value)")
         && !str_contains($xnUpload, "emit('update:value', resultArrayValue)"),
     'after-sales frontend keeps category and attachment fixes wired'
+);
+assertSameValue(
+    true,
+    is_string($frontendRoutes)
+        && str_contains($frontendRoutes, "name: 'bizteamprojectdetails'")
+        && str_contains($frontendRoutes, "path: '/biz/bizteamprojectdetails'")
+        && str_contains($frontendRoutes, "component: 'biz/bizteamproject/details/index'")
+        && preg_match("/name:\\s*'bizteamprojectdetails'.*?hidden:\\s*true/s", $frontendRoutes) === 1,
+    'authenticated team project members can resolve the hidden shared detail route'
 );
 assertSameValue(
     true,

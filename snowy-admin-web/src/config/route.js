@@ -37,6 +37,17 @@ const routes = {
 				type: 'menu',
 				hidden: true
 			}
+		},
+		{
+			id: '002',
+			name: 'bizteamprojectdetails',
+			path: '/biz/bizteamprojectdetails',
+			component: 'biz/bizteamproject/details/index',
+			meta: {
+				title: '待办详情',
+				type: 'menu',
+				hidden: true
+			}
 		}
 	]
 }

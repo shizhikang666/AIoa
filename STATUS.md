@@ -15394,3 +15394,31 @@ Agent: merge-agent / api-agent / test-agent / docs-agent
 ### Next Plan
 
 - Continue with the next smallest finance write route only after a Java/frontend side-effect comparison and a dedicated rollback smoke plan.
+
+## 2026-07-13 - frontend-agent/test-agent - Shared Team Project Detail Route
+
+### Completed
+
+- Fixed invited team-project members receiving a frontend 404 for `/biz/bizteamprojectdetails?id=...` when their role menu did not include the hidden detail resource.
+- Registered the detail page as an authenticated hidden static route; project visibility remains protected by the existing backend current-member checks.
+- Added a static regression assertion and updated P-028 plus the regression checklist for cross-role invitation/notification deep links.
+
+### Modified Files
+
+- `snowy-admin-web/src/config/route.js`
+- `scripts/regression-safety-smoke.php`
+- `docs/tasks/problem-optimization-log.md`
+- `docs/tasks/regression-checklist.md`
+- `STATUS.md`
+
+### Test Results
+
+- `php scripts/regression-safety-smoke.php`: passed.
+- `composer check`: passed with 245 PHP files and the route table.
+- `npm run build` in `snowy-admin-web`: passed with existing environment, Browserslist, dependency-eval, and CSS-comment warnings only.
+- `git diff --check`: passed with normal LF/CRLF warnings only.
+
+### Current Issues
+
+- Local MySQL, backend, and frontend services were unavailable, so authenticated browser readback with a second project-member account was not run.
+- No backend authorization, schema, Java source, production data, dependency, Git history, or deployment changes were made.

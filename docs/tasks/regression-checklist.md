@@ -59,6 +59,7 @@ The copied Vue frontend expects camelCase keys, not raw DB column names. Any bac
 
 - [ ] Use `scripts/browser-page-smoke.ps1` (ASCII-only CDP helper); it runs sequentially via a named mutex — do not run browser smokes in parallel. (P-023, P-025)
 - [ ] Target menu paths from the account's `loginMenu` / `sys_resource.PATH` (some include an explicit `/index`), not guessed from component folder names. (P-027, P-028)
+- [ ] Hidden detail links sent to users outside the page owner's role menus must be registered as authenticated static routes; keep record visibility enforced by the backend membership/data-scope guard. (P-028)
 - [ ] Known non-blocking Ant Design Vue warnings are allow-listed; legitimate image reads via `/api/dev/file/download` are not "forbidden". (P-024, P-026)
 
 ## 8. Scope discipline (avoid unrelated breakage)
