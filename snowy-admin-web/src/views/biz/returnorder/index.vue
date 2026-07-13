@@ -64,7 +64,12 @@
 					</a-tag>
 				</template>
 				<template v-if="column.dataIndex === 'refundProgress'">
-					{{ record.refundAmount || 0 }} / {{ record.amount || 0 }}
+					{{ record.refundRequired ? `${record.refundAmount || 0} / ${record.amount || 0}` : '无需退款' }}
+				</template>
+				<template v-if="column.dataIndex === 'refundRequired'">
+					<a-tag :color="record.refundRequired ? 'blue' : 'default'">
+						{{ record.refundRequired ? '需要退款' : '无需退款' }}
+					</a-tag>
 				</template>
 				<template v-if="column.dataIndex === 'projectName'">
 					<a-typography-link @click="projectDetailsRef.onOpen({ id: record.projectId })">
@@ -85,7 +90,11 @@
 					<a-space>
 						<a-popconfirm
 							v-if="record.warehouseState === 'WAIT_RECEIVE' && record.canWarehouseReceive"
-							title="确认仓库已收到退货？确认后将增加库存并进入财务退款环节。"
+							:title="
+								record.refundRequired
+									? '确认仓库已收到退货？确认后将增加库存并进入财务退款环节。'
+									: '确认仓库已收到退货？确认后将增加库存并完成退货，无需财务退款。'
+							"
 							@confirm="warehouseReceive(record)"
 						>
 							<a>确认收货</a>
@@ -143,6 +152,16 @@
 			title: '业务状态',
 			dataIndex: 'businessState',
 			width: '120px'
+		},
+		{
+			title: '退款处理',
+			dataIndex: 'refundRequired',
+			width: '110px'
+		},
+		{
+			title: '指定财务',
+			dataIndex: 'treasurerName',
+			customRender: ({ text }) => text || '-'
 		},
 		{
 			title: '已退款/退货金额',

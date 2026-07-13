@@ -171,8 +171,9 @@ SQL;
         $projectId = $this->requiredInput($input, 'projectId');
         $warehouseId = $this->requiredInput($input, 'warehousesId');
         $productList = $this->productList($input, true);
+        $returnOptions = $this->returnOptionsFromInput($input, $input['extJson'] ?? null);
 
-        return Db::transaction(function () use ($input, $payload, $projectId, $warehouseId, $productList): array {
+        return Db::transaction(function () use ($input, $payload, $projectId, $warehouseId, $productList, $returnOptions): array {
             $project = $this->assertProjectWritable($projectId, $payload, 'add');
             $this->assertProjectReturnable($project);
             $tenantId = $this->tenantId($input, $payload, $project);
@@ -198,7 +199,7 @@ SQL;
                 'ID' => $id,
                 'PROJECT_ID' => $projectId,
                 'AMOUNT' => $amount,
-                'STATE' => $this->stateForAmount($amount),
+                'STATE' => $this->stateForReturnRequirement($amount, $returnOptions['refundRequired']),
                 'PROCESS_ID' => $processId,
                 'REMARK' => $remark,
                 'WAREHOUSES_ID' => $warehouseId,
@@ -211,7 +212,7 @@ SQL;
                 'CREATE_USER' => $currentUserId !== '' ? $currentUserId : null,
                 'UPDATE_TIME' => null,
                 'UPDATE_USER' => null,
-                'EXT_JSON' => $this->jsonInput($input['extJson'] ?? null),
+                'EXT_JSON' => $returnOptions['extJson'],
                 'TENANT_ID' => $tenantId,
             ]);
 
@@ -298,12 +299,13 @@ SQL;
             }
             $returnOrderId = $this->newId();
             $remark = $this->workflowOptionalText($variables['remark'] ?? null, 'remark', 65535);
+            $returnOptions = $this->returnOptionsFromInput($variables, $variables['extJson'] ?? null);
 
             Db::name('return_order')->insert([
                 'ID' => $returnOrderId,
                 'PROJECT_ID' => $projectId,
                 'AMOUNT' => $amount,
-                'STATE' => $this->stateForAmount($amount),
+                'STATE' => $this->stateForReturnRequirement($amount, $returnOptions['refundRequired']),
                 'PROCESS_ID' => $processInstanceId,
                 'REMARK' => $remark,
                 'WAREHOUSES_ID' => $warehouseId,
@@ -316,7 +318,7 @@ SQL;
                 'CREATE_USER' => $auditUser !== '' ? $auditUser : null,
                 'UPDATE_TIME' => null,
                 'UPDATE_USER' => null,
-                'EXT_JSON' => null,
+                'EXT_JSON' => $returnOptions['extJson'],
                 'TENANT_ID' => $effectiveTenantId,
             ]);
 
@@ -368,12 +370,14 @@ SQL;
             $amount = $this->calculatedReturnAmount($items);
             $this->assertSubmittedReturnAmount($input['amount'] ?? null, $amount);
             $this->assertReturnAmountWithinProjectTotal($project, $amount, $tenantId, $id);
+            $returnOptions = $this->returnOptionsFromInput($input, $current['EXT_JSON'] ?? null);
 
             $updates = [
                 'PROJECT_ID' => $projectId,
                 'AMOUNT' => $amount,
-                'STATE' => $this->stateForAmount($amount),
+                'STATE' => $this->stateForReturnRequirement($amount, $returnOptions['refundRequired']),
                 'WAREHOUSES_ID' => $warehouseId,
+                'EXT_JSON' => $returnOptions['extJson'],
                 'TENANT_ID' => $tenantId,
                 'UPDATE_TIME' => $now,
                 'UPDATE_USER' => $currentUserId !== '' ? $currentUserId : null,
@@ -401,10 +405,6 @@ SQL;
                 $ownerOrgId = $this->ownerOrgId($input, $payload, $project);
                 $updates['ORG'] = $ownerOrgId !== '' ? $ownerOrgId : null;
             }
-            if (array_key_exists('extJson', $input)) {
-                $updates['EXT_JSON'] = $this->jsonInput($input['extJson']);
-            }
-
             if ($this->workflowProcessExists((string)($updates['PROCESS_ID'] ?? $current['PROCESS_ID'] ?? ''), $tenantId)) {
                 throw new RuntimeException('return order has workflow records', 400);
             }
@@ -515,6 +515,9 @@ SQL;
                 $remark
             );
             Db::name('return_order')->where('ID', $id)->update([
+                'STATE' => $this->orderRefundRequired($order)
+                    ? (string)($order['STATE'] ?? self::STATE_UNSETTLED)
+                    : self::STATE_ALREADY_SETTLED,
                 'UPDATE_TIME' => $now,
                 'UPDATE_USER' => $currentUserId,
             ]);
@@ -534,7 +537,12 @@ SQL;
      *
      * @return array<string, mixed>
      */
-    public function assertReturnRefundAllowed(string $returnOrderId, string $requestedAmount, string $tenantId = ''): array
+    public function assertReturnRefundAllowed(
+        string $returnOrderId,
+        string $requestedAmount,
+        string $tenantId = '',
+        string $financeUserId = ''
+    ): array
     {
         $returnOrderId = trim($returnOrderId);
         if ($returnOrderId === '') {
@@ -556,6 +564,14 @@ SQL;
         }
 
         $effectiveTenantId = $tenantId !== '' ? $tenantId : trim((string)($order['TENANT_ID'] ?? ''));
+        if (!$this->orderRefundRequired($order)) {
+            throw new RuntimeException('return order does not require refund', 400);
+        }
+        $assignedTreasurer = $this->returnOrderOptions($order['EXT_JSON'] ?? null)['treasurer'];
+        $financeUserId = trim($financeUserId);
+        if ($assignedTreasurer !== '' && $financeUserId !== '' && $assignedTreasurer !== $financeUserId) {
+            throw new RuntimeException('return order finance approver mismatch', 400);
+        }
         if (!$this->hasReturnDeliveryRecords([$returnOrderId], $effectiveTenantId)) {
             throw new RuntimeException('warehouse has not received this return order', 400);
         }
@@ -592,6 +608,7 @@ SQL;
             'id' => $returnOrderId,
             'projectId' => $projectId,
             'tenantId' => $effectiveTenantId,
+            'treasurer' => $assignedTreasurer,
             'maximumRefundAmount' => $this->moneyFromCents($maximumCents),
         ];
     }
@@ -761,6 +778,9 @@ SQL;
 
     private function orderRow(array $row): array
     {
+        $extJson = $this->value($row, 'EXT_JSON', 'extJson');
+        $returnOptions = $this->returnOrderOptions($extJson);
+
         return [
             'id' => $this->value($row, 'ID', 'id'),
             'projectId' => $this->value($row, 'PROJECT_ID', 'projectId'),
@@ -787,7 +807,9 @@ SQL;
             'createUser' => $this->value($row, 'CREATE_USER', 'createUser'),
             'updateTime' => $this->value($row, 'UPDATE_TIME', 'updateTime'),
             'updateUser' => $this->value($row, 'UPDATE_USER', 'updateUser'),
-            'extJson' => $this->value($row, 'EXT_JSON', 'extJson'),
+            'extJson' => $extJson,
+            'refundRequired' => $returnOptions['refundRequired'],
+            'treasurer' => $returnOptions['treasurer'],
             'tenantId' => $this->value($row, 'TENANT_ID', 'tenantId'),
         ];
     }
@@ -845,12 +867,29 @@ SQL;
             $refundAmounts[(string)($row['OBJECT_ID'] ?? '')] = (float)($row['REFUND_AMOUNT'] ?? 0);
         }
 
+        $treasurerIds = array_values(array_unique(array_filter(array_map(
+            static fn (array $order): string => trim((string)($order['treasurer'] ?? '')),
+            $orders
+        ))));
+        $treasurerNames = [];
+        if ($treasurerIds !== []) {
+            $userQuery = Db::name('sys_user')->whereIn('ID', $treasurerIds);
+            $this->whereNotDeleted($userQuery, 'DELETE_FLAG');
+            if ($tenantId !== '') {
+                $userQuery->where('TENANT_ID', $tenantId);
+            }
+            foreach ($userQuery->field('ID,NAME')->select()->toArray() as $user) {
+                $treasurerNames[(string)($user['ID'] ?? '')] = (string)($user['NAME'] ?? '');
+            }
+        }
+
         foreach ($orders as &$order) {
             $orderId = (string)($order['id'] ?? '');
             $receipt = $receipts[$orderId] ?? null;
             $received = $receipt !== null;
             $refundAmount = (float)($refundAmounts[$orderId] ?? 0);
             $orderAmount = (float)($order['amount'] ?? 0);
+            $refundRequired = (bool)($order['refundRequired'] ?? true);
             $projectOutstandingRefund = max(
                 0.0,
                 (float)($order['projectAmountCollected'] ?? 0)
@@ -858,10 +897,14 @@ SQL;
                     - (float)($order['projectTotalReturnAmount'] ?? 0)
             );
             $remainingOrderAmount = max(0.0, $orderAmount - $refundAmount);
-            $refundableAmount = $received ? min($remainingOrderAmount, $projectOutstandingRefund) : 0.0;
+            $refundableAmount = $received && $refundRequired
+                ? min($remainingOrderAmount, $projectOutstandingRefund)
+                : 0.0;
 
             $refundState = self::REFUND_STATE_NOT_READY;
-            if ($received && $remainingOrderAmount <= 0.000001) {
+            if ($received && !$refundRequired) {
+                $refundState = self::REFUND_STATE_NOT_REQUIRED;
+            } elseif ($received && $remainingOrderAmount <= 0.000001) {
                 $refundState = self::REFUND_STATE_REFUNDED;
             } elseif ($received && $refundableAmount <= 0.000001) {
                 $refundState = self::REFUND_STATE_NOT_REQUIRED;
@@ -880,6 +923,7 @@ SQL;
             $order['remainingReturnAmount'] = $this->decimal($remainingOrderAmount) ?? 0;
             $order['refundableAmount'] = $this->decimal($refundableAmount) ?? 0;
             $order['refundState'] = $refundState;
+            $order['treasurerName'] = $treasurerNames[(string)($order['treasurer'] ?? '')] ?? '';
             $order['businessState'] = $this->returnOrderBusinessState($order['warehouseState'], $refundState);
             $order['canWarehouseReceive'] = $this->canReceiveForWarehouse($order, $payload);
         }
@@ -1824,6 +1868,9 @@ SQL;
             }
 
             $effectiveTenantId = $tenantId !== '' ? $tenantId : trim((string)($order['TENANT_ID'] ?? ''));
+            if (!$this->orderRefundRequired($order)) {
+                throw new RuntimeException('return order does not require refund', 400);
+            }
             if (!$this->hasReturnDeliveryRecords([$returnOrderId], $effectiveTenantId)) {
                 throw new RuntimeException('warehouse has not received this return order', 400);
             }
@@ -1904,7 +1951,7 @@ SQL;
             $returnQuery->where('TENANT_ID', $tenantId);
         }
 
-        $returnRows = $returnQuery->field('ID,AMOUNT')->select()->toArray();
+        $returnRows = $returnQuery->field('ID,AMOUNT,EXT_JSON')->select()->toArray();
         $receivedOrderIds = $this->receivedReturnOrderIds(
             array_values(array_filter(array_map(
                 static fn (array $row): string => trim((string)($row['ID'] ?? '')),
@@ -1917,16 +1964,23 @@ SQL;
             $returnRows,
             static fn (array $row): bool => isset($receivedLookup[(string)($row['ID'] ?? '')])
         ));
-        $returnOrderIds = array_values(array_filter(array_map(static fn (array $row): string => trim((string)($row['ID'] ?? '')), $returnRows)));
-        $totalRefundAmount = array_reduce(
+        $refundRequiredRows = array_values(array_filter(
             $returnRows,
+            fn (array $row): bool => $this->orderRefundRequired($row)
+        ));
+        $totalRefundAmount = array_reduce(
+            $refundRequiredRows,
             static fn (float $carry, array $row): float => $carry + (float)($row['AMOUNT'] ?? 0),
             0.0
         );
+        $refundRequiredOrderIds = array_values(array_filter(array_map(
+            static fn (array $row): string => trim((string)($row['ID'] ?? '')),
+            $refundRequiredRows
+        )));
         $totalReturnAmount = 0.0;
-        if ($returnOrderIds !== []) {
+        if ($refundRequiredOrderIds !== []) {
             $expenditureQuery = Db::name('biz_expenditure_record')
-                ->whereIn('OBJECT_ID', $returnOrderIds)
+                ->whereIn('OBJECT_ID', $refundRequiredOrderIds)
                 ->where('SETTLEMENT_CATEGORY', self::RETURN_AND_REFUND);
             $this->whereNotDeleted($expenditureQuery, 'DELETE_FLAG');
             if ($tenantId !== '') {
@@ -2390,16 +2444,118 @@ SQL;
         return $value;
     }
 
-    private function jsonInput(mixed $value): ?string
+    /**
+     * @return array{refundRequired: bool, treasurer: string, extJson: string}
+     */
+    private function returnOptionsFromInput(array $input, mixed $existingExtJson = null): array
     {
-        if ($value === null) {
-            return null;
-        }
-        if (is_array($value)) {
-            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $options = $this->returnOrderOptions($existingExtJson);
+        $extJson = $this->decodedExtJson($existingExtJson);
+
+        if (array_key_exists('refundRequired', $input) || array_key_exists('refund_required', $input)) {
+            $refundRequired = $this->booleanValue($input['refundRequired'] ?? $input['refund_required'] ?? null);
+            if ($refundRequired === null) {
+                throw new RuntimeException('invalid refundRequired', 400);
+            }
+            $options['refundRequired'] = $refundRequired;
         }
 
-        return (string)$value;
+        if (array_key_exists('treasurer', $input)) {
+            $options['treasurer'] = $this->userIdValue($input['treasurer']);
+        }
+        if (!$options['refundRequired']) {
+            $options['treasurer'] = '';
+        }
+
+        $extJson['refundRequired'] = $options['refundRequired'];
+        if ($options['treasurer'] !== '') {
+            $extJson['treasurer'] = $options['treasurer'];
+        } else {
+            unset($extJson['treasurer']);
+        }
+
+        $encoded = json_encode($extJson, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if (!is_string($encoded)) {
+            throw new RuntimeException('invalid return order options', 400);
+        }
+
+        return $options + ['extJson' => $encoded];
+    }
+
+    /**
+     * Legacy return orders did not store the choice and retain the original
+     * refund-required behavior.
+     *
+     * @return array{refundRequired: bool, treasurer: string}
+     */
+    private function returnOrderOptions(mixed $extJson): array
+    {
+        $data = $this->decodedExtJson($extJson);
+        $refundRequired = $this->booleanValue($data['refundRequired'] ?? null);
+
+        return [
+            'refundRequired' => $refundRequired ?? true,
+            'treasurer' => $this->userIdValue($data['treasurer'] ?? null),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function decodedExtJson(mixed $value): array
+    {
+        if (is_array($value)) {
+            return $value;
+        }
+        if (!is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function orderRefundRequired(array $order): bool
+    {
+        if (array_key_exists('refundRequired', $order)) {
+            return $this->booleanValue($order['refundRequired']) ?? true;
+        }
+
+        return $this->returnOrderOptions($order['EXT_JSON'] ?? $order['extJson'] ?? null)['refundRequired'];
+    }
+
+    private function userIdValue(mixed $value): string
+    {
+        if (is_array($value)) {
+            $value = $value['id'] ?? $value['userId'] ?? $value['value'] ?? $value['key'] ?? '';
+        }
+
+        return trim((string)($value ?? ''));
+    }
+
+    private function booleanValue(mixed $value): ?bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_int($value) || is_float($value)) {
+            return (int)$value !== 0;
+        }
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return null;
     }
 
     private function tenantId(array $input, array $payload, array $row): string
@@ -2504,9 +2660,11 @@ SQL;
         return false;
     }
 
-    private function stateForAmount(string $amount): string
+    private function stateForReturnRequirement(string $amount, bool $refundRequired): string
     {
-        return (float)$amount <= 0.0 ? self::STATE_ALREADY_SETTLED : self::STATE_UNSETTLED;
+        return !$refundRequired || (float)$amount <= 0.0
+            ? self::STATE_ALREADY_SETTLED
+            : self::STATE_UNSETTLED;
     }
 
     private function moneyCents(mixed $value): int

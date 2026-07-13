@@ -313,7 +313,15 @@ SQL;
                 if ($objectId === null || $objectId === '') {
                     throw new RuntimeException('missing return order id', 400);
                 }
-                $returnInfo = (new ReturnOrderService())->assertReturnRefundAllowed($objectId, $amount, $tenantId);
+                $financeUserId = $skipPermissionCheck
+                    ? trim((string)($input['treasurer'] ?? ''))
+                    : trim((string)($operatorUserId ?? $this->currentUserId($payload)));
+                $returnInfo = (new ReturnOrderService())->assertReturnRefundAllowed(
+                    $objectId,
+                    $amount,
+                    $tenantId,
+                    $financeUserId
+                );
                 if ((string)($returnInfo['tenantId'] ?? $tenantId) !== $tenantId) {
                     throw new RuntimeException('return order does not belong to settlement account tenant', 403);
                 }

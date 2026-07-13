@@ -102,6 +102,7 @@
 		{
 			key: 'Process_sale_project_product_return',
 			showOpen: true,
+			showTreasurer: true,
 			name: '销售退货'
 		},
 		{

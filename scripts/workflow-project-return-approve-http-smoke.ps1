@@ -335,6 +335,8 @@ function New-StartBody {
         approveUserIdList = @($script:UserId)
         copyUserIdList = @()
         fileIdList = @()
+        refundRequired = $true
+        treasurer = $script:UserId
         warehousesId = $script:WarehouseId
         logisticsCategory = 'EXPRESS'
         logisticsId = $script:LogisticsId
@@ -560,6 +562,26 @@ echo json_encode([
     $missingWarehouseResponse = Invoke-JsonPost -Url ($baseUrl + '/biz/process/project/return/start') -Token $token -Body $missingWarehouse
     Assert-Code -Json $missingWarehouseResponse -Expected 400 -Name 'project return missing warehouse'
 
+    $missingRefundChoice = New-StartBody -ProjectId $ProjectCancelId -ItemId $ItemCancelId
+    $missingRefundChoice.Remove('refundRequired')
+    $missingRefundChoiceResponse = Invoke-JsonPost -Url ($baseUrl + '/biz/process/project/return/start') -Token $token -Body $missingRefundChoice
+    Assert-Code -Json $missingRefundChoiceResponse -Expected 400 -Name 'project return missing refund choice'
+
+    $missingTreasurer = New-StartBody -ProjectId $ProjectCancelId -ItemId $ItemCancelId
+    $missingTreasurer.Remove('treasurer')
+    $missingTreasurerResponse = Invoke-JsonPost -Url ($baseUrl + '/biz/process/project/return/start') -Token $token -Body $missingTreasurer
+    Assert-Code -Json $missingTreasurerResponse -Expected 400 -Name 'project return refund requires treasurer'
+
+    $noRefundBody = New-StartBody -ProjectId $ProjectCancelId -ItemId $ItemCancelId
+    $noRefundBody.refundRequired = $false
+    $noRefundBody.Remove('treasurer')
+    $noRefundStart = Invoke-JsonPost -Url ($baseUrl + '/biz/process/project/return/start') -Token $token -Body $noRefundBody
+    Assert-Code -Json $noRefundStart -Expected 200 -Name 'project return no-refund start without treasurer'
+    $noRefundProcessId = [string]$noRefundStart.data.processInstanceId
+    $processIds += $noRefundProcessId
+    $noRefundCancel = Invoke-JsonPost -Url ($baseUrl + '/biz/process/cancel') -Token $token -Body @{ id = $noRefundProcessId }
+    Assert-Code -Json $noRefundCancel -Expected 200 -Name 'project return no-refund cancel'
+
     $negativeAmount = New-StartBody -ProjectId $ProjectCancelId -ItemId $ItemCancelId
     $negativeAmount.amount = '-1.00'
     $negative = Invoke-JsonPost -Url ($baseUrl + '/biz/process/project/return/start') -Token $token -Body $negativeAmount
@@ -668,6 +690,9 @@ echo json_encode([
     Assert-Equal -Actual ([string]$order.STATE) -Expected 'AlreadySettled' -Name 'return order state'
     Assert-Equal -Actual ([string]$order.WAREHOUSES_ID) -Expected $WarehouseId -Name 'return order warehouse'
     Assert-Equal -Actual ([string]$order.LOGISTICS_ID) -Expected $LogisticsId -Name 'return order logistics id'
+    $orderExtJson = [string]$order.EXT_JSON | ConvertFrom-Json
+    Assert-Equal -Actual ([string]$orderExtJson.treasurer) -Expected $UserId -Name 'return order finance approver'
+    Assert-Equal -Actual ([string]$orderExtJson.refundRequired) -Expected 'True' -Name 'return order refund choice'
     Assert-Equal -Actual ([string]$item.RETURN_ORDER_ID) -Expected $responseOrderId -Name 'return item order id'
     Assert-Equal -Actual ([string]$item.PROJECT_PRODUCT_ITEM_ID) -Expected $ItemApproveId -Name 'return item project product item id'
     Assert-DecimalEqual -Actual ([string]$item.AMOUNT) -Expected 2 -Name 'return item amount'

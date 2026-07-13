@@ -21,6 +21,14 @@
 				<a-descriptions-item label="退回仓库">
 					{{ baseInfo.warehouseName }}
 				</a-descriptions-item>
+				<a-descriptions-item label="是否退款">
+					<a-tag :color="baseInfo.refundRequired ? 'blue' : 'default'">
+						{{ baseInfo.refundRequired ? '需要退款' : '无需退款' }}
+					</a-tag>
+				</a-descriptions-item>
+				<a-descriptions-item v-if="baseInfo.refundRequired" label="财务">
+					{{ baseInfo.treasurerName || baseInfo.treasurer }}
+				</a-descriptions-item>
 			</a-descriptions>
 			<br />
 			<a-typography-title :level="5">退货表单</a-typography-title>
@@ -42,6 +50,7 @@
 	import saleProjectProductItemRelationApi from '@/api/biz/saleProjectProductItemRelationApi'
 	import detail from '@/views/biz/saleproject/detail.vue'
 	import WarehousesApi from '@/api/biz/warehousesApi'
+	import userCenterApi from '@/api/sys/userCenterApi'
 	import { safeJsonParse } from '@/utils/json'
 
 	const { id } = defineProps({
@@ -62,13 +71,18 @@
 		})
 	}
 	const { loading, load, error } = useLoading(async () => {
-		const fields = ['projectId', 'remark', 'amount', 'productList', 'warehousesId']
+		const fields = ['projectId', 'remark', 'amount', 'productList', 'warehousesId', 'refundRequired', 'treasurer']
 		const res = await bizProcessApi.bizVariable({ id: id, fields })
 		const result = {}
 		res.forEach((item) => {
 			result[item.name] = item.value
 		})
 		result.productList = Array.isArray(result.productList) ? result.productList : []
+		result.refundRequired = ![false, 0, '0', 'false'].includes(result.refundRequired)
+		if (result.treasurer) {
+			const users = await userCenterApi.userCenterGetUserListByIdList({ idList: [result.treasurer] }).catch(() => [])
+			result.treasurerName = users[0]?.name || ''
+		}
 
 		let details = { bizSaleProject: { id: result.projectId, projectName: result.projectId || '' } }
 		if (result.projectId) {

@@ -16,6 +16,12 @@
 			<a-tabs v-model:activeKey="activeKey">
 				<a-tab-pane :forceRender="true" key="baseInfo" tab="基本信息">
 					<a-form ref="formRef" :model="formData" :rules="formRules" layout="vertical">
+						<a-form-item label="是否需要退款：" name="refundRequired">
+							<a-radio-group v-model:value="formData.refundRequired">
+								<a-radio :value="true">需要退款</a-radio>
+								<a-radio :value="false">无需退款</a-radio>
+							</a-radio-group>
+						</a-form-item>
 						<a-form-item label="退回金额：" name="amount">
 							<XnCurrencyInput :min="0" v-model:value="formData.amount" disabled placeholder="根据退货产品自动计算" />
 						</a-form-item>
@@ -117,6 +123,16 @@
 				</a-tab-pane>
 				<a-tab-pane v-if="isOpenProcess" :forceRender="true" key="approve-info" tab="审批人信息">
 					<a-form ref="approveFormRef" :model="formData" :rules="formRules" layout="vertical">
+						<a-form-item v-if="formData.refundRequired" label="财务：" name="treasurer">
+							<xn-user-selector
+								:dataIsConverterFlw="false"
+								:radioModel="true"
+								:org-tree-api="selectorApiFunction.orgTreeApi"
+								:user-page-api="selectorApiFunction.userPageApi"
+								:user-list-by-id-list-api="selectorApiFunction.checkedUserListApi"
+								v-model:value="formData.treasurer"
+							/>
+						</a-form-item>
 						<a-form-item label="审批人：" name="approveUserIdList">
 							<xn-user-selector
 								:org-tree-api="selectorApiFunction.orgTreeApi"
@@ -214,13 +230,20 @@
 		'Process_sale_project_product_return'
 	)
 
-	const formRules = ref(
-		Object.assign(rule, {
+	const formRules = computed(() => ({
+		...rule,
+		refundRequired: [
+			{
+				validator: (_rule, value) =>
+					typeof value === 'boolean' ? Promise.resolve() : Promise.reject(new Error('请选择是否需要退款')),
+				trigger: 'change'
+			}
+		],
+		...(formData.value.refundRequired ? { treasurer: [required('请选择财务')] } : {}),
 			projectId: [required('项目编号必填')],
 			productList: [required('产品列表必选')],
 			warehousesId: [required('仓库编号')]
-		})
-	)
+	}))
 	const modalColumn = ref([
 		{
 			title: '产品名称',
@@ -319,12 +342,23 @@
 		},
 		{ deep: true }
 	)
+	watch(
+		() => formData.value.refundRequired,
+		(refundRequired) => {
+			if (!refundRequired) {
+				formData.value.treasurer = ''
+			} else if (!formData.value.treasurer) {
+				formData.value.treasurer = treasurer
+			}
+		}
+	)
 	const approveFormRef = useTemplateRef('approveFormRef')
 	const onOpen = async (record) => {
 		visible.value = true
 
 		formData.value = {
 			projectId: record.id,
+			refundRequired: true,
 			approveUserIdList: approveUserIdList,
 			copyUserIdList: copyUserIdList,
 			treasurer: treasurer,

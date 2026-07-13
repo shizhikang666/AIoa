@@ -238,6 +238,52 @@ assertSameValue(
     $returnBusinessStateMethod->invoke($returnOrderService, 'RECEIVED', 'WAIT_REFUND'),
     'received return order enters finance refund state'
 );
+assertSameValue(
+    'COMPLETED',
+    $returnBusinessStateMethod->invoke($returnOrderService, 'RECEIVED', 'NOT_REQUIRED'),
+    'received no-refund return order completes without finance'
+);
+$returnOptionsMethod = new ReflectionMethod(ReturnOrderService::class, 'returnOptionsFromInput');
+$legacyReturnOptionsMethod = new ReflectionMethod(ReturnOrderService::class, 'returnOrderOptions');
+$legacyReturnOptions = $legacyReturnOptionsMethod->invoke($returnOrderService, null);
+assertSameValue(true, $legacyReturnOptions['refundRequired'], 'legacy return order still requires refund');
+$noRefundOptions = $returnOptionsMethod->invoke(
+    $returnOrderService,
+    ['refundRequired' => false, 'treasurer' => 'finance-user'],
+    json_encode(['source' => 'regression', 'treasurer' => 'legacy-finance'])
+);
+assertSameValue(false, $noRefundOptions['refundRequired'], 'no-refund option is persisted');
+assertSameValue('', $noRefundOptions['treasurer'], 'no-refund option clears finance approver');
+$noRefundExtJson = json_decode($noRefundOptions['extJson'], true);
+assertSameValue('regression', $noRefundExtJson['source'] ?? null, 'return option preserves existing extJson');
+assertSameValue(false, $noRefundExtJson['refundRequired'] ?? null, 'return extJson stores no-refund choice');
+$refundOptions = $returnOptionsMethod->invoke(
+    $returnOrderService,
+    ['refundRequired' => true, 'treasurer' => ['id' => 'finance-user']],
+    null
+);
+assertSameValue('finance-user', $refundOptions['treasurer'], 'refund option stores selected finance approver');
+$returnStateMethod = new ReflectionMethod(ReturnOrderService::class, 'stateForReturnRequirement');
+assertSameValue(
+    'AlreadySettled',
+    $returnStateMethod->invoke($returnOrderService, '125.35', false),
+    'no-refund return order is not selectable for finance payment'
+);
+assertSameValue(
+    'Unsettled',
+    $returnStateMethod->invoke($returnOrderService, '125.35', true),
+    'refund-required return order remains payable'
+);
+$workflowRuntimeSource = file_get_contents(dirname(__DIR__) . '/app/service/workflow/WorkflowRuntimeService.php');
+$reissueStart = strpos($workflowRuntimeSource, 'public function startProjectReissueProcess');
+$returnStart = strpos($workflowRuntimeSource, 'public function startProjectReturnProcess');
+$initialProcessStart = strpos($workflowRuntimeSource, 'private function startInitialApprovalProcess');
+assertSameValue(true, is_int($reissueStart) && is_int($returnStart) && is_int($initialProcessStart), 'workflow source sections exist');
+$reissueSource = substr($workflowRuntimeSource, $reissueStart, $returnStart - $reissueStart);
+$returnSource = substr($workflowRuntimeSource, $returnStart, $initialProcessStart - $returnStart);
+assertSameValue(false, str_contains($reissueSource, 'refundRequired'), 'reissue flow is isolated from return refund choice');
+assertSameValue(true, str_contains($returnSource, "missing refundRequired"), 'return flow requires refund choice');
+assertSameValue(true, str_contains($returnSource, "'treasurer'"), 'return flow stores conditional finance approver');
 $calculatedReturnAmountMethod = new ReflectionMethod(ReturnOrderService::class, 'calculatedReturnAmount');
 assertSameValue(
     '125.35',

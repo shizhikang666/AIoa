@@ -582,6 +582,18 @@ class WorkflowRuntimeService
         $copyUserIds = $this->stringList($input['copyUserIdList'] ?? $input['copyUsers'] ?? []);
         $fileIds = $this->stringList($input['fileIdList'] ?? []);
         $productList = $this->decodedArrayList($input['productList'] ?? null, 'productList');
+        if (!array_key_exists('refundRequired', $input)) {
+            throw new RuntimeException('missing refundRequired', 400);
+        }
+        $refundRequired = $this->booleanValue($input['refundRequired']);
+        if ($refundRequired === null) {
+            throw new RuntimeException('invalid refundRequired', 400);
+        }
+        $treasurer = '';
+        if ($refundRequired) {
+            $this->assertSingleUserInput($input, 'treasurer', $tenantId, 'treasurer user not found');
+            $treasurer = $this->requiredInputString($input, 'treasurer');
+        }
         $this->assertUsers($approveUserIds, $tenantId, 'approve user not found');
         $this->assertUsers($copyUserIds, $tenantId, 'copy user not found');
         $project = $this->returnOrderService->workflowProjectReturnStartInfo(
@@ -603,6 +615,8 @@ class WorkflowRuntimeService
             'productList' => $productList,
             'amount' => $amount,
             'warehousesId' => $warehouseId,
+            'refundRequired' => $refundRequired,
+            'treasurer' => $treasurer !== '' ? $treasurer : null,
         ]));
         $variables = array_merge($variables, [
             'initiator' => $currentUserId,
@@ -636,6 +650,8 @@ class WorkflowRuntimeService
                 'projectId' => $projectId,
                 'projectState' => (string)($project['PROJECT_STATE'] ?? ''),
                 'warehouseId' => $warehouseId,
+                'refundRequired' => $refundRequired,
+                'treasurer' => $treasurer !== '' ? $treasurer : null,
                 'productItemCount' => (int)($project['PRODUCT_ITEM_COUNT'] ?? count($productList)),
             ]
         );
@@ -912,7 +928,7 @@ class WorkflowRuntimeService
 
     private function assertPaymentOutProcessInput(array $input, string $tenantId): void
     {
-        $this->requiredPositiveInputDecimal($input, 'amount');
+        $amount = $this->requiredPositiveInputDecimal($input, 'amount');
         $this->requiredInputString($input, 'bankAccount');
         $this->requiredInputString($input, 'bankName');
         $this->requiredInputString($input, 'payer');
@@ -920,6 +936,14 @@ class WorkflowRuntimeService
             throw new RuntimeException('missing useAdvancePayment', 400);
         }
         $this->assertSingleUserInput($input, 'treasurer', $tenantId, 'treasurer user not found');
+        if ($this->inputString($input['settlementCategory'] ?? null) === 'ReturnAndRefund') {
+            $this->returnOrderService->assertReturnRefundAllowed(
+                $this->requiredInputString($input, 'objectId'),
+                $amount,
+                $tenantId,
+                $this->requiredInputString($input, 'treasurer')
+            );
+        }
         if ($this->booleanValue($input['useAdvancePayment']) === true) {
             $this->requiredInputString($input, 'accountId');
             $this->requiredInputTime($input, 'payerTime');

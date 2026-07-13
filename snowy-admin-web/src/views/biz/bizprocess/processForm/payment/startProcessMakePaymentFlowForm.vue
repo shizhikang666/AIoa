@@ -170,6 +170,7 @@
 					<a-form ref="approveFormRef" :model="formData" :rules="formRules" layout="vertical">
 						<a-form-item label="财务：" name="treasurer">
 							<xn-user-selector
+								:disabled="formData.settlementCategory === 'ReturnAndRefund' && !!activeSelectObject.treasurer"
 								:dataIsConverterFlw="false"
 								:radioModel="true"
 								:org-tree-api="selectorApiFunction.orgTreeApi"
@@ -389,6 +390,7 @@
 			formData.value.remark = `项目：${activeSelectObject.value.projectName} 客户：${activeSelectObject.value.customerName} 回扣 ${activeSelectObject.value.rebateAmount}`
 		} else if (formData.value.settlementCategory === 'ReturnAndRefund' && activeSelectObject.value.id) {
 			formData.value.remark = `项目：${activeSelectObject.value.projectName}退货支出`
+			formData.value.treasurer = activeSelectObject.value.treasurer || formData.value.treasurer
 		} else {
 			formData.value.remark = ''
 		}
@@ -516,6 +518,7 @@
 			formData.value.objectId = value.id
 			activeSelectObject.value = value
 			formData.value.amount = new Decimal(value.refundableAmount || 0)
+			formData.value.treasurer = value.treasurer || formData.value.treasurer
 			ObjectIdChangeLoad()
 		}
 		modal.confirm({

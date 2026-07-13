@@ -48,6 +48,11 @@
 						{{ businessStateMap[record.businessState]?.label || record.businessState }}
 					</a-tag>
 				</template>
+				<template v-if="column.dataIndex === 'refundRequired'">
+					<a-tag :color="record.refundRequired ? 'blue' : 'default'">
+						{{ record.refundRequired ? '需要退款' : '无需退款' }}
+					</a-tag>
+				</template>
 				<template v-if="column.dataIndex === 'state'">
 					<a-tag :color="$TOOL.dictTypeDataByPath('SETTLEMENT_ACCOUNT', 'Settlement_Status_Color', record.state)">
 						{{ $TOOL.dictTypeDataByPath('SETTLEMENT_ACCOUNT', 'Settlement_Status', record.state) }}
@@ -148,6 +153,15 @@
 		{
 			title: '业务状态',
 			dataIndex: 'businessState'
+		},
+		{
+			title: '退款处理',
+			dataIndex: 'refundRequired'
+		},
+		{
+			title: '指定财务',
+			dataIndex: 'treasurerName',
+			customRender: ({ text }) => text || '-'
 		},
 		{
 			title: '可退款金额',
