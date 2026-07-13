@@ -335,6 +335,7 @@ $afterSalesIndex = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/vi
 $afterSalesCategoryManager = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/aftersales/categoryManager.vue');
 $xnUpload = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/components/XnUpload/index.vue');
 $dealProjectList = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/saleproject/dealProjectList.vue');
+$saleProjectReport = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/saleproject/report.vue');
 assertSameValue(
     true,
     is_string($afterSalesInstaller)
@@ -371,6 +372,17 @@ assertSameValue(
         && str_contains($dealProjectList, '() => route.fullPath')
         && str_contains($dealProjectList, "await router.replace({ path: route.path, query: {} })"),
     'deal project list clears stale route filters and exposes linked rebate filters'
+);
+assertSameValue(
+    true,
+    is_string($saleProjectReport)
+        && str_contains($saleProjectReport, 'const rebateProjectList = computed(() =>')
+        && str_contains($saleProjectReport, 'v-model:open="rebateProjectModalOpen"')
+        && str_contains($saleProjectReport, '<Detail ref="projectDetailRef" />')
+        && str_contains($saleProjectReport, 'projectDetailRef.value?.onOpen(record)')
+        && !str_contains($saleProjectReport, "path: '/biz/saleproject/dealProjectList'")
+        && !str_contains($saleProjectReport, 'router.push('),
+    'sales report shows rebate projects locally without changing the deal project route'
 );
 
 $deliveryMethod = new ReflectionMethod(WorkflowRuntimeService::class, 'projectDeliveryProcessInstanceId');
