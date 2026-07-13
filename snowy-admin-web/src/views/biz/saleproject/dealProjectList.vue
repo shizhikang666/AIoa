@@ -323,7 +323,7 @@
 	import { Decimal } from 'decimal.js'
 	import { required } from '@/utils/formRules'
 	import { useLoading } from '@/composables/useLoading'
-	import { useRoute } from 'vue-router'
+	import { useRoute, useRouter } from 'vue-router'
 	import { ExclamationCircleOutlined } from '@ant-design/icons-vue'
 	import { useOrg } from '@/composables/useOrg'
 	import editAmountForm from './form/editAmountForm.vue'
@@ -380,55 +380,80 @@
 	const startFlowFormRef = ref()
 	const startPlayFlowFormRef = ref()
 	const route = useRoute()
+	const router = useRouter()
+	const routeSearchSignature = ref()
 	// 查询区域显示更多控制
 	const advanced = ref(false)
 	const toggleAdvanced = () => {
 		advanced.value = !advanced.value
 	}
 
-	const initParam = () => {
-		if (route.query) {
-			if (route.query.orgId) {
-				searchFormState.value.orgId = route.query.orgId
-			}
-			if (route.query.user) {
-				searchFormState.value.user = String(route.query.user)
-			}
-			if (route.query.startCompletionTime && route.query.endCompletionTime) {
-				const startCompletionTime = dayjs(route.query.startCompletionTime).format('YYYY-MM-DD HH:mm:ss')
-				const endCompletionTime = dayjs(route.query.endCompletionTime).format('YYYY-MM-DD HH:mm:ss')
-
-				searchFormState.value.completionTime = [startCompletionTime, endCompletionTime]
-			}
-
-			if (route.query.startCreateTime && route.query.endCreateTime) {
-				const startCreateTime = dayjs(route.query.startCreateTime).format('YYYY-MM-DD HH:mm:ss')
-				const endCreateTime = dayjs(route.query.endCreateTime).format('YYYY-MM-DD HH:mm:ss')
-
-				searchFormState.value.createTime = [startCreateTime, endCreateTime]
-			}
-			if (route.query.playState) {
-				searchFormState.value.playState = route.query.playState.split(',')
-			}
-
-			let s = route.query.kickback + ''
-
-			if (s === 'true' || s === 'false') {
-				searchFormState.value.kickback = route.query.kickback === 'true'
-			}
+	const queryValue = (value) => (Array.isArray(value) ? value[0] : value)
+	const createRouteSearchState = () => {
+		const query = route.query || {}
+		const state = {}
+		if (query.orgId) {
+			state.orgId = queryValue(query.orgId)
 		}
-		nextTick().then((v) => {
-			tableRef.value.refresh()
-		})
+		if (query.user) {
+			state.user = String(queryValue(query.user))
+		}
+		if (query.startCompletionTime && query.endCompletionTime) {
+			state.completionTime = [
+				dayjs(queryValue(query.startCompletionTime)).format('YYYY-MM-DD HH:mm:ss'),
+				dayjs(queryValue(query.endCompletionTime)).format('YYYY-MM-DD HH:mm:ss')
+			]
+		}
+		if (query.startCreateTime && query.endCreateTime) {
+			state.createTime = [
+				dayjs(queryValue(query.startCreateTime)).format('YYYY-MM-DD HH:mm:ss'),
+				dayjs(queryValue(query.endCreateTime)).format('YYYY-MM-DD HH:mm:ss')
+			]
+		}
+		if (query.playState) {
+			state.playState = String(queryValue(query.playState)).split(',')
+		}
+
+		const kickback = String(queryValue(query.kickback) ?? '')
+		if (kickback === 'true' || kickback === 'false') {
+			state.kickback = kickback === 'true'
+		}
+
+		return state
+	}
+	const applyRouteSearch = () => {
+		const signature = JSON.stringify(route.query || {})
+		if (routeSearchSignature.value === signature) {
+			return false
+		}
+
+		routeSearchSignature.value = signature
+		searchFormState.value = createRouteSearchState()
+		advanced.value = Object.keys(route.query || {}).length > 0
+		return true
+	}
+	const refreshTable = () => {
+		nextTick().then(() => tableRef.value?.refresh(true))
 	}
 
 	onBeforeMount(() => {
-		initParam()
+		applyRouteSearch()
+		refreshTable()
 	})
 
 	onActivated(() => {
-		initParam()
+		applyRouteSearch()
+		refreshTable()
 	})
+
+	watch(
+		() => route.fullPath,
+		() => {
+			if (applyRouteSearch()) {
+				refreshTable()
+			}
+		}
+	)
 
 	const openExport = () => {
 		let routerParam = {}
@@ -634,8 +659,14 @@
 		return result
 	}
 	// 重置
-	const reset = () => {
-		searchFormRef.value.resetFields()
+	const reset = async () => {
+		searchFormRef.value?.resetFields()
+		searchFormState.value = {}
+		advanced.value = false
+		if (Object.keys(route.query || {}).length > 0) {
+			await router.replace({ path: route.path, query: {} })
+			return
+		}
 		tableRef.value.refresh(true)
 	}
 	// 删除

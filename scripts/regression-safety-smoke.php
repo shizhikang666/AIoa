@@ -334,6 +334,7 @@ $afterSalesForm = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/vie
 $afterSalesIndex = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/aftersales/index.vue');
 $afterSalesCategoryManager = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/aftersales/categoryManager.vue');
 $xnUpload = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/components/XnUpload/index.vue');
+$dealProjectList = file_get_contents(dirname(__DIR__) . '/snowy-admin-web/src/views/biz/saleproject/dealProjectList.vue');
 assertSameValue(
     true,
     is_string($afterSalesInstaller)
@@ -360,6 +361,16 @@ assertSameValue(
         && str_contains($xnUpload, "emit('update:value', resultArrayValue.value)")
         && !str_contains($xnUpload, "emit('update:value', resultArrayValue)"),
     'after-sales frontend keeps category and attachment fixes wired'
+);
+assertSameValue(
+    true,
+    is_string($dealProjectList)
+        && str_contains($dealProjectList, 'const createRouteSearchState = () =>')
+        && str_contains($dealProjectList, 'searchFormState.value = createRouteSearchState()')
+        && str_contains($dealProjectList, 'advanced.value = Object.keys(route.query || {}).length > 0')
+        && str_contains($dealProjectList, '() => route.fullPath')
+        && str_contains($dealProjectList, "await router.replace({ path: route.path, query: {} })"),
+    'deal project list clears stale route filters and exposes linked rebate filters'
 );
 
 $deliveryMethod = new ReflectionMethod(WorkflowRuntimeService::class, 'projectDeliveryProcessInstanceId');
