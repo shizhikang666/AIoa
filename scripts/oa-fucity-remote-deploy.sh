@@ -276,7 +276,11 @@ prune_backups_by_pattern() {
     remove_count=$((count - KEEP_BACKUPS))
     [ "$remove_count" -gt 0 ] || return 0
 
-    find "$BACKUPS_ROOT" -maxdepth 1 -type f -name "$pattern" | sort | head -n "$remove_count" | while IFS= read -r old_backup; do
+    find "$BACKUPS_ROOT" -maxdepth 1 -type f -name "$pattern" -printf '%T@ %p\n' \
+        | sort -n \
+        | head -n "$remove_count" \
+        | cut -d' ' -f2- \
+        | while IFS= read -r old_backup; do
         rm -f -- "$old_backup"
     done
 }
