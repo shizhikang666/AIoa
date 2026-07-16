@@ -376,7 +376,7 @@
 					<a-tab-pane key="payment" tab="收款记录" v-if="isDeal">
 						<payment :project-id="projectBaseInfo.id"></payment>
 					</a-tab-pane>
-					<a-tab-pane key="invoiceRecords" tab="发货记录" v-if="isDeal">
+					<a-tab-pane key="invoiceRecords" tab="发货安排/记录" v-if="isDeal">
 						<projectInvoice :project-id="projectBaseInfo.id" />
 					</a-tab-pane>
 					<a-tab-pane key="returnOrders" tab="退货记录" v-if="isDeal">
@@ -424,7 +424,7 @@
 					>退货
 				</a-button>
 				<a-button
-					v-if="isDeal && hasPerm('bizSaleProjectExportDeliveryNote')"
+					v-if="isDeal && deliveryPlanList.length === 0 && hasPerm('bizSaleProjectExportDeliveryNote')"
 					@click="exportWord"
 					:loading="exportWordLoading"
 					type="primary"
@@ -485,6 +485,7 @@
 	const error = ref(false)
 	const customerBaseInfo = ref({})
 	const projectBaseInfo = ref({})
+	const deliveryPlanList = ref([])
 	const projectProductItemList = ref([])
 	const activeComponents = ref('baseInfo')
 	const invoicingList = ref([])
@@ -619,6 +620,7 @@
 			}, {})
 			// 更新项目基本信息
 			projectBaseInfo.value = projectDetail.bizSaleProject
+			deliveryPlanList.value = Array.isArray(projectDetail.deliveryPlanList) ? projectDetail.deliveryPlanList : []
 			changeLogs.value = projectDetail.changeLogs
 			projectProductItemList.value = projectDetail.productItems
 				.filter((item) => item.category !== 'REISSUE_ORDER')
@@ -658,6 +660,7 @@
 	const onClose = () => {
 		open.value = false
 		activeComponents.value = 'baseInfo'
+		deliveryPlanList.value = []
 	}
 	const { load: exportWord, loading: exportWordLoading } = useLoading(async () => {
 		await exportProjectInitInvoice(projectBaseInfo.value.id)

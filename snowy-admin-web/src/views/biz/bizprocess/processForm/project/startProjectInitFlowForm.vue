@@ -2,7 +2,7 @@
 	<xn-form-container
 		:bodyStyle="{ paddingTop: 0 }"
 		title="申请审批"
-		:width="800"
+		:width="1050"
 		:visible="visible"
 		:destroy-on-close="true"
 		@close="onClose"
@@ -46,39 +46,7 @@
 						<!--							value-format="YYYY-MM-DD HH:mm:ss"-->
 						<!--						></a-date-picker>-->
 						<!--					</a-form-item>-->
-						<a-form-item label="收货单位：" name="unit">
-							<a-input placeholder="请输入收货单位" v-model:value="formData.unit"></a-input>
-						</a-form-item>
-						<a-form-item label="收货人：" name="consignee">
-							<a-input placeholder="请输入收货人" v-model:value="formData.consignee"></a-input>
-						</a-form-item>
-
-						<a-form-item label="联系电话：" name="phone">
-							<a-input placeholder="请输入收货人联系方式" v-model:value="formData.phone"></a-input>
-						</a-form-item>
-						<a-form-item label="收货地址：" name="address">
-							<a-input placeholder="请输入收货地址" v-model:value="formData.address"></a-input>
-						</a-form-item>
-						<a-form-item label="运费支付方式：" name="freightCategory">
-							<a-select
-								placeholder="请选择运费支付方式"
-								v-model:value="formData.freightCategory"
-								:options="freightCategoryOptions"
-							></a-select>
-						</a-form-item>
-						<a-form-item label="运费金额：" name="freight">
-							<XnCurrencyInput :min="0" v-model:value="formData.freight" placeholder="请输入运费金额" />
-						</a-form-item>
-						<a-form-item label="指定物流类型：" name="logisticsCategory">
-							<a-select
-								:allowClear="true"
-								placeholder="物流类型"
-								v-model:value="formData.logisticsCategory"
-								:options="logisticsCategory"
-							></a-select>
-						</a-form-item>
-
-						<a-form-item label="备注：" name="remark">
+						<a-form-item label="订单备注：" name="remark">
 							<a-textarea
 								v-model:value="formData.remark"
 								placeholder="请输入备注"
@@ -227,6 +195,133 @@
 							</template>
 						</a-table>
 					</a-form>
+				</a-tab-pane>
+				<a-tab-pane :forceRender="true" key="deliveryPlan" tab="发货安排">
+					<a-alert
+						message="一个发货安排生成一张发货单；同一地址需要分批发货时，请拆成多个安排。"
+						type="info"
+						show-icon
+						style="margin-bottom: 16px"
+					/>
+					<a-empty v-if="!formData.productList?.length" description="请先在“订单产品”中添加产品" />
+					<template v-else>
+						<a-card
+							v-for="(plan, planIndex) in formData.deliveryPlanList"
+							:key="plan.clientKey || plan.id || planIndex"
+							size="small"
+							:style="{ marginBottom: '16px' }"
+						>
+							<template #title>发货安排 {{ planIndex + 1 }}</template>
+							<template #extra>
+								<a-space>
+									<a-button type="link" size="small" @click="copyDeliveryPlan(plan)">复制此安排</a-button>
+									<a-popconfirm
+										title="确认删除这个发货安排？"
+										:disabled="formData.deliveryPlanList.length === 1"
+										@confirm="removeDeliveryPlan(planIndex)"
+									>
+										<a-button type="link" danger size="small" :disabled="formData.deliveryPlanList.length === 1">
+											删除
+										</a-button>
+									</a-popconfirm>
+								</a-space>
+							</template>
+
+							<a-row :gutter="16">
+								<a-col :span="12">
+									<a-form-item label="收货单位" required>
+										<a-input v-model:value="plan.unit" :maxlength="100" placeholder="请输入收货单位" />
+									</a-form-item>
+								</a-col>
+								<a-col :span="12">
+									<a-form-item label="收货人" required>
+										<a-input v-model:value="plan.consignee" :maxlength="40" placeholder="请输入收货人" />
+									</a-form-item>
+								</a-col>
+								<a-col :span="12">
+									<a-form-item label="联系电话" required>
+										<a-input v-model:value="plan.phone" :maxlength="40" placeholder="请输入联系电话" />
+									</a-form-item>
+								</a-col>
+								<a-col :span="12">
+									<a-form-item label="收货地址" required>
+										<a-input v-model:value="plan.address" :maxlength="100" placeholder="请输入收货地址" />
+									</a-form-item>
+								</a-col>
+								<a-col :span="8">
+									<a-form-item label="运费支付方式">
+										<a-select
+											v-model:value="plan.freightCategory"
+											:options="freightCategoryOptions"
+											placeholder="请选择"
+											allow-clear
+										/>
+									</a-form-item>
+								</a-col>
+								<a-col :span="8">
+									<a-form-item label="运费金额">
+										<a-input-number
+											v-model:value="plan.freight"
+											:min="0"
+											:precision="2"
+											prefix="￥"
+											placeholder="可在实际发货时填写"
+											style="width: 100%"
+										/>
+									</a-form-item>
+								</a-col>
+								<a-col :span="8">
+									<a-form-item label="指定物流类型">
+										<a-select
+											v-model:value="plan.logisticsCategory"
+											:options="logisticsCategory"
+											placeholder="可在实际发货时确定"
+											allow-clear
+										/>
+									</a-form-item>
+								</a-col>
+								<a-col :span="24">
+									<a-form-item label="安排备注">
+										<a-textarea
+											v-model:value="plan.remark"
+											:maxlength="4000"
+											:auto-size="{ minRows: 2, maxRows: 4 }"
+										/>
+									</a-form-item>
+								</a-col>
+							</a-row>
+
+							<a-table
+								row-key="productId"
+								size="small"
+								bordered
+								:pagination="false"
+								:columns="deliveryPlanColumns"
+								:data-source="plan.productList"
+							>
+								<template #bodyCell="{ column, record }">
+									<template v-if="column.dataIndex === 'amount'">
+										<a-input-number
+											v-model:value="record.amount"
+											:min="0"
+											:max="record.orderNumber"
+											:precision="0"
+											style="width: 100%"
+										/>
+									</template>
+									<template v-if="column.dataIndex === 'allocated'">
+										<span :class="allocationClass(record)">
+											{{ allocatedQuantity(record.productId) }} / {{ record.orderNumber }}
+										</span>
+									</template>
+									<template v-if="column.dataIndex === 'remark'">
+										<a-input v-model:value="record.remark" :maxlength="100" placeholder="选填" />
+									</template>
+								</template>
+							</a-table>
+						</a-card>
+						<a-button type="dashed" block @click="addDeliveryPlan">+ 新增发货安排</a-button>
+					</template>
 				</a-tab-pane>
 				<a-tab-pane tab="合同信息" key="file-list">
 					<a-form class="product-form" ref="fileFormRef" :model="formData" layout="vertical">
@@ -487,8 +582,160 @@
 			dataIndex: 'operation'
 		}
 	]
+	const deliveryPlanColumns = [
+		{
+			title: '产品名称',
+			dataIndex: 'productName'
+		},
+		{
+			title: '订单数量',
+			dataIndex: 'orderNumber',
+			width: 100
+		},
+		{
+			title: '本安排数量',
+			dataIndex: 'amount',
+			width: 130
+		},
+		{
+			title: '已安排 / 订单',
+			dataIndex: 'allocated',
+			width: 130
+		},
+		{
+			title: '备注',
+			dataIndex: 'remark'
+		}
+	]
 
 	const { warpProduct } = useProduct()
+	const createDeliveryPlanKey = () => {
+		if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+			return crypto.randomUUID()
+		}
+		return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+	}
+	const deliveryPlanItems = (plan) => {
+		if (Array.isArray(plan?.productList)) return plan.productList
+		if (Array.isArray(plan?.productItemList)) return plan.productItemList
+		if (Array.isArray(plan?.itemList)) return plan.itemList
+		if (Array.isArray(plan?.items)) return plan.items
+		if (Array.isArray(plan?.projectProductItemList)) return plan.projectProductItemList
+		return []
+	}
+	const emptyDeliveryPlan = (source = {}) => ({
+		...source,
+		clientKey: source.clientKey || createDeliveryPlanKey(),
+		unit: source.unit || '',
+		consignee: source.consignee || '',
+		phone: source.phone || '',
+		address: source.address || '',
+		freightCategory: source.freightCategory || '',
+		freight: source.freight ?? null,
+		logisticsCategory: source.logisticsCategory || undefined,
+		remark: source.remark || '',
+		productList: deliveryPlanItems(source)
+	})
+	const syncDeliveryPlanProducts = (forceSinglePlan = false) => {
+		const products = Array.isArray(formData.value.productList) ? formData.value.productList : []
+		if (!Array.isArray(formData.value.deliveryPlanList) || formData.value.deliveryPlanList.length === 0) {
+			formData.value.deliveryPlanList = [emptyDeliveryPlan()]
+		}
+		const singlePlan = formData.value.deliveryPlanList.length === 1
+		formData.value.deliveryPlanList.forEach((plan) => {
+			const oldItems = new Map(
+				deliveryPlanItems(plan).map((item) => [String(item.productId || item.id || ''), item])
+			)
+			plan.productList = products.map((product) => {
+				const productId = String(product.productId || product.id || '')
+				const oldItem = oldItems.get(productId) || {}
+				const orderNumber = Number(product.number || 0)
+				let amount = oldItem.amount ?? oldItem.number
+				if (amount === undefined || amount === null || amount === '') {
+					amount = singlePlan ? orderNumber : 0
+				}
+				if (singlePlan && forceSinglePlan) {
+					amount = orderNumber
+				}
+				return {
+					...oldItem,
+					productId,
+					projectProductItemId: oldItem.projectProductItemId || product.projectProductItemId || undefined,
+					productName: product.productName,
+					orderNumber,
+					amount: Number(amount || 0),
+					remark: oldItem.remark || ''
+				}
+			})
+		})
+	}
+	const normalizeDeliveryPlans = () => {
+		const existingPlans = Array.isArray(formData.value.deliveryPlanList) ? formData.value.deliveryPlanList : []
+		if (existingPlans.length > 0) {
+			formData.value.deliveryPlanList = existingPlans.map((plan) => emptyDeliveryPlan(plan))
+		} else {
+			formData.value.deliveryPlanList = [
+				emptyDeliveryPlan({
+					unit: formData.value.unit,
+					consignee: formData.value.consignee,
+					phone: formData.value.phone,
+					address: formData.value.address,
+					freightCategory: formData.value.freightCategory,
+					freight: formData.value.freight ?? null,
+					logisticsCategory: formData.value.logisticsCategory,
+					remark: formData.value.deliveryNote || ''
+				})
+			]
+		}
+		syncDeliveryPlanProducts(existingPlans.length === 0)
+	}
+	const addDeliveryPlan = () => {
+		if (formData.value.deliveryPlanList.length >= 50) {
+			message.warning('一个项目最多添加50个发货安排')
+			return
+		}
+		formData.value.deliveryPlanList.push(emptyDeliveryPlan())
+		syncDeliveryPlanProducts()
+	}
+	const copyDeliveryPlan = (source) => {
+		if (formData.value.deliveryPlanList.length >= 50) {
+			message.warning('一个项目最多添加50个发货安排')
+			return
+		}
+		formData.value.deliveryPlanList.push(
+			emptyDeliveryPlan({
+				unit: source.unit,
+				consignee: source.consignee,
+				phone: source.phone,
+				address: source.address,
+				freightCategory: source.freightCategory,
+				freight: source.freight,
+				logisticsCategory: source.logisticsCategory,
+				remark: source.remark
+			})
+		)
+		syncDeliveryPlanProducts()
+	}
+	const removeDeliveryPlan = (index) => {
+		if (formData.value.deliveryPlanList.length <= 1) return
+		formData.value.deliveryPlanList.splice(index, 1)
+		if (formData.value.deliveryPlanList.length === 1) {
+			syncDeliveryPlanProducts(true)
+		}
+	}
+	const allocatedQuantity = (productId) => {
+		return (formData.value.deliveryPlanList || [])
+			.reduce((total, plan) => {
+				const item = (plan.productList || []).find((row) => String(row.productId) === String(productId))
+				return total.plus(new Decimal(item?.amount || 0))
+			}, new Decimal(0))
+			.toString()
+	}
+	const allocationClass = (record) => {
+		return new Decimal(allocatedQuantity(record.productId)).equals(new Decimal(record.orderNumber || 0))
+			? 'allocation-ok'
+			: 'allocation-error'
+	}
 
 	const updateFormData = () => {
 		formData.value.productList.forEach((item, index) => {
@@ -503,6 +750,7 @@
 			}
 			item.zIndex = index
 		})
+		syncDeliveryPlanProducts()
 	}
 
 	const handleAdd = () => {
@@ -563,6 +811,11 @@
 			let price = new Decimal(product.unitPrice).times(product?.number)
 			formData.value.productList[index].price = price.minus(price.times(discount)).toString()
 		}
+		if (formData.value.deliveryPlanList?.length === 1) {
+			syncDeliveryPlanProducts(true)
+		} else {
+			syncDeliveryPlanProducts()
+		}
 	}
 	const totalPrice = computed(() => {
 		return formData.value.productList
@@ -617,6 +870,7 @@
 				customerCompany: record.customerName
 			},
 			productList: [],
+			deliveryPlanList: [],
 			bizSaleProjectId: record.id,
 			copyUserIdList: [],
 			approveUserIdList: []
@@ -639,6 +893,8 @@
 		if (formData.value.invoicingInfo?.invoicingCategory === generalInvoiceCategory) {
 			clearSpecialInvoiceFields()
 		}
+		normalizeDeliveryPlans()
+		updateFormData()
 	})
 
 	// 关闭抽屉
@@ -695,6 +951,99 @@
 	const isInvoicingRef = ref()
 
 	const invoicingInfoRef = ref()
+	const isBlankFreight = (value) => value === '' || value === null || value === undefined
+	const validateDeliveryPlans = () => {
+		const plans = formData.value.deliveryPlanList || []
+		if (plans.length === 0) {
+			message.warning('请至少添加一个发货安排')
+			return false
+		}
+		let totalItemCount = 0
+		for (let index = 0; index < plans.length; index += 1) {
+			const plan = plans[index]
+			const planName = `发货安排 ${index + 1}`
+			for (const [key, label] of [
+				['unit', '收货单位'],
+				['consignee', '收货人'],
+				['phone', '联系电话'],
+				['address', '收货地址']
+			]) {
+				if (!String(plan[key] || '').trim()) {
+					message.warning(`${planName}：${label}不能为空`)
+					return false
+				}
+			}
+			const freight = Number(plan.freight)
+			if (
+				!isBlankFreight(plan.freight) &&
+				(!Number.isFinite(freight) || freight < 0)
+			) {
+				message.warning(`${planName}：运费金额不能小于0`)
+				return false
+			}
+			const positiveItems = (plan.productList || []).filter((item) => Number(item.amount) > 0)
+			totalItemCount += positiveItems.length
+			if (positiveItems.length === 0) {
+				message.warning(`${planName}：请至少安排一个产品`)
+				return false
+			}
+			if (
+				positiveItems.some((item) => !Number.isFinite(Number(item.amount)) || !Number.isInteger(Number(item.amount)))
+			) {
+				message.warning(`${planName}：产品数量必须为正整数`)
+				return false
+			}
+		}
+		if (totalItemCount > 500) {
+			message.warning('发货安排中的产品明细不能超过500条')
+			return false
+		}
+
+		for (const product of formData.value.productList || []) {
+			const allocated = new Decimal(allocatedQuantity(product.productId))
+			const ordered = new Decimal(product.number || 0)
+			if (!allocated.equals(ordered)) {
+				message.warning(`${product.productName}：已安排 ${allocated.toString()}，订单数量 ${ordered.toString()}`)
+				return false
+			}
+		}
+		return true
+	}
+	const deliveryPlanPayload = (form) => {
+		const plans = (form.deliveryPlanList || []).map((plan, index) => ({
+			...(plan.id ? { id: plan.id } : {}),
+			planNo: index + 1,
+			unit: String(plan.unit || '').trim(),
+			consignee: String(plan.consignee || '').trim(),
+			phone: String(plan.phone || '').trim(),
+			address: String(plan.address || '').trim(),
+			freightCategory: plan.freightCategory,
+			freight: isBlankFreight(plan.freight) ? null : new Decimal(plan.freight).toFixed(2),
+			logisticsCategory: plan.logisticsCategory || '',
+			remark: String(plan.remark || '').trim(),
+			productList: (plan.productList || [])
+				.filter((item) => Number(item.amount) > 0)
+				.map((item) => ({
+					productId: item.productId,
+					...(item.projectProductItemId ? { projectProductItemId: item.projectProductItemId } : {}),
+					amount: Number(item.amount),
+					remark: String(item.remark || '').trim()
+				}))
+		}))
+		const firstPlan = plans[0]
+		form.deliveryPlanList = plans
+		form.unit = firstPlan.unit
+		form.consignee = firstPlan.consignee
+		form.phone = firstPlan.phone
+		form.address = firstPlan.address
+		form.freightCategory = firstPlan.freightCategory
+		form.logisticsCategory = firstPlan.logisticsCategory
+		const freightList = plans.map((plan) => plan.freight).filter((freight) => !isBlankFreight(freight))
+		form.freight = freightList.length
+			? freightList.reduce((total, freight) => total.plus(new Decimal(freight)), new Decimal(0)).toFixed(2)
+			: null
+		return form
+	}
 	const { load: saveDraft, loading: loadingSaveDraft } = useLoading(async () => {
 		let form = cloneDeep(formData.value)
 		await bizDraftApi.bizDraftSubmitSaleProjectForm({
@@ -727,6 +1076,15 @@
 		}
 
 		if (activeKey.value === 'productInfo') {
+			activeKey.value = 'deliveryPlan'
+			return
+		}
+
+		if (!validateDeliveryPlans()) {
+			activeKey.value = 'deliveryPlan'
+			return
+		}
+		if (activeKey.value === 'deliveryPlan') {
 			activeKey.value = 'file-list'
 			return
 		}
@@ -768,7 +1126,7 @@
 		}
 
 		sendLoading.value = true
-		let form = cloneDeep(formData.value)
+		let form = deliveryPlanPayload(cloneDeep(formData.value))
 		form.deliveryNote = form.remark
 
 		try {
@@ -790,5 +1148,14 @@
 <style scoped>
 	::v-deep(.product-form .ant-form-item) {
 		margin-bottom: 0;
+	}
+
+	.allocation-ok {
+		color: #389e0d;
+	}
+
+	.allocation-error {
+		color: #cf1322;
+		font-weight: 600;
 	}
 </style>

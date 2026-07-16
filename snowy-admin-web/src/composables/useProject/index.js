@@ -5,6 +5,7 @@ import { useProduct } from '@/composables/useProduct'
 import { exportWordDocx } from '@/utils/exportUtil/exportDom'
 import tool from '@/utils/tool'
 import bizOrgApi from '@/api/biz/bizOrgApi'
+import { cloneDeep } from 'lodash-es'
 /**
  * 在树形结构数据中查找指定orgId相关的公司信息
  * @param {Array} treeData - 树形结构数据数组
@@ -71,15 +72,60 @@ function findCompanyByOrgId(treeData, orgId) {
 function findAllRelatedCompanies(treeData, orgId) {
 	return findRelatedCompanies(treeData, orgId, 'COMPANY')
 }
-const exportProjectInitInvoice = async (projectId) => {
+const exportProjectInitInvoice = async (projectId, deliveryPlanId = '') => {
 	const result = await bizSaleProjectApi.bizSaleProjectDetail({ id: projectId })
 
 	const projectBaseInfo = result.bizSaleProject || {}
+	const deliveryPlans = Array.isArray(result.deliveryPlanList) ? result.deliveryPlanList : []
+	let deliveryPlan = deliveryPlanId
+		? deliveryPlans.find((item) => String(item.id) === String(deliveryPlanId))
+		: deliveryPlans.length === 1
+			? deliveryPlans[0]
+			: null
+	if (deliveryPlanId && !deliveryPlan) {
+		throw new Error('发货安排不存在或已失效')
+	}
+	if (!deliveryPlanId && deliveryPlans.length > 1) {
+		throw new Error('该项目有多个发货安排，请在具体安排中导出发货单')
+	}
 	const orgTree = await bizOrgApi.orgTree()
 	const company = findCompanyByOrgId(orgTree, projectBaseInfo.org)
 
 	let companyName = company ? company.name : ''
-	const projectProductItemList = result?.productItems
+	let projectProductItemList = cloneDeep(result?.productItems || [])
+	if (deliveryPlan) {
+		Object.assign(projectBaseInfo, {
+			unit: deliveryPlan.unit,
+			consignee: deliveryPlan.consignee,
+			phone: deliveryPlan.phone,
+			address: deliveryPlan.address,
+			freightCategory: deliveryPlan.freightCategory,
+			freight: deliveryPlan.freight,
+			logisticsCategory: deliveryPlan.logisticsCategory,
+			deliveryNote: deliveryPlan.remark || ''
+		})
+		const planItems =
+			deliveryPlan.productList ||
+			deliveryPlan.productItemList ||
+			deliveryPlan.itemList ||
+			deliveryPlan.items ||
+			[]
+		projectProductItemList = planItems
+			.map((planItem) => {
+				const projectItem = projectProductItemList.find(
+					(item) =>
+						String(item.id) === String(planItem.projectProductItemId) ||
+						String(item.productId) === String(planItem.productId)
+				)
+				if (!projectItem) return null
+				return {
+					...cloneDeep(projectItem),
+					number: planItem.amount,
+					remark: planItem.remark || projectItem.remark
+				}
+			})
+			.filter(Boolean)
+	}
 	let specsObject = {}
 	tool.dictListByPath('PRODUCT_DICT', 'PRODUCT_SPECS').filter((item) => {
 		specsObject[item.value] = item.label
@@ -148,7 +194,10 @@ const exportProjectInitInvoice = async (projectId) => {
 	}
 
 	await exportWordDocx('/docxTemplate/销售项目发货单-1.docx', data, {
-		filename: projectBaseInfo.projectName + '.docx'
+		filename:
+			projectBaseInfo.projectName +
+			(deliveryPlan ? `-发货安排${deliveryPlan.planNo || ''}` : '') +
+			'.docx'
 	})
 }
 
