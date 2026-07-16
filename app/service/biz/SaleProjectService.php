@@ -168,6 +168,11 @@ SQL;
         'specialType' => 'p.special_type',
     ];
 
+    public function __construct(
+        private readonly SaleProjectDeliveryPlanService $deliveryPlanService = new SaleProjectDeliveryPlanService()
+    ) {
+    }
+
     public function page(array $filters = [], array $payload = []): array
     {
         return $this->pageResult($filters, $payload);
@@ -225,6 +230,30 @@ SQL;
         }
 
         return $this->detailsForProjects($this->projectRows([$row]), $payload)[0];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function deliveryPlanList(string $projectId, array $payload = []): array
+    {
+        $projectId = trim($projectId);
+        if ($projectId === '') {
+            throw new RuntimeException('missing projectId', 400);
+        }
+        $this->assertMaxLength($projectId, 'projectId', 20);
+
+        $project = $this->projectQuery(['id' => $projectId], $payload)
+            ->field('p.ID AS ID, p.TENANT_ID AS TENANT_ID')
+            ->find();
+        if (!is_array($project) || $project === []) {
+            throw new RuntimeException('sale project not found', 404);
+        }
+
+        return $this->deliveryPlanService->listByProject(
+            $projectId,
+            trim((string)($project['TENANT_ID'] ?? ''))
+        );
     }
 
     /**
@@ -1707,6 +1736,7 @@ SQL;
             $userId = $this->currentUserId($payload);
             $auditUser = $userId !== '' ? $userId : null;
             $this->deletePendingProjectInvoicing($projectId, $tenantId, $now, $auditUser);
+            $this->deliveryPlanService->softDeletePendingByProject($projectId, $tenantId, $userId);
 
             $projectUpdates = [
                 'PROJECT_STATE' => self::FOLLOW_STATE,
@@ -1775,6 +1805,11 @@ SQL;
                 if ($projectState === self::WAIT_DELIVER_STATE) {
                     $this->assertProjectCanReturnToFollow($projectId, $tenantId, $row);
                     $this->deletePendingProjectInvoicing($projectId, $tenantId, $now, $auditUser);
+                    $this->deliveryPlanService->softDeletePendingByProject(
+                        $projectId,
+                        $tenantId,
+                        $currentUserId
+                    );
                 }
 
                 $projectUpdates = [
@@ -2003,7 +2038,8 @@ SQL;
         string $projectId,
         array $projectProductItemList,
         array $payload = [],
-        string $tenantId = ''
+        string $tenantId = '',
+        string $deliveryPlanId = ''
     ): array {
         $projectId = trim($projectId);
         if ($projectId === '') {
@@ -2033,9 +2069,97 @@ SQL;
 
         $effectiveTenantId = trim((string)($tenantId !== '' ? $tenantId : ($project['TENANT_ID'] ?? '')));
         $items = $this->workflowDeliveryItems($projectId, $projectProductItemList, $effectiveTenantId, false);
+        if ($deliveryPlanId !== '') {
+            $this->deliveryPlanService->prepareShipment(
+                $deliveryPlanId,
+                $projectId,
+                $projectProductItemList,
+                $effectiveTenantId
+            );
+        } elseif ($this->deliveryPlanService->tableExists()) {
+            $summary = $this->deliveryPlanService->pendingSummary($projectId, $effectiveTenantId);
+            if ((int)($summary['pendingDeliveryPlanCount'] ?? 0) > 0) {
+                foreach ($items as $item) {
+                    if ((string)($item['projectItem']['CATEGORY'] ?? '') === self::PRODUCT_ITEM_CATEGORY_INIT) {
+                        throw new RuntimeException('normal shipment must select a delivery plan', 400);
+                    }
+                }
+            }
+        }
         $project['PROJECT_PRODUCT_ITEM_COUNT'] = count($items);
 
         return $project;
+    }
+
+    /**
+     * Resolve a delivery plan into trusted shipment headers and item quantities.
+     *
+     * @param array<int, array<string, mixed>> $projectProductItemList
+     * @return array<string, mixed>
+     */
+    public function workflowProjectDeliveryPlanInput(
+        string $projectId,
+        string $deliveryPlanId,
+        array $projectProductItemList,
+        string $tenantId = ''
+    ): array {
+        return $this->deliveryPlanService->prepareShipment(
+            $deliveryPlanId,
+            $projectId,
+            $projectProductItemList,
+            $tenantId
+        );
+    }
+
+    /**
+     * Return the already-created shipment for an idempotent automatic retry.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function existingProjectDeliveryResult(
+        string $projectId,
+        string $processInstanceId,
+        string $tenantId = ''
+    ): ?array {
+        $projectId = trim($projectId);
+        $processInstanceId = trim($processInstanceId);
+        if ($projectId === '' || $processInstanceId === '') {
+            return null;
+        }
+
+        $invoiceQuery = Db::name('biz_sale_project_invoice')
+            ->where('PROJECT_ID', $projectId)
+            ->where('PROCESS_ID', $processInstanceId);
+        $this->whereNotDeleted($invoiceQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $invoiceQuery->where('TENANT_ID', $tenantId);
+        }
+        $invoice = $invoiceQuery->field('ID,EXT_JSON')->find();
+        if (!is_array($invoice) || $invoice === []) {
+            return null;
+        }
+
+        $projectQuery = Db::name('biz_sale_project')->where('ID', $projectId);
+        $this->whereNotDeleted($projectQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $projectQuery->where('TENANT_ID', $tenantId);
+        }
+        $projectState = (string)($projectQuery->value('PROJECT_STATE') ?? '');
+        $extension = json_decode((string)($invoice['EXT_JSON'] ?? ''), true);
+        $extension = is_array($extension) ? $extension : [];
+        $invoiceId = (string)$invoice['ID'];
+
+        return [
+            'id' => $projectId,
+            'projectId' => $projectId,
+            'projectState' => $projectState,
+            'invoiceId' => $invoiceId,
+            'invoiceItemCount' => (int)Db::name('biz_sale_project_invoice_item')->where('INVOICE_ID', $invoiceId)->count(),
+            'deliveryRecordCount' => (int)Db::name('delivery_record')->where('PROCESS_ID', $processInstanceId)->count(),
+            'inventoryUpdateCount' => 0,
+            'deliveryPlanId' => $extension['deliveryPlanId'] ?? null,
+            'deliveryPlanNo' => $extension['deliveryPlanNo'] ?? null,
+        ];
     }
 
     /**
@@ -2206,6 +2330,10 @@ SQL;
 
             $effectiveTenantId = trim((string)($tenantId !== '' ? $tenantId : ($project['TENANT_ID'] ?? '')));
             $productList = $this->workflowList($variables['productList'] ?? null, 'productList');
+            $hasDeliveryPlanList = array_key_exists('deliveryPlanList', $variables);
+            $deliveryPlanInput = $hasDeliveryPlanList
+                ? $this->workflowList($variables['deliveryPlanList'] ?? null, 'deliveryPlanList')
+                : [];
             $fileIds = $this->workflowStringList($variables['fileIdList'] ?? []);
             if ($productList === []) {
                 throw new RuntimeException('missing productList', 400);
@@ -2218,25 +2346,61 @@ SQL;
             $auditUser = $currentUserId !== '' ? $currentUserId : trim((string)($variables['initiator'] ?? ''));
             $productPayload = $effectiveTenantId !== '' ? ['tenant_id' => $effectiveTenantId] : [];
             $this->syncProductItems($projectId, $productList, $effectiveTenantId, $productPayload, $now, $auditUser);
+            $deliveryPlans = $this->deliveryPlanService->createForProject(
+                $projectId,
+                $deliveryPlanInput,
+                $effectiveTenantId,
+                $auditUser
+            );
             $fileRelationCount = $this->insertSaleProjectWorkflowFileRelations($projectId, $fileIds, $effectiveTenantId, $auditUser, $now);
 
             $initPrice = $this->workflowMoney($variables['initPrice'] ?? null, 'initPrice', false);
             $rebateAmount = $this->workflowMoney($variables['rebateAmount'] ?? null, 'rebateAmount', false);
-            $freight = $this->workflowOptionalMoney($variables['freight'] ?? null, 'freight');
+            if ($deliveryPlans !== []) {
+                $firstPlan = $deliveryPlans[0];
+                $consignee = (string)$firstPlan['consignee'];
+                $phone = (string)$firstPlan['phone'];
+                $unit = (string)$firstPlan['unit'];
+                $address = (string)$firstPlan['address'];
+                $logisticsCategory = trim((string)($firstPlan['logisticsCategory'] ?? '')) ?: null;
+                $freightCategory = $this->workflowOptionalText(
+                    $firstPlan['freightCategory'] ?? null,
+                    'deliveryPlanList.0.freightCategory',
+                    80
+                );
+                $freightTotal = 0.0;
+                $hasPlannedFreight = false;
+                foreach ($deliveryPlans as $deliveryPlan) {
+                    if (($deliveryPlan['freight'] ?? null) === null || $deliveryPlan['freight'] === '') {
+                        continue;
+                    }
+                    $freightTotal += (float)$deliveryPlan['freight'];
+                    $hasPlannedFreight = true;
+                }
+                $freight = $hasPlannedFreight ? $this->decimalStorage($freightTotal) : null;
+            } else {
+                $freight = $this->workflowOptionalMoney($variables['freight'] ?? null, 'freight');
+                $consignee = $this->workflowRequiredText($variables['consignee'] ?? null, 'consignee', 80);
+                $phone = $this->workflowRequiredText($variables['phone'] ?? null, 'phone', 50);
+                $unit = $this->workflowRequiredText($variables['unit'] ?? null, 'unit', 80);
+                $address = $this->workflowRequiredText($variables['address'] ?? null, 'address', 255);
+                $logisticsCategory = $this->workflowOptionalText($variables['logisticsCategory'] ?? null, 'logisticsCategory', 80);
+                $freightCategory = $this->workflowRequiredText($variables['freightCategory'] ?? null, 'freightCategory', 80);
+            }
             $travelDays = $this->workflowTravelDays($variables['travelDays'] ?? null, 'travelDays', true);
             $completionDate = $this->workflowDate($variables['completionDate'] ?? null, 'completionDate');
             $dealAmount = $this->projectDealAmountForApproval($project, $effectiveTenantId);
             $projectState = $productList === [] ? self::SHIPPED_STATE : self::WAIT_DELIVER_STATE;
 
             $updates = [
-                'CONSIGNEE' => $this->workflowRequiredText($variables['consignee'] ?? null, 'consignee', 80),
-                'PHONE' => $this->workflowRequiredText($variables['phone'] ?? null, 'phone', 50),
-                'UNIT' => $this->workflowRequiredText($variables['unit'] ?? null, 'unit', 80),
-                'ADDRESS' => $this->workflowRequiredText($variables['address'] ?? null, 'address', 255),
-                'LOGISTICS_CATEGORY' => $this->workflowOptionalText($variables['logisticsCategory'] ?? null, 'logisticsCategory', 80),
+                'CONSIGNEE' => $consignee,
+                'PHONE' => $phone,
+                'UNIT' => $unit,
+                'ADDRESS' => $address,
+                'LOGISTICS_CATEGORY' => $logisticsCategory,
                 'DELIVERY_NOTE' => $this->workflowOptionalText($variables['deliveryNote'] ?? null, 'deliveryNote', 500),
                 'FREIGHT' => $freight,
-                'FREIGHT_CATEGORY' => $this->workflowRequiredText($variables['freightCategory'] ?? null, 'freightCategory', 80),
+                'FREIGHT_CATEGORY' => $freightCategory,
                 'ACCOUNT_ID' => $this->workflowRequiredText($variables['accountId'] ?? null, 'accountId', 20),
                 'PAYER_CATEGORY' => $this->workflowRequiredText($variables['payerCategory'] ?? null, 'payerCategory', 80),
                 'INIT_PRICE' => $initPrice,
@@ -2281,6 +2445,7 @@ SQL;
                 'productItemCount' => count($productList),
                 'fileRelationCount' => $fileRelationCount,
                 'invoicingCount' => $invoicingCount,
+                'deliveryPlanCount' => count($deliveryPlans),
                 'travelDays' => $this->decimal($travelDays),
             ];
         });
@@ -2326,7 +2491,37 @@ SQL;
             }
 
             $projectProductItemList = $this->workflowList($variables['projectProductItemList'] ?? null, 'projectProductItemList');
+            $deliveryPlanId = $this->workflowOptionalText(
+                $variables['deliveryPlanId'] ?? null,
+                'deliveryPlanId',
+                20
+            ) ?? '';
+            $deliveryPlan = null;
+            if ($deliveryPlanId !== '') {
+                $preparedPlan = $this->deliveryPlanService->prepareShipment(
+                    $deliveryPlanId,
+                    $projectId,
+                    $projectProductItemList,
+                    $effectiveTenantId
+                );
+                $deliveryPlan = $preparedPlan['plan'];
+                $projectProductItemList = $preparedPlan['projectProductItemList'];
+                $variables['consignee'] = $deliveryPlan['consignee'];
+                $variables['phone'] = $deliveryPlan['phone'];
+                $variables['unit'] = $deliveryPlan['unit'];
+                $variables['address'] = $deliveryPlan['address'];
+            }
             $items = $this->workflowDeliveryItems($projectId, $projectProductItemList, $effectiveTenantId, true);
+            if ($deliveryPlanId === '' && $this->deliveryPlanService->tableExists()) {
+                $summary = $this->deliveryPlanService->pendingSummary($projectId, $effectiveTenantId);
+                if ((int)($summary['pendingDeliveryPlanCount'] ?? 0) > 0) {
+                    foreach ($items as $item) {
+                        if ((string)($item['projectItem']['CATEGORY'] ?? '') === self::PRODUCT_ITEM_CATEGORY_INIT) {
+                            throw new RuntimeException('normal shipment must select a delivery plan', 400);
+                        }
+                    }
+                }
+            }
             $now = date('Y-m-d H:i:s');
             $auditUser = $currentUserId !== '' ? $currentUserId : trim((string)($variables['initiator'] ?? ''));
             $operator = trim((string)($variables['initiator'] ?? $auditUser));
@@ -2354,7 +2549,10 @@ SQL;
                 'DELETE_FLAG' => self::NOT_DELETE,
                 'CREATE_USER' => $auditUser !== '' ? $auditUser : null,
                 'UPDATE_TIME' => null,
-                'EXT_JSON' => null,
+                'EXT_JSON' => $deliveryPlan === null ? null : json_encode([
+                    'deliveryPlanId' => $deliveryPlanId,
+                    'deliveryPlanNo' => (int)($deliveryPlan['planNo'] ?? 0),
+                ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
                 'UPDATE_USER' => null,
                 'TENANT_ID' => $effectiveTenantId !== '' ? $effectiveTenantId : (string)($project['TENANT_ID'] ?? '1'),
                 'OPERATOR' => $operator,
@@ -2444,6 +2642,17 @@ SQL;
                 'VERSION' => Db::raw('COALESCE(VERSION, 0) + 1'),
             ]);
 
+            if ($deliveryPlanId !== '') {
+                $this->deliveryPlanService->markShipped(
+                    $deliveryPlanId,
+                    $projectId,
+                    $invoiceId,
+                    $processInstanceId,
+                    $effectiveTenantId,
+                    $auditUser
+                );
+            }
+
             return [
                 'id' => $projectId,
                 'projectId' => $projectId,
@@ -2452,6 +2661,8 @@ SQL;
                 'invoiceItemCount' => count($invoiceItemRows),
                 'deliveryRecordCount' => count($deliveryRows),
                 'inventoryUpdateCount' => count(array_unique($inventoryIds)),
+                'deliveryPlanId' => $deliveryPlanId !== '' ? $deliveryPlanId : null,
+                'deliveryPlanNo' => $deliveryPlan === null ? null : (int)($deliveryPlan['planNo'] ?? 0),
             ];
         });
     }
@@ -2518,7 +2729,13 @@ SQL;
             if ($includeShipmentSummary) {
                 $record = array_merge(
                     $record,
-                    $shipmentSummaries[(string)$record['id']] ?? $this->emptyPendingShipmentSummary()
+                    $shipmentSummaries[(string)$record['id']] ?? array_merge(
+                        $this->emptyPendingShipmentSummary(),
+                        [
+                            'pendingDeliveryPlanCount' => 0,
+                            'hasPendingDeliveryPlan' => false,
+                        ]
+                    )
                 );
             }
         }
@@ -2698,7 +2915,19 @@ SQL;
             $query->where('TENANT_ID', $tenantId);
         }
 
-        return $this->summarizePendingShipmentItems($query->select()->toArray());
+        $summaries = $this->summarizePendingShipmentItems($query->select()->toArray());
+        foreach ($ids as $projectId) {
+            $planSummary = $this->deliveryPlanService->pendingSummary($projectId, $tenantId);
+            if ((int)($planSummary['pendingDeliveryPlanCount'] ?? 0) > 0 || isset($summaries[$projectId])) {
+                $summaries[$projectId] = array_merge(
+                    $this->emptyPendingShipmentSummary(),
+                    $summaries[$projectId] ?? [],
+                    $planSummary
+                );
+            }
+        }
+
+        return $summaries;
     }
 
     /**
@@ -3026,6 +3255,17 @@ SQL;
         $followUps = $this->relatedRowsByIds('sale_project_follow_up', 'PROJECT_ID', $projectIds, $payload, 'FOLLOW_UP_TIME');
         $changeLogs = $this->relatedRowsByIds('sales_project_field_change_log', 'OBJECT_ID', $projectIds, $payload, 'CREATE_TIME');
         $returnOrders = $this->relatedRowsByIds('return_order', 'PROJECT_ID', $projectIds, $payload, 'CREATE_TIME');
+        $deliveryPlans = [];
+        foreach ($projects as $project) {
+            $projectId = (string)($project['id'] ?? '');
+            if ($projectId === '') {
+                continue;
+            }
+            $deliveryPlans[$projectId] = $this->deliveryPlanService->listByProject(
+                $projectId,
+                trim((string)($project['tenantId'] ?? $payload['tenant_id'] ?? ''))
+            );
+        }
 
         return array_map(function (array $project) use (
             $productItems,
@@ -3034,7 +3274,8 @@ SQL;
             $paymentRecords,
             $followUps,
             $changeLogs,
-            $returnOrders
+            $returnOrders,
+            $deliveryPlans
         ): array {
             $projectId = (string)$project['id'];
 
@@ -3047,6 +3288,7 @@ SQL;
                 'saleProjectFollowUps' => $followUps[$projectId] ?? [],
                 'changeLogs' => $changeLogs[$projectId] ?? [],
                 'returnOrders' => $returnOrders[$projectId] ?? [],
+                'deliveryPlanList' => $deliveryPlans[$projectId] ?? [],
             ];
         }, $projects);
     }
@@ -5103,7 +5345,7 @@ SQL)
         $itemQuery = Db::name('biz_sale_project_product_item')
             ->where('PROJECT_ID', $projectId)
             ->whereIn('ID', $itemIds)
-            ->field('ID, PROJECT_ID, PRODUCT_ID, NUMBER, DELIVERY, STATE, TENANT_ID, VERSION');
+            ->field('ID, PROJECT_ID, PRODUCT_ID, CATEGORY, NUMBER, DELIVERY, STATE, TENANT_ID, VERSION');
         $this->whereNotDeleted($itemQuery, 'DELETE_FLAG');
         if ($tenantId !== '') {
             $itemQuery->where('TENANT_ID', $tenantId);

@@ -100,5 +100,9 @@ export default {
 		})
 
 		return result
+	},
+	// 获取项目的发货安排。旧项目没有安排时返回空数组，继续使用原发货流程。
+	bizSaleProjectDeliveryPlanList(data) {
+		return request('delivery/plan/list', data, 'get')
 	}
 }

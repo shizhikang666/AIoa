@@ -125,6 +125,9 @@
 				</template>
 				<template v-if="column.dataIndex === 'shipmentType'">
 					<a-space :size="4" wrap>
+						<a-tag v-if="record.pendingDeliveryPlanCount" color="cyan">
+							发货安排 {{ record.pendingDeliveryPlanCount }} 单
+						</a-tag>
 						<a-tag v-if="record.hasPendingNormalShipment" color="blue">正常发货</a-tag>
 						<a-tag v-if="record.hasPendingReissue" color="orange">
 							补发待发<span v-if="record.pendingReissueOrderCount">（{{ record.pendingReissueOrderCount }}单）</span>
@@ -139,7 +142,13 @@
 				</template>
 				<template v-if="column.dataIndex === 'action'">
 					<a @click="openAddProjectDelivery(record)">
-						{{ record.hasPendingReissue && !record.hasPendingNormalShipment ? '处理补发' : '处理发货' }}
+						{{
+							record.pendingDeliveryPlanCount
+								? '执行发货安排'
+								: record.hasPendingReissue && !record.hasPendingNormalShipment
+									? '处理补发'
+									: '处理发货'
+						}}
 					</a>
 				</template>
 			</template>

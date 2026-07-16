@@ -51,6 +51,14 @@ class SaleProjectController extends BaseSysController
         return $this->guard(fn () => $this->saleProjectService->product($this->requiredString($request, 'id'), $this->authPayload($request)));
     }
 
+    public function deliveryPlanList(Request $request): Response
+    {
+        return $this->guard(fn () => $this->saleProjectService->deliveryPlanList(
+            $this->requiredString($request, 'projectId'),
+            $this->authPayload($request)
+        ));
+    }
+
     public function cost(Request $request): Response
     {
         return $this->guard(fn () => $this->saleProjectService->cost($this->requiredString($request, 'id'), $this->authPayload($request)));

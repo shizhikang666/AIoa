@@ -2,7 +2,7 @@
 	<xn-form-container
 		:bodyStyle="{ paddingTop: 0 }"
 		:title="formTitle"
-		:width="800"
+		:width="1050"
 		:visible="visible"
 		:destroy-on-close="true"
 		@close="onClose"
@@ -13,20 +13,41 @@
 					<a-button type="primary" @click="loadInitData">重新加载</a-button>
 				</template>
 			</a-result>
+			<a-alert
+				v-if="!error && isPlanDelivery"
+				message="本次将按所选发货安排生成一张发货单；收货信息和商品数量以成交时的安排为准，运费金额及支付方式可在发货时调整。"
+				type="info"
+				show-icon
+				style="margin: 12px 0"
+			/>
+			<a-form-item v-if="!error && showShipmentModeSwitch" label="发货类型" style="margin-bottom: 8px">
+				<a-radio-group v-model:value="shipmentMode" button-style="solid" @change="onShipmentModeChange">
+					<a-radio-button value="PLAN">正常发货安排</a-radio-button>
+					<a-radio-button value="REISSUE">补发</a-radio-button>
+				</a-radio-group>
+			</a-form-item>
 			<a-tabs v-if="!error" v-model:activeKey="activeKey">
 				<a-tab-pane :forceRender="true" key="baseInfo" tab="基本信息">
 					<a-form ref="formRef" :model="formData" :rules="formRules" layout="vertical">
+						<a-form-item v-if="isPlanDelivery" label="发货安排" required>
+							<a-select
+								v-model:value="formData.deliveryPlanId"
+								:options="deliveryPlanOptions"
+								placeholder="请选择本次要执行的发货安排"
+								@change="applyDeliveryPlan"
+							/>
+						</a-form-item>
 						<a-form-item label="收货人：" name="consignee">
-							<a-input placeholder="请输入收货人" v-model:value="formData.consignee"></a-input>
+							<a-input :disabled="isPlanDelivery" placeholder="请输入收货人" v-model:value="formData.consignee"></a-input>
 						</a-form-item>
 						<a-form-item label="收货单位：" name="unit">
-							<a-input placeholder="请输入收货单位" v-model:value="formData.unit"></a-input>
+							<a-input :disabled="isPlanDelivery" placeholder="请输入收货单位" v-model:value="formData.unit"></a-input>
 						</a-form-item>
 						<a-form-item label="收货地址：" name="address">
-							<a-input placeholder="请输入收货地址" v-model:value="formData.address"></a-input>
+							<a-input :disabled="isPlanDelivery" placeholder="请输入收货地址" v-model:value="formData.address"></a-input>
 						</a-form-item>
 						<a-form-item label="联系电话：" name="phone">
-							<a-input placeholder="请输入收货人" v-model:value="formData.phone"></a-input>
+							<a-input :disabled="isPlanDelivery" placeholder="请输入收货人" v-model:value="formData.phone"></a-input>
 						</a-form-item>
 						<a-form-item label="运费支付方式：" name="freightCategory">
 							<a-select
@@ -35,9 +56,16 @@
 								:options="freightCategoryOptions"
 							></a-select>
 						</a-form-item>
-						<!--						<a-form-item label="运费金额：" name="freight">-->
-						<!--							<XnCurrencyInput :min="0" v-model:value="formData.freight" placeholder="请输入运费金额" />-->
-						<!--						</a-form-item>-->
+						<a-form-item label="运费金额：" name="freight">
+							<a-input-number
+								:min="0"
+								:precision="2"
+								prefix="￥"
+								v-model:value="formData.freight"
+								placeholder="请输入运费金额"
+								style="width: 100%"
+							/>
+						</a-form-item>
 						<a-form-item label="物流类型：" name="logisticsCategory">
 							<a-select
 								placeholder="物流类型"
@@ -73,7 +101,14 @@
 							:name="'projectProductItemList'"
 							:rules="{ required: true, message: '发货数量必填' }"
 						>
-							<a-button class="editable-add-btn" style="margin-bottom: 8px" @click="openSelect">添加表单 </a-button>
+							<a-button
+								v-if="!isPlanDelivery"
+								class="editable-add-btn"
+								style="margin-bottom: 8px"
+								@click="openSelect"
+							>
+								添加表单
+							</a-button>
 						</a-form-item>
 						<a-table
 							rowKey="projectProductItemId"
@@ -113,10 +148,11 @@
 									<a-form-item
 										:key="formData.projectProductItemList[index].projectProductItemId"
 										style="margin-bottom: 0"
-										:name="['projectProductItemList', index, 'warehousesId']"
+										:name="['projectProductItemList', index, 'amount']"
 										:rules="{ required: true, message: '数量必填', trigger: 'change' }"
 									>
 										<a-input-number
+											:disabled="isPlanDelivery"
 											min="1"
 											:max="formData.projectProductItemList[index].max"
 											v-model:value="formData.projectProductItemList[index].amount"
@@ -135,8 +171,14 @@
 									</a-form-item>
 								</template>
 								<template v-if="column.dataIndex === 'operation'">
-									<a-button @click="formData.projectProductItemList.splice(index, 1)" type="link" danger size="small"
-										>删除
+									<a-button
+										v-if="!isPlanDelivery"
+										@click="formData.projectProductItemList.splice(index, 1)"
+										type="link"
+										danger
+										size="small"
+									>
+										删除
 									</a-button>
 								</template>
 							</template>
@@ -209,6 +251,7 @@
 	import { useProcessParam } from '@/composables/useProcessParam'
 	import dayjs from 'dayjs'
 	import { useOrg } from '@/composables/useOrg'
+	import { safeJsonParse } from '@/utils/json'
 
 	const { treeData, loadingTreeData, findWarehouseDeptId, findCompanyByDeptId } = useOrg()
 
@@ -232,7 +275,7 @@
 		logisticsCategory: [required('物流类型必填')],
 		logisticsId: [required('物流编号')],
 		freightCategory: [required('运费支付类型必填')],
-
+		freight: [required('运费金额必填')],
 		freightTime: [required('发货时间')]
 	}
 	const { isOpenProcess, copyUserIdList, approveUserIdList } = useProcessParam('Process_sale_project_delivery')
@@ -281,9 +324,54 @@
 		}
 	]
 	const allProductList = ref([])
+	const projectBaseInfo = ref({})
+	const pendingDeliveryPlans = ref([])
+	const shipmentMode = ref('LEGACY')
+	const hasPendingReissue = ref(false)
 	const reissueOnly = ref(false)
-	const formTitle = computed(() => (reissueOnly.value ? '添加补发记录' : '添加发货记录'))
+	const isPlanDelivery = computed(() => shipmentMode.value === 'PLAN' && pendingDeliveryPlans.value.length > 0)
+	const showShipmentModeSwitch = computed(() => pendingDeliveryPlans.value.length > 0 && hasPendingReissue.value)
+	const formTitle = computed(() => {
+		if (isPlanDelivery.value) return '执行发货安排'
+		return reissueOnly.value ? '添加补发记录' : '添加发货记录'
+	})
 	const shipmentCategoryText = (category) => (category === 'REISSUE_ORDER' ? '补发' : '正常发货')
+	const deliveryPlanProductList = (plan) => {
+		if (Array.isArray(plan?.productList)) return plan.productList
+		if (Array.isArray(plan?.productItemList)) return plan.productItemList
+		if (Array.isArray(plan?.itemList)) return plan.itemList
+		if (Array.isArray(plan?.items)) return plan.items
+		if (Array.isArray(plan?.projectProductItemList)) return plan.projectProductItemList
+		const itemJson = plan?.itemJson ?? plan?.ITEM_JSON
+		if (Array.isArray(itemJson)) return itemJson
+		return safeJsonParse(itemJson, [])
+	}
+	const normalizeDeliveryPlanResponse = (result) => {
+		const list = Array.isArray(result)
+			? result
+			: Array.isArray(result?.records)
+			  ? result.records
+			  : Array.isArray(result?.list)
+			    ? result.list
+			    : []
+		return list.filter((plan) => {
+			const status = String(plan.status || plan.STATUS || '')
+			return !status || status === 'WAIT_DELIVER' || status === 'WAIT_SHIP'
+		})
+	}
+	const deliveryPlanOptions = computed(() =>
+		pendingDeliveryPlans.value.map((plan, index) => {
+			const planNo = plan.planNo || plan.PLAN_NO || index + 1
+			const address = plan.address || plan.ADDRESS || '未填写地址'
+			const productCount = deliveryPlanProductList(plan).length
+			const freight = plan.freight !== undefined ? plan.freight : plan.FREIGHT
+			const freightText = freight === '' || freight === null || freight === undefined ? '运费待填写' : `运费¥${freight}`
+			return {
+				label: `安排 ${planNo}｜${address}｜${productCount}种物品｜${freightText}`,
+				value: String(plan.id || plan.ID)
+			}
+		})
+	)
 	const error = ref(false)
 	const loading = ref(false)
 	let id = ''
@@ -295,7 +383,10 @@
 	}
 	// 打开抽屉
 	const onOpen = async (record) => {
+		hasPendingReissue.value = Boolean(record.hasPendingReissue)
 		reissueOnly.value = Boolean(record.hasPendingReissue && !record.hasPendingNormalShipment)
+		shipmentMode.value = reissueOnly.value ? 'REISSUE' : 'LEGACY'
+		pendingDeliveryPlans.value = []
 		visible.value = true
 		formData.value = {
 			projectId: record.id,
@@ -315,6 +406,69 @@
 	}
 
 	const defaultWarehouseId = ref('')
+	const applyProjectDefaults = () => {
+		const project = projectBaseInfo.value
+		formData.value.consignee = project.consignee
+		formData.value.phone = project.phone
+		formData.value.unit = project.unit
+		formData.value.address = project.address
+		formData.value.freightCategory = project.freightCategory
+		formData.value.freight = project.freight ?? null
+		formData.value.logisticsCategory = project.logisticsCategory || undefined
+		formData.value.logisticsId = ''
+		formData.value.remark = project.deliveryNote || ''
+	}
+	const applyDeliveryPlan = (planId) => {
+		const plan = pendingDeliveryPlans.value.find((item) => String(item.id || item.ID) === String(planId))
+		if (!plan) {
+			formData.value.projectProductItemList = []
+			return
+		}
+		formData.value.deliveryPlanId = String(plan.id || plan.ID)
+		formData.value.consignee = plan.consignee ?? plan.CONSIGNEE ?? ''
+		formData.value.phone = plan.phone ?? plan.PHONE ?? ''
+		formData.value.unit = plan.unit ?? plan.UNIT ?? ''
+		formData.value.address = plan.address ?? plan.ADDRESS ?? ''
+		formData.value.freightCategory = plan.freightCategory ?? plan.FREIGHT_CATEGORY ?? ''
+		const freight = plan.freight !== undefined ? plan.freight : plan.FREIGHT
+		formData.value.freight = freight === '' || freight === undefined ? null : freight
+		formData.value.logisticsCategory =
+			plan.logisticsCategory ?? plan.LOGISTICS_CATEGORY ?? projectBaseInfo.value.logisticsCategory ?? undefined
+		formData.value.logisticsId = ''
+		formData.value.remark = plan.remark ?? plan.REMARK ?? ''
+		formData.value.projectProductItemList = deliveryPlanProductList(plan).map((item) => {
+			const projectItemId = item.projectProductItemId || item.PROJECT_PRODUCT_ITEM_ID || item.id
+			const productId = item.productId || item.PRODUCT_ID
+			const product = allProductList.value.find(
+				(row) => String(row.id) === String(projectItemId) || String(row.productId) === String(productId)
+			)
+			const amount = Number(item.amount ?? item.AMOUNT ?? item.number ?? 0)
+			return {
+				projectProductItemId: projectItemId || product?.id,
+				category: product?.category || item.category || 'INIT',
+				productCategory: product?.productCategory || item.productCategory,
+				warehousesId: defaultWarehouseId.value || warehousesList.value[0]?.value || '',
+				productName: product?.productName || item.productName || '未找到产品信息',
+				amount,
+				productId: productId || product?.productId,
+				remark: item.remark || '',
+				max: amount
+			}
+		})
+	}
+	const onShipmentModeChange = () => {
+		currentSelect = []
+		formData.value.projectProductItemList = []
+		if (shipmentMode.value === 'PLAN') {
+			reissueOnly.value = false
+			const firstPlanId = pendingDeliveryPlans.value[0]?.id || pendingDeliveryPlans.value[0]?.ID
+			applyDeliveryPlan(firstPlanId)
+			return
+		}
+		reissueOnly.value = shipmentMode.value === 'REISSUE'
+		delete formData.value.deliveryPlanId
+		applyProjectDefaults()
+	}
 	const loadInitData = async () => {
 		try {
 			error.value = false
@@ -332,15 +486,44 @@
 
 			let res = await bizSaleProjectApi.bizSaleProjectProductItemList({ id: id })
 			allProductList.value = res
-			const { bizSaleProject } = await bizSaleProjectApi.bizSaleProjectDetail({ id: id })
+			const detail = await bizSaleProjectApi.bizSaleProjectDetail({ id: id })
+			const { bizSaleProject } = detail
+			projectBaseInfo.value = bizSaleProject || {}
 			const find = findWarehouseDeptId(treeData.value, warehoues, bizSaleProject.org)
 			defaultWarehouseId.value = find ? find.id : ''
-			formData.value.consignee = bizSaleProject.consignee
-			formData.value.phone = bizSaleProject.phone
-			formData.value.unit = bizSaleProject.unit
-			formData.value.address = bizSaleProject.address
-			formData.value.freightCategory = bizSaleProject.freightCategory
-			formData.value.freight = bizSaleProject.freight
+			applyProjectDefaults()
+
+			let planResult = detail.deliveryPlanList || bizSaleProject.deliveryPlanList
+			if (!Array.isArray(planResult)) {
+				try {
+					planResult = await bizSaleProjectApi.bizSaleProjectDeliveryPlanList({ projectId: id })
+				} catch (planError) {
+					console.warn('发货安排读取失败，按旧项目发货流程处理', planError)
+					planResult = []
+				}
+			}
+			pendingDeliveryPlans.value = normalizeDeliveryPlanResponse(planResult)
+			hasPendingReissue.value =
+				hasPendingReissue.value ||
+				allProductList.value.some(
+					(item) =>
+						item.category === 'REISSUE_ORDER' &&
+						(item.state === 'WAIT_DELIVER' || item.state === 'PART_WAIT_DELIVER')
+				)
+			const hasPendingNormal = allProductList.value.some(
+				(item) =>
+					item.category !== 'REISSUE_ORDER' &&
+					(item.state === 'WAIT_DELIVER' || item.state === 'PART_WAIT_DELIVER')
+			)
+			if (pendingDeliveryPlans.value.length === 0 && !hasPendingNormal && hasPendingReissue.value) {
+				reissueOnly.value = true
+			}
+			if (pendingDeliveryPlans.value.length > 0 && !reissueOnly.value) {
+				shipmentMode.value = 'PLAN'
+				applyDeliveryPlan(pendingDeliveryPlans.value[0].id || pendingDeliveryPlans.value[0].ID)
+			} else {
+				shipmentMode.value = reissueOnly.value ? 'REISSUE' : 'LEGACY'
+			}
 		} catch (e) {
 			console.log(e)
 			error.value = true
@@ -362,6 +545,11 @@
 		if (sendLoading.value) return
 		sendLoading.value = true
 		try {
+			if (isPlanDelivery.value && !formData.value.deliveryPlanId) {
+				message.warning('请选择本次要执行的发货安排')
+				activeKey.value = 'baseInfo'
+				return
+			}
 			try {
 				await formRef.value.validate()
 			} catch (e) {
@@ -431,6 +619,7 @@
 		const list = allProductList.value.filter((v) => {
 			return (
 				(v.state === 'WAIT_DELIVER' || v.state === 'PART_WAIT_DELIVER') &&
+				(reissueOnly.value ? v.category === 'REISSUE_ORDER' : v.category !== 'REISSUE_ORDER') &&
 				formData.value.projectProductItemList.every((p) => p.projectProductItemId != v.id)
 			)
 		})
@@ -449,6 +638,8 @@
 
 	const showSelect = ref(false)
 	const openSelect = async () => {
+		if (isPlanDelivery.value) return
+		currentSelect = []
 		showSelect.value = true
 	}
 	const onSelect = () => {
