@@ -52,6 +52,9 @@ class JavaSerializationDecoder
     private const MAX_BIG_INTEGER_MAGNITUDE_BYTES = 1661;
     private const MAX_HANDLES = 20000;
     private const MAX_DEPTH = 64;
+    private const MAX_EXPANDED_SCALAR_BYTES = 4000;
+    private const MAX_EXPANDED_NODES = 4096;
+    private const MAX_TOTAL_CONTAINER_ITEMS = 4096;
 
     private const CLASS_ARRAY_LIST = 'java.util.ArrayList';
     private const CLASS_EMPTY_LIST = 'java.util.Collections$EmptyList';
@@ -186,7 +189,12 @@ class JavaSerializationDecoder
             throw new WorkflowVariableMigrationException('JAVA_ROOT_VALUE_REJECTED');
         }
 
-        return $this->normalizeOutput($value);
+        $budget = [
+            'scalarBytes' => 0,
+            'nodes' => 0,
+            'containerItems' => 0,
+        ];
+        return $this->normalizeOutput($value, $budget);
     }
 
     private function readContent(int $depth): mixed
@@ -608,24 +616,61 @@ class JavaSerializationDecoder
         return $value instanceof JavaSerializationDecodedValue && $value->type === $type;
     }
 
-    private function normalizeOutput(mixed $value): mixed
+    /**
+     * Every occurrence consumes the same expansion budget. This is important
+     * for TC_REFERENCE: a compact stream can form a DAG whose repeated nodes
+     * would otherwise be copied into a much larger PHP/JSON tree.
+     *
+     * @param array{scalarBytes: int, nodes: int, containerItems: int} $budget
+     */
+    private function normalizeOutput(mixed $value, array &$budget): mixed
     {
+        $budget['nodes']++;
+        if ($budget['nodes'] > self::MAX_EXPANDED_NODES) {
+            throw new WorkflowVariableMigrationException('JAVA_EXPANDED_NODE_LIMIT_REJECTED');
+        }
+
         if ($value instanceof JavaSerializationDecodedValue) {
             if (!in_array($value->type, ['big-integer', 'big-decimal'], true)
                 || !is_string($value->value)) {
                 throw new WorkflowVariableMigrationException('JAVA_INTERNAL_VALUE_REJECTED');
             }
+            $this->reserveExpandedScalarBytes(strlen($value->value), $budget);
             return $value->value;
         }
-        if (!is_array($value)) {
+        if (is_string($value)) {
+            $this->reserveExpandedScalarBytes(strlen($value), $budget);
             return $value;
+        }
+        if ($value === null) {
+            return null;
+        }
+        if (!is_array($value)) {
+            throw new WorkflowVariableMigrationException('JAVA_INTERNAL_VALUE_REJECTED');
+        }
+
+        $itemCount = count($value);
+        $budget['containerItems'] += $itemCount;
+        if ($budget['containerItems'] > self::MAX_TOTAL_CONTAINER_ITEMS) {
+            throw new WorkflowVariableMigrationException('JAVA_EXPANDED_CONTAINER_ITEM_LIMIT_REJECTED');
         }
 
         $normalized = [];
         foreach ($value as $key => $item) {
-            $normalized[$key] = $this->normalizeOutput($item);
+            $normalized[$key] = $this->normalizeOutput($item, $budget);
         }
         return $normalized;
+    }
+
+    /**
+     * @param array{scalarBytes: int, nodes: int, containerItems: int} $budget
+     */
+    private function reserveExpandedScalarBytes(int $bytes, array &$budget): void
+    {
+        $budget['scalarBytes'] += $bytes;
+        if ($budget['scalarBytes'] > self::MAX_EXPANDED_SCALAR_BYTES) {
+            throw new WorkflowVariableMigrationException('JAVA_EXPANDED_SCALAR_LIMIT_REJECTED');
+        }
     }
 
     private function decimalMultiplyAndAdd(string $decimal, int $multiplier, int $addend): string

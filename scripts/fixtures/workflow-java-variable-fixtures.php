@@ -83,6 +83,69 @@ final class WorkflowJavaVariableFixtureBuilder
         return self::stream(self::arrayList([$first, $second]));
     }
 
+    public static function repeatedStringReferenceList(string $value, int $occurrences): string
+    {
+        if ($occurrences < 1) {
+            throw new RuntimeException('fixture occurrence count rejected');
+        }
+        // Outer descriptor/object are handles 0x7e0000/1. The first string is
+        // handle 0x7e0002; later entries reuse it without repeating its bytes.
+        $items = [self::newString($value)];
+        for ($index = 1; $index < $occurrences; $index++) {
+            $items[] = "\x71" . pack('N', 0x7E0002);
+        }
+        return self::stream(self::arrayList($items));
+    }
+
+    /** @param array<int, string> $leafValues */
+    public static function repeatedNestedListDag(array $leafValues, int $occurrences): string
+    {
+        if ($occurrences < 1) {
+            throw new RuntimeException('fixture occurrence count rejected');
+        }
+        $leafItems = array_map(
+            static fn (string $value): string => self::newString($value),
+            $leafValues
+        );
+        // Reuse the outer ArrayList descriptor (0x7e0000). The nested list
+        // object becomes handle 0x7e0002 and is then referenced repeatedly.
+        $nested = self::TC_OBJECT
+            . "\x71" . pack('N', 0x7E0000)
+            . pack('N', count($leafItems))
+            . self::TC_BLOCKDATA . "\x04" . pack('N', count($leafItems))
+            . implode('', $leafItems)
+            . self::TC_ENDBLOCKDATA;
+        $items = [$nested];
+        for ($index = 1; $index < $occurrences; $index++) {
+            $items[] = "\x71" . pack('N', 0x7E0002);
+        }
+        return self::stream(self::arrayList($items));
+    }
+
+    public static function nullList(int $items): string
+    {
+        if ($items < 0) {
+            throw new RuntimeException('fixture item count rejected');
+        }
+        return self::stream(self::arrayList(array_fill(0, $items, self::TC_NULL)));
+    }
+
+    public static function repeatedEmptyListReferenceList(int $occurrences): string
+    {
+        if ($occurrences < 1) {
+            throw new RuntimeException('fixture occurrence count rejected');
+        }
+        // Outer descriptor/object are 0x7e0000/1. The EmptyList descriptor and
+        // object are 0x7e0002/3; later entries reuse the empty object.
+        $first = self::TC_OBJECT
+            . self::classDesc(self::EMPTY_LIST, '7AB817B43CA79EDE', 0x02, []);
+        $items = [$first];
+        for ($index = 1; $index < $occurrences; $index++) {
+            $items[] = "\x71" . pack('N', 0x7E0003);
+        }
+        return self::stream(self::arrayList($items));
+    }
+
     private static function stream(string $content): string
     {
         return "\xAC\xED\x00\x05" . $content;

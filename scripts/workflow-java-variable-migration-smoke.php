@@ -195,6 +195,48 @@ assertMigrationFailure(
 $truncated = substr(WorkflowJavaVariableFixtureBuilder::allowedObjectList(), 0, -2);
 assertMigrationFailure('JAVA_STREAM_TRUNCATED', static fn () => $decoder->decode($truncated), 'truncated stream');
 
+$scalarBoundary = $decoder->decode(
+    WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList('x', 4000)
+);
+assertSameValue(4000, count($scalarBoundary), 'expanded scalar 4000-byte boundary');
+assertMigrationFailure(
+    'JAVA_EXPANDED_SCALAR_LIMIT_REJECTED',
+    static fn () => $decoder->decode(
+        WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList('x', 4001)
+    ),
+    'expanded scalar 4001-byte boundary'
+);
+assertMigrationFailure(
+    'JAVA_EXPANDED_SCALAR_LIMIT_REJECTED',
+    static fn () => $decoder->decode(
+        WorkflowJavaVariableFixtureBuilder::repeatedNestedListDag(
+            array_fill(0, 20, 'abcdefghij'),
+            21
+        )
+    ),
+    'repeated nested-list DAG expansion'
+);
+
+$nullBoundary = $decoder->decode(WorkflowJavaVariableFixtureBuilder::nullList(4095));
+assertSameValue(4095, count($nullBoundary), 'expanded node boundary');
+assertMigrationFailure(
+    'JAVA_EXPANDED_NODE_LIMIT_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::nullList(4096)),
+    'all-null node expansion'
+);
+assertMigrationFailure(
+    'JAVA_EXPANDED_NODE_LIMIT_REJECTED',
+    static fn () => $decoder->decode(
+        WorkflowJavaVariableFixtureBuilder::repeatedEmptyListReferenceList(4096)
+    ),
+    'repeated empty-list node expansion'
+);
+assertMigrationFailure(
+    'JAVA_EXPANDED_CONTAINER_ITEM_LIMIT_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::nullList(4097)),
+    'container item expansion'
+);
+
 $sharedBytes = WorkflowJavaVariableFixtureBuilder::stringList(['fixture-a', 'fixture-b']);
 $dryStore = new OfflineWorkflowVariableStore([
     fixtureRow('act_ru_variable', 'var-runtime', 'process-one', 'approveUserIdList', 'bytes-one', $sharedBytes),
@@ -222,7 +264,7 @@ $overlongStore = new OfflineWorkflowVariableStore([
         'process-overlong',
         'fileIdList',
         'bytes-overlong',
-        WorkflowJavaVariableFixtureBuilder::stringList([str_repeat('x', 4001)])
+        WorkflowJavaVariableFixtureBuilder::stringList([str_repeat('x', 3998)])
     ),
 ]);
 assertMigrationFailure(
@@ -231,6 +273,40 @@ assertMigrationFailure(
     'JSON overlong rejection'
 );
 assertSameValue(0, $overlongStore->updateCalls, 'overlong no writes');
+
+$budgetRollbackStore = new OfflineWorkflowVariableStore([
+    fixtureRow(
+        'act_ru_variable',
+        'budget-rollback-valid',
+        'process-budget-valid',
+        'copyUserIdList',
+        'budget-bytes-valid',
+        $sharedBytes
+    ),
+    fixtureRow(
+        'act_hi_varinst',
+        'budget-rollback-amplified',
+        'process-budget-amplified',
+        'fileIdList',
+        'budget-bytes-amplified',
+        WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList(str_repeat('z', 100), 41)
+    ),
+]);
+$budgetRollbackRows = $budgetRollbackStore->rows;
+$budgetRollbackBytearrays = $budgetRollbackStore->bytearrays;
+assertMigrationFailure(
+    'JAVA_EXPANDED_SCALAR_LIMIT_REJECTED',
+    static fn () => (new WorkflowVariableMigrationService($budgetRollbackStore))->run(true),
+    'expansion budget apply rollback'
+);
+assertSameValue($budgetRollbackRows, $budgetRollbackStore->rows, 'budget rollback restored rows');
+assertSameValue(
+    $budgetRollbackBytearrays,
+    $budgetRollbackStore->bytearrays,
+    'budget rollback retained bytearrays'
+);
+assertSameValue(1, $budgetRollbackStore->rollbackCalls, 'budget rollback count');
+assertSameValue(0, $budgetRollbackStore->updateCalls, 'budget rollback before writes');
 
 $rollbackStore = new OfflineWorkflowVariableStore([
     fixtureRow('act_ru_variable', 'rollback-one', 'process-rollback', 'copyUserIdList', 'rollback-bytes-one', $sharedBytes),
