@@ -5,10 +5,11 @@ declare(strict_types=1);
 
 use think\facade\Db;
 
-require dirname(__DIR__) . '/vendor/autoload.php';
+try {
+    require dirname(__DIR__) . '/vendor/autoload.php';
 
-$app = new think\App(dirname(__DIR__));
-$app->initialize();
+    $app = new think\App(dirname(__DIR__));
+    $app->initialize();
 
 $apply = in_array('--apply', $argv, true);
 $table = 'biz_sale_project_delivery_plan';
@@ -194,4 +195,18 @@ $summary = [
     'nullableColumnMismatches' => $nullableColumnMismatches,
 ];
 
-fwrite(STDOUT, json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL);
+    fwrite(STDOUT, json_encode($summary, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL);
+
+    $schemaIsValid = $finalTableExists
+        && $summary['missingColumns'] === []
+        && $summary['missingIndexes'] === []
+        && $summary['nullableColumnMismatches'] === []
+        && $finalCollation === 'utf8mb4_general_ci';
+    if (!$schemaIsValid && ($apply || $finalTableExists)) {
+        fwrite(STDERR, "delivery plan schema validation failed\n");
+        exit(1);
+    }
+} catch (Throwable $exception) {
+    fwrite(STDERR, 'delivery plan schema command failed: ' . $exception->getMessage() . PHP_EOL);
+    exit(1);
+}

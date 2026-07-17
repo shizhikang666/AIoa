@@ -182,6 +182,7 @@ foreach ($script in @(
     'deployment-readiness.sh',
     'migrate-legacy-files.php',
     'install-after-sales-module.php',
+    'install-sale-project-delivery-plan.php',
     'install-sale-project-travel-days.php',
     'oa-fucity-remote-deploy.sh'
 )) {

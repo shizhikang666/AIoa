@@ -356,6 +356,16 @@ apply_staging() {
     fi
 }
 
+run_release_migrations() {
+    delivery_plan_installer="$TARGET_ROOT/scripts/install-sale-project-delivery-plan.php"
+    [ -f "$delivery_plan_installer" ] || die "release missing delivery plan schema installer"
+
+    log "apply sale project delivery plan schema"
+    (cd "$TARGET_ROOT" && "$PHP_BIN" scripts/install-sale-project-delivery-plan.php --apply)
+    log "verify sale project delivery plan schema"
+    (cd "$TARGET_ROOT" && "$PHP_BIN" scripts/install-sale-project-delivery-plan.php)
+}
+
 fix_writable_ownership() {
     chmod -R u+rwX "$TARGET_ROOT/runtime" "$TARGET_ROOT/public/storage" "$TARGET_ROOT/public/upload" || true
 
@@ -554,7 +564,16 @@ restore_files_from_backup() {
     log "extract rollback backup"
     tar -xzf "$backup" -C "$rollback_dir"
     log "restore files from $backup"
-    rsync -a --delete --exclude='/.deploy/' --exclude='/.user.ini' "$rollback_dir"/ "$TARGET_ROOT"/
+    rsync -a --delete \
+        --exclude='/.deploy/' \
+        --exclude='/.env' \
+        --exclude='/.user.ini' \
+        --exclude='/runtime/upload/' \
+        --exclude='/runtime/storage/' \
+        --exclude='/runtime/backup/' \
+        --exclude='/public/storage/' \
+        --exclude='/public/upload/' \
+        "$rollback_dir"/ "$TARGET_ROOT"/
     safe_remove_deploy_dir "$rollback_dir"
 }
 
@@ -619,6 +638,7 @@ create_file_backup
 create_db_backup
 prepare_staging
 apply_staging
+run_release_migrations
 harden_env_permissions
 configure_nginx_site
 reload_nginx_if_requested
