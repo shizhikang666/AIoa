@@ -49,10 +49,14 @@
         "check": [
             "@php scripts/php-lint.php",
             "@php think route:list"
-        ]
+        ],
+        "migration:offline-smoke": "@php scripts/migration-database-offline-smoke.php",
+        "migration:local-smoke": "@php scripts/migration-database-local-smoke.php"
     },
     "scripts-descriptions": {
         "lint": "Run php -l over app/config/route (syntax gate).",
-        "check": "Baseline gate: PHP syntax lint + route table boot check."
+        "check": "Baseline gate: PHP syntax lint + route table boot check.",
+        "migration:offline-smoke": "Offline database migration safety smoke; no network or database writes.",
+        "migration:local-smoke": "Loopback-only temporary MySQL quarantine and assignee-repair smoke."
     }
 }

@@ -5,10 +5,13 @@ declare(strict_types=1);
 
 use think\facade\Db;
 
+require __DIR__ . '/lib/installer-target.php';
+$installerTarget = installer_target_prepare($argv);
 require dirname(__DIR__) . '/vendor/autoload.php';
 
 $app = new think\App(dirname(__DIR__));
 $app->initialize();
+installer_target_configure($installerTarget);
 
 $apply = in_array('--apply', $argv, true);
 $operator = 'aftersales-installer';
