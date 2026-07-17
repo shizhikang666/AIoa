@@ -264,6 +264,9 @@ class WorkflowRuntimeService
         $copyUserIds = $this->stringList($input['copyUserIdList'] ?? $input['copyUsers'] ?? []);
         $fileIds = $this->requiredStringList($input['fileIdList'] ?? []);
         $productList = $this->decodedArrayList($input['productList'] ?? null, 'productList');
+        $deliveryPlanList = array_key_exists('deliveryPlanList', $input)
+            ? $this->decodedArrayList($input['deliveryPlanList'], 'deliveryPlanList')
+            : null;
         $this->assertUsers($copyUserIds, $tenantId, 'copy user not found');
         $this->assertProjectInitInput($input);
 
@@ -277,7 +280,8 @@ class WorkflowRuntimeService
             $projectId,
             $copyUserIds,
             $fileIds,
-            $productList
+            $productList,
+            $deliveryPlanList
         ): array {
             $project = $this->saleProjectService->markProjectPendingApproval(
                 $projectId,
@@ -294,7 +298,7 @@ class WorkflowRuntimeService
                 'projectId' => $projectId,
                 'productList' => $productList,
                 'completionDate' => $this->dateVariable(strtotime($completionDate) * 1000),
-            ]));
+            ], $deliveryPlanList === null ? [] : ['deliveryPlanList' => $deliveryPlanList]));
             $variables = array_merge($variables, [
                 'initiator' => $currentUserId,
                 'approveUserIdList' => [],
@@ -413,6 +417,51 @@ class WorkflowRuntimeService
             $input['projectProductItemList'] ?? $input['productList'] ?? null,
             'projectProductItemList'
         );
+        $deliveryPlanId = $this->optionalString($input['deliveryPlanId'] ?? null, 20) ?? '';
+        $requestId = null;
+        $autoProcessInstanceId = null;
+        if (!self::ENABLE_PROJECT_DELIVERY_APPROVAL) {
+            $requestId = $this->optionalString($input['requestId'] ?? null, 128);
+            $autoProcessInstanceId = $this->projectDeliveryProcessInstanceId(
+                $requestId,
+                $tenantId,
+                $currentUserId,
+                $projectId,
+                $deliveryPlanId
+            );
+            if ($requestId !== null && $requestId !== '') {
+                $existingResult = $this->saleProjectService->existingProjectDeliveryResult(
+                    $projectId,
+                    $autoProcessInstanceId,
+                    $tenantId
+                );
+                if ($existingResult !== null) {
+                    return array_merge([
+                        'processInstanceId' => $autoProcessInstanceId,
+                        'projectId' => $projectId,
+                        'autoApproved' => true,
+                    ], $existingResult);
+                }
+            }
+        }
+        if ($deliveryPlanId !== '') {
+            $preparedPlan = $this->saleProjectService->workflowProjectDeliveryPlanInput(
+                $projectId,
+                $deliveryPlanId,
+                $projectProductItemList,
+                $tenantId
+            );
+            $deliveryPlan = $preparedPlan['plan'];
+            $projectProductItemList = $preparedPlan['projectProductItemList'];
+            $input = array_merge($input, [
+                'deliveryPlanId' => $deliveryPlanId,
+                'consignee' => $deliveryPlan['consignee'],
+                'phone' => $deliveryPlan['phone'],
+                'unit' => $deliveryPlan['unit'],
+                'address' => $deliveryPlan['address'],
+                'projectProductItemList' => $projectProductItemList,
+            ]);
+        }
         if ($approveUserIds !== []) {
             $this->assertUsers($approveUserIds, $tenantId, 'approve user not found');
         }
@@ -427,7 +476,8 @@ class WorkflowRuntimeService
             $projectId,
             $projectProductItemList,
             $payload,
-            $tenantId
+            $tenantId,
+            $deliveryPlanId
         );
         $starterName = trim((string)($starter['NAME'] ?? $payload['name'] ?? $currentUserId));
         $projectName = trim((string)($project['PROJECT_NAME'] ?? $projectId));
@@ -459,13 +509,7 @@ class WorkflowRuntimeService
         }
 
         if (!self::ENABLE_PROJECT_DELIVERY_APPROVAL) {
-            $requestId = $this->optionalString($input['requestId'] ?? null, 128);
-            $processInstanceId = $this->projectDeliveryProcessInstanceId(
-                $requestId,
-                $tenantId,
-                $currentUserId,
-                $projectId
-            );
+            $processInstanceId = (string)$autoProcessInstanceId;
             $result = $this->saleProjectService->applyProjectDeliveryFromWorkflow(
                 $variables,
                 $processInstanceId,
@@ -3255,7 +3299,8 @@ class WorkflowRuntimeService
         ?string $requestId,
         string $tenantId,
         string $currentUserId,
-        string $projectId
+        string $projectId,
+        string $deliveryPlanId = ''
     ): string {
         if ($requestId === null || $requestId === '') {
             return $this->uuid();
@@ -3264,6 +3309,12 @@ class WorkflowRuntimeService
             throw new RuntimeException('invalid requestId', 400);
         }
 
-        return 'delivery_' . hash('sha256', implode('|', [$tenantId, $currentUserId, $projectId, $requestId]));
+        $parts = [$tenantId, $currentUserId, $projectId];
+        if ($deliveryPlanId !== '') {
+            $parts[] = $deliveryPlanId;
+        }
+        $parts[] = $requestId;
+
+        return 'delivery_' . hash('sha256', implode('|', $parts));
     }
 }
