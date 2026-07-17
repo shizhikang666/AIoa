@@ -6,6 +6,7 @@ namespace app\service\user;
 
 use app\service\auth\PasswordService;
 use app\service\auth\Sm3Hasher;
+use app\support\SensitiveFieldCodec;
 use RuntimeException;
 use think\facade\Db;
 use think\file\UploadedFile;
@@ -15,8 +16,13 @@ class UserCenterWriteService
     private const NOT_DELETE = 'NOT_DELETE';
     private const WORKBENCH_CATEGORY = 'SYS_USER_WORKBENCH_DATA';
 
-    public function __construct(private readonly PasswordService $passwordService = new PasswordService())
-    {
+    private readonly SensitiveFieldCodec $sensitiveFields;
+
+    public function __construct(
+        private readonly PasswordService $passwordService = new PasswordService(),
+        ?SensitiveFieldCodec $sensitiveFields = null
+    ) {
+        $this->sensitiveFields = $sensitiveFields ?? new SensitiveFieldCodec();
     }
 
     public function updatePassword(array $input, array $payload = []): array
@@ -127,6 +133,7 @@ class UserCenterWriteService
                 throw new RuntimeException('missing profile fields', 400);
             }
 
+            $row = $this->sensitiveFields->encodeRow('sys_user', $row);
             Db::name('sys_user')->where('ID', $submittedId)->update($row);
 
             return ['id' => $submittedId];
@@ -517,7 +524,12 @@ class UserCenterWriteService
     private function assertUniqueUserColumn(string $column, string $value, string $userId, string $message): void
     {
         $query = Db::name('sys_user')
-            ->where($column, $value)
+            ->where(
+                $column,
+                $column === 'PHONE'
+                    ? $this->sensitiveFields->lookupValue('sys_user', 'PHONE', $value)
+                    : $value
+            )
             ->where('ID', '<>', $userId);
         $this->whereNotDeleted($query, 'DELETE_FLAG');
         if ((int)$query->count() > 0) {

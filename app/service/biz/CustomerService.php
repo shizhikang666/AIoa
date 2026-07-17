@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\service\biz;
 
 use app\support\FileDownloadUrl;
+use app\support\SensitiveFieldCodec;
 use RuntimeException;
 use think\facade\Db;
 
@@ -69,13 +70,38 @@ SQL;
         'tenantId' => 'c.TENANT_ID',
     ];
 
-    public function __construct(private readonly CustomerFollowUpService $followUpService = new CustomerFollowUpService())
-    {
+    private readonly SensitiveFieldCodec $sensitiveFields;
+
+    public function __construct(
+        private readonly CustomerFollowUpService $followUpService = new CustomerFollowUpService(),
+        ?SensitiveFieldCodec $sensitiveFields = null
+    ) {
+        $this->sensitiveFields = $sensitiveFields ?? new SensitiveFieldCodec();
     }
 
     public function page(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
+
+        if ($this->needsInMemorySensitiveHandling($filters)) {
+            $rows = $this->applySort($this->customerQuery($filters, $payload, true), $filters)
+                ->field(self::CUSTOMER_FIELDS)
+                ->select()
+                ->toArray();
+            $records = $this->filterAndSortSensitiveRows($this->customerRows($rows), $filters);
+            $total = count($records);
+
+            return [
+                'records' => array_slice($records, ($page - 1) * $limit, $limit),
+                'total' => $total,
+                'page' => $page,
+                'current' => $page,
+                'limit' => $limit,
+                'size' => $limit,
+                'pages' => (int)ceil($total / $limit),
+            ];
+        }
+
         $total = (int)$this->customerQuery($filters, $payload, true)->count('DISTINCT c.ID');
         $rows = $this->applySort($this->customerQuery($filters, $payload, true), $filters)
             ->field(self::CUSTOMER_FIELDS)
@@ -115,7 +141,7 @@ SQL;
             ->field(self::CUSTOMER_FIELDS)
             ->select()
             ->toArray();
-        $customers = $this->customerRows($rows);
+        $customers = $this->filterAndSortSensitiveRows($this->customerRows($rows), $filters);
         $followUps = $this->followUpService->listByCustomerIds(array_column($customers, 'id'), $payload);
 
         return array_map(static fn (array $customer): array => [
@@ -265,6 +291,8 @@ SQL;
                 default => $this->nullableString($input[$inputKey]),
             };
         }
+
+        $row = $this->sensitiveFields->encodeRow('customer', $row);
     }
 
     private function assertCustomerWritable(string $customerId, array $payload, string $action): array
@@ -382,14 +410,19 @@ SQL;
         foreach ([
             'name' => 'c.NAME',
             'contacts' => 'c.CONTACTS',
-            'phone' => 'c.PHONE',
-            'detailsAddress' => 'c.DETAILS_ADDRESS',
             'address' => 'c.ADDRESS',
             'remark' => 'c.remark',
         ] as $filter => $column) {
             if (!empty($filters[$filter])) {
                 $query->whereLike($column, '%' . trim((string)$filters[$filter]) . '%');
             }
+        }
+
+        if (!empty($filters['phone'])) {
+            $query->where(
+                'c.PHONE',
+                $this->sensitiveFields->lookupValue('customer', 'PHONE', trim((string)$filters['phone']))
+            );
         }
 
         if (!empty($filters['headName'])) {
@@ -478,7 +511,7 @@ SQL;
     {
         $sortField = (string)($filters['sortField'] ?? '');
         $sortOrder = strtolower((string)($filters['sortOrder'] ?? ''));
-        if ($sortField !== '' && isset(self::SORT_FIELD_MAP[$sortField])) {
+        if ($sortField !== '' && isset(self::SORT_FIELD_MAP[$sortField]) && !in_array($sortField, ['phone', 'detailsAddress'], true)) {
             $direction = in_array($sortOrder, ['desc', 'descend', 'descending'], true) ? 'desc' : 'asc';
 
             return $query->order(self::SORT_FIELD_MAP[$sortField], $direction)->order('c.ID', 'asc');
@@ -507,6 +540,8 @@ SQL;
     private function customerRows(array $rows): array
     {
         return array_map(function (array $row): array {
+            $row = $this->sensitiveFields->decodeRow('customer', $row);
+
             return [
                 'id' => $this->value($row, 'ID', 'id'),
                 'name' => $this->value($row, 'NAME', 'name'),
@@ -542,6 +577,53 @@ SQL;
                 'firstContactTime' => $this->value($row, 'FIRST_CONTACT_TIME', 'firstContactTime'),
             ];
         }, $rows);
+    }
+
+    private function needsInMemorySensitiveHandling(array $filters): bool
+    {
+        $detailsAddress = trim((string)($filters['detailsAddress'] ?? ''));
+        $sortField = trim((string)($filters['sortField'] ?? ''));
+
+        return $detailsAddress !== '' || in_array($sortField, ['phone', 'detailsAddress'], true);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function filterAndSortSensitiveRows(array $rows, array $filters): array
+    {
+        $needle = trim((string)($filters['detailsAddress'] ?? ''));
+        if ($needle !== '') {
+            $rows = array_values(array_filter($rows, static function (array $row) use ($needle): bool {
+                $address = (string)($row['detailsAddress'] ?? '');
+
+                return function_exists('mb_stripos')
+                    ? mb_stripos($address, $needle, 0, 'UTF-8') !== false
+                    : stripos($address, $needle) !== false;
+            }));
+        }
+
+        $sortField = trim((string)($filters['sortField'] ?? ''));
+        if (!in_array($sortField, ['phone', 'detailsAddress'], true)) {
+            return $rows;
+        }
+
+        $descending = in_array(
+            strtolower(trim((string)($filters['sortOrder'] ?? ''))),
+            ['desc', 'descend', 'descending'],
+            true
+        );
+        usort($rows, static function (array $left, array $right) use ($sortField, $descending): int {
+            $comparison = strcmp((string)($left[$sortField] ?? ''), (string)($right[$sortField] ?? ''));
+            if ($comparison !== 0) {
+                return $descending ? -$comparison : $comparison;
+            }
+
+            return strcmp((string)($left['id'] ?? ''), (string)($right['id'] ?? ''));
+        });
+
+        return $rows;
     }
 
     private function whereNotDeleted($query, string $column): void

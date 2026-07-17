@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\SensitiveFieldCodec;
 use RuntimeException;
 use think\facade\Db;
 
@@ -12,6 +13,13 @@ use think\facade\Db;
  */
 class BizDataReportService
 {
+    private readonly SensitiveFieldCodec $sensitiveFields;
+
+    public function __construct(?SensitiveFieldCodec $sensitiveFields = null)
+    {
+        $this->sensitiveFields = $sensitiveFields ?? new SensitiveFieldCodec();
+    }
+
     private const NOT_DELETE = 'NOT_DELETE';
     private const DEAL_STATES = ['WAIT_DELIVER', 'SHIPPED', 'PARTIALLY_SHIPPED', 'COMPLETED'];
     private const UNPAID_PLAY_STATES = ['PARTIALLY_PAID', 'UNPAID'];
@@ -1104,7 +1112,11 @@ SQL;
                 'projectCategory' => $this->value($row, 'PROJECT_CATEGORY', 'projectCategory'),
                 'user' => $this->value($row, 'PROJECT_USER', 'user'),
                 'headName' => $this->value($row, 'HEAD_NAME', 'headName'),
-                'headPhone' => $this->value($row, 'HEAD_PHONE', 'headPhone'),
+                'headPhone' => $this->sensitiveFields->decodeValue(
+                    'sys_user',
+                    'PHONE',
+                    $this->value($row, 'HEAD_PHONE', 'headPhone')
+                ),
                 'org' => $this->value($row, 'ORG', 'org'),
                 'orgName' => $this->value($row, 'ORG_NAME', 'orgName'),
                 'remark' => $this->value($row, 'REMARK', 'remark'),

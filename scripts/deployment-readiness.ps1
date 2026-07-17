@@ -978,6 +978,15 @@ if ($envValues.Count -gt 0) {
         }
     }
 
+    foreach ($key in @('OA_LEGACY_SM4_KEY_HEX')) {
+        $value = if ($envValues.ContainsKey($key)) { ([string]$envValues[$key]).Trim() } else { '' }
+        if ($value -match '^[0-9a-fA-F]{32}$') {
+            Add-Ok ".env key $key" 'valid 128-bit hexadecimal value'
+        } else {
+            Add-ConditionalProductionIssue -Name ".env key $key" -Detail 'missing or not exactly 32 hexadecimal characters'
+        }
+    }
+
     if ($envValues.ContainsKey('APP_DEBUG')) {
         $debugValue = ([string]$envValues['APP_DEBUG']).Trim().ToLowerInvariant()
         if ($Production -and $debugValue -ne 'false') {
@@ -1031,7 +1040,8 @@ if ($CheckEnvTemplatePolicy -or $Production) {
             'REDIS_TIMEOUT',
             'REDIS_EXPIRE',
             'CACHE_PREFIX',
-            'APP_HOST'
+            'APP_HOST',
+            'OA_LEGACY_SM4_KEY_HEX'
         )
 
         $missingTemplateKeys = @()
@@ -1087,7 +1097,7 @@ if ($CheckEnvTemplatePolicy -or $Production) {
             }
         }
 
-        foreach ($key in @('DB_PASS', 'REDIS_PASSWD', 'REDIS_PASSWORD', 'LOCAL_SUPER_ADMIN_PASSWORD')) {
+        foreach ($key in @('DB_PASS', 'REDIS_PASSWD', 'REDIS_PASSWORD', 'LOCAL_SUPER_ADMIN_PASSWORD', 'OA_LEGACY_SM4_KEY_HEX')) {
             if (-not $exampleEnvValues.ContainsKey($key)) {
                 continue
             }

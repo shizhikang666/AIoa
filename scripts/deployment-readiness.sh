@@ -1140,6 +1140,15 @@ if [ -f ".env" ]; then
         esac
     fi
 
+    for key in OA_LEGACY_SM4_KEY_HEX; do
+        value="$(get_env_value "$key")"
+        if printf '%s' "$value" | grep -Eq '^[0-9A-Fa-f]{32}$'; then
+            ok ".env key $key" "valid 128-bit hexadecimal value"
+        else
+            conditional_production_issue ".env key $key" "missing or not exactly 32 hexadecimal characters"
+        fi
+    done
+
     app_debug="$(get_env_value APP_DEBUG | tr '[:upper:]' '[:lower:]')"
     if [ "$PRODUCTION" -eq 1 ] && [ "$app_debug" != "false" ]; then
         fail "Production APP_DEBUG" "set APP_DEBUG=false before production"
@@ -1177,7 +1186,7 @@ if [ "$CHECK_ENV_TEMPLATE_POLICY" -eq 1 ] || [ "$PRODUCTION" -eq 1 ]; then
         fi
 
         missing_template_keys=""
-        for key in APP_DEBUG DB_DRIVER DB_TYPE DB_HOST DB_NAME DB_USER DB_PASS DB_PORT DB_CHARSET DEFAULT_LANG CACHE_DRIVER REDIS_HOST REDIS_PORT REDIS_PASSWD REDIS_DB REDIS_TIMEOUT REDIS_EXPIRE CACHE_PREFIX APP_HOST; do
+        for key in APP_DEBUG DB_DRIVER DB_TYPE DB_HOST DB_NAME DB_USER DB_PASS DB_PORT DB_CHARSET DEFAULT_LANG CACHE_DRIVER REDIS_HOST REDIS_PORT REDIS_PASSWD REDIS_DB REDIS_TIMEOUT REDIS_EXPIRE CACHE_PREFIX APP_HOST OA_LEGACY_SM4_KEY_HEX; do
             if dotenv_key_exists .example.env "$key"; then
                 ok "Example env key $key" "documented"
             else
@@ -1265,7 +1274,7 @@ if [ "$CHECK_ENV_TEMPLATE_POLICY" -eq 1 ] || [ "$PRODUCTION" -eq 1 ]; then
             esac
         fi
 
-        for key in DB_PASS REDIS_PASSWD REDIS_PASSWORD LOCAL_SUPER_ADMIN_PASSWORD; do
+        for key in DB_PASS REDIS_PASSWD REDIS_PASSWORD LOCAL_SUPER_ADMIN_PASSWORD OA_LEGACY_SM4_KEY_HEX; do
             if dotenv_key_exists .example.env "$key"; then
                 template_secret="$(get_dotenv_file_value .example.env "$key")"
                 case "$template_secret" in

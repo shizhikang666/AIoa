@@ -11,6 +11,7 @@ use app\model\SysRelation;
 use app\model\SysRole;
 use app\model\SysUser;
 use app\model\SysUserProcessConfig;
+use app\support\SensitiveFieldCodec;
 use app\support\TenantScope;
 use RuntimeException;
 use Throwable;
@@ -54,10 +55,14 @@ class UserDirectoryService
         'Process_ask_leave',
     ];
 
+    private readonly SensitiveFieldCodec $sensitiveFields;
+
     public function __construct(
         private readonly OrgService $orgService = new OrgService(),
-        private readonly PositionService $positionService = new PositionService()
+        private readonly PositionService $positionService = new PositionService(),
+        ?SensitiveFieldCodec $sensitiveFields = null
     ) {
+        $this->sensitiveFields = $sensitiveFields ?? new SensitiveFieldCodec();
     }
 
     public function page(array $filters = [], mixed $payload = []): array
@@ -606,6 +611,7 @@ class UserDirectoryService
                     ? $data['COMPANY_EMPLOYEE_ID']
                     : $this->nextCompanyEmployeeId($org),
             ]);
+            $insert = $this->sensitiveFields->encodeRow('sys_user', $insert);
             Db::name('sys_user')->insert($insert);
 
             return;
@@ -621,6 +627,7 @@ class UserDirectoryService
             'UPDATE_USER' => $operatorId !== '' ? $operatorId : null,
         ]);
         unset($update['PASSWORD'], $update['USER_STATUS'], $update['SORT_CODE'], $update['DELETE_FLAG'], $update['CREATE_TIME'], $update['CREATE_USER'], $update['TENANT_ID']);
+        $update = $this->sensitiveFields->encodeRow('sys_user', $update);
 
         Db::name('sys_user')
             ->where('ID', $existingId)
@@ -686,7 +693,12 @@ class UserDirectoryService
             }
 
             $query = Db::name('sys_user')
-                ->where($column, $value)
+                ->where(
+                    $column,
+                    $column === 'PHONE'
+                        ? $this->sensitiveFields->lookupValue('sys_user', 'PHONE', $value)
+                        : $value
+                )
                 ->where(function ($query): void {
                     $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
                 });
@@ -1146,6 +1158,7 @@ class UserDirectoryService
             $data['COMPANY_EMPLOYEE_ID'] = $this->nextCompanyEmployeeId($org);
         }
 
+        $data = $this->sensitiveFields->encodeRow('sys_user', $data);
         Db::name('sys_user')->insert($data);
 
         return [
@@ -1192,6 +1205,7 @@ class UserDirectoryService
             $data['CREATE_USER'],
             $data['TENANT_ID']
         );
+        $data = $this->sensitiveFields->encodeRow('sys_user', $data);
 
         Db::name('sys_user')
             ->where('ID', $id)
@@ -2138,7 +2152,12 @@ class UserDirectoryService
         }
 
         $query = Db::name('sys_user')
-            ->where($column, $value)
+            ->where(
+                $column,
+                $column === 'PHONE'
+                    ? $this->sensitiveFields->lookupValue('sys_user', 'PHONE', $value)
+                    : $value
+            )
             ->where(function ($query): void {
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             });
@@ -3160,7 +3179,10 @@ class UserDirectoryService
         }
 
         if (!empty($filters['phone'])) {
-            $query->whereLike('PHONE', '%' . trim((string)$filters['phone']) . '%');
+            $query->where(
+                'PHONE',
+                $this->sensitiveFields->lookupValue('sys_user', 'PHONE', trim((string)$filters['phone']))
+            );
         }
 
         if (!empty($filters['orgId'])) {
@@ -3240,6 +3262,7 @@ class UserDirectoryService
      */
     private function sanitizeUserRow(array $row, array $orgNames = [], array $positionNames = [], array $genderLabels = []): array
     {
+        $row = $this->sensitiveFields->decodeRow('sys_user', $row);
         unset($row['PASSWORD']);
 
         $orgId = $this->rowValue($row, 'ORG_ID', 'orgId');
