@@ -63,6 +63,11 @@ SQL;
         'objectId' => 'l.OBJECT_ID',
     ];
 
+    public function __construct(
+        private readonly AnnualLeaveEntitlementService $annualLeaveEntitlementService = new AnnualLeaveEntitlementService()
+    ) {
+    }
+
     public function page(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
@@ -697,6 +702,14 @@ SQL;
         string $now,
         string $updateUser
     ): array {
+        if ($amountDelta > 0) {
+            $this->annualLeaveEntitlementService->ensureCurrentYearBalance(
+                $userId,
+                $tenantId,
+                $updateUser
+            );
+        }
+
         $query = Db::name('biz_user_vacation')
             ->where('USER_ID', $userId)
             ->where('CATEGORY', self::LEAVE_CATEGORY_ANNUAL)

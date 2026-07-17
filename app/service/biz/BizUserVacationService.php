@@ -43,6 +43,11 @@ SQL;
         'version' => 'v.VERSION',
     ];
 
+    public function __construct(
+        private readonly AnnualLeaveEntitlementService $annualLeaveEntitlementService = new AnnualLeaveEntitlementService()
+    ) {
+    }
+
     public function page(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
@@ -94,7 +99,23 @@ SQL;
             ->order('v.ID', 'desc')
             ->find();
 
-        if (!is_array($row) || $row === []) {
+        if ($category === self::DEFAULT_CATEGORY) {
+            $preview = $this->annualLeaveEntitlementService->previewCurrentYearBalance($userId, $tenantId);
+            if (!is_array($row) || $row === []) {
+                return array_merge($this->emptyAnnualLeaveRow($userId, $category), [
+                    'userName' => $preview['userName'],
+                    'amount' => $preview['amount'],
+                    'usedAmount' => $preview['usedAmount'],
+                    'tenantId' => $preview['tenantId'],
+                ]);
+            }
+
+            $row['AMOUNT'] = $preview['amount'];
+            $row['USED_AMOUNT'] = $preview['usedAmount'];
+            if (trim((string)($row['USER_NAME'] ?? '')) === '') {
+                $row['USER_NAME'] = $preview['userName'];
+            }
+        } elseif (!is_array($row) || $row === []) {
             return $this->emptyAnnualLeaveRow($userId, $category);
         }
 
@@ -112,7 +133,7 @@ SQL;
         $this->assertAmounts($amount, $usedAmount);
 
         return Db::transaction(function () use ($input, $payload, $userId, $category, $amount, $usedAmount): array {
-            $user = $this->activeUser($userId, $payload);
+            $user = $this->activeUser($userId, $payload, true);
             $tenantId = $this->writeTenantId($input, $payload, $user);
             $this->assertNoDuplicate($userId, $category, $tenantId);
 
@@ -349,7 +370,7 @@ SQL;
         }
     }
 
-    private function activeUser(string $userId, array $payload): array
+    private function activeUser(string $userId, array $payload, bool $lock = false): array
     {
         $query = Db::name('sys_user')
             ->where('ID', $userId)
@@ -361,6 +382,9 @@ SQL;
         $tenantId = $this->tenantId($payload);
         if ($tenantId !== '') {
             $query->where('TENANT_ID', $tenantId);
+        }
+        if ($lock) {
+            $query->lock(true);
         }
 
         $row = $query->find();

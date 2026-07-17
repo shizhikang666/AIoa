@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\workflow;
 
+use app\service\biz\AnnualLeaveEntitlementService;
 use app\service\biz\PurchaseOrderService;
 use app\service\biz\ReturnOrderService;
 use app\service\biz\SaleProjectService;
@@ -69,7 +70,8 @@ class WorkflowRuntimeService
         private readonly PurchaseOrderService $purchaseOrderService = new PurchaseOrderService(),
         private readonly SettlementAccountService $settlementAccountService = new SettlementAccountService(),
         private readonly SaleProjectService $saleProjectService = new SaleProjectService(),
-        private readonly ReturnOrderService $returnOrderService = new ReturnOrderService()
+        private readonly ReturnOrderService $returnOrderService = new ReturnOrderService(),
+        private readonly AnnualLeaveEntitlementService $annualLeaveEntitlementService = new AnnualLeaveEntitlementService()
     ) {
     }
 
@@ -141,6 +143,16 @@ class WorkflowRuntimeService
             }
             $amount = $this->requiredPositiveInputDecimal($input, 'amount');
             $this->saleProjectService->assertAfterSalesTravelRequest($objectId, $amount, $tenantId);
+        } elseif ($category === self::LEAVE_CATEGORY_ANNUAL) {
+            $amount = $this->requiredPositiveInputDecimal($input, 'amount');
+            $balance = $this->annualLeaveEntitlementService->ensureCurrentYearBalance(
+                $currentUserId,
+                $tenantId,
+                $currentUserId
+            );
+            if ((float)($balance['remainingAmount'] ?? 0) + 0.00001 < (float)$amount) {
+                throw new RuntimeException('insufficient annual leave balance', 400);
+            }
         }
         $isEdit = array_key_exists('isEdit', $input) ? (bool)$input['isEdit'] : $endTime === null;
 
@@ -2443,6 +2455,12 @@ class WorkflowRuntimeService
         string $now,
         string $updateUser
     ): array {
+        $this->annualLeaveEntitlementService->ensureCurrentYearBalance(
+            $userId,
+            $tenantId,
+            $updateUser
+        );
+
         $query = Db::name('biz_user_vacation')
             ->where('USER_ID', $userId)
             ->where('CATEGORY', self::LEAVE_CATEGORY_ANNUAL)
