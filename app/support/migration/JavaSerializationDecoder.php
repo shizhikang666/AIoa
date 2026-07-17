@@ -47,14 +47,16 @@ class JavaSerializationDecoder
 
     private const BASE_WIRE_HANDLE = 0x7E0000;
     private const MAX_STREAM_BYTES = 8388608;
-    private const MAX_STRING_BYTES = 1048576;
+    private const MAX_STRING_BYTES = 4000;
     private const MAX_ARRAY_ITEMS = 10000;
+    private const MAX_PARSED_CONTAINER_ITEMS = 4096;
     private const MAX_BIG_INTEGER_MAGNITUDE_BYTES = 1661;
     private const MAX_HANDLES = 20000;
     private const MAX_DEPTH = 64;
     private const MAX_EXPANDED_SCALAR_BYTES = 4000;
     private const MAX_EXPANDED_NODES = 4096;
     private const MAX_TOTAL_CONTAINER_ITEMS = 4096;
+    private const MAX_EXPANDED_DEPTH = 64;
 
     private const CLASS_ARRAY_LIST = 'java.util.ArrayList';
     private const CLASS_EMPTY_LIST = 'java.util.Collections$EmptyList';
@@ -161,6 +163,7 @@ class JavaSerializationDecoder
     private string $bytes = '';
     private int $offset = 0;
     private int $nextHandle = self::BASE_WIRE_HANDLE;
+    private int $parsedContainerItems = 0;
 
     /** @var array<int, array{kind: string, value: mixed}> */
     private array $handles = [];
@@ -175,6 +178,7 @@ class JavaSerializationDecoder
         $this->bytes = $serialized;
         $this->offset = 0;
         $this->nextHandle = self::BASE_WIRE_HANDLE;
+        $this->parsedContainerItems = 0;
         $this->handles = [];
 
         if ($this->readBytes(2) !== self::STREAM_MAGIC || $this->readBytes(2) !== self::STREAM_VERSION) {
@@ -194,7 +198,7 @@ class JavaSerializationDecoder
             'nodes' => 0,
             'containerItems' => 0,
         ];
-        return $this->normalizeOutput($value, $budget);
+        return $this->normalizeOutput($value, $budget, 1);
     }
 
     private function readContent(int $depth): mixed
@@ -344,6 +348,7 @@ class JavaSerializationDecoder
         if ($declaredSize < 0 || $declaredSize > self::MAX_ARRAY_ITEMS) {
             throw new WorkflowVariableMigrationException('JAVA_LIST_SIZE_REJECTED');
         }
+        $this->reserveParsedContainerItems($declaredSize);
 
         $token = $this->readByte();
         if ($token === self::TC_BLOCKDATA) {
@@ -623,8 +628,11 @@ class JavaSerializationDecoder
      *
      * @param array{scalarBytes: int, nodes: int, containerItems: int} $budget
      */
-    private function normalizeOutput(mixed $value, array &$budget): mixed
+    private function normalizeOutput(mixed $value, array &$budget, int $expandedDepth): mixed
     {
+        if ($expandedDepth > self::MAX_EXPANDED_DEPTH) {
+            throw new WorkflowVariableMigrationException('JAVA_EXPANDED_DEPTH_LIMIT_REJECTED');
+        }
         $budget['nodes']++;
         if ($budget['nodes'] > self::MAX_EXPANDED_NODES) {
             throw new WorkflowVariableMigrationException('JAVA_EXPANDED_NODE_LIMIT_REJECTED');
@@ -657,9 +665,17 @@ class JavaSerializationDecoder
 
         $normalized = [];
         foreach ($value as $key => $item) {
-            $normalized[$key] = $this->normalizeOutput($item, $budget);
+            $normalized[$key] = $this->normalizeOutput($item, $budget, $expandedDepth + 1);
         }
         return $normalized;
+    }
+
+    private function reserveParsedContainerItems(int $items): void
+    {
+        $this->parsedContainerItems += $items;
+        if ($this->parsedContainerItems > self::MAX_PARSED_CONTAINER_ITEMS) {
+            throw new WorkflowVariableMigrationException('JAVA_PARSED_CONTAINER_ITEM_LIMIT_REJECTED');
+        }
     }
 
     /**

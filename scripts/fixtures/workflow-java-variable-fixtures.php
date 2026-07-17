@@ -146,6 +146,44 @@ final class WorkflowJavaVariableFixtureBuilder
         return self::stream(self::arrayList($items));
     }
 
+    public static function nestedWireNullLists(int $outerItems, int $innerItems): string
+    {
+        if ($outerItems < 1 || $innerItems < 0) {
+            throw new RuntimeException('fixture nested item count rejected');
+        }
+        $nested = self::TC_OBJECT
+            . "\x71" . pack('N', 0x7E0000)
+            . pack('N', $innerItems)
+            . self::TC_BLOCKDATA . "\x04" . pack('N', $innerItems)
+            . str_repeat(self::TC_NULL, $innerItems)
+            . self::TC_ENDBLOCKDATA;
+        return self::stream(self::arrayList(array_fill(0, $outerItems, $nested)));
+    }
+
+    public static function referencedNestedListChain(int $listCount): string
+    {
+        if ($listCount < 1) {
+            throw new RuntimeException('fixture chain length rejected');
+        }
+        $items = [];
+        for ($index = 0; $index < $listCount; $index++) {
+            $size = $index === 0 ? 0 : 1;
+            $content = '';
+            if ($index > 0) {
+                // Nested objects start at 0x7e0002 and no other handles are
+                // allocated, so the previous object is 0x7e0001 + index.
+                $content = "\x71" . pack('N', 0x7E0001 + $index);
+            }
+            $items[] = self::TC_OBJECT
+                . "\x71" . pack('N', 0x7E0000)
+                . pack('N', $size)
+                . self::TC_BLOCKDATA . "\x04" . pack('N', $size)
+                . $content
+                . self::TC_ENDBLOCKDATA;
+        }
+        return self::stream(self::arrayList($items));
+    }
+
     private static function stream(string $content): string
     {
         return "\xAC\xED\x00\x05" . $content;
