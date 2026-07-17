@@ -1014,6 +1014,58 @@ if ($envValues.Count -gt 0) {
     }
 }
 
+if ($Production) {
+    $sm4Key = [Environment]::GetEnvironmentVariable(
+        'OA_LEGACY_SM4_KEY_HEX',
+        [EnvironmentVariableTarget]::Process
+    )
+    if ([string]::IsNullOrWhiteSpace($sm4Key) -and $envValues.ContainsKey('OA_LEGACY_SM4_KEY_HEX')) {
+        $sm4Key = ([string]$envValues['OA_LEGACY_SM4_KEY_HEX']).Trim()
+    }
+    $sm4Key = ([string]$sm4Key).Trim()
+    $livePhoneSample = [Environment]::GetEnvironmentVariable(
+        'OA_LEGACY_SM4_SAMPLE_PHONE_BUNDLE_BASE64',
+        [EnvironmentVariableTarget]::Process
+    )
+    $sm4SmokePath = Join-Path $PSScriptRoot 'legacy-sm4-smoke.php'
+
+    if ($sm4Key -notmatch '^[0-9a-fA-F]{32}$') {
+        Add-Fail 'Legacy SM4 live sample verification' 'runtime key is unavailable or malformed'
+    } elseif ([string]::IsNullOrWhiteSpace($livePhoneSample)) {
+        Add-Fail 'Legacy SM4 live sample verification' 'process-only old-database phone sample is required'
+    } elseif (-not (Test-Command $PhpBinary)) {
+        Add-Fail 'Legacy SM4 live sample verification' "$PhpBinary unavailable"
+    } elseif (-not (Test-Path -LiteralPath $sm4SmokePath -PathType Leaf)) {
+        Add-Fail 'Legacy SM4 live sample verification' 'verification script missing'
+    } else {
+        $previousKey = [Environment]::GetEnvironmentVariable('OA_LEGACY_SM4_KEY_HEX', [EnvironmentVariableTarget]::Process)
+        $previousCipher = [Environment]::GetEnvironmentVariable('OA_LEGACY_SM4_SAMPLE_CIPHER_HEX', [EnvironmentVariableTarget]::Process)
+        $previousPlaintextHash = [Environment]::GetEnvironmentVariable('OA_LEGACY_SM4_SAMPLE_PLAINTEXT_SHA256', [EnvironmentVariableTarget]::Process)
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            [Environment]::SetEnvironmentVariable('OA_LEGACY_SM4_KEY_HEX', $sm4Key, [EnvironmentVariableTarget]::Process)
+            [Environment]::SetEnvironmentVariable('OA_LEGACY_SM4_SAMPLE_CIPHER_HEX', $null, [EnvironmentVariableTarget]::Process)
+            [Environment]::SetEnvironmentVariable('OA_LEGACY_SM4_SAMPLE_PLAINTEXT_SHA256', $null, [EnvironmentVariableTarget]::Process)
+            $ErrorActionPreference = 'Continue'
+            $sm4Output = @(& $PhpBinary $sm4SmokePath '--require-live-phone-sample' 2>&1)
+            $sm4ExitCode = $LASTEXITCODE
+            $sm4Verified = $sm4ExitCode -eq 0 -and ($sm4Output -join "`n") -match 'live sample verified'
+            if ($sm4Verified) {
+                Add-Ok 'Legacy SM4 live sample verification' 'live sample verified'
+            } else {
+                Add-Fail 'Legacy SM4 live sample verification' 'decrypt-reencrypt verification failed'
+            }
+        } catch {
+            Add-Fail 'Legacy SM4 live sample verification' 'verification process failed'
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+            [Environment]::SetEnvironmentVariable('OA_LEGACY_SM4_KEY_HEX', $previousKey, [EnvironmentVariableTarget]::Process)
+            [Environment]::SetEnvironmentVariable('OA_LEGACY_SM4_SAMPLE_CIPHER_HEX', $previousCipher, [EnvironmentVariableTarget]::Process)
+            [Environment]::SetEnvironmentVariable('OA_LEGACY_SM4_SAMPLE_PLAINTEXT_SHA256', $previousPlaintextHash, [EnvironmentVariableTarget]::Process)
+        }
+    }
+}
+
 if ($CheckEnvTemplatePolicy -or $Production) {
     $exampleEnvValues = Read-DotEnv -Path '.example.env'
     if ($exampleEnvValues.Count -eq 0) {

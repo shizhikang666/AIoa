@@ -36,6 +36,26 @@ class UserDirectoryService
     private const IMPORT_MAX_BYTES = 5242880;
     private const IMPORT_MAX_ROWS = 1000;
     private const IMPORT_MAX_SHEET_BYTES = 2097152;
+    private const USER_ID_LIST_MAX = 200;
+    private const USER_ID_LIST_FIELDS = [
+        'ID',
+        'ORG_ID',
+        'AVATAR',
+        'ACCOUNT',
+        'NAME',
+        'SORT_CODE',
+    ];
+    private const USER_SELECTOR_FIELDS = [
+        'ID',
+        'ORG_ID',
+        'AVATAR',
+        'ACCOUNT',
+        'NAME',
+        'SORT_CODE',
+        'POSITION_ID',
+        'GENDER',
+        'ENTRY_DATE',
+    ];
     private const SCOPE_CATEGORIES = [
         'SCOPE_ALL',
         'SCOPE_SELF',
@@ -1417,26 +1437,32 @@ class UserDirectoryService
      * @param array<int, string> $ids
      * @return array<int, array<string, mixed>>
      */
-    public function getUserListByIdList(array $ids): array
+    public function getUserListByIdList(array $ids, mixed $payload = []): array
     {
+        $payload = is_array($payload) ? $payload : [];
+        $tenantId = $this->userIdListTenantId($payload);
+
         $ids = $this->normalizeIds($ids);
         if ($ids === []) {
             return [];
         }
+        if (count($ids) > self::USER_ID_LIST_MAX) {
+            throw new RuntimeException('too many user ids', 400);
+        }
 
-        $rows = SysUser::where('DELETE_FLAG', self::NOT_DELETE)
-            ->whereIn('ID', $ids)
+        $query = SysUser::where('DELETE_FLAG', self::NOT_DELETE)
+            ->whereIn('ID', $ids);
+        if ($tenantId !== null) {
+            $query->where('TENANT_ID', $tenantId);
+        }
+
+        $rows = $query
+            ->field(self::USER_ID_LIST_FIELDS)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->select()
             ->toArray();
 
-        $rows = $this->sanitizeUserRows($rows);
-
-        return array_map(static fn (array $row): array => array_merge($row, [
-            'value' => $row['id'] ?? null,
-            'label' => $row['name'] ?? $row['account'] ?? null,
-            'title' => $row['name'] ?? $row['account'] ?? null,
-        ]), $rows);
+        return $this->selectorUserRows($rows);
     }
 
     /**
@@ -1538,21 +1564,13 @@ class UserDirectoryService
         [$page, $limit] = $this->pagination($filters);
         $total = $this->baseQuery($filters)->count();
         $rows = $this->baseQuery($filters)
+            ->field(self::USER_SELECTOR_FIELDS)
             ->order(['SORT_CODE' => 'asc', 'ID' => 'asc'])
             ->page($page, $limit)
             ->select()
             ->toArray();
 
-        $rows = $this->sanitizeUserRows($rows);
-
-        $records = array_map(static function (array $row): array {
-            return array_merge($row, [
-                'id' => $row['id'] ?? null,
-                'value' => $row['id'] ?? null,
-                'label' => $row['name'] ?? $row['account'] ?? null,
-                'title' => $row['name'] ?? $row['account'] ?? null,
-            ]);
-        }, $rows);
+        $records = $this->selectorUserRows($rows);
 
         return $this->pageResult($records, $total, $page, $limit);
     }
@@ -3253,6 +3271,69 @@ class UserDirectoryService
             fn (array $row): array => $this->sanitizeUserRow($row, $orgNames, $positionNames, $genderLabels),
             $rows
         );
+    }
+
+    /**
+     * Build selector-compatible aliases from a deliberately narrow projection.
+     * Sensitive fields are never selected or passed through this path.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function selectorUserRows(array $rows): array
+    {
+        return array_map(function (array $row): array {
+            $id = $this->rowValue($row, 'ID', 'id');
+            $account = $this->rowValue($row, 'ACCOUNT', 'account');
+            $name = $this->rowValue($row, 'NAME', 'name');
+
+            $result = array_merge($row, [
+                'id' => $id,
+                'orgId' => $this->rowValue($row, 'ORG_ID', 'orgId'),
+                'avatar' => $this->rowValue($row, 'AVATAR', 'avatar'),
+                'account' => $account,
+                'name' => $name,
+                'sortCode' => $this->rowValue($row, 'SORT_CODE', 'sortCode'),
+                'value' => $id,
+                'label' => $name ?? $account,
+                'title' => $name ?? $account,
+            ]);
+
+            foreach ([
+                'positionId' => 'POSITION_ID',
+                'gender' => 'GENDER',
+                'entryDate' => 'ENTRY_DATE',
+            ] as $alias => $column) {
+                if (array_key_exists($column, $row) || array_key_exists($alias, $row)) {
+                    $result[$alias] = $this->rowValue($row, $column, $alias);
+                }
+            }
+
+            return $result;
+        }, $rows);
+    }
+
+    /**
+     * Normal authenticated users are tenant-scoped. Platform super admins keep
+     * the existing cross-tenant directory behavior.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function userIdListTenantId(array $payload): ?string
+    {
+        if ($payload === []) {
+            throw new RuntimeException('permission denied', 403);
+        }
+        if (TenantScope::canCrossTenant($payload)) {
+            return null;
+        }
+
+        $tenantId = TenantScope::tenantId($payload);
+        if ($tenantId === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        return $tenantId;
     }
 
     /**

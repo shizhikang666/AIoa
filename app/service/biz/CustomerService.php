@@ -6,6 +6,7 @@ namespace app\service\biz;
 
 use app\support\FileDownloadUrl;
 use app\support\SensitiveFieldCodec;
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -156,21 +157,23 @@ SQL;
             $now = date('Y-m-d H:i:s');
             $userId = $this->currentUserId($payload);
             $id = $this->newId();
+            $tenantId = $this->tenantId($input, $payload);
             $row = [
                 'ID' => $id,
-                'ORG' => $this->defaultOrgId($input, $payload),
+                'ORG' => $this->defaultOrgId($input, $payload, $tenantId),
                 'USER' => $this->defaultUserId($input, $payload),
                 'DELETE_FLAG' => self::NOT_DELETE,
                 'CREATE_TIME' => $now,
                 'CREATE_USER' => $userId !== '' ? $userId : null,
                 'UPDATE_TIME' => null,
                 'UPDATE_USER' => null,
-                'TENANT_ID' => $this->tenantId($input, $payload),
+                'TENANT_ID' => $tenantId,
                 'VERSION' => 0,
                 'DEAL_AMOUNT' => 0,
             ];
 
             $this->applyCustomerInput($row, $input, false);
+            $this->assertCustomerTenantReferences($row);
             $this->assertNewCustomerWritable($row, $payload);
 
             Db::name('customer')->insert($row);
@@ -237,8 +240,12 @@ SQL;
         $targetUserId = $this->requiredInput($input, 'user');
 
         return Db::transaction(function () use ($id, $targetUserId, $payload): array {
-            $this->assertCustomerWritable($id, $payload, 'edit customer head');
-            $targetUser = $this->assignableUser($targetUserId, $payload);
+            $customer = $this->assertCustomerWritable($id, $payload, 'edit customer head');
+            $targetUser = $this->assignableUser(
+                $targetUserId,
+                $payload,
+                trim((string)($customer['TENANT_ID'] ?? ''))
+            );
             $currentUserId = $this->currentUserId($payload);
 
             $updated = Db::name('customer')
@@ -344,12 +351,46 @@ SQL;
         throw new RuntimeException('no permission to add this customer', 403);
     }
 
-    private function assignableUser(string $userId, array $payload): array
+    private function assertCustomerTenantReferences(array $row): void
     {
+        $tenantId = trim((string)($row['TENANT_ID'] ?? ''));
+        if ($tenantId === '') {
+            throw new RuntimeException('missing tenantId', 400);
+        }
+
+        $orgId = trim((string)($row['ORG'] ?? ''));
+        if ($orgId !== '') {
+            $orgQuery = Db::name('sys_org')
+                ->where('ID', $orgId)
+                ->where('TENANT_ID', $tenantId);
+            $this->whereNotDeleted($orgQuery, 'DELETE_FLAG');
+            if (!$orgQuery->value('ID')) {
+                throw new RuntimeException('organization not found', 404);
+            }
+        }
+
+        $ownerUserId = trim((string)($row['USER'] ?? ''));
+        if ($ownerUserId !== '') {
+            $userQuery = Db::name('sys_user')
+                ->where('ID', $ownerUserId)
+                ->where('TENANT_ID', $tenantId);
+            $this->whereNotDeleted($userQuery, 'DELETE_FLAG');
+            if (!$userQuery->value('ID')) {
+                throw new RuntimeException('target user not found', 404);
+            }
+        }
+    }
+
+    private function assignableUser(string $userId, array $payload, ?string $expectedTenantId = null): array
+    {
+        $tenantId = $this->scopedTenantId($payload, $expectedTenantId);
         $query = Db::name('sys_user')
             ->where('ID', $userId)
-            ->field('ID, ORG_ID, DELETE_FLAG');
+            ->field('ID, ORG_ID, TENANT_ID, DELETE_FLAG');
         $this->whereNotDeleted($query, 'DELETE_FLAG');
+        if ($tenantId !== null) {
+            $query->where('TENANT_ID', $tenantId);
+        }
 
         if (!$this->canSeeAll($payload)) {
             $scopeOrgIds = $this->scopeOrgIds($payload);
@@ -369,14 +410,45 @@ SQL;
         }
 
         $orgId = trim((string)($row['ORG_ID'] ?? ''));
-        if ($orgId === '') {
-            throw new RuntimeException('target user has no organization', 400);
+        $org = [];
+        if ($orgId !== '') {
+            $orgQuery = Db::name('sys_org')
+                ->where('ID', $orgId)
+                ->field('ID, TENANT_ID, DELETE_FLAG');
+            $this->whereNotDeleted($orgQuery, 'DELETE_FLAG');
+            $orgRow = $orgQuery->find();
+            $org = is_array($orgRow) ? $orgRow : [];
         }
+        $orgId = $this->assignableUserOrgId($row, $tenantId, $org);
 
         return [
             'ID' => (string)$row['ID'],
             'ORG_ID' => $orgId,
         ];
+    }
+
+    private function assignableUserOrgId(array $user, ?string $expectedTenantId, array $org): string
+    {
+        $orgId = trim((string)($user['ORG_ID'] ?? ''));
+        if ($orgId === '') {
+            throw new RuntimeException('target user has no organization', 400);
+        }
+
+        $userTenantId = trim((string)($user['TENANT_ID'] ?? ''));
+        $requiredTenantId = $expectedTenantId ?? $userTenantId;
+        $resolvedOrgId = trim((string)($org['ID'] ?? ''));
+        $orgTenantId = trim((string)($org['TENANT_ID'] ?? ''));
+        if (
+            $userTenantId === ''
+            || $requiredTenantId === ''
+            || ($expectedTenantId !== null && $userTenantId !== $expectedTenantId)
+            || $resolvedOrgId !== $orgId
+            || $orgTenantId !== $requiredTenantId
+        ) {
+            throw new RuntimeException('target user organization is invalid', 400);
+        }
+
+        return $orgId;
     }
 
     private function customerQuery(array $filters, array $payload, bool $applyDataScope)
@@ -389,8 +461,11 @@ SQL;
             ->leftJoin('dev_file df', 'df.ID = c.FILE_ID');
         $this->whereNotDeleted($query, 'c.DELETE_FLAG');
 
-        $tenantId = trim((string)($filters['tenantId'] ?? $payload['tenant_id'] ?? ''));
-        if ($tenantId !== '') {
+        $tenantId = $this->scopedTenantId(
+            $payload,
+            $filters['tenantId'] ?? $filters['tenant_id'] ?? null
+        );
+        if ($tenantId !== null) {
             $query->where('c.TENANT_ID', $tenantId);
         }
 
@@ -443,7 +518,7 @@ SQL;
 
         if ($this->truthy($filters['showRepeat'] ?? false)) {
             $query->whereRaw(
-                'c.PHONE IN (SELECT PHONE FROM customer WHERE PHONE IS NOT NULL AND (DELETE_FLAG IS NULL OR DELETE_FLAG = ?) GROUP BY PHONE HAVING COUNT(*) > 1)',
+                '(c.TENANT_ID, c.PHONE) IN (SELECT duplicate_customer.TENANT_ID, duplicate_customer.PHONE FROM customer duplicate_customer WHERE duplicate_customer.PHONE IS NOT NULL AND (duplicate_customer.DELETE_FLAG IS NULL OR duplicate_customer.DELETE_FLAG = ?) GROUP BY duplicate_customer.TENANT_ID, duplicate_customer.PHONE HAVING COUNT(*) > 1)',
                 [self::NOT_DELETE]
             );
         }
@@ -791,7 +866,7 @@ SQL;
         return $currentUserId !== '' ? $currentUserId : null;
     }
 
-    private function defaultOrgId(array $input, array $payload): ?string
+    private function defaultOrgId(array $input, array $payload, string $tenantId): ?string
     {
         $orgId = trim((string)($input['org'] ?? $input['orgId'] ?? $payload['org_id'] ?? $payload['orgId'] ?? ''));
         if ($orgId !== '') {
@@ -805,6 +880,7 @@ SQL;
 
         $user = Db::name('sys_user')
             ->where('ID', $userId)
+            ->where('TENANT_ID', $tenantId)
             ->field('ORG_ID')
             ->find();
         if (!is_array($user) || $user === []) {
@@ -816,11 +892,39 @@ SQL;
         return $orgId !== '' ? $orgId : null;
     }
 
-    private function tenantId(array $input, array $payload): ?string
+    private function tenantId(array $input, array $payload): string
     {
-        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $tenantId = $this->scopedTenantId(
+            $payload,
+            $input['tenantId'] ?? $input['tenant_id'] ?? null
+        );
+        if ($tenantId === null && TenantScope::canCrossTenant($payload)) {
+            $tenantId = TenantScope::tenantId($payload);
+        }
+        if ($tenantId === null || $tenantId === '') {
+            throw new RuntimeException('missing tenantId', 400);
+        }
 
-        return $tenantId !== '' ? $tenantId : '1';
+        return $tenantId;
+    }
+
+    private function scopedTenantId(array $payload, mixed $requestedTenantId = null): ?string
+    {
+        if ($payload === []) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $requestedTenantId = trim((string)$requestedTenantId);
+        if (TenantScope::canCrossTenant($payload)) {
+            return $requestedTenantId !== '' ? $requestedTenantId : null;
+        }
+
+        $tenantId = TenantScope::tenantId($payload);
+        if ($tenantId === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        return $tenantId;
     }
 
     private function newId(): string

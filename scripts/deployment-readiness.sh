@@ -1170,6 +1170,35 @@ if [ -f ".env" ]; then
     fi
 fi
 
+if [ "$PRODUCTION" -eq 1 ]; then
+    sm4_key="${OA_LEGACY_SM4_KEY_HEX:-}"
+    if [ -z "$sm4_key" ]; then
+        sm4_key="$(get_env_value OA_LEGACY_SM4_KEY_HEX)"
+    fi
+    sm4_live_phone_sample="${OA_LEGACY_SM4_SAMPLE_PHONE_BUNDLE_BASE64:-}"
+    sm4_smoke_path="$(dirname "$0")/legacy-sm4-smoke.php"
+
+    if ! printf '%s' "$sm4_key" | grep -Eq '^[0-9A-Fa-f]{32}$'; then
+        fail "Legacy SM4 live sample verification" "runtime key is unavailable or malformed"
+    elif [ -z "$sm4_live_phone_sample" ]; then
+        fail "Legacy SM4 live sample verification" "process-only old-database phone sample is required"
+    elif ! command_exists "$PHP_BIN"; then
+        fail "Legacy SM4 live sample verification" "$PHP_BIN unavailable"
+    elif [ ! -f "$sm4_smoke_path" ]; then
+        fail "Legacy SM4 live sample verification" "verification script missing"
+    else
+        sm4_output=""
+        if sm4_output="$(OA_LEGACY_SM4_KEY_HEX="$sm4_key" OA_LEGACY_SM4_SAMPLE_CIPHER_HEX= OA_LEGACY_SM4_SAMPLE_PLAINTEXT_SHA256= OA_LEGACY_SM4_SAMPLE_PHONE_BUNDLE_BASE64="$sm4_live_phone_sample" "$PHP_BIN" "$sm4_smoke_path" --require-live-phone-sample 2>&1)" \
+            && printf '%s' "$sm4_output" | grep -Fq 'live sample verified'; then
+            ok "Legacy SM4 live sample verification" "live sample verified"
+        else
+            fail "Legacy SM4 live sample verification" "decrypt-reencrypt verification failed"
+        fi
+        unset sm4_output
+    fi
+    unset sm4_key sm4_live_phone_sample
+fi
+
 if [ "$CHECK_ENV_TEMPLATE_POLICY" -eq 1 ] || [ "$PRODUCTION" -eq 1 ]; then
     if [ ! -f ".example.env" ]; then
         conditional_production_issue "Example env template" ".example.env missing or empty"

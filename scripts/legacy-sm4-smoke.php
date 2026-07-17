@@ -16,6 +16,7 @@ if ($loader instanceof Composer\Autoload\ClassLoader) {
 }
 
 $checks = 0;
+$requireLivePhoneSample = in_array('--require-live-phone-sample', $argv ?? [], true);
 
 function smokeAssert(bool $condition, string $label): void
 {
@@ -168,6 +169,77 @@ smokeAssert(
         && ($customerResponse[0]['detailsAddress'] ?? null) === 'synthetic-service-address',
     'customer service response mapping'
 );
+$scopedCustomerTenantId = new ReflectionMethod($customerService, 'scopedTenantId');
+smokeAssert(
+    $scopedCustomerTenantId->invoke(
+        $customerService,
+        ['tenant_id' => 'synthetic-own-tenant', 'role_codes' => ['tenantAdmin']],
+        'synthetic-foreign-tenant'
+    ) === 'synthetic-own-tenant',
+    'customer tenant admin cannot override tenant scope'
+);
+smokeAssert(
+    $scopedCustomerTenantId->invoke(
+        $customerService,
+        ['tenant_id' => 'synthetic-platform-tenant', 'role_codes' => ['superAdmin']],
+        'synthetic-requested-tenant'
+    ) === 'synthetic-requested-tenant',
+    'customer platform admin explicit tenant scope'
+);
+smokeAssert(
+    $scopedCustomerTenantId->invoke(
+        $customerService,
+        ['tenant_id' => 'synthetic-platform-tenant', 'role_codes' => ['superAdmin']],
+        null
+    ) === null,
+    'customer platform admin cross-tenant scope'
+);
+smokeThrows(
+    fn () => $scopedCustomerTenantId->invoke($customerService, [], 'synthetic-requested-tenant'),
+    RuntimeException::class,
+    'customer missing authenticated tenant'
+);
+$customerTenantId = new ReflectionMethod($customerService, 'tenantId');
+smokeAssert(
+    $customerTenantId->invoke(
+        $customerService,
+        ['tenantId' => 'synthetic-foreign-tenant'],
+        ['tenant_id' => 'synthetic-own-tenant', 'role_codes' => ['tenantAdmin']]
+    ) === 'synthetic-own-tenant',
+    'customer add tenant admin cannot override tenant scope'
+);
+$assignableUserOrgId = new ReflectionMethod($customerService, 'assignableUserOrgId');
+smokeAssert(
+    $assignableUserOrgId->invoke(
+        $customerService,
+        [
+            'ORG_ID' => 'synthetic-own-org',
+            'TENANT_ID' => 'synthetic-own-tenant',
+        ],
+        'synthetic-own-tenant',
+        [
+            'ID' => 'synthetic-own-org',
+            'TENANT_ID' => 'synthetic-own-tenant',
+        ]
+    ) === 'synthetic-own-org',
+    'customer assignee organization tenant match'
+);
+smokeThrows(
+    fn () => $assignableUserOrgId->invoke(
+        $customerService,
+        [
+            'ORG_ID' => 'synthetic-foreign-org',
+            'TENANT_ID' => 'synthetic-own-tenant',
+        ],
+        'synthetic-own-tenant',
+        [
+            'ID' => 'synthetic-foreign-org',
+            'TENANT_ID' => 'synthetic-foreign-tenant',
+        ]
+    ),
+    RuntimeException::class,
+    'customer assignee cross-tenant organization'
+);
 
 $userDirectoryService = new UserDirectoryService(sensitiveFields: $codec);
 $sanitizeUserRow = new ReflectionMethod($userDirectoryService, 'sanitizeUserRow');
@@ -178,6 +250,95 @@ smokeAssert(
         && ($userResponse['phone'] ?? null) === $userPlain['PHONE']
         && ($userResponse['emergencyPhone'] ?? null) === $userPlain['EMERGENCY_PHONE'],
     'user directory response mapping'
+);
+
+$directoryReflection = new ReflectionClass(UserDirectoryService::class);
+$idListProjectionConstant = $directoryReflection->getReflectionConstant('USER_ID_LIST_FIELDS');
+$idListProjection = $idListProjectionConstant instanceof ReflectionClassConstant
+    ? $idListProjectionConstant->getValue()
+    : null;
+smokeAssert(
+    $idListProjection === ['ID', 'ORG_ID', 'AVATAR', 'ACCOUNT', 'NAME', 'SORT_CODE'],
+    'user id list narrow projection'
+);
+$selectorProjectionConstant = $directoryReflection->getReflectionConstant('USER_SELECTOR_FIELDS');
+$selectorProjection = $selectorProjectionConstant instanceof ReflectionClassConstant
+    ? $selectorProjectionConstant->getValue()
+    : null;
+smokeAssert(
+    $selectorProjection === [
+        'ID', 'ORG_ID', 'AVATAR', 'ACCOUNT', 'NAME', 'SORT_CODE', 'POSITION_ID', 'GENDER', 'ENTRY_DATE',
+    ],
+    'user selector Java-compatible projection'
+);
+$selectorUserRows = new ReflectionMethod($userDirectoryService, 'selectorUserRows');
+$selectorResponse = $selectorUserRows->invoke($userDirectoryService, [[
+    'ID' => 'synthetic-selector-user',
+    'ORG_ID' => 'synthetic-selector-org',
+    'AVATAR' => 'synthetic-selector-avatar',
+    'ACCOUNT' => 'synthetic-selector-account',
+    'NAME' => 'synthetic-selector-name',
+    'SORT_CODE' => 1,
+]]);
+smokeAssert(
+    is_array($selectorResponse)
+        && ($selectorResponse[0]['id'] ?? null) === 'synthetic-selector-user'
+        && ($selectorResponse[0]['orgId'] ?? null) === 'synthetic-selector-org'
+        && ($selectorResponse[0]['value'] ?? null) === 'synthetic-selector-user'
+        && ($selectorResponse[0]['label'] ?? null) === 'synthetic-selector-name'
+        && !array_key_exists('PHONE', $selectorResponse[0])
+        && !array_key_exists('phone', $selectorResponse[0])
+        && !array_key_exists('ID_CARD_NUMBER', $selectorResponse[0])
+        && !array_key_exists('EMERGENCY_PHONE', $selectorResponse[0])
+        && !array_key_exists('positionId', $selectorResponse[0])
+        && !array_key_exists('gender', $selectorResponse[0])
+        && !array_key_exists('entryDate', $selectorResponse[0]),
+    'user id list safe response mapping'
+);
+$genericSelectorResponse = $selectorUserRows->invoke($userDirectoryService, [[
+    'ID' => 'synthetic-selector-user',
+    'ORG_ID' => 'synthetic-selector-org',
+    'AVATAR' => 'synthetic-selector-avatar',
+    'ACCOUNT' => 'synthetic-selector-account',
+    'NAME' => 'synthetic-selector-name',
+    'SORT_CODE' => 1,
+    'POSITION_ID' => 'synthetic-selector-position',
+    'GENDER' => 'M',
+    'ENTRY_DATE' => '2026-01-01',
+]]);
+smokeAssert(
+    is_array($genericSelectorResponse)
+        && ($genericSelectorResponse[0]['positionId'] ?? null) === 'synthetic-selector-position'
+        && ($genericSelectorResponse[0]['gender'] ?? null) === 'M'
+        && ($genericSelectorResponse[0]['entryDate'] ?? null) === '2026-01-01'
+        && !array_key_exists('PHONE', $genericSelectorResponse[0])
+        && !array_key_exists('phone', $genericSelectorResponse[0]),
+    'generic user selector Java-compatible response mapping'
+);
+$userIdListTenantId = new ReflectionMethod($userDirectoryService, 'userIdListTenantId');
+smokeAssert(
+    $userIdListTenantId->invoke($userDirectoryService, ['tenant_id' => 'synthetic-tenant']) === 'synthetic-tenant',
+    'user id list tenant scope'
+);
+smokeAssert(
+    $userIdListTenantId->invoke($userDirectoryService, [
+        'tenant_id' => 'synthetic-platform-tenant',
+        'role_codes' => ['superAdmin'],
+    ]) === null,
+    'user id list super admin cross-tenant scope'
+);
+smokeThrows(
+    fn () => $userDirectoryService->getUserListByIdList(['synthetic-selector-user'], []),
+    RuntimeException::class,
+    'user id list missing tenant'
+);
+smokeThrows(
+    fn () => $userDirectoryService->getUserListByIdList(
+        array_map(static fn (int $index): string => 'synthetic-user-' . $index, range(1, 201)),
+        ['tenant_id' => 'synthetic-tenant']
+    ),
+    RuntimeException::class,
+    'user id list size limit'
 );
 
 $sampleCiphertext = trim((string)(getenv('OA_LEGACY_SM4_SAMPLE_CIPHER_HEX') ?: ''));
@@ -197,6 +358,7 @@ if ($samplePhoneBundle !== '') {
     $sampleCipher = new LegacySm4Cipher();
     $verifiedPhones = 0;
     foreach (explode("\n", (string)$sampleBytes) as $phoneCiphertext) {
+        $phoneCiphertext = trim($phoneCiphertext);
         if ($phoneCiphertext === '') {
             continue;
         }
@@ -217,6 +379,9 @@ if ($samplePhoneBundle !== '') {
 
     smokeAssert($verifiedPhones > 0, 'live Java phone sample');
     $sampleState = 'verified';
+}
+if ($requireLivePhoneSample) {
+    smokeAssert($samplePhoneBundle !== '' && $sampleState === 'verified', 'required live Java phone sample');
 }
 
 fwrite(STDOUT, sprintf("legacy SM4 smoke passed (%d checks; live sample %s)\n", $checks, $sampleState));

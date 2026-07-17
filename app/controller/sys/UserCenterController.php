@@ -57,7 +57,14 @@ class UserCenterController extends BaseSysController
 
     public function getUserListByIdList(Request $request): Response
     {
-        return $this->guard(fn () => $this->userDirectoryService->getUserListByIdList($this->idList($request)));
+        return $this->guard(function () use ($request): array {
+            $payload = $this->authPayload($request);
+
+            return $this->userDirectoryService->getUserListByIdList(
+                $this->idList($request),
+                $payload
+            );
+        });
     }
 
     public function getOrgListByIdList(Request $request): Response

@@ -390,7 +390,7 @@ class RoleService
 
     public function userSelector(array $filters = [], mixed $payload = []): array
     {
-        return $this->userDirectoryService->page($filters, $payload);
+        return $this->userDirectoryService->userSelector($filters, $payload);
     }
 
     private function roleQuery(array $filters)
