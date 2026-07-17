@@ -54,6 +54,12 @@
 				<a-col :span="6">
 					<a-button type="primary" @click="tableRef.refresh()">查询</a-button>
 					<a-button style="margin: 0 8px" @click="reset">重置</a-button>
+					<a-button :loading="exportLoading" @click="exportExcel">
+						<template #icon>
+							<DownloadOutlined />
+						</template>
+						导出 Excel
+					</a-button>
 					<a @click="toggleAdvanced" style="margin-left: 8px">
 						{{ advanced ? '收起' : '展开' }}
 						<component :is="advanced ? 'up-outlined' : 'down-outlined'" />
@@ -125,6 +131,10 @@
 	import processDetails from '@/views/biz/bizprocess/processDetails/index.vue'
 	import { useTemplateRef } from 'vue'
 	import { useOrg } from '@/composables/useOrg'
+	import { useLoading } from '@/composables/useLoading'
+	import { message } from 'ant-design-vue'
+	import ExcelJS from 'exceljs'
+	import { saveAs } from 'file-saver'
 
 	const { treeData, loadingTreeData } = useOrg()
 	loadingTreeData()
@@ -136,6 +146,8 @@
 	const toolConfig = { refresh: true, height: true, columnSetting: true, striped: false }
 	// 查询区域显示更多控制
 	const advanced = ref(false)
+	const EXPORT_PAGE_SIZE = 200
+	const EXPORT_MAX_ROWS = 10000
 	const toggleAdvanced = () => {
 		advanced.value = !advanced.value
 	}
@@ -198,7 +210,7 @@
 			}
 		}
 	}
-	const loadData = (parameter) => {
+	const buildSearchParams = () => {
 		const searchFormParam = cloneDeep(searchFormState.value)
 		// startTime范围查询条件重载
 		if (searchFormParam.startTime) {
@@ -212,10 +224,111 @@
 			searchFormParam.endEndTime = searchFormParam.endTime[1]
 			delete searchFormParam.endTime
 		}
+		return searchFormParam
+	}
+	const loadData = (parameter) => {
+		const searchFormParam = buildSearchParams()
 		return bizLeaveApplicationApi.bizLeaveApplicationPage(Object.assign(parameter, searchFormParam)).then((data) => {
 			return data
 		})
 	}
+	const excelText = (value) => {
+		const text = value === null || value === undefined ? '' : String(value)
+		return /^[=+\-@]/.test(text) ? `'${text}` : text
+	}
+	const categoryLabel = (category) => {
+		return (
+			tool.dictTypeDataByPathReturnEmpty('vacation', 'GoOut', category) ||
+			tool.dictTypeDataByPathReturnEmpty('vacation', 'leave', category) ||
+			String(category ?? '')
+		)
+	}
+	const fetchExportRecords = async () => {
+		const filters = buildSearchParams()
+		const firstPage = await bizLeaveApplicationApi.bizLeaveApplicationPage({
+			...filters,
+			current: 1,
+			size: EXPORT_PAGE_SIZE
+		})
+		const total = Number(firstPage?.total ?? 0)
+		if (total > EXPORT_MAX_ROWS) {
+			message.warning(`查询结果超过 ${EXPORT_MAX_ROWS} 条，请缩小筛选范围后再导出`)
+			return null
+		}
+
+		const records = Array.isArray(firstPage?.records) ? [...firstPage.records] : []
+		const pageCount = Math.ceil(total / EXPORT_PAGE_SIZE)
+		for (let current = 2; current <= pageCount; current += 1) {
+			const pageData = await bizLeaveApplicationApi.bizLeaveApplicationPage({
+				...filters,
+				current,
+				size: EXPORT_PAGE_SIZE
+			})
+			const pageRecords = Array.isArray(pageData?.records) ? pageData.records : []
+			records.push(...pageRecords)
+		}
+
+		if (records.length !== total) {
+			message.error('请假记录导出失败，请稍后重试')
+			return null
+		}
+		return records
+	}
+	const { load: exportExcel, loading: exportLoading } = useLoading(async () => {
+		const records = await fetchExportRecords()
+		if (records === null) {
+			return
+		}
+		if (records.length === 0) {
+			message.warning('暂无可导出的请假记录')
+			return
+		}
+
+		const workbook = new ExcelJS.Workbook()
+		workbook.creator = '福地科技'
+		const worksheet = workbook.addWorksheet('请假记录表')
+		worksheet.columns = [
+			{ header: '请假人', key: 'name', width: 18 },
+			{ header: '所属组织', key: 'orgName', width: 24 },
+			{ header: '流程 ID', key: 'processId', width: 26 },
+			{ header: '请假类型', key: 'category', width: 16 },
+			{ header: '天数', key: 'amount', width: 12 },
+			{ header: '请假原因', key: 'remark', width: 36 },
+			{ header: '请假开始日期', key: 'startTime', width: 22 },
+			{ header: '请假结束日期', key: 'endTime', width: 22 }
+		]
+		worksheet.views = [{ state: 'frozen', ySplit: 1 }]
+		worksheet.getRow(1).eachCell((cell) => {
+			cell.font = { bold: true }
+			cell.alignment = { horizontal: 'center', vertical: 'middle' }
+		})
+		records.forEach((record) => {
+			worksheet.addRow({
+				name: excelText(record.name),
+				orgName: excelText(record.orgName),
+				processId: excelText(record.processId),
+				category: excelText(categoryLabel(record.category)),
+				amount: excelText(record.amount),
+				remark: excelText(record.remark),
+				startTime: excelText(record.startTime),
+				endTime: excelText(record.endTime)
+			})
+		})
+		worksheet.eachRow((row, rowNumber) => {
+			row.height = 20
+			if (rowNumber > 1) {
+				row.eachCell((cell) => {
+					cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+				})
+			}
+		})
+
+		const buffer = await workbook.xlsx.writeBuffer()
+		const file = new Blob([buffer], {
+			type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+		})
+		saveAs(file, '请假记录表.xlsx')
+	})
 	// 重置
 	const reset = () => {
 		searchFormRef.value.resetFields()
