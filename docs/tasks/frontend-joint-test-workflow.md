@@ -52,7 +52,7 @@ Use this order for future integrated testing.
 ### 1. Start MySQL And Redis
 
 ```powershell
-Start-Process -FilePath "F:\project\socket\AI\testPhp\files\startServer1.bat" -WorkingDirectory "F:\project\socket\AI\testPhp\files" -WindowStyle Hidden
+Start-Process -FilePath "E:\project\socket\AI\testPhp\files\startServer1.bat" -WorkingDirectory "E:\project\socket\AI\testPhp\files" -WindowStyle Hidden
 ```
 
 Then verify services before running application tests.

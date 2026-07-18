@@ -337,7 +337,7 @@ This optional authenticated smoke creates a short-lived local token from `LOCAL_
 Use the user-provided local service bundle before DB-backed smoke tests:
 
 ```powershell
-Set-Location F:\project\socket\AI\testPhp\files
+Set-Location E:\project\socket\AI\testPhp\files
 .\startServer1.bat
 ```
 

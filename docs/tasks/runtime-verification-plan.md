@@ -21,8 +21,8 @@ Read-only SQL reference:
 - PHP has `pdo_mysql`, `mysqli`, and `redis` extensions enabled.
 - `F:\AI\projects\testJava\OA\oa2026.sql` exists and is about 390 MB.
 - A local `.env` file exists in the ThinkPHP project root and is ignored by Git; it contains local-only runtime secrets and must not be staged or committed.
-- MySQL CLI is available through `F:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe`.
-- Redis CLI is available through `F:\project\socket\AI\testPhp\files\tools\redis\redis-cli.exe`.
+- MySQL CLI is available through `E:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe`.
+- Redis CLI is available through `E:\project\socket\AI\testPhp\files\tools\redis\redis-cli.exe`.
 - MySQL listens on `127.0.0.1:3306` after the helper startup script is running.
 - Redis listens on `127.0.0.1:6379` after the helper startup script is running.
 - `config/cache.php` now supports a Redis store, while defaulting to `file` until `CACHE_DRIVER=redis` is set.
@@ -40,7 +40,7 @@ Do not run these commands against production.
 The user-designated local helper script is:
 
 ```powershell
-Start-Process -FilePath "F:\project\socket\AI\testPhp\files\startServer1.bat" -WorkingDirectory "F:\project\socket\AI\testPhp\files" -WindowStyle Hidden
+Start-Process -FilePath "E:\project\socket\AI\testPhp\files\startServer1.bat" -WorkingDirectory "E:\project\socket\AI\testPhp\files" -WindowStyle Hidden
 ```
 
 Do not assume `startServer1.bat` exists inside the MySQL subdirectory.
@@ -87,7 +87,7 @@ For legacy Vue login compatibility, `AUTH_SM2_PRIVATE_KEY` may be configured loc
 
 The user-designated runtime targets for this project are:
 
-- Startup script: `F:\project\socket\AI\testPhp\files\startServer1.bat`
+- Startup script: `E:\project\socket\AI\testPhp\files\startServer1.bat`
 - MySQL host: `127.0.0.1`
 - MySQL port: `3306`
 - MySQL database: `phpoa20026`
@@ -135,12 +135,12 @@ Then verify:
 
 ## 2026-05-29 Local Verification Result
 
-- MySQL client used: `F:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe`.
+- MySQL client used: `E:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe`.
 - MySQL server version: `8.0.45`.
 - Target database: `phpoa20026`.
 - Imported SQL source: `F:\AI\projects\testJava\OA\oa2026.sql`.
 - Imported table count: 121.
-- Redis checked with `F:\project\socket\AI\testPhp\files\tools\redis\redis-cli.exe`.
+- Redis checked with `E:\project\socket\AI\testPhp\files\tools\redis\redis-cli.exe`.
 - ThinkPHP DB probe returned `sys_user` count 121.
 - ThinkPHP Redis probe returned `ok`.
 - HTTP smoke server: `http://127.0.0.1:8000`.
@@ -175,7 +175,7 @@ After the fix:
 
 The user reconfirmed that this project must continue using the designated local database and Redis runtime for future backend and frontend testing.
 
-- Startup script confirmed: `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Startup script confirmed: `E:\project\socket\AI\testPhp\files\startServer1.bat`.
 - MySQL port check: `127.0.0.1:3306` reachable.
 - MySQL database check: `phpoa20026` exists; it was created with `CREATE DATABASE IF NOT EXISTS` if missing.
 - Redis port check: `127.0.0.1:6379` reachable.

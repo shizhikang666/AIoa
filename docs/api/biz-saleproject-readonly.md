@@ -90,7 +90,7 @@ git diff --check
 
 Date: 2026-06-02
 
-- Local MySQL/Redis helper path confirmed as `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Local MySQL/Redis helper path confirmed as `E:\project\socket\AI\testPhp\files\startServer1.bat`.
 - ThinkPHP backend was smoke-tested on `http://127.0.0.1:82`.
 - Vue frontend was smoke-tested on `http://127.0.0.1:83`.
 - Login with the local super-admin account returned API `code = 200` and a bearer token.

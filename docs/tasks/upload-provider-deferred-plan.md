@@ -134,7 +134,7 @@ git status --short --branch
 If `-CheckWeb` passes but authenticated browser smoke fails while generating a token, rerun `.\scripts\runtime-ready.ps1`; `/think` can respond even when MySQL/Redis are down. Start the local runtime bundle before retrying DB-backed or browser smoke:
 
 ```powershell
-Start-Process -FilePath "F:\project\socket\AI\testPhp\files\startServer1.bat" -WorkingDirectory "F:\project\socket\AI\testPhp\files" -WindowStyle Hidden
+Start-Process -FilePath "E:\project\socket\AI\testPhp\files\startServer1.bat" -WorkingDirectory "E:\project\socket\AI\testPhp\files" -WindowStyle Hidden
 ```
 
 Vite cold start can take about 90 seconds in this workspace; wait for `.\scripts\web-ready.ps1` before treating frontend smoke failures as page defects.

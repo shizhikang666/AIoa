@@ -1,5 +1,5 @@
 param(
-    [string]$RuntimeRoot = 'F:\project\socket\AI\testPhp\files',
+    [string]$RuntimeRoot = 'E:\project\socket\AI\testPhp\files',
     [string]$ExpectedDatabase = 'phpoa20026'
 )
 

@@ -4927,7 +4927,7 @@ git diff --check
 - Implemented the read-only Controller and Service slice for the seven Java-compatible sale-project read routes.
 - Registered the four nested saleproject routes as explicit full paths to avoid route-cache/runtime ambiguity during local smoke tests.
 - Kept all sale-project write, inventory cost, workflow, Java source, database schema, frontend, Composer, and `.env` changes out of scope.
-- Verified the local MySQL/Redis helper script path is `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Verified the local MySQL/Redis helper script path is `E:\project\socket\AI\testPhp\files\startServer1.bat`.
 
 ## Active Plan: api-agent - Customer Read API Compatibility
 

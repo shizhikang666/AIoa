@@ -42,7 +42,7 @@ foreach ($port in $Ports) {
 if (-not $allReady) {
     Write-Host ''
     Write-Host 'Start the local runtime bundle before DB/HTTP smoke tests:'
-    Write-Host 'Set-Location F:\project\socket\AI\testPhp\files'
+    Write-Host 'Set-Location E:\project\socket\AI\testPhp\files'
     Write-Host '.\startServer1.bat'
     exit 1
 }

@@ -237,7 +237,7 @@ Use the user-provided local runtime bundle for database-backed and Redis-backed 
 Start it from:
 
 ```powershell
-Set-Location F:\project\socket\AI\testPhp\files
+Set-Location E:\project\socket\AI\testPhp\files
 .\startServer1.bat
 ```
 

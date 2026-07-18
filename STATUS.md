@@ -5843,7 +5843,7 @@ Agent: api-agent
 
 - Accepted the user-designated long-term local runtime database configuration for this project.
 - Confirmed actual secrets are stored only in ignored local `.env`; no password is committed.
-- Confirmed `F:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe` is usable.
+- Confirmed `E:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe` is usable.
 - Confirmed MySQL server version `8.0.45`.
 - Created local database `phpoa20026`.
 - Imported `F:\AI\projects\testJava\OA\oa2026.sql` into `phpoa20026`.
@@ -5885,7 +5885,7 @@ Agent: api-agent
 
 ### Current Issues
 
-- `startServer1.bat` was not found under `F:\project\socket\AI\testPhp\files\tools\mysql`, but MySQL and Redis were already running and reachable.
+- `startServer1.bat` was not found under `E:\project\socket\AI\testPhp\files\tools\mysql`, but MySQL and Redis were already running and reachable.
 - Real login flow still needs an explicit user-provided test account/password or explicit approval to test an imported account.
 - Online realtime production data sync remains deferred until the project is complete and accepted.
 
@@ -7486,7 +7486,7 @@ Agent: api-agent
 
 - File-relation write flows mutate attachment links and can affect process/project attachment views. Those routes need a later write-endpoint design before implementation.
 - `dev_file` rows can contain large thumbnails; future frontend/API tuning may need a lightweight list mode if payload size becomes a problem.
-- The local MySQL/Redis helper script exists at `F:\project\socket\AI\testPhp\files\startServer1.bat`; the originally provided mysql subdirectory did not contain the script.
+- The local MySQL/Redis helper script exists at `E:\project\socket\AI\testPhp\files\startServer1.bat`; the originally provided mysql subdirectory did not contain the script.
 
 ### Next Plan
 
@@ -8013,7 +8013,7 @@ Agent: api-agent
 - Preserved product child `extJson` compatibility for frontend parsing.
 - Fixed the ThinkORM case-list join to use `join(..., 'INNER')` because `innerJoin()` is not available in this installed ORM version.
 - Registered nested saleproject paths as explicit full routes to avoid stale local route-cache behavior during `php think run`.
-- Confirmed and documented the corrected local MySQL/Redis helper path: `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Confirmed and documented the corrected local MySQL/Redis helper path: `E:\project\socket\AI\testPhp\files\startServer1.bat`.
 - Kept Java source, database schema, frontend files, Composer files, `.env`, and sale-project write endpoints unchanged.
 
 ### Modified Files
@@ -9753,7 +9753,7 @@ Agent: api-agent
 
 - Accepted the user-confirmed runtime rule that this project must continue using the designated local MySQL database and Redis runtime.
 - Verified local `.env` is ignored by Git and contains local-only runtime secrets.
-- Verified the MySQL/Redis helper startup script exists at `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Verified the MySQL/Redis helper startup script exists at `E:\project\socket\AI\testPhp\files\startServer1.bat`.
 - Verified MySQL is reachable on `127.0.0.1:3306`.
 - Verified `phpoa20026` exists, creating it with `CREATE DATABASE IF NOT EXISTS` if it was missing.
 - Verified Redis is reachable on `127.0.0.1:6379` and authenticated `PING` returns `PONG`.
@@ -10110,7 +10110,7 @@ Agent: api-agent
 
 - `biz_sale_project_product_item` read routes in Java are commented out, so they were not added even though wrappers mention them.
 - Invoice item add/edit/delete and delivery/stock/finance side effects remain deferred.
-- MySQL startup through `F:\project\socket\AI\testPhp\files\startServer1.bat` can take around 30 seconds before port 3306 listens.
+- MySQL startup through `E:\project\socket\AI\testPhp\files\startServer1.bat` can take around 30 seconds before port 3306 listens.
 - Full online realtime production data sync remains deferred until the complete ThinkPHP system is finished and the user confirms the sync plan.
 
 ### Next Plan
@@ -10285,7 +10285,7 @@ Agent: api-agent
 - `php -l app\controller\biz\SaleProjectRateController.php`: passed.
 - `php -l app\service\biz\SaleProjectBillingService.php`: passed.
 - `php -l route\app.php`: passed.
-- MySQL was not listening at first; started it through `F:\project\socket\AI\testPhp\files\startServer1.bat`, then port 3306 listened.
+- MySQL was not listening at first; started it through `E:\project\socket\AI\testPhp\files\startServer1.bat`, then port 3306 listened.
 - Direct service smoke: passed on copied-data rating `2009867439677366274`; detail matched the sample id and exposed `projectName`, `customerName`, and `extJson`.
 - `composer dump-autoload`: passed.
 - `php think`: passed.
@@ -10341,7 +10341,7 @@ Agent: api-agent
 - Direct service smoke: passed on copied-data project `2007642126725550081`; add returned test row `1780634305327997228`, edit changed `afterValue`, and delete set `DELETE_FLAG=DELETED`.
 - Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
 - `git diff --check`: passed with CRLF conversion warnings only.
-- MySQL started through `F:\project\socket\AI\testPhp\files\startServer1.bat`; backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
+- MySQL started through `E:\project\socket\AI\testPhp\files\startServer1.bat`; backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200.
 
 ### Current Issues
 
@@ -10544,7 +10544,7 @@ Agent: api-agent
 - `php think`: passed.
 - `php think route:list`: passed; route entry rows = 301 and `/biz/bizteamprojectcomment/add`, `/biz/bizteamprojectcommentreply/add` are registered.
 - Strict full PHP lint over `app`, `config`, and `route`: passed; 232 PHP files checked.
-- MySQL/Redis were started through `F:\project\socket\AI\testPhp\files\startServer1.bat`; `netstat` showed MySQL 3306 and Redis 6379 listening.
+- MySQL/Redis were started through `E:\project\socket\AI\testPhp\files\startServer1.bat`; `netstat` showed MySQL 3306 and Redis 6379 listening.
 - Backend `http://127.0.0.1:82/` returned 200; frontend `http://127.0.0.1:83/` returned 200 after Vite startup finished.
 
 ### Current Issues
@@ -12310,7 +12310,7 @@ Agent: api-agent
 
 ### Completed
 
-- Started the user-provided local runtime bundle from `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Started the user-provided local runtime bundle from `E:\project\socket\AI\testPhp\files\startServer1.bat`.
 - Confirmed MySQL listens on `127.0.0.1:3306`.
 - Confirmed Redis listens on `127.0.0.1:6379` and responds after authentication.
 - Updated the ignored local `.env` to use the user-provided local MySQL and Redis runtime values.
@@ -14549,7 +14549,7 @@ Subsequent state on 2026-06-16: `/biz/bizpayroll/export` is now covered as an au
 ### Completed
 
 - Found local web services stopped at the start of the continuation; restarted ThinkPHP on port `82` and Vue on port `83`.
-- Found MySQL/Redis/PHP-FPM runtime stopped when the first browser smoke attempted to generate a local token; restarted the user-provided runtime bundle at `F:\project\socket\AI\testPhp\files\startServer1.bat`.
+- Found MySQL/Redis/PHP-FPM runtime stopped when the first browser smoke attempted to generate a local token; restarted the user-provided runtime bundle at `E:\project\socket\AI\testPhp\files\startServer1.bat`.
 - Waited for Vite cold start to finish; this run took about 90 seconds before port `83` responded.
 - Ran list/report-only guarded browser smokes for sale-project, sales public/case/shipment/completed/cancelled/report pages.
 - Ran list/report-only guarded browser smokes for operations customer/project, proxy-payment, security-deposit, and data-report pages.

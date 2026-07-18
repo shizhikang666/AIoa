@@ -13,7 +13,7 @@ Future Codex conversations should also assume the project is being handled in re
 Run from the service bundle directory:
 
 ```powershell
-Set-Location F:\project\socket\AI\testPhp\files
+Set-Location E:\project\socket\AI\testPhp\files
 .\startServer1.bat
 ```
 
@@ -106,14 +106,14 @@ Confirm the database exists and contains tables without printing passwords:
 
 ```powershell
 $env:MYSQL_PWD = '<from ignored .env>'
-& 'F:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe' --host=127.0.0.1 --port=3306 --user=root --default-character-set=utf8mb4 -e "SELECT COUNT(*) AS table_count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='phpoa20026';"
+& 'E:\project\socket\AI\testPhp\files\tools\mysql\bin\mysql.exe' --host=127.0.0.1 --port=3306 --user=root --default-character-set=utf8mb4 -e "SELECT COUNT(*) AS table_count FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='phpoa20026';"
 Remove-Item Env:\MYSQL_PWD
 ```
 
 Confirm Redis is reachable without printing passwords:
 
 ```powershell
-& 'F:\project\socket\AI\testPhp\files\tools\redis\redis-cli.exe' -h 127.0.0.1 -p 6379 -a '<from ignored .env>' ping
+& 'E:\project\socket\AI\testPhp\files\tools\redis\redis-cli.exe' -h 127.0.0.1 -p 6379 -a '<from ignored .env>' ping
 ```
 
 Expected result: `PONG`.
