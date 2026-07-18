@@ -1,5 +1,12 @@
 # oa.fucity.cn Deployment Automation
 
+> **Production cutover warning (2026-07-19):** do not use the in-place
+> `oa-fucity-deploy.ps1` / `oa-fucity-remote-deploy.sh` path for the formal
+> Java-to-PHP migration. It synchronizes into the active tree and invokes a
+> schema installer. Use the prepare-only, `releases/current`, compare-and-swap
+> workflow in `docs/tasks/oa-fucity-atomic-deployment.md`. The content below is
+> retained as historical behavior until the legacy deploy path is retired.
+
 Date: 2026-06-29
 
 This runbook provides a controlled deploy path for `oa.fucity.cn`:
@@ -31,6 +38,10 @@ Useful options:
 .\scripts\oa-fucity-build-release.ps1 -SkipFrontendBuild
 .\scripts\oa-fucity-build-release.ps1 -ReleaseId 20260629-approval-1
 ```
+
+`SkipFrontendBuild`, `SkipComposerInstall`, and `SkipReadiness` now mark the
+artifact `diagnostic=true`. The atomic production prepare gate rejects every
+diagnostic artifact; these switches are for local diagnosis only.
 
 The script creates:
 
