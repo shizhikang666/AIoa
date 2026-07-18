@@ -159,8 +159,13 @@ function prepareTables(PDO $pdo, string $database): array
 
 function prepareContainedPath(string $child, string $parent): bool
 {
-    $childPrefix = rtrim($child, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-    $parentPrefix = rtrim($parent, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    $childReal = realpath($child);
+    $parentReal = realpath($parent);
+    if ($childReal === false || $parentReal === false) {
+        return false;
+    }
+    $childPrefix = rtrim($childReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    $parentPrefix = rtrim($parentReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
     return str_starts_with($childPrefix, $parentPrefix);
 }

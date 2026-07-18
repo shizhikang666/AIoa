@@ -84,6 +84,7 @@ if ($temporary === false) {
     throw new RuntimeException('unable to create isolated evidence smoke fixture');
 }
 $symlinkAlias = $temporary . '-alias';
+$prepareCaseRoot = $temporary . '-case-root';
 try {
     $original = "{\"status\":\"completed\"}\n";
     if (file_put_contents($temporary, $original, LOCK_EX) === false) {
@@ -139,12 +140,55 @@ try {
     if (prepareContainedPath($caseEscapedChild, $caseRoot)) {
         throw new RuntimeException('prepare containment accepted a case-variant sibling path');
     }
+    if (!mkdir($prepareCaseRoot, 0700)) {
+        throw new RuntimeException('unable to create the prepare containment smoke root');
+    }
+    $prepareRuntime = $prepareCaseRoot . DIRECTORY_SEPARATOR . 'runtime';
+    if (!mkdir($prepareRuntime, 0700)) {
+        throw new RuntimeException('unable to create the prepare containment runtime');
+    }
+    $prepareMarker = $prepareRuntime . DIRECTORY_SEPARATOR . 'marker.json';
+    if (file_put_contents($prepareMarker, "{}\n", LOCK_EX) === false
+        || !prepareContainedPath($prepareMarker, $prepareRuntime)
+    ) {
+        throw new RuntimeException('prepare containment rejected an existing canonical child');
+    }
+    $prepareCaseVariantRuntime = $prepareCaseRoot . DIRECTORY_SEPARATOR . 'Runtime';
+    if (@mkdir($prepareCaseVariantRuntime, 0700)) {
+        $prepareCaseVariantMarker = $prepareCaseVariantRuntime . DIRECTORY_SEPARATOR . 'marker.json';
+        if (file_put_contents($prepareCaseVariantMarker, "{}\n", LOCK_EX) === false
+            || prepareContainedPath($prepareCaseVariantMarker, $prepareRuntime)
+        ) {
+            throw new RuntimeException('prepare containment accepted an existing Linux case-variant sibling');
+        }
+    } elseif (realpath($prepareCaseVariantRuntime) !== realpath($prepareRuntime)
+        || !prepareContainedPath($prepareCaseVariantRuntime . DIRECTORY_SEPARATOR . 'marker.json', $prepareRuntime)
+    ) {
+        throw new RuntimeException('prepare containment rejected a Windows case-normalized child');
+    }
     isolated_evidence_smoke_expect_failure(
         static fn (): string => prepareRelativeProjectPath($caseRoot, $caseEscapedChild)
     );
 } finally {
     if (is_link($symlinkAlias)) {
         @unlink($symlinkAlias);
+    }
+    foreach ([
+        $prepareCaseRoot . DIRECTORY_SEPARATOR . 'Runtime' . DIRECTORY_SEPARATOR . 'marker.json',
+        $prepareCaseRoot . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'marker.json',
+    ] as $prepareCaseMarker) {
+        if (is_file($prepareCaseMarker)) {
+            @unlink($prepareCaseMarker);
+        }
+    }
+    foreach ([
+        $prepareCaseRoot . DIRECTORY_SEPARATOR . 'Runtime',
+        $prepareCaseRoot . DIRECTORY_SEPARATOR . 'runtime',
+        $prepareCaseRoot,
+    ] as $prepareCaseDirectory) {
+        if (is_dir($prepareCaseDirectory)) {
+            @rmdir($prepareCaseDirectory);
+        }
     }
     @unlink($temporary);
 }
@@ -160,4 +204,5 @@ echo json_encode([
     'symlinkAliasRejectedBeforeRealpath' => true,
     'caseVariantPathRejected' => true,
     'prepareCaseVariantPathRejected' => true,
+    'prepareRealpathContainmentVerified' => true,
 ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;
