@@ -64,6 +64,11 @@ class AuthMiddleware
         return in_array($path, [
             '/sys/sysconfig/detail',
             '/dev/dict/tree',
+            '/biz/task/count',
+            '/biz/task/list',
+            '/biz/task/page',
+            '/biz/task/history/page',
+            '/biz/task/runtime/activity/detail',
             '/biz/process/page',
             '/biz/process/all/page',
         ], true);
