@@ -7,6 +7,7 @@ use Oa\DatabaseMigration\DumpPolicy;
 use Oa\DatabaseMigration\CommandRunner;
 use Oa\DatabaseMigration\DatabaseManifest;
 use Oa\DatabaseMigration\DetachedBytearrayPolicy;
+use Oa\DatabaseMigration\DetachedOperationLogPolicy;
 use Oa\DatabaseMigration\MigrationOptions;
 use Oa\DatabaseMigration\MigrationRunner;
 use Oa\DatabaseMigration\MigrationSafety;
@@ -171,6 +172,158 @@ try {
         'detached byte-array candidate predicate lost its byte-exact residual'
     );
     smoke_assert($detachedParameters === ['excluded-process'], 'detached exclusion parameters changed');
+    $mysql57OperationLogColumns = [[
+        'COLUMN_NAME' => 'USER_ID_',
+        'ORDINAL_POSITION' => '15',
+        'COLUMN_DEFAULT' => null,
+        'IS_NULLABLE' => 'YES',
+        'DATA_TYPE' => 'varchar',
+        'COLUMN_TYPE' => 'varchar(255)',
+        'CHARACTER_SET_NAME' => 'utf8',
+        'COLLATION_NAME' => 'utf8_bin',
+        'EXTRA' => '',
+    ], [
+        'COLUMN_NAME' => 'TIMESTAMP_',
+        'ORDINAL_POSITION' => '16',
+        'COLUMN_DEFAULT' => 'CURRENT_TIMESTAMP',
+        'IS_NULLABLE' => 'NO',
+        'DATA_TYPE' => 'timestamp',
+        'COLUMN_TYPE' => 'timestamp',
+        'CHARACTER_SET_NAME' => null,
+        'COLLATION_NAME' => null,
+        'EXTRA' => 'on update CURRENT_TIMESTAMP',
+    ]];
+    $mysql80OperationLogColumns = $mysql57OperationLogColumns;
+    $mysql80OperationLogColumns[0]['CHARACTER_SET_NAME'] = 'utf8mb3';
+    $mysql80OperationLogColumns[0]['COLLATION_NAME'] = 'utf8mb3_bin';
+    $mysql80OperationLogColumns[1]['EXTRA'] = 'DEFAULT_GENERATED on update CURRENT_TIMESTAMP';
+    $normalizeOperationLogColumns = new ReflectionMethod(
+        DetachedOperationLogPolicy::class,
+        'normalizeTableStructureColumns'
+    );
+    $operationLogStructure = static function (
+        array $columns,
+        array $overrides = []
+    ) use ($normalizeOperationLogColumns): array {
+        return array_replace([
+            'engine' => 'InnoDB',
+            'columns' => $normalizeOperationLogColumns->invoke(null, $columns),
+            'indexes' => [],
+            'primaryKeyColumns' => ['ID_'],
+        ], $overrides);
+    };
+    $operationLogPlan = static fn (array $columns, array $overrides = []): array => [
+        'tableStructureSha256' => hash(
+            'sha256',
+            json_encode($operationLogStructure($columns, $overrides), JSON_THROW_ON_ERROR)
+        ),
+        'engineReferenceChecks' => [],
+        'businessReferenceChecks' => [],
+    ];
+    DetachedOperationLogPolicy::assertSamePlan(
+        $operationLogPlan($mysql80OperationLogColumns),
+        $operationLogPlan($mysql57OperationLogColumns)
+    );
+    smoke_assert(
+        $operationLogStructure($mysql80OperationLogColumns) === $operationLogStructure($mysql57OperationLogColumns),
+        'detached operation-log structure did not normalize equivalent MySQL 5.7/8.0 metadata'
+    );
+    $parenthesizedTimestampDefaultColumns = $mysql80OperationLogColumns;
+    $parenthesizedTimestampDefaultColumns[1]['COLUMN_DEFAULT'] = 'current_timestamp()';
+    $normalizedParenthesizedTimestampColumns = $normalizeOperationLogColumns->invoke(
+        null,
+        $parenthesizedTimestampDefaultColumns
+    );
+    smoke_assert(
+        ($normalizedParenthesizedTimestampColumns[1]['EXTRA'] ?? null) === 'on update current_timestamp',
+        'detached operation-log structure did not recognize the optional CURRENT_TIMESTAMP parentheses'
+    );
+    $differentOperationLogColumns = $mysql80OperationLogColumns;
+    $differentOperationLogColumns[0]['COLLATION_NAME'] = 'utf8mb3_general_ci';
+    smoke_throws(
+        static fn () => DetachedOperationLogPolicy::assertSamePlan(
+            $operationLogPlan($differentOperationLogColumns),
+            $operationLogPlan($mysql57OperationLogColumns)
+        ),
+        'detached operation-log structure normalized away a real collation change'
+    );
+    $differentOperationLogColumns = $mysql80OperationLogColumns;
+    $differentOperationLogColumns[0]['CHARACTER_SET_NAME'] = 'utf8mb4';
+    smoke_throws(
+        static fn () => DetachedOperationLogPolicy::assertSamePlan(
+            $operationLogPlan($differentOperationLogColumns),
+            $operationLogPlan($mysql57OperationLogColumns)
+        ),
+        'detached operation-log structure normalized away a real character-set change'
+    );
+    $differentOperationLogColumns = $mysql80OperationLogColumns;
+    $differentOperationLogColumns[1]['EXTRA'] = 'DEFAULT_GENERATED_X on update CURRENT_TIMESTAMP';
+    smoke_throws(
+        static fn () => DetachedOperationLogPolicy::assertSamePlan(
+            $operationLogPlan($differentOperationLogColumns),
+            $operationLogPlan($mysql57OperationLogColumns)
+        ),
+        'detached operation-log structure removed a non-marker DEFAULT_GENERATED_X token'
+    );
+    $differentOperationLogColumns = $mysql80OperationLogColumns;
+    $differentOperationLogColumns[0]['EXTRA'] = 'DEFAULT_GENERATED';
+    smoke_throws(
+        static fn () => DetachedOperationLogPolicy::assertSamePlan(
+            $operationLogPlan($differentOperationLogColumns),
+            $operationLogPlan($mysql57OperationLogColumns)
+        ),
+        'detached operation-log structure removed DEFAULT_GENERATED from a non-TIMESTAMP_ column'
+    );
+    $differentOperationLogColumns = $mysql80OperationLogColumns;
+    $differentOperationLogColumns[0]['COLUMN_TYPE'] = 'varchar(512)';
+    smoke_throws(
+        static fn () => DetachedOperationLogPolicy::assertSamePlan(
+            $operationLogPlan($differentOperationLogColumns),
+            $operationLogPlan($mysql57OperationLogColumns)
+        ),
+        'detached operation-log structure normalized away a real column-type change'
+    );
+    $differentOperationLogColumns = $mysql80OperationLogColumns;
+    $differentOperationLogColumns[0]['IS_NULLABLE'] = 'NO';
+    smoke_throws(
+        static fn () => DetachedOperationLogPolicy::assertSamePlan(
+            $operationLogPlan($differentOperationLogColumns),
+            $operationLogPlan($mysql57OperationLogColumns)
+        ),
+        'detached operation-log structure normalized away a real nullability change'
+    );
+    $differentOperationLogColumns = $mysql80OperationLogColumns;
+    $differentOperationLogColumns[0]['COLUMN_DEFAULT'] = 'system';
+    smoke_throws(
+        static fn () => DetachedOperationLogPolicy::assertSamePlan(
+            $operationLogPlan($differentOperationLogColumns),
+            $operationLogPlan($mysql57OperationLogColumns)
+        ),
+        'detached operation-log structure normalized away a real default-value change'
+    );
+    smoke_throws(
+        static fn () => DetachedOperationLogPolicy::assertSamePlan(
+            $operationLogPlan($mysql80OperationLogColumns, ['engine' => 'MyISAM']),
+            $operationLogPlan($mysql57OperationLogColumns)
+        ),
+        'detached operation-log structure normalized away a real engine change'
+    );
+    smoke_throws(
+        static fn () => DetachedOperationLogPolicy::assertSamePlan(
+            $operationLogPlan($mysql80OperationLogColumns, [
+                'indexes' => [[
+                    'INDEX_NAME' => 'idx_user',
+                    'NON_UNIQUE' => '1',
+                    'SEQ_IN_INDEX' => '1',
+                    'COLUMN_NAME' => 'USER_ID_',
+                    'SUB_PART' => null,
+                    'INDEX_TYPE' => 'BTREE',
+                ]],
+            ]),
+            $operationLogPlan($mysql57OperationLogColumns)
+        ),
+        'detached operation-log structure normalized away a real index change'
+    );
     $migrationLibrarySource = file_get_contents(__DIR__ . '/lib/oa-database-migration.php');
     smoke_assert(
         is_string($migrationLibrarySource)

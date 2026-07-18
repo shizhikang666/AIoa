@@ -2639,7 +2639,7 @@ final class DetachedOperationLogPolicy
             . 'WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION'
         );
         $columnStatement->execute([$database, $table]);
-        $columns = $columnStatement->fetchAll();
+        $columns = self::normalizeTableStructureColumns($columnStatement->fetchAll());
         $indexStatement = $pdo->prepare(
             'SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, SUB_PART, INDEX_TYPE '
             . 'FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? '
@@ -2665,6 +2665,45 @@ final class DetachedOperationLogPolicy
             'indexes' => $indexes,
             'primaryKeyColumns' => $primaryKeyColumns,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $columns
+     * @return list<array<string, mixed>>
+     */
+    private static function normalizeTableStructureColumns(array $columns): array
+    {
+        return array_map(static function (array $column): array {
+            $characterSet = $column['CHARACTER_SET_NAME'] ?? null;
+            if (is_string($characterSet)) {
+                $characterSet = strtolower($characterSet);
+                $column['CHARACTER_SET_NAME'] = $characterSet === 'utf8' ? 'utf8mb3' : $characterSet;
+            }
+            $collation = $column['COLLATION_NAME'] ?? null;
+            if (is_string($collation)) {
+                $collation = strtolower($collation);
+                $column['COLLATION_NAME'] = preg_replace('/^utf8_/', 'utf8mb3_', $collation) ?? $collation;
+            }
+            $extraTokens = preg_split(
+                '/\s+/',
+                trim(strtolower((string)($column['EXTRA'] ?? ''))),
+                -1,
+                PREG_SPLIT_NO_EMPTY
+            );
+            $columnDefault = strtolower(trim((string)($column['COLUMN_DEFAULT'] ?? '')));
+            // MySQL 8 adds DEFAULT_GENERATED to this reviewed timestamp shape;
+            // retain the token everywhere else so expression-default changes still fail closed.
+            $ignoreGeneratedDefaultMarker = strtoupper((string)($column['COLUMN_NAME'] ?? '')) === 'TIMESTAMP_'
+                && strtolower((string)($column['DATA_TYPE'] ?? '')) === 'timestamp'
+                && preg_match('/\Acurrent_timestamp(?:\(\))?\z/D', $columnDefault) === 1;
+            $column['EXTRA'] = implode(' ', array_values(array_filter(
+                is_array($extraTokens) ? $extraTokens : [],
+                static fn (string $token): bool => !$ignoreGeneratedDefaultMarker
+                    || $token !== 'default_generated'
+            )));
+
+            return $column;
+        }, $columns);
     }
 
     /** @param list<string> $ids @return list<string> */
