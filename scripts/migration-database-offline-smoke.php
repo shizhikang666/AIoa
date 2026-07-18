@@ -5,8 +5,11 @@ declare(strict_types=1);
 
 use Oa\DatabaseMigration\DumpPolicy;
 use Oa\DatabaseMigration\CommandRunner;
+use Oa\DatabaseMigration\DatabaseManifest;
 use Oa\DatabaseMigration\MigrationOptions;
+use Oa\DatabaseMigration\MigrationRunner;
 use Oa\DatabaseMigration\MigrationSafety;
+use Oa\DatabaseMigration\ManifestStore;
 use Oa\DatabaseMigration\MysqlProfile;
 use Oa\DatabaseMigration\OrphanPolicy;
 use Oa\DatabaseMigration\SchemaPolicy;
@@ -14,18 +17,24 @@ use Oa\DatabaseMigration\SchemaPolicy;
 require __DIR__ . '/lib/oa-database-migration.php';
 require __DIR__ . '/lib/installer-target.php';
 
+$smokeChecks = 0;
+
 function smoke_assert(bool $condition, string $message): void
 {
+    global $smokeChecks;
     if (!$condition) {
         throw new RuntimeException($message);
     }
+    $smokeChecks++;
 }
 
 function smoke_throws(callable $callback, string $message): void
 {
+    global $smokeChecks;
     try {
         $callback();
     } catch (Throwable) {
+        $smokeChecks++;
         return;
     }
     throw new RuntimeException($message);
@@ -42,6 +51,7 @@ function smoke_column(string $type): array
         'extra' => '',
         'charset' => null,
         'collation' => null,
+        'generationExpression' => null,
     ];
 }
 
@@ -63,12 +73,33 @@ if (!mkdir($temporary, 0700, true) && !is_dir($temporary)) {
 }
 
 try {
+    $emptyManifest = $temporary . DIRECTORY_SEPARATOR . 'empty-manifest';
+    mkdir($emptyManifest, 0700, true);
+    $manifestStore = new ManifestStore($emptyManifest);
+    smoke_assert(is_dir($emptyManifest), 'empty manifest directory was rejected');
+    smoke_throws(
+        static fn () => $manifestStore->path('..'),
+        'manifest path accepted a parent-directory child name'
+    );
+    unset($manifestStore);
+    $nonemptyManifest = $temporary . DIRECTORY_SEPARATOR . 'nonempty-manifest';
+    mkdir($nonemptyManifest, 0700, true);
+    file_put_contents($nonemptyManifest . DIRECTORY_SEPARATOR . 'completed.json', '{}');
+    smoke_throws(
+        static fn () => new ManifestStore($nonemptyManifest),
+        'non-empty manifest directory was accepted for a new migration run'
+    );
+
     $sourceDefaults = $temporary . DIRECTORY_SEPARATOR . 'source.cnf';
     $targetDefaults = $temporary . DIRECTORY_SEPARATOR . 'target.cnf';
     file_put_contents($sourceDefaults, "[client]\nhost=old.invalid\nport=3306\nuser=readonly\npassword=\n");
     file_put_contents($targetDefaults, "[client]\nhost=new.invalid\nport=3306\nuser=migrator\npassword=\n");
     $sourceProfile = MysqlProfile::fromDefaultsFile($sourceDefaults);
     $targetProfile = MysqlProfile::fromDefaultsFile($targetDefaults);
+    $loopbackDefaults = $temporary . DIRECTORY_SEPARATOR . 'loopback.cnf';
+    file_put_contents($loopbackDefaults, "[client]\nhost=[::1]\nport=3306\nuser=migrator\npassword=\n");
+    $loopbackProfile = MysqlProfile::fromDefaultsFile($loopbackDefaults);
+    smoke_assert($loopbackProfile->childConnection()['remote'] === false, 'bracketed IPv6 loopback was treated as remote');
 
     MigrationSafety::assertSafeTopology(
         $sourceProfile,
@@ -143,15 +174,55 @@ try {
 
     $sourceTables = [
         'biz_sale_project' => smoke_table(['ID' => smoke_column('int(11)')]),
+        'biz_leave_application' => smoke_table(['ID' => smoke_column('int(11)')]),
     ];
-    for ($index = 1; $index <= 120; $index++) {
+    for ($index = 1; $index <= 119; $index++) {
         $sourceTables[sprintf('legacy_%03d', $index)] = smoke_table(['ID' => smoke_column('int(11)')]);
     }
+    $sourceTables['legacy_002']['columns']['SECOND'] = array_merge(smoke_column('int(11)'), ['ordinal' => 2]);
+    $sourceTables['legacy_004']['foreignKeys']['fk_equivalent_rule'] = [
+        'referencedTable' => 'legacy_005',
+        'updateRule' => 'NO ACTION',
+        'deleteRule' => 'NO ACTION',
+        'columns' => [['name' => 'ID', 'referenced' => 'ID']],
+    ];
+    $sourceTables['biz_leave_application']['indexes'] = [
+        'PRIMARY' => [
+            'unique' => true,
+            'type' => 'BTREE',
+            'columns' => [['name' => 'ID', 'prefix' => null, 'collation' => 'A']],
+        ],
+        'idx_legacy_leave' => [
+            'unique' => false,
+            'type' => 'BTREE',
+            'columns' => [['name' => 'ID', 'prefix' => null, 'collation' => 'A']],
+        ],
+    ];
     $templateTables = $sourceTables;
     foreach ($templateTables as &$table) {
         $table['columns']['ID']['type'] = 'int';
     }
     unset($table);
+    $sourceTables['legacy_001']['columns']['ID'] = array_merge(smoke_column('varchar(64)'), [
+        'charset' => 'utf8',
+        'collation' => 'utf8_bin',
+    ]);
+    $templateTables['legacy_001']['columns']['ID'] = array_merge(smoke_column('varchar(64)'), [
+        'extra' => 'DEFAULT_GENERATED',
+        'charset' => 'utf8mb3',
+        'collation' => 'utf8mb3_bin',
+    ]);
+    $sourceTables['legacy_003']['collation'] = 'utf8_bin';
+    $templateTables['legacy_003']['collation'] = 'utf8mb3_bin';
+    $templateTables['legacy_004']['foreignKeys']['fk_equivalent_rule']['updateRule'] = 'RESTRICT';
+    $templateTables['legacy_004']['foreignKeys']['fk_equivalent_rule']['deleteRule'] = 'RESTRICT';
+    $templateTables['biz_leave_application']['indexes'] = [
+        'idx_leave_after_sales_travel' => SchemaPolicy::EXPECTED_EXTRA_INDEXES[
+            'biz_leave_application.idx_leave_after_sales_travel'
+        ],
+        'idx_legacy_leave' => $sourceTables['biz_leave_application']['indexes']['idx_legacy_leave'],
+        'PRIMARY' => $sourceTables['biz_leave_application']['indexes']['PRIMARY'],
+    ];
     $templateTables['biz_sale_project']['columns']['TRAVEL_DAYS'] = [
         'ordinal' => 2,
         'type' => 'decimal(10,1)',
@@ -170,13 +241,149 @@ try {
         ['tables' => $sourceTables],
         ['tables' => $templateTables]
     );
-    SchemaPolicy::assertExpected($comparison, 121, 124, 121, 125);
+    SchemaPolicy::assertExpected($comparison, 121, 124, 122, 126);
     smoke_assert($comparison['valid'] === true, 'audited schema difference was rejected');
+    smoke_assert($comparison['columnMismatches'] === [], 'MySQL utf8 aliases or generated-default metadata were not normalized');
+    smoke_assert($comparison['indexMismatches'] === [], 'equivalent indexes with different map order were rejected');
+    smoke_assert($comparison['foreignKeyMismatches'] === [], 'equivalent NO ACTION and RESTRICT foreign-key rules were rejected');
+    smoke_assert(
+        $comparison['extraIndexes'] === ['biz_leave_application.idx_leave_after_sales_travel'],
+        'the audited new template index was not reported exactly'
+    );
+    $reorderedTemplateTables = $templateTables;
+    $reorderedTemplateTables['biz_leave_application']['indexes'] = array_reverse(
+        $reorderedTemplateTables['biz_leave_application']['indexes'],
+        true
+    );
+    smoke_assert(
+        DatabaseManifest::schemaHash($templateTables) === DatabaseManifest::schemaHash($reorderedTemplateTables),
+        'raw schema hash changed when only an associative index map order changed'
+    );
+    $mutatedTemplateTables = $templateTables;
+    $mutatedTemplateTables['biz_leave_application']['indexes']['idx_leave_after_sales_travel']['columns'] = array_reverse(
+        $mutatedTemplateTables['biz_leave_application']['indexes']['idx_leave_after_sales_travel']['columns']
+    );
+    smoke_assert(
+        DatabaseManifest::schemaHash($templateTables) !== DatabaseManifest::schemaHash($mutatedTemplateTables),
+        'raw schema hash ignored ordered composite-index columns'
+    );
+    $mutatedTemplateTables = $templateTables;
+    $mutatedTemplateTables['legacy_001']['columns']['ID']['ordinal'] = 99;
+    smoke_assert(
+        DatabaseManifest::schemaHash($templateTables) !== DatabaseManifest::schemaHash($mutatedTemplateTables),
+        'raw schema hash ignored a column ordinal change'
+    );
     $badTemplate = $templateTables;
     $badTemplate['legacy_001']['columns']['UNREVIEWED'] = smoke_column('varchar(10)');
     smoke_assert(
         SchemaPolicy::compareSourceToTemplate(['tables' => $sourceTables], ['tables' => $badTemplate])['valid'] === false,
         'unexpected new field was accepted'
+    );
+    $badTemplate = $templateTables;
+    $badTemplate['legacy_001']['indexes']['UNREVIEWED'] = [
+        'unique' => false,
+        'type' => 'BTREE',
+        'columns' => [['name' => 'ID', 'prefix' => null, 'collation' => 'A']],
+    ];
+    smoke_assert(
+        SchemaPolicy::compareSourceToTemplate(['tables' => $sourceTables], ['tables' => $badTemplate])['valid'] === false,
+        'unexpected new index was accepted'
+    );
+    $badTemplate = $templateTables;
+    unset($badTemplate['biz_leave_application']['indexes']['idx_legacy_leave']);
+    smoke_assert(
+        SchemaPolicy::compareSourceToTemplate(['tables' => $sourceTables], ['tables' => $badTemplate])['valid'] === false,
+        'missing legacy index was accepted'
+    );
+    $badTemplate = $templateTables;
+    $badTemplate['biz_leave_application']['indexes']['idx_leave_after_sales_travel']['unique'] = true;
+    smoke_assert(
+        SchemaPolicy::compareSourceToTemplate(['tables' => $sourceTables], ['tables' => $badTemplate])['valid'] === false,
+        'audited new index with the wrong definition was accepted'
+    );
+    $badTemplate = $templateTables;
+    $badTemplate['legacy_003']['collation'] = 'utf8mb4_bin';
+    smoke_assert(
+        SchemaPolicy::compareSourceToTemplate(['tables' => $sourceTables], ['tables' => $badTemplate])['valid'] === false,
+        'a real table collation change was accepted as an utf8 alias'
+    );
+    $badTemplate = $templateTables;
+    $badTemplate['legacy_003']['engine'] = 'MyISAM';
+    smoke_assert(
+        SchemaPolicy::compareSourceToTemplate(['tables' => $sourceTables], ['tables' => $badTemplate])['valid'] === false,
+        'a table engine change was accepted'
+    );
+    $badTemplate = $templateTables;
+    $badTemplate['legacy_004']['foreignKeys']['fk_equivalent_rule']['deleteRule'] = 'CASCADE';
+    smoke_assert(
+        SchemaPolicy::compareSourceToTemplate(['tables' => $sourceTables], ['tables' => $badTemplate])['valid'] === false,
+        'a real foreign-key delete-rule change was accepted'
+    );
+    $badTemplate = $templateTables;
+    $badTemplate['legacy_002']['columns'] = [
+        'SECOND' => $badTemplate['legacy_002']['columns']['SECOND'],
+        'ID' => $badTemplate['legacy_002']['columns']['ID'],
+    ];
+    smoke_assert(
+        SchemaPolicy::compareSourceToTemplate(['tables' => $sourceTables], ['tables' => $badTemplate])['valid'] === false,
+        'a legacy common-column reorder was accepted'
+    );
+    $badTemplate = $templateTables;
+    $badTemplate['legacy_001']['columns']['ID']['generationExpression'] = '1';
+    smoke_assert(
+        SchemaPolicy::compareSourceToTemplate(['tables' => $sourceTables], ['tables' => $badTemplate])['valid'] === false,
+        'a generated-column expression change was accepted'
+    );
+
+    $pathProject = $temporary . DIRECTORY_SEPARATOR . 'path-policy-project';
+    mkdir($pathProject . DIRECTORY_SEPARATOR . 'public', 0700, true);
+    mkdir($pathProject . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'backup', 0700, true);
+    $runner = new MigrationRunner($pathProject);
+    $safeManifestPath = new ReflectionMethod(MigrationRunner::class, 'safeManifestPath');
+    $safeManifestPath->setAccessible(true);
+    $previousPrivateManifest = getenv('OA_MIGRATION_PRIVATE_MANIFEST_DIRECTORY');
+    $invokeSafeManifestPath = static function (string $candidate) use (
+        $safeManifestPath,
+        $runner,
+        $previousPrivateManifest
+    ): mixed {
+        putenv('OA_MIGRATION_PRIVATE_MANIFEST_DIRECTORY=' . $candidate);
+        try {
+            return $safeManifestPath->invoke($runner, $candidate);
+        } finally {
+            if ($previousPrivateManifest === false) {
+                putenv('OA_MIGRATION_PRIVATE_MANIFEST_DIRECTORY');
+            } else {
+                putenv('OA_MIGRATION_PRIVATE_MANIFEST_DIRECTORY=' . $previousPrivateManifest);
+            }
+        }
+    };
+    smoke_throws(
+        static fn () => $invokeSafeManifestPath(
+            $pathProject . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . '..'
+            . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'nonexistent-audit'
+        ),
+        'public manifest guard was bypassed through an unresolved traversal path'
+    );
+    smoke_throws(
+        static fn () => $invokeSafeManifestPath(
+            $pathProject . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'private-audit'
+        ),
+        'manifest path outside runtime/backup was accepted'
+    );
+    smoke_throws(
+        static fn () => $invokeSafeManifestPath(
+            $temporary . DIRECTORY_SEPARATOR . 'external-private-audit'
+        ),
+        'external manifest path was accepted'
+    );
+    $allowedAuditPath = $invokeSafeManifestPath(
+        $pathProject . DIRECTORY_SEPARATOR . 'runtime' . DIRECTORY_SEPARATOR . 'backup'
+        . DIRECTORY_SEPARATOR . 'private-audit'
+    );
+    smoke_assert(
+        str_contains(str_replace('\\', '/', (string)$allowedAuditPath), '/runtime/backup/private-audit'),
+        'private runtime/backup manifest path was rejected or rewritten unexpectedly'
     );
 
     $taskIds = [];
@@ -252,7 +459,7 @@ PHP
         'status' => 'passed',
         'networkConnections' => 0,
         'databaseWrites' => 0,
-        'checks' => 19,
+        'checks' => $smokeChecks,
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL);
 } finally {
     $iterator = new RecursiveIteratorIterator(
