@@ -46,12 +46,19 @@ diagnostic artifact; these switches are for local diagnosis only.
 The script creates:
 
 ```text
-F:\AI\projects\testJava\release\oa.fucity.cn-<release-id>
-F:\AI\projects\testJava\release\oa.fucity.cn-<release-id>.zip
+E:\AI\projects\testJava\release\oa.fucity.cn-<release-id>
+E:\AI\projects\testJava\release\oa.fucity.cn-<release-id>.zip
 ```
 
 The release package intentionally excludes `.env`, `.git`, frontend source,
 frontend `node_modules`, and runtime artifacts.
+
+The build runs readiness in `-ReleasePackageBuild` mode against the assembled
+release root. In this mode required package entries and exclusions are enforced
+as failures, while the intentionally external `.env` is not copied into the
+artifact. PHP runtime, private environment, database, and web-server checks are
+performed after the atomic prepare step injects and verifies the separately
+approved private environment.
 
 ## Deploy After Approval
 

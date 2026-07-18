@@ -485,8 +485,8 @@ if (-not $SkipReadiness) {
         'Bypass',
         '-File',
         $readinessScript,
+        '-ReleasePackageBuild',
         '-CheckReleasePackagePolicy',
-        '-CheckFrontendBuildPolicy',
         '-ReleaseRoot',
         $ReleaseRoot
     ) -WorkingDirectory $ProjectRoot

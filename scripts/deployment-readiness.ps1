@@ -29,6 +29,7 @@ param(
     [switch]$CheckFrontendBuildPolicy,
     [switch]$CheckComposerPolicy,
     [switch]$CheckReleasePackagePolicy,
+    [switch]$ReleasePackageBuild,
     [string]$MysqlDumpBinary = 'mysqldump',
     [string]$MysqlClientBinary = 'mysql',
     [string]$BackupDirectory = 'runtime/backup',
@@ -472,6 +473,207 @@ function Get-HttpResponseMetadata {
             Error = $_.Exception.Message
         }
     }
+}
+
+function Invoke-ReleasePackageBuildPolicy {
+    param([string]$Root)
+
+    $releaseRootCanonical = Resolve-CanonicalPath -Path $Root
+    if ($null -eq $releaseRootCanonical -or -not (Test-Path -LiteralPath $releaseRootCanonical -PathType Container)) {
+        Add-Fail 'Release package root' "$Root missing or not a directory"
+        return
+    }
+
+    Add-Ok 'Release package root' $releaseRootCanonical
+
+    $entries = @(Get-ChildItem -LiteralPath $releaseRootCanonical -Recurse -Force -ErrorAction Stop)
+    $exactEntries = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    $foldedEntries = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($entry in $entries) {
+        $relative = $entry.FullName.Substring($releaseRootCanonical.Length).TrimStart('\', '/') -replace '\\', '/'
+        [void]$exactEntries.Add($relative)
+        [void]$foldedEntries.Add($relative)
+    }
+
+    function Test-RequiredReleaseEntry {
+        param(
+            [string]$Name,
+            [string]$RelativePath,
+            [string]$PathType
+        )
+
+        $fullPath = Join-Path $releaseRootCanonical ($RelativePath -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+        if ($exactEntries.Contains($RelativePath) -and (Test-Path -LiteralPath $fullPath -PathType $PathType)) {
+            Add-Ok $Name $RelativePath
+        } else {
+            Add-Fail $Name "$RelativePath missing from release root with exact casing"
+        }
+    }
+
+    $requiredFiles = @(
+        @{ Name = 'Release marker id'; Path = 'RELEASE-ID' },
+        @{ Name = 'Release marker commit'; Path = 'RELEASE-COMMIT' },
+        @{ Name = 'Release marker tags'; Path = 'RELEASE-TAGS' },
+        @{ Name = 'Release marker source state'; Path = 'RELEASE-SOURCE-DIRTY' },
+        @{ Name = 'Release marker diagnostic state'; Path = 'RELEASE-DIAGNOSTIC' },
+        @{ Name = 'Release file manifest'; Path = 'RELEASE-MANIFEST.json' },
+        @{ Name = 'Release backend entry think'; Path = 'think' },
+        @{ Name = 'Release Composer manifest'; Path = 'composer.json' },
+        @{ Name = 'Release Composer lock'; Path = 'composer.lock' },
+        @{ Name = 'Release Composer autoload'; Path = 'vendor/autoload.php' },
+        @{ Name = 'Release Composer installed PHP metadata'; Path = 'vendor/composer/installed.php' },
+        @{ Name = 'Release Composer installed JSON metadata'; Path = 'vendor/composer/installed.json' },
+        @{ Name = 'Release Composer platform check'; Path = 'vendor/composer/platform_check.php' },
+        @{ Name = 'Release public index'; Path = 'public/index.php' },
+        @{ Name = 'Release public router'; Path = 'public/router.php' },
+        @{ Name = 'Release public htaccess'; Path = 'public/.htaccess' },
+        @{ Name = 'Release config app'; Path = 'config/app.php' },
+        @{ Name = 'Release config database'; Path = 'config/database.php' },
+        @{ Name = 'Release config cache'; Path = 'config/cache.php' },
+        @{ Name = 'Release config log'; Path = 'config/log.php' },
+        @{ Name = 'Release config filesystem'; Path = 'config/filesystem.php' },
+        @{ Name = 'Release frontend index'; Path = 'snowy-admin-web/dist/index.html' }
+    )
+    foreach ($entry in $requiredFiles) {
+        Test-RequiredReleaseEntry -Name ([string]$entry.Name) -RelativePath ([string]$entry.Path) -PathType Leaf
+    }
+
+    $requiredDirectories = @(
+        @{ Name = 'Release app source'; Path = 'app' },
+        @{ Name = 'Release config source'; Path = 'config' },
+        @{ Name = 'Release route source'; Path = 'route' },
+        @{ Name = 'Release extend source'; Path = 'extend' },
+        @{ Name = 'Release vendor directory'; Path = 'vendor' },
+        @{ Name = 'Release public directory'; Path = 'public' },
+        @{ Name = 'Release frontend dist'; Path = 'snowy-admin-web/dist' },
+        @{ Name = 'Release frontend assets'; Path = 'snowy-admin-web/dist/assets' }
+    )
+    foreach ($entry in $requiredDirectories) {
+        Test-RequiredReleaseEntry -Name ([string]$entry.Name) -RelativePath ([string]$entry.Path) -PathType Container
+    }
+
+    if ($exactEntries.Contains('snowy-admin-web/dist/.vite/manifest.json') -or $exactEntries.Contains('snowy-admin-web/dist/manifest.json')) {
+        Add-Ok 'Release frontend manifest' 'present in dist'
+    } else {
+        Add-Fail 'Release frontend manifest' 'dist manifest missing from release root with exact casing'
+    }
+
+    $forbiddenEntries = @(
+        '.env',
+        '.example.env',
+        '.user.ini',
+        '.git',
+        '.codex',
+        '.agents',
+        '.idea',
+        '.vscode',
+        '.deploy',
+        'releases',
+        'shared',
+        'current',
+        'node_modules',
+        'snowy-admin-web/node_modules',
+        'snowy-admin-web/src',
+        'snowy-admin-web/.env',
+        'snowy-admin-web/.env.development',
+        'snowy-admin-web/.env.production',
+        'snowy-admin-web/package.json',
+        'snowy-admin-web/package-lock.json',
+        'snowy-admin-web/pnpm-lock.yaml',
+        'snowy-admin-web/yarn.lock',
+        'snowy-admin-web/vite.config.mjs',
+        'snowy-admin-web/stats.html',
+        'vendor/symfony/var-dumper',
+        'vendor/topthink/think-trace'
+    )
+    $forbiddenMatches = @($forbiddenEntries | Where-Object { $foldedEntries.Contains($_) })
+
+    $distSensitivePrefixes = @(
+        'snowy-admin-web/dist/.env',
+        'snowy-admin-web/dist/src',
+        'snowy-admin-web/dist/node_modules',
+        'snowy-admin-web/dist/package.json',
+        'snowy-admin-web/dist/package-lock.json',
+        'snowy-admin-web/dist/vite.config.mjs',
+        'snowy-admin-web/dist/.git'
+    )
+    foreach ($relative in $foldedEntries) {
+        $segments = @($relative -split '/')
+        if (@($segments | Where-Object { $_ -match '^(?i)\.env(?:\..+)?$' }).Count -gt 0) {
+            $forbiddenMatches += $relative
+            continue
+        }
+        if ($relative -like 'snowy-admin-web/dist/*.map') {
+            $forbiddenMatches += $relative
+            continue
+        }
+        foreach ($prefix in $distSensitivePrefixes) {
+            if ($relative.Equals($prefix, [System.StringComparison]::OrdinalIgnoreCase) -or $relative.StartsWith($prefix + '/', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $forbiddenMatches += $relative
+                break
+            }
+        }
+    }
+
+    $forbiddenMatches = @($forbiddenMatches | Sort-Object -Unique)
+    if ($forbiddenMatches.Count -eq 0) {
+        Add-Ok 'Release excluded entries' 'no secret, source-control, frontend-source, sourcemap, or dev-dependency entries found'
+    } else {
+        Add-Fail 'Release excluded entries' ($forbiddenMatches -join ', ')
+    }
+
+    $runtimeArtifacts = @(
+        $entries |
+            Where-Object { -not $_.PSIsContainer } |
+            ForEach-Object { $_.FullName.Substring($releaseRootCanonical.Length).TrimStart('\', '/') -replace '\\', '/' } |
+            Where-Object { $_ -like 'runtime/*' -and $_ -ne 'runtime/.gitignore' }
+    )
+    if ($runtimeArtifacts.Count -eq 0) {
+        Add-Ok 'Release runtime artifacts' 'no runtime files found except optional placeholder'
+    } else {
+        Add-Fail 'Release runtime artifacts' (($runtimeArtifacts | Sort-Object -Unique) -join ', ')
+    }
+
+    $publicForbidden = @(
+        '.env', '.git', 'composer.json', 'composer.lock', 'vendor', 'app', 'config',
+        'route', 'extend', 'docs', 'scripts', 'snowy-admin-web'
+    ) | ForEach-Object { "public/$_" }
+    $publicMatches = @($publicForbidden | Where-Object { $foldedEntries.Contains($_) })
+    if ($publicMatches.Count -eq 0) {
+        Add-Ok 'Release public root exposure' 'no project source, config, or dependency entries under public'
+    } else {
+        Add-Fail 'Release public root exposure' ($publicMatches -join ', ')
+    }
+
+    $reparseEntries = @($entries | Where-Object { ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 })
+    if ($reparseEntries.Count -eq 0) {
+        Add-Ok 'Release special path guard' 'no reparse-point entries found'
+    } else {
+        $relativeLinks = @($reparseEntries | ForEach-Object { $_.FullName.Substring($releaseRootCanonical.Length).TrimStart('\', '/') -replace '\\', '/' })
+        Add-Fail 'Release special path guard' (($relativeLinks | Sort-Object -Unique) -join ', ')
+    }
+}
+
+if ($ReleasePackageBuild) {
+    $allowedParameters = @('ReleasePackageBuild', 'CheckReleasePackagePolicy', 'ReleaseRoot')
+    $unsupportedParameters = @($PSBoundParameters.Keys | Where-Object { $allowedParameters -notcontains $_ })
+    if (-not $CheckReleasePackagePolicy) {
+        throw '-ReleasePackageBuild requires -CheckReleasePackagePolicy.'
+    }
+    if ($unsupportedParameters.Count -gt 0) {
+        throw "-ReleasePackageBuild accepts only -CheckReleasePackagePolicy and -ReleaseRoot; unsupported: $($unsupportedParameters -join ', ')"
+    }
+
+    Write-Host "Release package build root: $ReleaseRoot"
+    Write-Host 'Artifact-only mode is read-only and does not inspect .env, PHP, Composer, writable paths, ThinkPHP boot, network, or database state.'
+    Write-Host ''
+    Invoke-ReleasePackageBuildPolicy -Root $ReleaseRoot
+    Write-Host ''
+    Write-Host "Deployment readiness summary: $script:FailureCount failures, $script:WarningCount warnings"
+    if ($script:FailureCount -gt 0) {
+        exit 1
+    }
+    exit 0
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..')

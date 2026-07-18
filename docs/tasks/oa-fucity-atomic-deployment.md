@@ -192,6 +192,13 @@ Build only from a clean dedicated worktree at the approved commit and tag.
 Record the package SHA-256, commit, tag, file manifest, and build evidence in
 the release ticket.
 
+The local builder invokes `deployment-readiness.ps1 -ReleasePackageBuild`
+against the assembled release tree. That artifact-only gate enforces the
+release package policy, validates the built Composer/frontend entries, and
+confirms `.env` remains outside the package. It does not replace prepare-time
+verification of the protected external environment or post-prepare runtime
+readiness on the target server.
+
 The build and deploy contracts use the same 1-80 character ReleaseId rule and
 the same non-empty `candidate/oa-*` or `release/oa-*` tag rule. Any build using
 `SkipFrontendBuild`, `SkipComposerInstall`, or `SkipReadiness` is marked
@@ -396,9 +403,11 @@ Run locally without a database, network, BaoTa, Nginx, or PHP-FPM:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File `
   .\scripts\oa-fucity-atomic-deploy-offline-smoke.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File `
+  .\scripts\deployment-readiness-release-package-offline-smoke.ps1
 ```
 
-The smoke uses a temporary site tree and stub executables. It covers:
+The smokes use temporary trees and stub executables. They cover:
 
 - baseline initialization and the exact three Nginx path changes;
 - stable `/storage` alias preservation;
