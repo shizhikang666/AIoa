@@ -9,6 +9,9 @@ use PDOException;
 
 class PdoWorkflowVariableMigrationStore implements WorkflowVariableMigrationStore
 {
+    private const MIN_RUNTIME_TEXT_BYTES = 4000;
+    private const MIN_HISTORY_TEXT_BYTES = 64000;
+
     private const VARIABLE_TABLES = [
         'act_ru_variable' => 'TYPE_',
         'act_hi_varinst' => 'VAR_TYPE_',
@@ -56,6 +59,11 @@ class PdoWorkflowVariableMigrationStore implements WorkflowVariableMigrationStor
                     throw new WorkflowVariableMigrationException('TARGET_SCHEMA_REJECTED');
                 }
             }
+        }
+        if ($this->textColumnCapacity('act_ru_variable', 'TEXT_') < self::MIN_RUNTIME_TEXT_BYTES
+            || $this->textColumnCapacity('act_hi_varinst', 'TEXT_') < self::MIN_HISTORY_TEXT_BYTES
+        ) {
+            throw new WorkflowVariableMigrationException('TARGET_VARIABLE_TEXT_CAPACITY_REJECTED');
         }
 
         foreach ([
@@ -192,6 +200,21 @@ class PdoWorkflowVariableMigrationStore implements WorkflowVariableMigrationStor
             'column' => $column,
         ]);
         return (int)$statement->fetchColumn() === 1;
+    }
+
+    private function textColumnCapacity(string $table, string $column): int
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS '
+            . 'WHERE TABLE_SCHEMA = :database AND TABLE_NAME = :table AND COLUMN_NAME = :column'
+        );
+        $statement->execute([
+            'database' => $this->expectedDatabase,
+            'table' => $table,
+            'column' => $column,
+        ]);
+        $capacity = $statement->fetchColumn();
+        return $capacity === false || $capacity === null ? 0 : (int)$capacity;
     }
 
     private function tableExists(string $table): bool

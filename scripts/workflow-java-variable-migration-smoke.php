@@ -170,6 +170,28 @@ $allowed = $decoder->decode(WorkflowJavaVariableFixtureBuilder::allowedObjectLis
 assertSameValue('12.50', $allowed[0]['number'] ?? null, 'BigDecimal/BigInteger conversion');
 assertSameValue('fixture-product', $allowed[0]['productName'] ?? null, 'procure product field');
 assertSameValue('fixture-supplier', $allowed[1]['name'] ?? null, 'supplier field');
+$projectAllowed = $decoder->decode(WorkflowJavaVariableFixtureBuilder::allowedProjectObjectList());
+assertSameValue('0.2', $projectAllowed[0]['amount'] ?? null, 'project delivery amount');
+assertSameValue('0.10', $projectAllowed[1]['discountRate'] ?? null, 'project reissue discount');
+assertSameValue(
+    'fixture-return-project-item-id',
+    $projectAllowed[2]['projectProductItemId'] ?? null,
+    'project return item id'
+);
+assertSameValue(
+    'fixture-relation-product',
+    $projectAllowed[3]['children'][0]['productName'] ?? null,
+    'sale project child relation'
+);
+assertSameValue('1', $projectAllowed[4]['number'] ?? null, 'sale project relation number');
+assertSameValue(null, $projectAllowed[5]['amount'] ?? null, 'sale project invoicing nullable amount');
+assertSameValue(
+    'fixture-customer-company',
+    $projectAllowed[5]['customerCompany'] ?? null,
+    'sale project invoicing customer'
+);
+$emptyChildren = $decoder->decode(WorkflowJavaVariableFixtureBuilder::saleProjectItemEmptyChildren());
+assertSameValue([], $emptyChildren['children'] ?? null, 'sale project empty child relations');
 assertSameValue([], $decoder->decode(WorkflowJavaVariableFixtureBuilder::emptyList()), 'empty list');
 assertSameValue(
     [[], []],
@@ -181,6 +203,61 @@ assertMigrationFailure(
     'JAVA_CLASS_NOT_ALLOWED',
     static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::unknownObject()),
     'unknown class rejection'
+);
+assertMigrationFailure(
+    'JAVA_CLASS_IDENTITY_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::projectDeliveryWrongUid()),
+    'project class UID rejection'
+);
+assertMigrationFailure(
+    'JAVA_CLASS_IDENTITY_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::projectDeliveryWrongFlags()),
+    'project class flags rejection'
+);
+assertMigrationFailure(
+    'JAVA_CLASS_FIELDS_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::projectDeliveryWrongFieldSignature()),
+    'project class field signature rejection'
+);
+assertMigrationFailure(
+    'JAVA_CLASS_FIELDS_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::projectDeliveryMissingField()),
+    'project class missing field rejection'
+);
+assertMigrationFailure(
+    'JAVA_CLASS_FIELDS_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::projectDeliveryExtraField()),
+    'project class extra field rejection'
+);
+assertMigrationFailure(
+    'JAVA_CLASS_SUPER_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::projectDeliveryWrongSuper()),
+    'project class superclass rejection'
+);
+assertMigrationFailure(
+    'JAVA_CUSTOM_DECIMAL_VALUE_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::projectDeliveryNullAmount()),
+    'project class decimal value rejection'
+);
+assertMigrationFailure(
+    'JAVA_CUSTOM_RELATION_ITEM_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::saleProjectItemInvalidChild()),
+    'sale project child relation rejection'
+);
+assertMigrationFailure(
+    'JAVA_CUSTOM_RELATION_ITEM_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::saleProjectItemNullChild()),
+    'sale project null child rejection'
+);
+assertMigrationFailure(
+    'JAVA_CUSTOM_RELATION_ITEM_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::saleProjectItemOtherObjectChild()),
+    'sale project other DTO child rejection'
+);
+assertMigrationFailure(
+    'JAVA_CUSTOM_RELATION_ITEM_REJECTED',
+    static fn () => $decoder->decode(WorkflowJavaVariableFixtureBuilder::saleProjectItemNestedListChild()),
+    'sale project nested-list child rejection'
 );
 assertMigrationFailure(
     'JAVA_PROXY_REJECTED',
@@ -196,15 +273,15 @@ $truncated = substr(WorkflowJavaVariableFixtureBuilder::allowedObjectList(), 0, 
 assertMigrationFailure('JAVA_STREAM_TRUNCATED', static fn () => $decoder->decode($truncated), 'truncated stream');
 
 $scalarBoundary = $decoder->decode(
-    WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList('x', 4000)
+    WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList(str_repeat('x', 4000), 16)
 );
-assertSameValue(4000, count($scalarBoundary), 'expanded scalar 4000-byte boundary');
+assertSameValue(16, count($scalarBoundary), 'expanded scalar 64000-byte boundary');
 assertMigrationFailure(
     'JAVA_EXPANDED_SCALAR_LIMIT_REJECTED',
     static fn () => $decoder->decode(
-        WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList('x', 4001)
+        WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList(str_repeat('x', 4000), 17)
     ),
-    'expanded scalar 4001-byte boundary'
+    'expanded scalar 68000-byte rejection'
 );
 $wireStringBoundary = $decoder->decode(
     WorkflowJavaVariableFixtureBuilder::stringList([str_repeat('s', 4000)])
@@ -221,8 +298,8 @@ assertMigrationFailure(
     'JAVA_EXPANDED_SCALAR_LIMIT_REJECTED',
     static fn () => $decoder->decode(
         WorkflowJavaVariableFixtureBuilder::repeatedNestedListDag(
-            array_fill(0, 20, 'abcdefghij'),
-            21
+            [str_repeat('d', 200)],
+            321
         )
     ),
     'repeated nested-list DAG expansion'
@@ -325,6 +402,54 @@ assertMigrationFailure(
 );
 assertSameValue(0, $overlongStore->updateCalls, 'overlong no writes');
 
+$longHistoryBytes = WorkflowJavaVariableFixtureBuilder::stringList([
+    str_repeat('h', 3000),
+    str_repeat('i', 3000),
+]);
+$longHistoryStore = new OfflineWorkflowVariableStore([
+    fixtureRow(
+        'act_hi_varinst',
+        'var-long-history',
+        'process-long-history',
+        'productList',
+        'bytes-long-history',
+        $longHistoryBytes
+    ),
+]);
+$longHistorySummary = (new WorkflowVariableMigrationService($longHistoryStore))->run();
+assertSameValue(1, $longHistorySummary['candidateCount'], 'history JSON above runtime limit accepted');
+assertSameValue(0, $longHistoryStore->updateCalls, 'long history dry-run no writes');
+
+$historyLimitStore = new OfflineWorkflowVariableStore([
+    fixtureRow(
+        'act_hi_varinst',
+        'var-history-limit',
+        'process-history-limit',
+        'productList',
+        'bytes-history-limit',
+        WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList(str_repeat('q', 4000), 15)
+    ),
+]);
+$historyLimitSummary = (new WorkflowVariableMigrationService($historyLimitStore))->run();
+assertSameValue(1, $historyLimitSummary['candidateCount'], 'history JSON below 64000-byte limit');
+
+$historyOverlongStore = new OfflineWorkflowVariableStore([
+    fixtureRow(
+        'act_hi_varinst',
+        'var-history-overlong',
+        'process-history-overlong',
+        'productList',
+        'bytes-history-overlong',
+        WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList(str_repeat('q', 4000), 16)
+    ),
+]);
+assertMigrationFailure(
+    'SERIALIZED_JSON_TOO_LONG',
+    static fn () => (new WorkflowVariableMigrationService($historyOverlongStore))->run(),
+    'history JSON overlong rejection'
+);
+assertSameValue(0, $historyOverlongStore->updateCalls, 'history overlong no writes');
+
 $budgetRollbackStore = new OfflineWorkflowVariableStore([
     fixtureRow(
         'act_ru_variable',
@@ -340,7 +465,7 @@ $budgetRollbackStore = new OfflineWorkflowVariableStore([
         'process-budget-amplified',
         'fileIdList',
         'budget-bytes-amplified',
-        WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList(str_repeat('z', 100), 41)
+        WorkflowJavaVariableFixtureBuilder::repeatedStringReferenceList(str_repeat('z', 4000), 17)
     ),
 ]);
 $budgetRollbackRows = $budgetRollbackStore->rows;

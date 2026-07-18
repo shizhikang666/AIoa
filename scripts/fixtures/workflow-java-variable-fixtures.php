@@ -25,6 +25,18 @@ final class WorkflowJavaVariableFixtureBuilder
     private const PROCURE_PRODUCT =
         'vip.xiaonuo.biz.modular.bizprocess.param.process.procure.BizProcessProcureProductParam';
     private const SUPPLIER = 'vip.xiaonuo.biz.modular.supplier.param.SupplierAddParam';
+    private const PROJECT_DELIVERY_ITEM =
+        'vip.xiaonuo.biz.modular.bizprocess.param.process.project.BizProcessProjectDeliveryParam$projectProductItemParam';
+    private const PROJECT_REISSUE_PRODUCT =
+        'vip.xiaonuo.biz.modular.bizprocess.param.process.project.BizProcessProjectReissueProductParam$Product';
+    private const PROJECT_RETURN_PRODUCT =
+        'vip.xiaonuo.biz.modular.bizprocess.param.process.project.BizProcessProjectReturnProductParam';
+    private const SALE_PROJECT_ITEM =
+        'vip.xiaonuo.biz.modular.saleproject.param.BizProjectItemParam';
+    private const SALE_PROJECT_ITEM_RELATION =
+        'vip.xiaonuo.biz.modular.saleproject.param.BizProjectItemRelationParam';
+    private const SALE_PROJECT_INVOICING =
+        'vip.xiaonuo.biz.modular.saleprojectinvoicing.param.BizSaleProjectInvoicingAddParam';
 
     public static function allowedObjectList(): string
     {
@@ -34,6 +46,108 @@ final class WorkflowJavaVariableFixtureBuilder
             self::newString('fixture-id'),
         ];
         return self::stream(self::arrayList($items));
+    }
+
+    public static function allowedProjectObjectList(): string
+    {
+        return self::stream(self::arrayList([
+            self::projectDeliveryItem(self::bigDecimal(1, 2)),
+            self::projectReissueProduct(),
+            self::projectReturnProduct(),
+            self::saleProjectItem(self::arrayList([self::saleProjectItemRelation()])),
+            self::saleProjectItemRelation(),
+            self::saleProjectInvoicing(self::TC_NULL),
+        ]));
+    }
+
+    public static function projectDeliveryWrongUid(): string
+    {
+        return self::stream(
+            self::TC_OBJECT
+            . self::classDesc(self::PROJECT_DELIVERY_ITEM, '0000000000000001', 0x02, self::projectDeliveryFields())
+        );
+    }
+
+    public static function projectDeliveryWrongFlags(): string
+    {
+        return self::stream(
+            self::TC_OBJECT
+            . self::classDesc(self::PROJECT_DELIVERY_ITEM, '33B0A1584FEB6090', 0x03, self::projectDeliveryFields())
+        );
+    }
+
+    public static function projectDeliveryWrongFieldSignature(): string
+    {
+        $fields = self::projectDeliveryFields();
+        $fields['amount'] = 'Ljava/lang/String;';
+        return self::stream(
+            self::TC_OBJECT
+            . self::classDesc(self::PROJECT_DELIVERY_ITEM, '33B0A1584FEB6090', 0x02, $fields)
+        );
+    }
+
+    public static function projectDeliveryMissingField(): string
+    {
+        $fields = self::projectDeliveryFields();
+        unset($fields['warehousesId']);
+        return self::stream(
+            self::TC_OBJECT
+            . self::classDesc(self::PROJECT_DELIVERY_ITEM, '33B0A1584FEB6090', 0x02, $fields)
+        );
+    }
+
+    public static function projectDeliveryExtraField(): string
+    {
+        $fields = self::projectDeliveryFields();
+        $fields['unexpected'] = 'Ljava/lang/String;';
+        return self::stream(
+            self::TC_OBJECT
+            . self::classDesc(self::PROJECT_DELIVERY_ITEM, '33B0A1584FEB6090', 0x02, $fields)
+        );
+    }
+
+    public static function projectDeliveryWrongSuper(): string
+    {
+        return self::stream(
+            self::TC_OBJECT
+            . self::classDesc(
+                self::PROJECT_DELIVERY_ITEM,
+                '33B0A1584FEB6090',
+                0x02,
+                self::projectDeliveryFields(),
+                self::numberDesc()
+            )
+        );
+    }
+
+    public static function projectDeliveryNullAmount(): string
+    {
+        return self::stream(self::projectDeliveryItem(self::TC_NULL));
+    }
+
+    public static function saleProjectItemInvalidChild(): string
+    {
+        return self::stream(self::saleProjectItem(self::arrayList([self::newString('invalid-child')])));
+    }
+
+    public static function saleProjectItemNullChild(): string
+    {
+        return self::stream(self::saleProjectItem(self::arrayList([self::TC_NULL])));
+    }
+
+    public static function saleProjectItemOtherObjectChild(): string
+    {
+        return self::stream(self::saleProjectItem(self::arrayList([self::procureProduct()])));
+    }
+
+    public static function saleProjectItemNestedListChild(): string
+    {
+        return self::stream(self::saleProjectItem(self::arrayList([self::arrayList([])])));
+    }
+
+    public static function saleProjectItemEmptyChildren(): string
+    {
+        return self::stream(self::saleProjectItem(self::arrayList([])));
     }
 
     /** @param array<int, string> $values */
@@ -249,6 +363,160 @@ final class WorkflowJavaVariableFixtureBuilder
             . self::TC_NULL
             . self::newString('ENABLE')
             . self::newString('fixture-tax');
+    }
+
+    /** @return array<string, string> */
+    private static function projectDeliveryFields(): array
+    {
+        return [
+            'amount' => 'Ljava/math/BigDecimal;',
+            'productId' => 'Ljava/lang/String;',
+            'productName' => 'Ljava/lang/String;',
+            'projectProductItemId' => 'Ljava/lang/String;',
+            'remark' => 'Ljava/lang/String;',
+            'warehousesId' => 'Ljava/lang/String;',
+        ];
+    }
+
+    private static function projectDeliveryItem(string $amount): string
+    {
+        return self::TC_OBJECT
+            . self::classDesc(
+                self::PROJECT_DELIVERY_ITEM,
+                '33B0A1584FEB6090',
+                0x02,
+                self::projectDeliveryFields()
+            )
+            . $amount
+            . self::newString('fixture-product-id')
+            . self::newString('fixture-product-name')
+            . self::newString('fixture-project-item-id')
+            . self::newString('fixture-remark')
+            . self::newString('fixture-warehouse-id');
+    }
+
+    private static function projectReissueProduct(): string
+    {
+        $fields = [
+            'children' => 'Ljava/util/List;',
+            'discountRate' => 'Ljava/math/BigDecimal;',
+            'number' => 'Ljava/math/BigDecimal;',
+            'price' => 'Ljava/math/BigDecimal;',
+            'productId' => 'Ljava/lang/String;',
+            'productName' => 'Ljava/lang/String;',
+            'remark' => 'Ljava/lang/String;',
+            'unitPrice' => 'Ljava/math/BigDecimal;',
+        ];
+        return self::TC_OBJECT
+            . self::classDesc(self::PROJECT_REISSUE_PRODUCT, '709D5B0B36CAB843', 0x02, $fields)
+            . self::TC_NULL
+            . self::bigDecimal(2, 10)
+            . self::bigDecimal(0, 2)
+            . self::bigDecimal(2, 20)
+            . self::newString('fixture-reissue-product-id')
+            . self::newString('fixture-reissue-product')
+            . self::newString('fixture-reissue-remark')
+            . self::bigDecimal(2, 10);
+    }
+
+    private static function projectReturnProduct(): string
+    {
+        $fields = [
+            'amount' => 'Ljava/math/BigDecimal;',
+            'productId' => 'Ljava/lang/String;',
+            'productName' => 'Ljava/lang/String;',
+            'projectProductItemId' => 'Ljava/lang/String;',
+            'remark' => 'Ljava/lang/String;',
+        ];
+        return self::TC_OBJECT
+            . self::classDesc(self::PROJECT_RETURN_PRODUCT, '41828D14CD20EAAC', 0x02, $fields)
+            . self::bigDecimal(0, 1)
+            . self::newString('fixture-return-product-id')
+            . self::newString('fixture-return-product')
+            . self::newString('fixture-return-project-item-id')
+            . self::newString('fixture-return-remark');
+    }
+
+    private static function saleProjectItem(string $children): string
+    {
+        $fields = [
+            'children' => 'Ljava/util/List;',
+            'discountRate' => 'Ljava/math/BigDecimal;',
+            'number' => 'Ljava/math/BigDecimal;',
+            'price' => 'Ljava/math/BigDecimal;',
+            'productCategory' => 'Ljava/lang/String;',
+            'productId' => 'Ljava/lang/String;',
+            'productName' => 'Ljava/lang/String;',
+            'productSysCategory' => 'Ljava/lang/String;',
+            'remark' => 'Ljava/lang/String;',
+            'unitPrice' => 'Ljava/math/BigDecimal;',
+        ];
+        return self::TC_OBJECT
+            . self::classDesc(self::SALE_PROJECT_ITEM, '15358F74F340806D', 0x02, $fields)
+            . $children
+            . self::bigDecimal(2, 95)
+            . self::bigDecimal(0, 2)
+            . self::bigDecimal(2, 20)
+            . self::newString('fixture-category')
+            . self::newString('fixture-project-product-id')
+            . self::newString('fixture-project-product')
+            . self::TC_NULL
+            . self::newString('fixture-project-remark')
+            . self::bigDecimal(2, 10);
+    }
+
+    private static function saleProjectItemRelation(): string
+    {
+        $fields = [
+            'number' => 'Ljava/math/BigDecimal;',
+            'productId' => 'Ljava/lang/String;',
+            'productName' => 'Ljava/lang/String;',
+            'remark' => 'Ljava/lang/String;',
+        ];
+        return self::TC_OBJECT
+            . self::classDesc(self::SALE_PROJECT_ITEM_RELATION, '2FE2A3BC42390BEE', 0x02, $fields)
+            . self::bigDecimal(0, 1)
+            . self::newString('fixture-relation-product-id')
+            . self::newString('fixture-relation-product')
+            . self::newString('fixture-relation-remark');
+    }
+
+    private static function saleProjectInvoicing(string $amount): string
+    {
+        $fields = [
+            'amount' => 'Ljava/math/BigDecimal;',
+            'bankName' => 'Ljava/lang/String;',
+            'companyName' => 'Ljava/lang/String;',
+            'corporateAccount' => 'Ljava/lang/String;',
+            'customerCompany' => 'Ljava/lang/String;',
+            'harvestAddress' => 'Ljava/lang/String;',
+            'invoicingCategory' => 'Ljava/lang/String;',
+            'phone' => 'Ljava/lang/String;',
+            'processId' => 'Ljava/lang/String;',
+            'projectId' => 'Ljava/lang/String;',
+            'remark' => 'Ljava/lang/String;',
+            'taxpayer' => 'Ljava/lang/String;',
+            'unit' => 'Ljava/lang/String;',
+            'unitAddress' => 'Ljava/lang/String;',
+            'unitPhone' => 'Ljava/lang/String;',
+        ];
+        return self::TC_OBJECT
+            . self::classDesc(self::SALE_PROJECT_INVOICING, 'E281308EEAED6866', 0x02, $fields)
+            . $amount
+            . self::TC_NULL
+            . self::newString('fixture-invoice-company')
+            . self::TC_NULL
+            . self::newString('fixture-customer-company')
+            . self::TC_NULL
+            . self::newString('fixture-invoice-category')
+            . self::TC_NULL
+            . self::newString('fixture-process-id')
+            . self::newString('fixture-project-id')
+            . self::TC_NULL
+            . self::newString('fixture-taxpayer')
+            . self::newString('fixture-unit')
+            . self::TC_NULL
+            . self::TC_NULL;
     }
 
     private static function bigDecimal(int $scale, int $unscaled): string

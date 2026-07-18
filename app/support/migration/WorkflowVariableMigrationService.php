@@ -9,7 +9,11 @@ use Throwable;
 
 class WorkflowVariableMigrationService
 {
-    private const MAX_JSON_BYTES = 4000;
+    // Runtime TEXT_ remains varchar(4000); historic TEXT_ is LONGTEXT. The
+    // separate caps preserve active-process compatibility while allowing the
+    // audited larger historic product-list snapshots to be converted.
+    private const MAX_RUNTIME_JSON_BYTES = 4000;
+    private const MAX_HISTORY_JSON_BYTES = 64000;
 
     private WorkflowVariableMigrationStore $store;
     private JavaSerializationDecoder $decoder;
@@ -131,7 +135,10 @@ class WorkflowVariableMigrationService
                 );
             }
 
-            if (strlen($json) > self::MAX_JSON_BYTES) {
+            $maxJsonBytes = $table === 'act_ru_variable'
+                ? self::MAX_RUNTIME_JSON_BYTES
+                : self::MAX_HISTORY_JSON_BYTES;
+            if (strlen($json) > $maxJsonBytes) {
                 throw new WorkflowVariableMigrationException(
                     'SERIALIZED_JSON_TOO_LONG_' . $this->idSummary($id)
                 );

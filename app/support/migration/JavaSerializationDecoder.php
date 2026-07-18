@@ -53,7 +53,9 @@ class JavaSerializationDecoder
     private const MAX_BIG_INTEGER_MAGNITUDE_BYTES = 1661;
     private const MAX_HANDLES = 20000;
     private const MAX_DEPTH = 64;
-    private const MAX_EXPANDED_SCALAR_BYTES = 4000;
+    // Historic workflow TEXT_ is LONGTEXT. Keep a bounded budget large enough
+    // for the audited legacy product lists without relaxing per-string limits.
+    private const MAX_EXPANDED_SCALAR_BYTES = 64000;
     private const MAX_EXPANDED_NODES = 4096;
     private const MAX_TOTAL_CONTAINER_ITEMS = 4096;
     private const MAX_EXPANDED_DEPTH = 64;
@@ -67,6 +69,18 @@ class JavaSerializationDecoder
     private const CLASS_PROCURE_PRODUCT =
         'vip.xiaonuo.biz.modular.bizprocess.param.process.procure.BizProcessProcureProductParam';
     private const CLASS_SUPPLIER = 'vip.xiaonuo.biz.modular.supplier.param.SupplierAddParam';
+    private const CLASS_PROJECT_DELIVERY_ITEM =
+        'vip.xiaonuo.biz.modular.bizprocess.param.process.project.BizProcessProjectDeliveryParam$projectProductItemParam';
+    private const CLASS_PROJECT_REISSUE_PRODUCT =
+        'vip.xiaonuo.biz.modular.bizprocess.param.process.project.BizProcessProjectReissueProductParam$Product';
+    private const CLASS_PROJECT_RETURN_PRODUCT =
+        'vip.xiaonuo.biz.modular.bizprocess.param.process.project.BizProcessProjectReturnProductParam';
+    private const CLASS_SALE_PROJECT_ITEM =
+        'vip.xiaonuo.biz.modular.saleproject.param.BizProjectItemParam';
+    private const CLASS_SALE_PROJECT_ITEM_RELATION =
+        'vip.xiaonuo.biz.modular.saleproject.param.BizProjectItemRelationParam';
+    private const CLASS_SALE_PROJECT_INVOICING =
+        'vip.xiaonuo.biz.modular.saleprojectinvoicing.param.BizSaleProjectInvoicingAddParam';
 
     /**
      * UID values are compared as their unsigned, big-endian wire bytes.
@@ -155,6 +169,96 @@ class JavaSerializationDecoder
                 'sortCode' => 'Ljava/lang/Integer;',
                 'status' => 'Ljava/lang/String;',
                 'taxRegistrationNumber' => 'Ljava/lang/String;',
+            ],
+            'super' => null,
+        ],
+        self::CLASS_PROJECT_DELIVERY_ITEM => [
+            'uid' => '33B0A1584FEB6090',
+            'flags' => 0x02,
+            'fields' => [
+                'amount' => 'Ljava/math/BigDecimal;',
+                'productId' => 'Ljava/lang/String;',
+                'productName' => 'Ljava/lang/String;',
+                'projectProductItemId' => 'Ljava/lang/String;',
+                'remark' => 'Ljava/lang/String;',
+                'warehousesId' => 'Ljava/lang/String;',
+            ],
+            'super' => null,
+        ],
+        self::CLASS_PROJECT_REISSUE_PRODUCT => [
+            'uid' => '709D5B0B36CAB843',
+            'flags' => 0x02,
+            'fields' => [
+                'children' => 'Ljava/util/List;',
+                'discountRate' => 'Ljava/math/BigDecimal;',
+                'number' => 'Ljava/math/BigDecimal;',
+                'price' => 'Ljava/math/BigDecimal;',
+                'productId' => 'Ljava/lang/String;',
+                'productName' => 'Ljava/lang/String;',
+                'remark' => 'Ljava/lang/String;',
+                'unitPrice' => 'Ljava/math/BigDecimal;',
+            ],
+            'super' => null,
+        ],
+        self::CLASS_PROJECT_RETURN_PRODUCT => [
+            'uid' => '41828D14CD20EAAC',
+            'flags' => 0x02,
+            'fields' => [
+                'amount' => 'Ljava/math/BigDecimal;',
+                'productId' => 'Ljava/lang/String;',
+                'productName' => 'Ljava/lang/String;',
+                'projectProductItemId' => 'Ljava/lang/String;',
+                'remark' => 'Ljava/lang/String;',
+            ],
+            'super' => null,
+        ],
+        self::CLASS_SALE_PROJECT_ITEM => [
+            'uid' => '15358F74F340806D',
+            'flags' => 0x02,
+            'fields' => [
+                'children' => 'Ljava/util/List;',
+                'discountRate' => 'Ljava/math/BigDecimal;',
+                'number' => 'Ljava/math/BigDecimal;',
+                'price' => 'Ljava/math/BigDecimal;',
+                'productCategory' => 'Ljava/lang/String;',
+                'productId' => 'Ljava/lang/String;',
+                'productName' => 'Ljava/lang/String;',
+                'productSysCategory' => 'Ljava/lang/String;',
+                'remark' => 'Ljava/lang/String;',
+                'unitPrice' => 'Ljava/math/BigDecimal;',
+            ],
+            'super' => null,
+        ],
+        self::CLASS_SALE_PROJECT_ITEM_RELATION => [
+            'uid' => '2FE2A3BC42390BEE',
+            'flags' => 0x02,
+            'fields' => [
+                'number' => 'Ljava/math/BigDecimal;',
+                'productId' => 'Ljava/lang/String;',
+                'productName' => 'Ljava/lang/String;',
+                'remark' => 'Ljava/lang/String;',
+            ],
+            'super' => null,
+        ],
+        self::CLASS_SALE_PROJECT_INVOICING => [
+            'uid' => 'E281308EEAED6866',
+            'flags' => 0x02,
+            'fields' => [
+                'amount' => 'Ljava/math/BigDecimal;',
+                'bankName' => 'Ljava/lang/String;',
+                'companyName' => 'Ljava/lang/String;',
+                'corporateAccount' => 'Ljava/lang/String;',
+                'customerCompany' => 'Ljava/lang/String;',
+                'harvestAddress' => 'Ljava/lang/String;',
+                'invoicingCategory' => 'Ljava/lang/String;',
+                'phone' => 'Ljava/lang/String;',
+                'processId' => 'Ljava/lang/String;',
+                'projectId' => 'Ljava/lang/String;',
+                'remark' => 'Ljava/lang/String;',
+                'taxpayer' => 'Ljava/lang/String;',
+                'unit' => 'Ljava/lang/String;',
+                'unitAddress' => 'Ljava/lang/String;',
+                'unitPhone' => 'Ljava/lang/String;',
             ],
             'super' => null,
         ],
@@ -539,6 +643,124 @@ class JavaSerializationDecoder
             }
             return $values;
         }
+        if ($className === self::CLASS_PROJECT_DELIVERY_ITEM) {
+            $this->assertBigDecimalFields($values, ['amount']);
+            $this->assertStringOrNullFields($values, [
+                'productId',
+                'productName',
+                'projectProductItemId',
+                'remark',
+                'warehousesId',
+            ]);
+            return [
+                'amount' => $values['amount'],
+                'productId' => $values['productId'],
+                'productName' => $values['productName'],
+                'projectProductItemId' => $values['projectProductItemId'],
+                'remark' => $values['remark'],
+                'warehousesId' => $values['warehousesId'],
+            ];
+        }
+        if ($className === self::CLASS_PROJECT_REISSUE_PRODUCT) {
+            $this->assertRelationListOrNull($values['children'] ?? null);
+            $this->assertBigDecimalFields($values, ['discountRate', 'number', 'price', 'unitPrice']);
+            $this->assertStringOrNullFields($values, ['productId', 'productName', 'remark']);
+            return [
+                'children' => $values['children'],
+                'discountRate' => $values['discountRate'],
+                'number' => $values['number'],
+                'price' => $values['price'],
+                'productId' => $values['productId'],
+                'productName' => $values['productName'],
+                'remark' => $values['remark'],
+                'unitPrice' => $values['unitPrice'],
+            ];
+        }
+        if ($className === self::CLASS_PROJECT_RETURN_PRODUCT) {
+            $this->assertBigDecimalFields($values, ['amount']);
+            $this->assertStringOrNullFields($values, [
+                'productId',
+                'productName',
+                'projectProductItemId',
+                'remark',
+            ]);
+            return [
+                'amount' => $values['amount'],
+                'productId' => $values['productId'],
+                'productName' => $values['productName'],
+                'projectProductItemId' => $values['projectProductItemId'],
+                'remark' => $values['remark'],
+            ];
+        }
+        if ($className === self::CLASS_SALE_PROJECT_ITEM) {
+            $this->assertRelationListOrNull($values['children'] ?? null);
+            $this->assertBigDecimalFields($values, ['discountRate', 'number', 'price', 'unitPrice']);
+            $this->assertStringOrNullFields($values, [
+                'productCategory',
+                'productId',
+                'productName',
+                'productSysCategory',
+                'remark',
+            ]);
+            return [
+                'children' => $values['children'],
+                'discountRate' => $values['discountRate'],
+                'number' => $values['number'],
+                'price' => $values['price'],
+                'productCategory' => $values['productCategory'],
+                'productId' => $values['productId'],
+                'productName' => $values['productName'],
+                'productSysCategory' => $values['productSysCategory'],
+                'remark' => $values['remark'],
+                'unitPrice' => $values['unitPrice'],
+            ];
+        }
+        if ($className === self::CLASS_SALE_PROJECT_ITEM_RELATION) {
+            $this->assertBigDecimalFields($values, ['number']);
+            $this->assertStringOrNullFields($values, ['productId', 'productName', 'remark']);
+            return new JavaSerializationDecodedValue('sale-project-item-relation', [
+                'number' => $values['number'],
+                'productId' => $values['productId'],
+                'productName' => $values['productName'],
+                'remark' => $values['remark'],
+            ]);
+        }
+        if ($className === self::CLASS_SALE_PROJECT_INVOICING) {
+            $this->assertBigDecimalFields($values, ['amount'], true);
+            $this->assertStringOrNullFields($values, [
+                'bankName',
+                'companyName',
+                'corporateAccount',
+                'customerCompany',
+                'harvestAddress',
+                'invoicingCategory',
+                'phone',
+                'processId',
+                'projectId',
+                'remark',
+                'taxpayer',
+                'unit',
+                'unitAddress',
+                'unitPhone',
+            ]);
+            return [
+                'amount' => $values['amount'],
+                'bankName' => $values['bankName'],
+                'companyName' => $values['companyName'],
+                'corporateAccount' => $values['corporateAccount'],
+                'customerCompany' => $values['customerCompany'],
+                'harvestAddress' => $values['harvestAddress'],
+                'invoicingCategory' => $values['invoicingCategory'],
+                'phone' => $values['phone'],
+                'processId' => $values['processId'],
+                'projectId' => $values['projectId'],
+                'remark' => $values['remark'],
+                'taxpayer' => $values['taxpayer'],
+                'unit' => $values['unit'],
+                'unitAddress' => $values['unitAddress'],
+                'unitPhone' => $values['unitPhone'],
+            ];
+        }
 
         throw new WorkflowVariableMigrationException('JAVA_ROOT_CLASS_REJECTED');
     }
@@ -639,12 +861,18 @@ class JavaSerializationDecoder
         }
 
         if ($value instanceof JavaSerializationDecodedValue) {
-            if (!in_array($value->type, ['big-integer', 'big-decimal'], true)
+            if ($value->type === 'sale-project-item-relation') {
+                if (!is_array($value->value)) {
+                    throw new WorkflowVariableMigrationException('JAVA_INTERNAL_VALUE_REJECTED');
+                }
+                $value = $value->value;
+            } elseif (!in_array($value->type, ['big-integer', 'big-decimal'], true)
                 || !is_string($value->value)) {
                 throw new WorkflowVariableMigrationException('JAVA_INTERNAL_VALUE_REJECTED');
+            } else {
+                $this->reserveExpandedScalarBytes(strlen($value->value), $budget);
+                return $value->value;
             }
-            $this->reserveExpandedScalarBytes(strlen($value->value), $budget);
-            return $value->value;
         }
         if (is_string($value)) {
             $this->reserveExpandedScalarBytes(strlen($value), $budget);
@@ -715,6 +943,37 @@ class JavaSerializationDecoder
             $value = $values[$field] ?? null;
             if ($value !== null && !is_string($value)) {
                 throw new WorkflowVariableMigrationException('JAVA_CUSTOM_FIELD_VALUE_REJECTED');
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @param array<int, string> $fields
+     */
+    private function assertBigDecimalFields(array $values, array $fields, bool $nullable = false): void
+    {
+        foreach ($fields as $field) {
+            $value = $values[$field] ?? null;
+            if (($nullable && $value === null) || $this->isDecodedType($value, 'big-decimal')) {
+                continue;
+            }
+            throw new WorkflowVariableMigrationException('JAVA_CUSTOM_DECIMAL_VALUE_REJECTED');
+        }
+    }
+
+    private function assertRelationListOrNull(mixed $value): void
+    {
+        if ($value === null) {
+            return;
+        }
+        if (!is_array($value)) {
+            throw new WorkflowVariableMigrationException('JAVA_CUSTOM_RELATION_LIST_REJECTED');
+        }
+
+        foreach ($value as $item) {
+            if (!$this->isDecodedType($item, 'sale-project-item-relation')) {
+                throw new WorkflowVariableMigrationException('JAVA_CUSTOM_RELATION_ITEM_REJECTED');
             }
         }
     }

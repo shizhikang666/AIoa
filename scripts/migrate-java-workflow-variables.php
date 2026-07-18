@@ -72,14 +72,16 @@ try {
         throw new WorkflowVariableMigrationException('TARGET_DATABASE_CONFIRMATION_MISMATCH');
     }
 
-    $host = trim((string)($options['host'] ?? '127.0.0.1'));
-    if ($host !== '::1' && !preg_match('/^[A-Za-z0-9.-]+$/', $host)) {
+    $host = strtolower(trim((string)($options['host'] ?? '127.0.0.1')));
+    $normalizedHost = $host === '[::1]' ? '::1' : $host;
+    if ($normalizedHost !== '::1' && !preg_match('/^[a-z0-9.-]+$/', $normalizedHost)) {
         throw new WorkflowVariableMigrationException('TARGET_HOST_REJECTED');
     }
     $localHosts = ['127.0.0.1', 'localhost', '::1'];
-    if (!in_array($host, $localHosts, true) && !isset($options['allow-remote-target'])) {
+    if (!in_array($normalizedHost, $localHosts, true) && !isset($options['allow-remote-target'])) {
         throw new WorkflowVariableMigrationException('REMOTE_TARGET_REQUIRES_EXPLICIT_FLAG');
     }
+    $dsnHost = $normalizedHost === '::1' ? '[::1]' : $normalizedHost;
     $port = (int)($options['port'] ?? 3306);
     if ($port < 1 || $port > 65535) {
         throw new WorkflowVariableMigrationException('TARGET_PORT_REJECTED');
@@ -98,7 +100,7 @@ try {
 
     try {
         $pdo = new PDO(
-            sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $host, $port, $database),
+            sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $dsnHost, $port, $database),
             $user,
             $password,
             [
