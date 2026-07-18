@@ -6,6 +6,7 @@ declare(strict_types=1);
 use Oa\DatabaseMigration\DumpPolicy;
 use Oa\DatabaseMigration\CommandRunner;
 use Oa\DatabaseMigration\DatabaseManifest;
+use Oa\DatabaseMigration\DetachedBytearrayPolicy;
 use Oa\DatabaseMigration\MigrationOptions;
 use Oa\DatabaseMigration\MigrationRunner;
 use Oa\DatabaseMigration\MigrationSafety;
@@ -150,6 +151,34 @@ try {
     $options = MigrationOptions::fromArgv(['smoke', '--apply', '--allow-target=one', '--allow-target=two']);
     smoke_assert($options->flag('apply'), 'apply flag parsing failed');
     smoke_assert($options->list('allow-target') === ['one', 'two'], 'target allowlist parsing failed');
+    [$detachedPredicate, $detachedParameters] = DetachedBytearrayPolicy::candidatePredicate(
+        'oa2026',
+        'b',
+        ['excluded-process']
+    );
+    smoke_assert(
+        str_contains(
+            $detachedPredicate,
+            "hp.PROC_INST_ID_ = NULLIF(TRIM(b.ROOT_PROC_INST_ID_), '')"
+        ),
+        'detached byte-array candidate predicate is missing its indexable process lookup'
+    );
+    smoke_assert(
+        str_contains(
+            $detachedPredicate,
+            "BINARY TRIM(hp.PROC_INST_ID_) = BINARY NULLIF(TRIM(b.ROOT_PROC_INST_ID_), '')"
+        ),
+        'detached byte-array candidate predicate lost its byte-exact residual'
+    );
+    smoke_assert($detachedParameters === ['excluded-process'], 'detached exclusion parameters changed');
+    $migrationLibrarySource = file_get_contents(__DIR__ . '/lib/oa-database-migration.php');
+    smoke_assert(
+        is_string($migrationLibrarySource)
+        && !str_contains($migrationLibrarySource, 'WITH evidence AS')
+        && !str_contains($migrationLibrarySource, 'WITH candidate_roots AS')
+        && !str_contains($migrationLibrarySource, 'WITH candidates AS'),
+        'detached byte-array audit reintroduced a MySQL 8-only common-table expression'
+    );
     smoke_assert(
         MigrationSafety::confirmToken('oa2026', 'oa2026_migrated', 'oa2026_quarantine_20260717')
         === 'MIGRATE_OA2026_TO_OA2026_MIGRATED_WITH_OA2026_QUARANTINE_20260717',

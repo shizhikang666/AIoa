@@ -69,6 +69,20 @@ function local_smoke_throws(callable $callback, string $message): void
     throw new RuntimeException($message);
 }
 
+function local_smoke_throws_matching(callable $callback, string $expectedMessage, string $message): void
+{
+    try {
+        $callback();
+    } catch (Throwable $exception) {
+        if (str_contains($exception->getMessage(), $expectedMessage)) {
+            return;
+        }
+        throw new RuntimeException($message . ': unexpected exception', 0, $exception);
+    }
+
+    throw new RuntimeException($message);
+}
+
 $options = local_smoke_options($argv);
 $env = local_smoke_env($options['env'] ?? dirname(__DIR__) . DIRECTORY_SEPARATOR . '.env');
 $host = strtolower(trim($options['host'] ?? $env['DB_HOST'] ?? ''));
@@ -135,12 +149,15 @@ try {
             . 'ANNOTATION_ text, PRIMARY KEY (ID_)',
         'act_ru_ext_task' => 'ID_ varchar(64) NOT NULL, PROC_INST_ID_ varchar(64), EXECUTION_ID_ varchar(64), ERROR_DETAILS_ID_ varchar(64), TENANT_ID_ varchar(64), PRIMARY KEY (ID_)',
         'act_ru_job' => 'ID_ varchar(64) NOT NULL, PROCESS_INSTANCE_ID_ varchar(64), EXECUTION_ID_ varchar(64), EXCEPTION_STACK_ID_ varchar(64), TENANT_ID_ varchar(64), PRIMARY KEY (ID_)',
-        'act_ge_bytearray' => 'ID_ varchar(64) NOT NULL, REV_ int, NAME_ varchar(255), DEPLOYMENT_ID_ varchar(64), BYTES_ longblob, GENERATED_ tinyint, TENANT_ID_ varchar(64), TYPE_ int, CREATE_TIME_ datetime, ROOT_PROC_INST_ID_ varchar(64), REMOVAL_TIME_ datetime, PRIMARY KEY (ID_)',
+        'act_ge_bytearray' => 'ID_ varchar(64) NOT NULL, REV_ int, NAME_ varchar(255), DEPLOYMENT_ID_ varchar(64), BYTES_ longblob, GENERATED_ tinyint, TENANT_ID_ varchar(64), TYPE_ int, CREATE_TIME_ datetime, ROOT_PROC_INST_ID_ varchar(64), REMOVAL_TIME_ datetime, PRIMARY KEY (ID_), KEY ACT_IDX_BYTEARRAY_ROOT_PI (ROOT_PROC_INST_ID_)',
         'sys_user' => 'ID varchar(64) NOT NULL, TENANT_ID varchar(64) NOT NULL, DELETE_FLAG varchar(20), PRIMARY KEY (ID)',
         'biz_sale_project_reissue_order' => 'ID varchar(64) NOT NULL, PROCESS_ID varchar(64) NOT NULL, TENANT_ID varchar(64) NOT NULL, PRIMARY KEY (ID)',
     ];
     foreach ($definitions as $table => $definition) {
-        $pdo->exec("CREATE TABLE {$db}.`{$table}` ({$definition}) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $pdo->exec(
+            "CREATE TABLE {$db}.`{$table}` ({$definition}) "
+            . 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci'
+        );
     }
     $workflowBytes = "\x00\xfflocal-smoke-workflow";
     $byteInsert = $pdo->prepare("INSERT INTO {$db}.act_ge_bytearray (ID_, ROOT_PROC_INST_ID_, DEPLOYMENT_ID_, BYTES_, TENANT_ID_) VALUES ('bytes-workflow', NULL, NULL, ?, NULL)");
@@ -382,7 +399,8 @@ try {
         "CREATE TABLE {$db}.act_op_log_reference ("
         . 'ID_ varchar(64) NOT NULL, OP_LOG_ID_ varchar(64), PRIMARY KEY (ID_), '
         . 'CONSTRAINT fk_smoke_op_log_reference FOREIGN KEY (OP_LOG_ID_) '
-        . "REFERENCES {$db}.act_hi_op_log (ID_)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        . "REFERENCES {$db}.act_hi_op_log (ID_)) "
+        . 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci'
     );
     local_smoke_throws(
         static fn () => DetachedOperationLogPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
@@ -403,11 +421,199 @@ try {
         && $detachedPlan['businessLinkedRoots'] === 1,
         'detached byte-array classification failed'
     );
+    $indexSafePrerequisites = $detachedPlan['indexSafePrerequisites'] ?? null;
+    local_smoke_assert(
+        is_array($indexSafePrerequisites)
+        && ($indexSafePrerequisites['trimCanonicality']['bytearrayRootProcessDifferences'] ?? -1) === 0
+        && ($indexSafePrerequisites['trimCanonicality']['historyProcessDifferences'] ?? -1) === 0
+        && ($indexSafePrerequisites['comparisonMetadata']['consumer']['compatible'] ?? false) === true
+        && ($indexSafePrerequisites['comparisonMetadata']['processEvidence']['compatible'] ?? false) === true,
+        'index-safe detached byte-array prerequisites were not bound into the plan'
+    );
+    $pdo->exec(
+        "INSERT INTO {$db}.act_ge_bytearray "
+        . "(ID_,BYTES_,TYPE_,CREATE_TIME_,ROOT_PROC_INST_ID_,REMOVAL_TIME_) VALUES "
+        . "('bytes-detached-root-collision','collision',3,UTC_TIMESTAMP(),"
+        . "'PROC-DETACHED',UTC_TIMESTAMP())"
+    );
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'collation-equivalent candidate root collision bypassed the binary distinctness guard'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_ge_bytearray WHERE ID_='bytes-detached-root-collision'");
+
+    $pdo->exec(
+        "INSERT INTO {$db}.act_ge_bytearray "
+        . "(ID_,BYTES_,TENANT_ID_,TYPE_,CREATE_TIME_,ROOT_PROC_INST_ID_,REMOVAL_TIME_) VALUES "
+        . "('bytes-detached-tenant-collision','collision','TENANT-A',3,UTC_TIMESTAMP(),"
+        . "'proc-business-detached',UTC_TIMESTAMP())"
+    );
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'collation-equivalent candidate tenant collision bypassed the binary distinctness guard'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_ge_bytearray WHERE ID_='bytes-detached-tenant-collision'");
+
+    $pdo->exec(
+        "INSERT INTO {$db}.act_hi_procinst (ID_,PROC_INST_ID_) "
+        . "VALUES ('hi-proc-detached-case-shadow','PROC-DETACHED')"
+    );
+    $caseShadowPlan = DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds);
+    local_smoke_assert(
+        $caseShadowPlan['candidateRows'] === $detachedPlan['candidateRows'],
+        'case-only history process id hid a byte-exact detached candidate'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_hi_procinst WHERE ID_='hi-proc-detached-case-shadow'");
+
+    $pdo->exec(
+        "INSERT INTO {$db}.act_hi_procinst (ID_,PROC_INST_ID_) "
+        . "VALUES ('hi-proc-detached-exact','proc-detached')"
+    );
+    $exactHistoryPlan = DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds);
+    local_smoke_assert(
+        $exactHistoryPlan['candidateRows'] === $detachedPlan['candidateRows'] - 1,
+        'exact history process id did not exclude its detached candidate'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_hi_procinst WHERE ID_='hi-proc-detached-exact'");
+
+    $pdo->exec(
+        "INSERT INTO {$db}.act_hi_procinst (ID_,PROC_INST_ID_) "
+        . "VALUES ('hi-proc-detached-nonnormalized',' proc-detached-nonnormalized ')"
+    );
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'non-normalized history process id bypassed the indexed comparison guard'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_hi_procinst WHERE ID_='hi-proc-detached-nonnormalized'");
+
+    $pdo->exec(
+        "INSERT INTO {$db}.act_ge_bytearray "
+        . "(ID_,BYTES_,TYPE_,CREATE_TIME_,ROOT_PROC_INST_ID_,REMOVAL_TIME_) VALUES "
+        . "('bytes-detached-nonnormalized','guard',3,UTC_TIMESTAMP(),"
+        . "' proc-detached-nonnormalized ',UTC_TIMESTAMP())"
+    );
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'non-normalized byte-array root bypassed the indexed comparison guard'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_ge_bytearray WHERE ID_='bytes-detached-nonnormalized'");
+
+    $pdo->exec("ALTER TABLE {$db}.act_ge_bytearray DROP INDEX ACT_IDX_BYTEARRAY_ROOT_PI");
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'missing byte-array root index bypassed the indexed comparison guard'
+    );
+    $pdo->exec(
+        "ALTER TABLE {$db}.act_ge_bytearray "
+        . 'ADD KEY ACT_IDX_BYTEARRAY_ROOT_PI (ROOT_PROC_INST_ID_)'
+    );
+
+    $pdo->exec("ALTER TABLE {$db}.act_hi_procinst DROP INDEX uk_hi_proc");
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'missing history process index bypassed the indexed comparison guard'
+    );
+    $pdo->exec(
+        "ALTER TABLE {$db}.act_hi_procinst "
+        . 'ADD UNIQUE KEY uk_hi_proc (PROC_INST_ID_)'
+    );
+
+    $pdo->exec(
+        "ALTER TABLE {$db}.act_hi_detail "
+        . 'MODIFY BYTEARRAY_ID_ varchar(64) CHARACTER SET utf8 COLLATE utf8_general_ci NULL'
+    );
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'comparison collation drift bypassed the indexed comparison guard'
+    );
+    $pdo->exec(
+        "ALTER TABLE {$db}.act_hi_detail "
+        . 'MODIFY BYTEARRAY_ID_ varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL'
+    );
+
+    $pdo->exec(
+        "INSERT INTO {$db}.act_ge_bytearray "
+        . "(ID_,BYTES_,TYPE_,CREATE_TIME_,ROOT_PROC_INST_ID_,REMOVAL_TIME_) VALUES "
+        . "('bytes-detached-case-ref','case-ref',3,UTC_TIMESTAMP(),"
+        . "'proc-detached-case-ref',UTC_TIMESTAMP())"
+    );
+    $pdo->exec(
+        "INSERT INTO {$db}.act_hi_detail (ID_,BYTEARRAY_ID_) "
+        . "VALUES ('detail-detached-case-ref','BYTES-DETACHED-CASE-REF')"
+    );
+    $caseReferencePlan = DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds);
+    local_smoke_assert(
+        $caseReferencePlan['candidateRows'] === $detachedPlan['candidateRows'] + 1,
+        'case-only consumer reference was treated as byte-exact'
+    );
+    $pdo->exec(
+        "UPDATE {$db}.act_hi_detail SET BYTEARRAY_ID_='bytes-detached-case-ref' "
+        . "WHERE ID_='detail-detached-case-ref'"
+    );
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'exact detached byte-array consumer reference was accepted'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_hi_detail WHERE ID_='detail-detached-case-ref'");
+    $pdo->exec("DELETE FROM {$db}.act_ge_bytearray WHERE ID_='bytes-detached-case-ref'");
+
+    $pdo->exec(
+        "INSERT INTO {$db}.act_ge_bytearray "
+        . "(ID_,BYTES_,TYPE_,CREATE_TIME_,ROOT_PROC_INST_ID_,REMOVAL_TIME_) VALUES "
+        . "('bytes-detached-pad-ref','pad-ref',3,UTC_TIMESTAMP(),"
+        . "'proc-detached-pad-ref',UTC_TIMESTAMP())"
+    );
+    $insertPaddedConsumer = $pdo->prepare(
+        "INSERT INTO {$db}.act_hi_detail (ID_,BYTEARRAY_ID_) VALUES (?, ?)"
+    );
+    $insertPaddedConsumer->execute(['detail-detached-pad-ref', 'bytes-detached-pad-ref ']);
+    $paddedReferencePlan = DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds);
+    local_smoke_assert(
+        $paddedReferencePlan['candidateRows'] === $detachedPlan['candidateRows'] + 1,
+        'padding-equivalent consumer reference was treated as byte-exact'
+    );
+    $pdo->exec(
+        "UPDATE {$db}.act_hi_detail SET BYTEARRAY_ID_='bytes-detached-pad-ref' "
+        . "WHERE ID_='detail-detached-pad-ref'"
+    );
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'exact consumer reference was accepted after a padding-only non-match'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_hi_detail WHERE ID_='detail-detached-pad-ref'");
+    $pdo->exec("DELETE FROM {$db}.act_ge_bytearray WHERE ID_='bytes-detached-pad-ref'");
+
+    $pdo->exec(
+        "INSERT INTO {$db}.act_ge_bytearray "
+        . "(ID_,BYTES_,TYPE_,CREATE_TIME_,ROOT_PROC_INST_ID_,REMOVAL_TIME_) VALUES "
+        . "('bytes-detached-evidence-case','evidence',3,UTC_TIMESTAMP(),"
+        . "'proc-detached-evidence-case',UTC_TIMESTAMP())"
+    );
+    $pdo->exec(
+        "INSERT INTO {$db}.act_hi_detail (ID_,PROC_INST_ID_) "
+        . "VALUES ('detail-detached-evidence-case','PROC-DETACHED-EVIDENCE-CASE')"
+    );
+    $caseEvidencePlan = DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds);
+    local_smoke_assert(
+        $caseEvidencePlan['candidateRows'] === $detachedPlan['candidateRows'] + 1,
+        'case-only process evidence was treated as byte-exact'
+    );
+    $pdo->exec(
+        "UPDATE {$db}.act_hi_detail SET PROC_INST_ID_='proc-detached-evidence-case' "
+        . "WHERE ID_='detail-detached-evidence-case'"
+    );
+    local_smoke_throws(
+        static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
+        'exact detached process evidence was accepted'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_hi_detail WHERE ID_='detail-detached-evidence-case'");
+    $pdo->exec("DELETE FROM {$db}.act_ge_bytearray WHERE ID_='bytes-detached-evidence-case'");
     $pdo->exec(
         "CREATE TABLE {$db}.act_unreviewed_byte_consumer ("
         . 'ID_ varchar(64) NOT NULL, PAYLOAD_REF_ varchar(64), PRIMARY KEY (ID_), '
         . "CONSTRAINT fk_smoke_unreviewed_bytes FOREIGN KEY (PAYLOAD_REF_) "
-        . "REFERENCES {$db}.act_ge_bytearray (ID_)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        . "REFERENCES {$db}.act_ge_bytearray (ID_)) "
+        . 'ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci'
     );
     local_smoke_throws(
         static fn () => DetachedBytearrayPolicy::audit($pdo, $targetDatabase, $orphanProcessIds),
@@ -783,6 +989,32 @@ try {
     );
     $pdo->exec("DELETE FROM {$db}.act_hi_op_log WHERE ID_='hi-op-unmapped'");
 
+    $pdo->exec(
+        "INSERT INTO {$db}.act_hi_op_log (ID_,PROC_INST_ID_,ROOT_PROC_INST_ID_,TENANT_ID_) "
+        . "VALUES ('hi-op-ignored-unmapped','proc-reviewed-ignore','proc-unmapped',NULL)"
+    );
+    local_smoke_throws_matching(
+        static fn () => WorkflowTenantRepair::audit(
+            $pdo,
+            $targetDatabase,
+            2,
+            2,
+            2,
+            ['proc-reviewed-ignore']
+        ),
+        'unmapped process references in act_hi_op_log',
+        'an ignored reference hid a different unmapped workflow reference'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_hi_op_log WHERE ID_='hi-op-ignored-unmapped'");
+
+    $pdo->exec("UPDATE {$db}.act_hi_detail SET TENANT_ID_='tenant-a ' WHERE ID_='hi-detail-1'");
+    local_smoke_throws_matching(
+        static fn () => WorkflowTenantRepair::audit($pdo, $targetDatabase, 2, 2, 2),
+        'workflow tenant evidence conflicts with act_hi_detail',
+        'a trailing-space persisted workflow tenant was treated as an exact match'
+    );
+    $pdo->exec("UPDATE {$db}.act_hi_detail SET TENANT_ID_=NULL WHERE ID_='hi-detail-1'");
+
     $pdo->exec("INSERT INTO {$db}.sys_user VALUES ('starter-cross-tenant','tenant-b','NOT_DELETE')");
     $pdo->exec("INSERT INTO {$db}.act_hi_procinst (ID_,PROC_INST_ID_,START_USER_ID_,TENANT_ID_) VALUES ('hi-proc-cross-tenant','proc-cross-tenant','starter-cross-tenant',NULL)");
     $pdo->exec("INSERT INTO {$db}.act_hi_varinst (ID_,PROC_INST_ID_,NAME_,VAR_TYPE_,BYTEARRAY_ID_,TEXT_,TENANT_ID_) VALUES ('hi-var-cross-tenant','proc-cross-tenant','tenantId','string',NULL,'tenant-b',NULL)");
@@ -790,9 +1022,17 @@ try {
         "INSERT INTO {$db}.act_hi_op_log (ID_,PROC_INST_ID_,ROOT_PROC_INST_ID_,TENANT_ID_) "
         . "VALUES ('hi-op-cross-tenant','proc-valid-1','proc-cross-tenant',NULL)"
     );
-    local_smoke_throws(
-        static fn () => WorkflowTenantRepair::audit($pdo, $targetDatabase, 3, 2, 2),
-        'cross-tenant multi-column workflow process references were accepted'
+    local_smoke_throws_matching(
+        static fn () => WorkflowTenantRepair::audit(
+            $pdo,
+            $targetDatabase,
+            3,
+            2,
+            2,
+            ['proc-valid-1']
+        ),
+        'conflicting process references in act_hi_op_log',
+        'an ignored mapped reference hid a cross-tenant workflow conflict'
     );
     $pdo->exec("DELETE FROM {$db}.act_hi_op_log WHERE ID_='hi-op-cross-tenant'");
     $pdo->exec("DELETE FROM {$db}.act_hi_varinst WHERE PROC_INST_ID_='proc-cross-tenant'");
@@ -809,6 +1049,33 @@ try {
     $pdo->exec("DELETE FROM {$db}.act_hi_varinst WHERE ID_='hi-var-trimmed'");
     $pdo->exec("DELETE FROM {$db}.act_hi_procinst WHERE ID_='hi-proc-trimmed'");
     $pdo->exec("DELETE FROM {$db}.sys_user WHERE ID='starter-trimmed'");
+
+    $pdo->exec("INSERT INTO {$db}.sys_user VALUES ('starter-control','tenant-a','NOT_DELETE')");
+    $controlProcessId = "\tproc-control";
+    $insertControlHistory = $pdo->prepare(
+        "INSERT INTO {$db}.act_hi_procinst (ID_,PROC_INST_ID_,START_USER_ID_,TENANT_ID_) "
+        . "VALUES ('hi-proc-control',?,'starter-control',NULL)"
+    );
+    $insertControlHistory->execute([$controlProcessId]);
+    $insertControlVariable = $pdo->prepare(
+        "INSERT INTO {$db}.act_hi_varinst "
+        . "(ID_,PROC_INST_ID_,NAME_,VAR_TYPE_,BYTEARRAY_ID_,TEXT_,TENANT_ID_) "
+        . "VALUES ('hi-var-control',?,'tenantId','string',NULL,'tenant-a',NULL)"
+    );
+    $insertControlVariable->execute([$controlProcessId]);
+    $pdo->exec(
+        "INSERT INTO {$db}.act_hi_detail (ID_,PROC_INST_ID_,TENANT_ID_) "
+        . "VALUES ('hi-detail-control','proc-control',NULL)"
+    );
+    local_smoke_throws_matching(
+        static fn () => WorkflowTenantRepair::audit($pdo, $targetDatabase, 3, 2, 2),
+        'contains unsupported control whitespace',
+        'control-character workflow identity was collapsed into a different byte identity'
+    );
+    $pdo->exec("DELETE FROM {$db}.act_hi_detail WHERE ID_='hi-detail-control'");
+    $pdo->exec("DELETE FROM {$db}.act_hi_varinst WHERE ID_='hi-var-control'");
+    $pdo->exec("DELETE FROM {$db}.act_hi_procinst WHERE ID_='hi-proc-control'");
+    $pdo->exec("DELETE FROM {$db}.sys_user WHERE ID='starter-control'");
     local_smoke_assert(
         WorkflowTenantRepair::audit($pdo, $targetDatabase, 2, 2, 2) === $tenantPlan,
         'workflow tenant plan changed after strict mapping negative tests'

@@ -1058,6 +1058,13 @@ final class OrphanPolicy
 
 final class DetachedBytearrayPolicy
 {
+    private const REVIEWED_IDENTIFIER_COMPARISON = [
+        'dataType' => 'varchar',
+        'columnType' => 'varchar(64)',
+    ];
+
+    private const BYTEARRAY_ROOT_INDEX = 'ACT_IDX_BYTEARRAY_ROOT_PI';
+
     private const EXPECTED_CONSUMER_COLUMNS = [
         ['table' => 'act_hi_attachment', 'column' => 'CONTENT_ID_'],
         ['table' => 'act_hi_dec_in', 'column' => 'BYTEARRAY_ID_'],
@@ -1092,9 +1099,22 @@ final class DetachedBytearrayPolicy
             throw new RuntimeException('byte-array consumer column set differs from the reviewed migration policy');
         }
         self::assertForeignKeyConsumersCovered($pdo, $database, $consumerColumns);
+        $processEvidenceColumns = self::processEvidenceColumns($pdo, $database);
+        $indexSafePrerequisites = self::indexSafePrerequisiteSummary(
+            $pdo,
+            $database,
+            $consumerColumns,
+            $processEvidenceColumns
+        );
 
         [$where, $parameters] = self::candidatePredicate($database, 'b', $excludedProcessIds);
         $db = DatabaseManifest::quoteIdentifier($database);
+        $indexSafePrerequisites['candidateDistinctness'] = self::candidateDistinctnessSummary(
+            $pdo,
+            $database,
+            $where,
+            $parameters
+        );
         $aggregateStatement = $pdo->prepare(
             "SELECT COUNT(*) AS candidateRows, "
             . "COUNT(DISTINCT BINARY NULLIF(TRIM(b.ROOT_PROC_INST_ID_), '')) AS distinctRoots, "
@@ -1117,6 +1137,9 @@ final class DetachedBytearrayPolicy
         $deploymentBoundRows = (int)($aggregate['deploymentBoundRows'] ?? 0);
         $nullPayloadRows = (int)($aggregate['nullPayloadRows'] ?? 0);
         $missingRemovalTimeRows = (int)($aggregate['missingRemovalTimeRows'] ?? 0);
+        if (($indexSafePrerequisites['candidateDistinctness']['binaryDistinctRoots'] ?? -1) !== $distinctRoots) {
+            throw new RuntimeException('detached byte-array candidate distinctness differs from aggregate counts');
+        }
         if ($candidateRows === 0) {
             throw new RuntimeException('detached byte-array audit unexpectedly found no candidates');
         }
@@ -1137,7 +1160,6 @@ final class DetachedBytearrayPolicy
             }
         }
 
-        $processEvidenceColumns = self::processEvidenceColumns($pdo, $database);
         $processEvidenceChecks = self::processEvidenceChecks(
             $pdo,
             $database,
@@ -1201,6 +1223,7 @@ final class DetachedBytearrayPolicy
             'deploymentBoundRows' => $deploymentBoundRows,
             'nullPayloadRows' => $nullPayloadRows,
             'missingRemovalTimeRows' => $missingRemovalTimeRows,
+            'indexSafePrerequisites' => $indexSafePrerequisites,
             'consumerColumns' => $consumerColumns,
             'consumerReferenceChecks' => $consumerReferenceChecks,
             'processEvidenceColumns' => $processEvidenceColumns,
@@ -1295,7 +1318,8 @@ final class DetachedBytearrayPolicy
             $quotedColumn = DatabaseManifest::quoteIdentifier($column);
             $statement = $pdo->prepare(
                 "SELECT COUNT(*) FROM {$db}.{$quotedTable} r "
-                . "INNER JOIN {$db}.act_ge_bytearray b ON BINARY b.ID_ = BINARY r.{$quotedColumn} "
+                . "STRAIGHT_JOIN {$db}.act_ge_bytearray b FORCE INDEX (PRIMARY) "
+                . "ON b.ID_ = r.{$quotedColumn} AND BINARY b.ID_ = BINARY r.{$quotedColumn} "
                 . "WHERE BINARY NULLIF(TRIM(b.ROOT_PROC_INST_ID_), '') IN ({$placeholders})"
             );
             $statement->execute($rootProcessIds);
@@ -1316,7 +1340,8 @@ final class DetachedBytearrayPolicy
         $root = "NULLIF(TRIM({$alias}.ROOT_PROC_INST_ID_), '')";
         $where = "{$root} IS NOT NULL AND NOT EXISTS ("
             . "SELECT 1 FROM {$db}.act_hi_procinst hp "
-            . "WHERE BINARY TRIM(hp.PROC_INST_ID_) = BINARY {$root})";
+            . "WHERE hp.PROC_INST_ID_ = {$root} "
+            . "AND BINARY TRIM(hp.PROC_INST_ID_) = BINARY {$root})";
         $parameters = [];
         $excludedProcessIds = self::normalizeIds($excludedProcessIds);
         if ($excludedProcessIds !== []) {
@@ -1330,6 +1355,12 @@ final class DetachedBytearrayPolicy
 
     public static function assertNoRemainingCandidates(PDO $pdo, string $database): void
     {
+        self::indexSafePrerequisiteSummary(
+            $pdo,
+            $database,
+            self::consumerColumns($pdo, $database),
+            self::processEvidenceColumns($pdo, $database)
+        );
         [$where, $parameters] = self::candidatePredicate($database, 'b', []);
         $db = DatabaseManifest::quoteIdentifier($database);
         $statement = $pdo->prepare(
@@ -1357,8 +1388,9 @@ final class DetachedBytearrayPolicy
             $quotedTable = DatabaseManifest::quoteIdentifier($table);
             $quotedColumn = DatabaseManifest::quoteIdentifier($column);
             $statement = $pdo->prepare(
-                "SELECT COUNT(*) FROM {$db}.act_ge_bytearray b "
-                . "INNER JOIN {$db}.{$quotedTable} r ON BINARY r.{$quotedColumn} = BINARY b.ID_ "
+                "SELECT COUNT(*) FROM {$db}.{$quotedTable} r "
+                . "STRAIGHT_JOIN {$db}.act_ge_bytearray b FORCE INDEX (PRIMARY) "
+                . "ON b.ID_ = r.{$quotedColumn} AND BINARY b.ID_ = BINARY r.{$quotedColumn} "
                 . "WHERE {$where}"
             );
             $statement->execute($parameters);
@@ -1380,27 +1412,20 @@ final class DetachedBytearrayPolicy
             return [];
         }
         $db = DatabaseManifest::quoteIdentifier($database);
-        $unions = [];
-        foreach ($specs as $index => $spec) {
+        $rootIndex = DatabaseManifest::quoteIdentifier(self::BYTEARRAY_ROOT_INDEX);
+        $checks = [];
+        foreach ($specs as $spec) {
             $table = DatabaseManifest::quoteIdentifier($spec['table']);
             $column = DatabaseManifest::quoteIdentifier($spec['column']);
-            $label = str_replace("'", "''", $spec['table'] . '.' . $spec['column']);
-            $unions[] = "SELECT '{$label}' AS sourceName, {$column} AS processId FROM {$db}.{$table} "
-                . "WHERE NULLIF(TRIM({$column}), '') IS NOT NULL";
-        }
-        $statement = $pdo->prepare(
-            'WITH evidence AS (' . implode(' UNION ALL ', $unions) . ') '
-            . "SELECT e.sourceName, COUNT(*) AS matchingRows FROM {$db}.act_ge_bytearray b "
-            . "INNER JOIN evidence e ON BINARY TRIM(e.processId) = BINARY TRIM(b.ROOT_PROC_INST_ID_) "
-            . "WHERE {$where} GROUP BY e.sourceName ORDER BY e.sourceName"
-        );
-        $statement->execute($parameters);
-        $checks = array_fill_keys(
-            array_map(static fn (array $spec): string => $spec['table'] . '.' . $spec['column'], $specs),
-            0
-        );
-        foreach ($statement->fetchAll() as $row) {
-            $checks[(string)$row['sourceName']] = (int)$row['matchingRows'];
+            $statement = $pdo->prepare(
+                "SELECT COUNT(*) FROM {$db}.{$table} e "
+                . "STRAIGHT_JOIN {$db}.act_ge_bytearray b FORCE INDEX ({$rootIndex}) "
+                . "ON b.ROOT_PROC_INST_ID_ = TRIM(e.{$column}) "
+                . "AND BINARY b.ROOT_PROC_INST_ID_ = BINARY TRIM(e.{$column}) "
+                . "WHERE NULLIF(TRIM(e.{$column}), '') IS NOT NULL AND {$where}"
+            );
+            $statement->execute($parameters);
+            $checks[$spec['table'] . '.' . $spec['column']] = (int)$statement->fetchColumn();
         }
 
         return $checks;
@@ -1418,29 +1443,39 @@ final class DetachedBytearrayPolicy
             return [];
         }
         $db = DatabaseManifest::quoteIdentifier($database);
-        $unions = [];
+        $rootIndex = DatabaseManifest::quoteIdentifier(self::BYTEARRAY_ROOT_INDEX);
+        $candidateStatement = $pdo->prepare(
+            "SELECT DISTINCT HEX(TRIM(b.ROOT_PROC_INST_ID_)) AS rootProcessIdHex "
+            . "FROM {$db}.act_ge_bytearray b FORCE INDEX ({$rootIndex}) WHERE {$where}"
+        );
+        $candidateStatement->execute($parameters);
+        $candidateRoots = [];
+        while (($row = $candidateStatement->fetch()) !== false) {
+            $rootHex = (string)($row['rootProcessIdHex'] ?? '');
+            if ($rootHex !== '') {
+                $candidateRoots[self::hexLookupKey($rootHex, 'candidate root process id')] = true;
+            }
+        }
+        $checks = [];
         foreach ($tables as $table) {
             $quotedTable = DatabaseManifest::quoteIdentifier($table);
-            $label = str_replace("'", "''", $table);
-            $unions[] = "SELECT '{$label}' AS sourceName, PROCESS_ID AS processId FROM {$db}.{$quotedTable} "
-                . "WHERE NULLIF(TRIM(PROCESS_ID), '') IS NOT NULL";
-        }
-        $statement = $pdo->prepare(
-            'WITH candidate_roots AS ('
-            . "SELECT DISTINCT TRIM(b.ROOT_PROC_INST_ID_) AS rootProcessId FROM {$db}.act_ge_bytearray b WHERE {$where}"
-            . '), business AS (' . implode(' UNION ALL ', $unions) . ') '
-            . 'SELECT business.sourceName, COUNT(*) AS matchingRows, '
-            . 'COUNT(DISTINCT BINARY candidate_roots.rootProcessId) AS distinctRoots '
-            . 'FROM candidate_roots INNER JOIN business '
-            . 'ON BINARY TRIM(business.processId) = BINARY candidate_roots.rootProcessId '
-            . 'GROUP BY business.sourceName ORDER BY business.sourceName'
-        );
-        $statement->execute($parameters);
-        $checks = array_fill_keys($tables, ['matchingRows' => 0, 'distinctRoots' => 0]);
-        foreach ($statement->fetchAll() as $row) {
-            $checks[(string)$row['sourceName']] = [
-                'matchingRows' => (int)$row['matchingRows'],
-                'distinctRoots' => (int)$row['distinctRoots'],
+            $statement = $pdo->query(
+                "SELECT HEX(TRIM(PROCESS_ID)) AS processIdHex FROM {$db}.{$quotedTable} "
+                . "WHERE NULLIF(TRIM(PROCESS_ID), '') IS NOT NULL"
+            );
+            $matchingRows = 0;
+            $matchingRoots = [];
+            while (($row = $statement->fetch()) !== false) {
+                $processIdHex = (string)($row['processIdHex'] ?? '');
+                $key = self::hexLookupKey($processIdHex, 'business process id');
+                if (isset($candidateRoots[$key])) {
+                    ++$matchingRows;
+                    $matchingRoots[$key] = true;
+                }
+            }
+            $checks[$table] = [
+                'matchingRows' => $matchingRows,
+                'distinctRoots' => count($matchingRoots),
             ];
         }
 
@@ -1455,31 +1490,78 @@ final class DetachedBytearrayPolicy
         array $parameters
     ): void {
         $db = DatabaseManifest::quoteIdentifier($database);
+        $rootIndex = DatabaseManifest::quoteIdentifier(self::BYTEARRAY_ROOT_INDEX);
+        $candidateStatement = $pdo->prepare(
+            "SELECT HEX(TRIM(b.ROOT_PROC_INST_ID_)) AS rootProcessIdHex, "
+            . "HEX(NULLIF(TRIM(b.TENANT_ID_), '')) AS byteTenantHex "
+            . "FROM {$db}.act_ge_bytearray b FORCE INDEX ({$rootIndex}) WHERE {$where}"
+        );
+        $candidateStatement->execute($parameters);
+        $candidateTenants = [];
+        while (($row = $candidateStatement->fetch()) !== false) {
+            $rootKey = self::hexLookupKey(
+                (string)($row['rootProcessIdHex'] ?? ''),
+                'candidate root process id'
+            );
+            $candidateTenants[$rootKey] ??= [];
+            if (($row['byteTenantHex'] ?? null) !== null) {
+                $tenantKey = self::hexLookupKey((string)$row['byteTenantHex'], 'candidate tenant id');
+                $candidateTenants[$rootKey][$tenantKey] = true;
+            }
+        }
+        $activeTenants = [];
+        $activeTenantStatement = $pdo->query(
+            "SELECT HEX(Tenant_ID) AS tenantHex FROM {$db}.tenants "
+            . "WHERE DELETE_FLAG IS NULL OR DELETE_FLAG = 'NOT_DELETE'"
+        );
+        while (($row = $activeTenantStatement->fetch()) !== false) {
+            $tenantHex = (string)($row['tenantHex'] ?? '');
+            if ($tenantHex !== '') {
+                $activeTenants[self::hexLookupKey($tenantHex, 'active tenant id')] = true;
+            }
+        }
         foreach (self::ALLOWED_BUSINESS_REFERENCE_TABLES as $table) {
             if (!self::tableHasColumns($pdo, $database, $table, ['PROCESS_ID', 'TENANT_ID'])) {
                 throw new RuntimeException('reviewed business process evidence table is missing required columns');
             }
             $quotedTable = DatabaseManifest::quoteIdentifier($table);
-            $statement = $pdo->prepare(
-                'WITH candidates AS ('
-                . "SELECT DISTINCT TRIM(b.ROOT_PROC_INST_ID_) AS rootProcessId, "
-                . "NULLIF(TRIM(b.TENANT_ID_), '') AS byteTenant FROM {$db}.act_ge_bytearray b WHERE {$where}"
-                . ') SELECT COUNT(*) FROM ('
-                . 'SELECT candidates.rootProcessId FROM candidates '
-                . "INNER JOIN {$db}.{$quotedTable} business "
-                . 'ON BINARY TRIM(business.PROCESS_ID) = BINARY candidates.rootProcessId '
-                . "LEFT JOIN {$db}.tenants tenant ON BINARY tenant.Tenant_ID = BINARY TRIM(business.TENANT_ID) "
-                . "AND (tenant.DELETE_FLAG IS NULL OR tenant.DELETE_FLAG = 'NOT_DELETE') "
-                . 'GROUP BY BINARY candidates.rootProcessId '
-                . "HAVING COUNT(DISTINCT BINARY NULLIF(TRIM(business.TENANT_ID), '')) <> 1 "
-                . "OR SUM(CASE WHEN NULLIF(TRIM(business.TENANT_ID), '') IS NULL THEN 1 ELSE 0 END) <> 0 "
-                . 'OR SUM(CASE WHEN tenant.Tenant_ID IS NULL THEN 1 ELSE 0 END) <> 0 '
-                . 'OR SUM(CASE WHEN candidates.byteTenant IS NOT NULL '
-                . 'AND BINARY candidates.byteTenant <> BINARY TRIM(business.TENANT_ID) THEN 1 ELSE 0 END) <> 0'
-                . ') conflicts'
+            $statement = $pdo->query(
+                "SELECT HEX(TRIM(PROCESS_ID)) AS processIdHex, "
+                . "HEX(NULLIF(TRIM(TENANT_ID), '')) AS tenantHex FROM {$db}.{$quotedTable} "
+                . "WHERE NULLIF(TRIM(PROCESS_ID), '') IS NOT NULL"
             );
-            $statement->execute($parameters);
-            if ((int)$statement->fetchColumn() !== 0) {
+            $linkedTenantSets = [];
+            $conflict = false;
+            while (($row = $statement->fetch()) !== false) {
+                $rootKey = self::hexLookupKey(
+                    (string)($row['processIdHex'] ?? ''),
+                    'business process id'
+                );
+                if (!isset($candidateTenants[$rootKey])) {
+                    continue;
+                }
+                if (($row['tenantHex'] ?? null) === null) {
+                    $conflict = true;
+                    continue;
+                }
+                $tenantKey = self::hexLookupKey((string)$row['tenantHex'], 'business tenant id');
+                $linkedTenantSets[$rootKey][$tenantKey] = true;
+                if (!isset($activeTenants[$tenantKey])) {
+                    $conflict = true;
+                }
+                if ($candidateTenants[$rootKey] !== []
+                    && (count($candidateTenants[$rootKey]) !== 1
+                        || !isset($candidateTenants[$rootKey][$tenantKey]))
+                ) {
+                    $conflict = true;
+                }
+            }
+            foreach ($linkedTenantSets as $tenantSet) {
+                if (count($tenantSet) !== 1) {
+                    $conflict = true;
+                }
+            }
+            if ($conflict) {
                 throw new RuntimeException('business-linked detached byte-array tenant evidence conflicts');
             }
         }
@@ -1493,28 +1575,41 @@ final class DetachedBytearrayPolicy
         array $parameters
     ): array {
         $db = DatabaseManifest::quoteIdentifier($database);
-        $predicates = [];
-        foreach (self::ALLOWED_BUSINESS_REFERENCE_TABLES as $index => $table) {
+        $businessRoots = [];
+        foreach (self::ALLOWED_BUSINESS_REFERENCE_TABLES as $table) {
             $quotedTable = DatabaseManifest::quoteIdentifier($table);
-            $predicates[] = "EXISTS (SELECT 1 FROM {$db}.{$quotedTable} business{$index} "
-                . "WHERE BINARY TRIM(business{$index}.PROCESS_ID) = BINARY TRIM(b.ROOT_PROC_INST_ID_))";
+            $statement = $pdo->query(
+                "SELECT HEX(TRIM(PROCESS_ID)) AS processIdHex FROM {$db}.{$quotedTable} "
+                . "WHERE NULLIF(TRIM(PROCESS_ID), '') IS NOT NULL"
+            );
+            while (($row = $statement->fetch()) !== false) {
+                $processIdHex = (string)($row['processIdHex'] ?? '');
+                $businessRoots[self::hexLookupKey($processIdHex, 'business process id')] = true;
+            }
         }
-        if ($predicates === []) {
+        if ($businessRoots === []) {
             return [0, 0];
         }
+        $rootIndex = DatabaseManifest::quoteIdentifier(self::BYTEARRAY_ROOT_INDEX);
         $statement = $pdo->prepare(
-            'SELECT COUNT(*) AS linkedRows, '
-            . 'COUNT(DISTINCT BINARY TRIM(b.ROOT_PROC_INST_ID_)) AS linkedRoots '
-            . "FROM {$db}.act_ge_bytearray b WHERE {$where} AND ("
-            . implode(' OR ', $predicates) . ')'
+            "SELECT HEX(TRIM(b.ROOT_PROC_INST_ID_)) AS rootProcessIdHex "
+            . "FROM {$db}.act_ge_bytearray b FORCE INDEX ({$rootIndex}) WHERE {$where}"
         );
         $statement->execute($parameters);
-        $row = $statement->fetch();
-        if (!is_array($row)) {
-            throw new RuntimeException('business-linked detached byte-array audit did not return one row');
+        $linkedRows = 0;
+        $linkedRoots = [];
+        while (($row = $statement->fetch()) !== false) {
+            $key = self::hexLookupKey(
+                (string)($row['rootProcessIdHex'] ?? ''),
+                'candidate root process id'
+            );
+            if (isset($businessRoots[$key])) {
+                ++$linkedRows;
+                $linkedRoots[$key] = true;
+            }
         }
 
-        return [(int)$row['linkedRows'], (int)$row['linkedRoots']];
+        return [$linkedRows, count($linkedRoots)];
     }
 
     /** @param list<string> $parameters @param list<string> $columns @return array{int,list<string>,string,string} */
@@ -1537,7 +1632,7 @@ final class DetachedBytearrayPolicy
         while (($row = $statement->fetch()) !== false) {
             ++$count;
             $id = (string)($row['ID_'] ?? '');
-            $root = trim((string)($row['ROOT_PROC_INST_ID_'] ?? ''));
+            $root = trim((string)($row['ROOT_PROC_INST_ID_'] ?? ''), ' ');
             if ($id === '' || $root === '') {
                 throw new RuntimeException('detached byte-array identity contains an empty key');
             }
@@ -1637,6 +1732,313 @@ final class DetachedBytearrayPolicy
         return $tables;
     }
 
+    /**
+     * @param list<array{table:string,column:string}> $consumerColumns
+     * @param list<array{table:string,column:string}> $processEvidenceColumns
+     * @return array<string, mixed>
+     */
+    private static function indexSafePrerequisiteSummary(
+        PDO $pdo,
+        string $database,
+        array $consumerColumns,
+        array $processEvidenceColumns
+    ): array {
+        $bytearrayIndexes = self::indexDefinitions($pdo, $database, 'act_ge_bytearray');
+        $primaryIndex = [
+            'unique' => true,
+            'type' => 'BTREE',
+            'columns' => [['name' => 'ID_', 'prefix' => null]],
+        ];
+        $rootIndex = [
+            'unique' => false,
+            'type' => 'BTREE',
+            'columns' => [['name' => 'ROOT_PROC_INST_ID_', 'prefix' => null]],
+        ];
+        if (($bytearrayIndexes['PRIMARY'] ?? null) !== $primaryIndex) {
+            throw new RuntimeException('byte-array primary index differs from the reviewed index-safe policy');
+        }
+        if (($bytearrayIndexes[self::BYTEARRAY_ROOT_INDEX] ?? null) !== $rootIndex) {
+            throw new RuntimeException('byte-array root-process index differs from the reviewed index-safe policy');
+        }
+
+        $historyIndexes = self::indexDefinitions($pdo, $database, 'act_hi_procinst');
+        $historyProcessIndexes = [];
+        foreach ($historyIndexes as $name => $definition) {
+            $firstColumn = $definition['columns'][0] ?? null;
+            if (($definition['type'] ?? null) === 'BTREE'
+                && is_array($firstColumn)
+                && ($firstColumn['name'] ?? null) === 'PROC_INST_ID_'
+                && ($firstColumn['prefix'] ?? null) === null
+            ) {
+                $historyProcessIndexes[$name] = $definition;
+            }
+        }
+        if ($historyProcessIndexes === []) {
+            throw new RuntimeException('history process identity has no reviewed leading BTREE index');
+        }
+        ksort($historyProcessIndexes);
+
+        $consumerSpecs = array_merge(
+            [['table' => 'act_ge_bytearray', 'column' => 'ID_']],
+            $consumerColumns
+        );
+        $processSpecs = array_merge(
+            [
+                ['table' => 'act_ge_bytearray', 'column' => 'ROOT_PROC_INST_ID_'],
+                ['table' => 'act_hi_procinst', 'column' => 'PROC_INST_ID_'],
+            ],
+            $processEvidenceColumns
+        );
+        $comparisonMetadata = self::comparisonMetadata(
+            $pdo,
+            $database,
+            array_merge($consumerSpecs, $processSpecs)
+        );
+        foreach ($comparisonMetadata as $metadata) {
+            if (($metadata['dataType'] ?? '') !== self::REVIEWED_IDENTIFIER_COMPARISON['dataType']
+                || ($metadata['columnType'] ?? '') !== self::REVIEWED_IDENTIFIER_COMPARISON['columnType']
+            ) {
+                throw new RuntimeException('workflow identifier comparison type differs from the reviewed policy');
+            }
+        }
+
+        $bytearrayRootTrimDifferences = self::trimDifferenceCount(
+            $pdo,
+            $database,
+            'act_ge_bytearray',
+            'ROOT_PROC_INST_ID_'
+        );
+        $historyProcessTrimDifferences = self::trimDifferenceCount(
+            $pdo,
+            $database,
+            'act_hi_procinst',
+            'PROC_INST_ID_'
+        );
+        if ($bytearrayRootTrimDifferences !== 0 || $historyProcessTrimDifferences !== 0) {
+            throw new RuntimeException('workflow identifier values are not trim-canonical for index-safe comparison');
+        }
+
+        return [
+            'indexes' => [
+                'bytearrayPrimary' => $primaryIndex,
+                'bytearrayRootProcess' => $rootIndex,
+                'historyProcessLeading' => $historyProcessIndexes,
+            ],
+            'trimCanonicality' => [
+                'bytearrayRootProcessDifferences' => $bytearrayRootTrimDifferences,
+                'historyProcessDifferences' => $historyProcessTrimDifferences,
+            ],
+            'comparisonMetadata' => [
+                'reviewed' => self::REVIEWED_IDENTIFIER_COMPARISON,
+                'consumer' => self::comparisonGroupSummary($comparisonMetadata, $consumerSpecs),
+                'processEvidence' => self::comparisonGroupSummary($comparisonMetadata, $processSpecs),
+            ],
+        ];
+    }
+
+    /** @param list<string> $parameters @return array<string, int|bool> */
+    private static function candidateDistinctnessSummary(
+        PDO $pdo,
+        string $database,
+        string $where,
+        array $parameters
+    ): array {
+        $db = DatabaseManifest::quoteIdentifier($database);
+        $rootIndex = DatabaseManifest::quoteIdentifier(self::BYTEARRAY_ROOT_INDEX);
+        $queries = [
+            'collationDistinctRoots' =>
+                "SELECT COUNT(*) FROM (SELECT DISTINCT TRIM(b.ROOT_PROC_INST_ID_) AS rootProcessId "
+                . "FROM {$db}.act_ge_bytearray b FORCE INDEX ({$rootIndex}) WHERE {$where}) candidateRoots",
+            'binaryDistinctRoots' =>
+                "SELECT COUNT(*) FROM (SELECT DISTINCT BINARY TRIM(b.ROOT_PROC_INST_ID_) AS rootProcessId "
+                . "FROM {$db}.act_ge_bytearray b FORCE INDEX ({$rootIndex}) WHERE {$where}) candidateRoots",
+            'collationDistinctRootTenants' =>
+                "SELECT COUNT(*) FROM (SELECT DISTINCT TRIM(b.ROOT_PROC_INST_ID_) AS rootProcessId, "
+                . "NULLIF(TRIM(b.TENANT_ID_), '') AS tenantId "
+                . "FROM {$db}.act_ge_bytearray b FORCE INDEX ({$rootIndex}) WHERE {$where}) candidateRootTenants",
+            'binaryDistinctRootTenants' =>
+                "SELECT COUNT(*) FROM (SELECT DISTINCT BINARY TRIM(b.ROOT_PROC_INST_ID_) AS rootProcessId, "
+                . "BINARY NULLIF(TRIM(b.TENANT_ID_), '') AS tenantId "
+                . "FROM {$db}.act_ge_bytearray b FORCE INDEX ({$rootIndex}) WHERE {$where}) candidateRootTenants",
+        ];
+        $counts = [];
+        foreach ($queries as $name => $sql) {
+            $statement = $pdo->prepare($sql);
+            $statement->execute($parameters);
+            $counts[$name] = (int)$statement->fetchColumn();
+        }
+        if ($counts['collationDistinctRoots'] !== $counts['binaryDistinctRoots']
+            || $counts['collationDistinctRootTenants'] !== $counts['binaryDistinctRootTenants']
+        ) {
+            throw new RuntimeException('detached byte-array candidates contain collation-equivalent byte collisions');
+        }
+
+        return ['compatible' => true] + $counts;
+    }
+
+    /** @return array<string, array{unique:bool,type:string,columns:list<array{name:string,prefix:?int}>}> */
+    private static function indexDefinitions(PDO $pdo, string $database, string $table): array
+    {
+        $statement = $pdo->prepare(
+            'SELECT INDEX_NAME, NON_UNIQUE, INDEX_TYPE, SEQ_IN_INDEX, COLUMN_NAME, SUB_PART '
+            . 'FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? '
+            . 'ORDER BY INDEX_NAME, SEQ_IN_INDEX'
+        );
+        $statement->execute([$database, $table]);
+        $indexes = [];
+        foreach ($statement->fetchAll() as $row) {
+            $name = (string)($row['INDEX_NAME'] ?? '');
+            $column = (string)($row['COLUMN_NAME'] ?? '');
+            if ($name === '' || $column === '') {
+                throw new RuntimeException('workflow identifier index metadata is incomplete');
+            }
+            $definition = [
+                'unique' => (int)($row['NON_UNIQUE'] ?? 1) === 0,
+                'type' => strtoupper((string)($row['INDEX_TYPE'] ?? '')),
+                'columns' => [],
+            ];
+            if (isset($indexes[$name])) {
+                if ($indexes[$name]['unique'] !== $definition['unique']
+                    || $indexes[$name]['type'] !== $definition['type']
+                ) {
+                    throw new RuntimeException('workflow identifier index metadata is inconsistent');
+                }
+            } else {
+                $indexes[$name] = $definition;
+            }
+            $indexes[$name]['columns'][] = [
+                'name' => $column,
+                'prefix' => $row['SUB_PART'] === null ? null : (int)$row['SUB_PART'],
+            ];
+        }
+        ksort($indexes);
+
+        return $indexes;
+    }
+
+    /**
+     * @param list<array{table:string,column:string}> $specs
+     * @return array<string, array{dataType:string,columnType:string,characterSet:string,collation:string}>
+     */
+    private static function comparisonMetadata(PDO $pdo, string $database, array $specs): array
+    {
+        $required = [];
+        $tables = [];
+        $columns = [];
+        foreach ($specs as $spec) {
+            $table = MigrationSafety::identifier($spec['table'], 'comparison metadata table');
+            $column = MigrationSafety::identifier($spec['column'], 'comparison metadata column');
+            $required[$table . '.' . $column] = true;
+            $tables[$table] = true;
+            $columns[$column] = true;
+        }
+        if ($required === []) {
+            throw new RuntimeException('workflow identifier comparison metadata set is empty');
+        }
+        ksort($required);
+        $tableNames = array_keys($tables);
+        $columnNames = array_keys($columns);
+        sort($tableNames, SORT_STRING);
+        sort($columnNames, SORT_STRING);
+        $statement = $pdo->prepare(
+            'SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE, COLUMN_TYPE, CHARACTER_SET_NAME, COLLATION_NAME '
+            . 'FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME IN ('
+            . implode(',', array_fill(0, count($tableNames), '?')) . ') AND COLUMN_NAME IN ('
+            . implode(',', array_fill(0, count($columnNames), '?')) . ') ORDER BY TABLE_NAME, COLUMN_NAME'
+        );
+        $statement->execute(array_merge([$database], $tableNames, $columnNames));
+        $metadata = [];
+        foreach ($statement->fetchAll() as $row) {
+            $key = (string)($row['TABLE_NAME'] ?? '') . '.' . (string)($row['COLUMN_NAME'] ?? '');
+            if (!isset($required[$key])) {
+                continue;
+            }
+            $characterSet = strtolower((string)($row['CHARACTER_SET_NAME'] ?? ''));
+            $collation = strtolower((string)($row['COLLATION_NAME'] ?? ''));
+            // MySQL 8 reports the legacy utf8 alias as utf8mb3. Normalize only
+            // that documented alias so the reviewed three-byte UTF-8 policy
+            // stays identical across the source and loopback test engines.
+            if ($characterSet === 'utf8mb3') {
+                $characterSet = 'utf8';
+            }
+            if (str_starts_with($collation, 'utf8mb3_')) {
+                $collation = 'utf8_' . substr($collation, strlen('utf8mb3_'));
+            }
+            $metadata[$key] = [
+                'dataType' => strtolower((string)($row['DATA_TYPE'] ?? '')),
+                'columnType' => strtolower((string)($row['COLUMN_TYPE'] ?? '')),
+                'characterSet' => $characterSet,
+                'collation' => $collation,
+            ];
+        }
+        ksort($metadata);
+        if (array_keys($metadata) !== array_keys($required)) {
+            throw new RuntimeException('workflow identifier comparison metadata is incomplete');
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param array<string, array{dataType:string,columnType:string,characterSet:string,collation:string}> $metadata
+     * @param list<array{table:string,column:string}> $specs
+     * @return array{compatible:bool,columnCount:int,columns:list<string>,metadataSha256:string}
+     */
+    private static function comparisonGroupSummary(array $metadata, array $specs): array
+    {
+        $entries = [];
+        $characterSet = null;
+        $collation = null;
+        foreach ($specs as $spec) {
+            $key = $spec['table'] . '.' . $spec['column'];
+            if (!isset($metadata[$key])) {
+                throw new RuntimeException('workflow identifier comparison group metadata is incomplete');
+            }
+            $entries[$key] = $metadata[$key];
+            $entryCharacterSet = (string)($metadata[$key]['characterSet'] ?? '');
+            $entryCollation = (string)($metadata[$key]['collation'] ?? '');
+            if ($entryCharacterSet === '' || $entryCollation === '') {
+                throw new RuntimeException('workflow identifier comparison group is not textual');
+            }
+            if ($characterSet === null) {
+                $characterSet = $entryCharacterSet;
+                $collation = $entryCollation;
+            } elseif ($entryCharacterSet !== $characterSet || $entryCollation !== $collation) {
+                throw new RuntimeException('workflow identifier comparison group has incompatible collations');
+            }
+        }
+        ksort($entries);
+
+        return [
+            'compatible' => true,
+            'columnCount' => count($entries),
+            'columns' => array_keys($entries),
+            'characterSet' => $characterSet,
+            'collation' => $collation,
+            'metadataSha256' => hash('sha256', json_encode(
+                $entries,
+                JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+            )),
+        ];
+    }
+
+    private static function trimDifferenceCount(
+        PDO $pdo,
+        string $database,
+        string $table,
+        string $column
+    ): int {
+        $db = DatabaseManifest::quoteIdentifier($database);
+        $quotedTable = DatabaseManifest::quoteIdentifier($table);
+        $quotedColumn = DatabaseManifest::quoteIdentifier($column);
+        $statement = $pdo->query(
+            "SELECT COUNT(*) FROM {$db}.{$quotedTable} WHERE {$quotedColumn} IS NOT NULL "
+            . "AND BINARY {$quotedColumn} <> BINARY TRIM({$quotedColumn})"
+        );
+
+        return (int)$statement->fetchColumn();
+    }
+
     /** @return list<string> */
     private static function columns(PDO $pdo, string $database, string $table): array
     {
@@ -1666,12 +2068,21 @@ final class DetachedBytearrayPolicy
     private static function normalizeIds(array $ids): array
     {
         $ids = array_values(array_unique(array_filter(
-            array_map(static fn (mixed $value): string => trim((string)$value), $ids),
+            array_map(static fn (mixed $value): string => trim((string)$value, ' '), $ids),
             static fn (string $value): bool => $value !== ''
         )));
         sort($ids, SORT_STRING);
 
         return $ids;
+    }
+
+    private static function hexLookupKey(string $value, string $label): string
+    {
+        if ($value === '' || strlen($value) % 2 !== 0 || preg_match('/\A[0-9A-F]+\z/D', $value) !== 1) {
+            throw new RuntimeException($label . ' did not produce a non-empty canonical hexadecimal identity');
+        }
+
+        return 'hex:' . $value;
     }
 
     /** @param resource|\HashContext $context */
@@ -2260,7 +2671,7 @@ final class DetachedOperationLogPolicy
     private static function normalizeIds(array $ids): array
     {
         $ids = array_values(array_unique(array_filter(
-            array_map(static fn (mixed $value): string => trim((string)$value), $ids),
+            array_map(static fn (mixed $value): string => trim((string)$value, ' '), $ids),
             static fn (string $value): bool => $value !== ''
         )));
         sort($ids, SORT_STRING);
@@ -3599,45 +4010,91 @@ final class WorkflowTenantRepair
     ): array {
         $db = DatabaseManifest::quoteIdentifier($database);
         $tenantRows = $pdo->query(
-            "SELECT Tenant_ID FROM {$db}.tenants "
+            "SELECT Tenant_ID AS TENANT_ID_RAW, TRIM(Tenant_ID) AS Tenant_ID, "
+            . "HEX(NULLIF(TRIM(Tenant_ID), '')) AS TENANT_ID_HEX FROM {$db}.tenants "
             . "WHERE DELETE_FLAG IS NULL OR DELETE_FLAG = 'NOT_DELETE' ORDER BY Tenant_ID"
         )->fetchAll();
         $activeTenants = [];
         foreach ($tenantRows as $row) {
-            $tenantId = trim((string)($row['Tenant_ID'] ?? ''));
-            if ($tenantId !== '') {
-                $activeTenants[$tenantId] = true;
+            self::assertPhpAndMysqlTrimAgree(
+                $row['TENANT_ID_RAW'] ?? null,
+                $row['Tenant_ID'] ?? null,
+                'active tenant id'
+            );
+            $tenantHex = $row['TENANT_ID_HEX'] ?? null;
+            if ($tenantHex === null) {
+                continue;
             }
+            $activeTenants[self::mysqlHexIdentityKey((string)$tenantHex, 'active tenant id')] = true;
         }
 
         $userRows = $pdo->query(
-            "SELECT ID, TENANT_ID FROM {$db}.sys_user "
+            "SELECT ID AS ID_RAW, TRIM(ID) AS ID, HEX(NULLIF(TRIM(ID), '')) AS ID_HEX, "
+            . "TENANT_ID AS TENANT_ID_RAW, TRIM(TENANT_ID) AS TENANT_ID, "
+            . "HEX(NULLIF(TRIM(TENANT_ID), '')) AS TENANT_ID_HEX FROM {$db}.sys_user "
             . "WHERE DELETE_FLAG IS NULL OR DELETE_FLAG = 'NOT_DELETE' ORDER BY ID"
         )->fetchAll();
         $activeUsers = [];
         foreach ($userRows as $row) {
-            $userId = trim((string)($row['ID'] ?? ''));
-            $tenantId = trim((string)($row['TENANT_ID'] ?? ''));
-            if ($userId === '' || isset($activeUsers[$userId])) {
+            self::assertPhpAndMysqlTrimAgree($row['ID_RAW'] ?? null, $row['ID'] ?? null, 'active user id');
+            self::assertPhpAndMysqlTrimAgree(
+                $row['TENANT_ID_RAW'] ?? null,
+                $row['TENANT_ID'] ?? null,
+                'active user tenant id'
+            );
+            $userHex = $row['ID_HEX'] ?? null;
+            $tenantHex = $row['TENANT_ID_HEX'] ?? null;
+            if ($userHex === null || $tenantHex === null) {
+                throw new RuntimeException('workflow tenant repair requires non-empty active user identities');
+            }
+            $userKey = self::mysqlHexIdentityKey((string)$userHex, 'active user id');
+            $tenantKey = self::mysqlHexIdentityKey((string)$tenantHex, 'active user tenant id');
+            if (isset($activeUsers[$userKey])) {
                 throw new RuntimeException('workflow tenant repair requires globally unique active user ids');
             }
-            $activeUsers[$userId] = $tenantId;
+            $activeUsers[$userKey] = $tenantKey;
         }
 
         $historyVariables = [];
         foreach ($pdo->query(
-            "SELECT ID_, PROC_INST_ID_, VAR_TYPE_, TEXT_ FROM {$db}.act_hi_varinst "
+            "SELECT ID_, PROC_INST_ID_ AS PROC_INST_ID_RAW, TRIM(PROC_INST_ID_) AS PROC_INST_ID_, "
+            . "HEX(NULLIF(TRIM(PROC_INST_ID_), '')) AS PROC_INST_ID_HEX, "
+            . "VAR_TYPE_ AS VAR_TYPE_RAW, TRIM(VAR_TYPE_) AS VAR_TYPE_, "
+            . "TEXT_ AS TEXT_RAW, TRIM(TEXT_) AS TEXT_, "
+            . "HEX(NULLIF(TRIM(TEXT_), '')) AS TEXT_HEX FROM {$db}.act_hi_varinst "
             . "WHERE NAME_ = 'tenantId' ORDER BY PROC_INST_ID_, ID_"
         )->fetchAll() as $row) {
-            $processId = trim((string)($row['PROC_INST_ID_'] ?? ''));
-            if ($processId === '') {
+            self::assertPhpAndMysqlTrimAgree(
+                $row['PROC_INST_ID_RAW'] ?? null,
+                $row['PROC_INST_ID_'] ?? null,
+                'history tenant variable process id'
+            );
+            self::assertPhpAndMysqlTrimAgree(
+                $row['VAR_TYPE_RAW'] ?? null,
+                $row['VAR_TYPE_'] ?? null,
+                'history tenant variable type'
+            );
+            self::assertPhpAndMysqlTrimAgree(
+                $row['TEXT_RAW'] ?? null,
+                $row['TEXT_'] ?? null,
+                'history tenant variable tenant id'
+            );
+            if (($row['PROC_INST_ID_HEX'] ?? null) === null) {
                 throw new RuntimeException('history tenant variable has no process id');
             }
-            $historyVariables[$processId][] = $row;
+            $processKey = self::mysqlHexIdentityKey(
+                (string)$row['PROC_INST_ID_HEX'],
+                'history tenant variable process id'
+            );
+            $historyVariables[$processKey][] = $row;
         }
 
         $historyRows = $pdo->query(
-            "SELECT PROC_INST_ID_, START_USER_ID_ FROM {$db}.act_hi_procinst ORDER BY PROC_INST_ID_"
+            "SELECT PROC_INST_ID_ AS PROC_INST_ID_RAW, TRIM(PROC_INST_ID_) AS PROC_INST_ID_, "
+            . "HEX(NULLIF(TRIM(PROC_INST_ID_), '')) AS PROC_INST_ID_HEX, "
+            . "START_USER_ID_ AS START_USER_ID_RAW, TRIM(START_USER_ID_) AS START_USER_ID_, "
+            . "HEX(NULLIF(TRIM(START_USER_ID_), '')) AS START_USER_ID_HEX "
+            . "FROM {$db}.act_hi_procinst ORDER BY PROC_INST_ID_"
         )->fetchAll();
         if (count($historyRows) !== $expectedHistoryProcesses) {
             throw new RuntimeException('history workflow process count differs from the audited tenant repair baseline');
@@ -3645,30 +4102,64 @@ final class WorkflowTenantRepair
 
         $processes = [];
         $processIndexes = [];
+        $processIdentityKeys = [];
+        $tenantIdentityKeys = [];
         foreach ($historyRows as $row) {
-            $processId = trim((string)($row['PROC_INST_ID_'] ?? ''));
-            if ($processId === '' || isset($processIndexes[$processId])) {
+            self::assertPhpAndMysqlTrimAgree(
+                $row['PROC_INST_ID_RAW'] ?? null,
+                $row['PROC_INST_ID_'] ?? null,
+                'history workflow process id'
+            );
+            self::assertPhpAndMysqlTrimAgree(
+                $row['START_USER_ID_RAW'] ?? null,
+                $row['START_USER_ID_'] ?? null,
+                'workflow starter id'
+            );
+            $processId = (string)($row['PROC_INST_ID_'] ?? '');
+            if (($row['PROC_INST_ID_HEX'] ?? null) === null) {
                 throw new RuntimeException('history workflow process ids must be non-empty and unique');
             }
-            $variables = $historyVariables[$processId] ?? [];
+            $processKey = self::mysqlHexIdentityKey(
+                (string)$row['PROC_INST_ID_HEX'],
+                'history workflow process id'
+            );
+            if ($processId === '' || isset($processIndexes[$processKey])) {
+                throw new RuntimeException('history workflow process ids must be non-empty and unique');
+            }
+            $variables = $historyVariables[$processKey] ?? [];
             if (count($variables) !== 1) {
                 throw new RuntimeException('workflow tenant repair requires exactly one history tenantId variable');
             }
             $variable = $variables[0];
-            $tenantId = trim((string)($variable['TEXT_'] ?? ''));
-            if (strtolower(trim((string)($variable['VAR_TYPE_'] ?? ''))) !== 'string'
+            $tenantId = (string)($variable['TEXT_'] ?? '');
+            if (($variable['TEXT_HEX'] ?? null) === null) {
+                throw new RuntimeException('history tenantId variable is not a supported non-empty string');
+            }
+            $tenantKey = self::mysqlHexIdentityKey(
+                (string)$variable['TEXT_HEX'],
+                'history tenant variable tenant id'
+            );
+            if (strtolower((string)($variable['VAR_TYPE_'] ?? '')) !== 'string'
                 || !preg_match('/^[A-Za-z0-9_-]{1,64}$/', $tenantId)
             ) {
                 throw new RuntimeException('history tenantId variable is not a supported non-empty string');
             }
-            if (!isset($activeTenants[$tenantId])) {
+            if (!isset($activeTenants[$tenantKey])) {
                 throw new RuntimeException('history tenantId variable does not identify one active tenant');
             }
-            $starterId = trim((string)($row['START_USER_ID_'] ?? ''));
-            if ($starterId === '' || ($activeUsers[$starterId] ?? null) !== $tenantId) {
+            if (($row['START_USER_ID_HEX'] ?? null) === null) {
                 throw new RuntimeException('workflow starter does not belong to the inferred tenant');
             }
-            $processIndexes[$processId] = count($processes);
+            $starterKey = self::mysqlHexIdentityKey(
+                (string)$row['START_USER_ID_HEX'],
+                'workflow starter id'
+            );
+            if (($activeUsers[$starterKey] ?? null) !== $tenantKey) {
+                throw new RuntimeException('workflow starter does not belong to the inferred tenant');
+            }
+            $processIndexes[$processKey] = count($processes);
+            $processIdentityKeys[] = $processKey;
+            $tenantIdentityKeys[] = $tenantKey;
             $processes[] = [
                 'processId' => $processId,
                 'tenantId' => $tenantId,
@@ -3684,19 +4175,44 @@ final class WorkflowTenantRepair
         $activeProcessIds = [];
         $blankAssigneeCount = 0;
         foreach ($pdo->query(
-            "SELECT ID_, PROC_INST_ID_, ASSIGNEE_ FROM {$db}.act_ru_task ORDER BY ID_"
+            "SELECT ID_, PROC_INST_ID_ AS PROC_INST_ID_RAW, TRIM(PROC_INST_ID_) AS PROC_INST_ID_, "
+            . "HEX(NULLIF(TRIM(PROC_INST_ID_), '')) AS PROC_INST_ID_HEX, "
+            . "ASSIGNEE_ AS ASSIGNEE_RAW, TRIM(ASSIGNEE_) AS ASSIGNEE_, "
+            . "HEX(NULLIF(TRIM(ASSIGNEE_), '')) AS ASSIGNEE_HEX "
+            . "FROM {$db}.act_ru_task ORDER BY ID_"
         )->fetchAll() as $row) {
-            $processId = trim((string)($row['PROC_INST_ID_'] ?? ''));
-            if (!isset($processIndexes[$processId])) {
+            self::assertPhpAndMysqlTrimAgree(
+                $row['PROC_INST_ID_RAW'] ?? null,
+                $row['PROC_INST_ID_'] ?? null,
+                'active workflow process id'
+            );
+            self::assertPhpAndMysqlTrimAgree(
+                $row['ASSIGNEE_RAW'] ?? null,
+                $row['ASSIGNEE_'] ?? null,
+                'active workflow assignee id'
+            );
+            if (($row['PROC_INST_ID_HEX'] ?? null) === null) {
                 continue;
             }
-            $activeProcessIds[$processId] = true;
-            $tenantId = $processes[$processIndexes[$processId]]['tenantId'];
-            $assigneeId = trim((string)($row['ASSIGNEE_'] ?? ''));
-            if ($assigneeId === '') {
+            $processKey = self::mysqlHexIdentityKey(
+                (string)$row['PROC_INST_ID_HEX'],
+                'active workflow process id'
+            );
+            if (!isset($processIndexes[$processKey])) {
+                continue;
+            }
+            $activeProcessIds[$processKey] = true;
+            $tenantKey = $tenantIdentityKeys[$processIndexes[$processKey]];
+            if (($row['ASSIGNEE_HEX'] ?? null) === null) {
                 ++$blankAssigneeCount;
-            } elseif (($activeUsers[$assigneeId] ?? null) !== $tenantId) {
-                throw new RuntimeException('active workflow assignee does not belong to the inferred tenant');
+            } else {
+                $assigneeKey = self::mysqlHexIdentityKey(
+                    (string)$row['ASSIGNEE_HEX'],
+                    'active workflow assignee id'
+                );
+                if (($activeUsers[$assigneeKey] ?? null) !== $tenantKey) {
+                    throw new RuntimeException('active workflow assignee does not belong to the inferred tenant');
+                }
             }
         }
         if (count($activeProcessIds) !== $expectedActiveProcesses) {
@@ -3708,25 +4224,56 @@ final class WorkflowTenantRepair
 
         $runtimeVariables = [];
         foreach ($pdo->query(
-            "SELECT ID_, PROC_INST_ID_, TYPE_, TEXT_ FROM {$db}.act_ru_variable "
+            "SELECT ID_, PROC_INST_ID_ AS PROC_INST_ID_RAW, TRIM(PROC_INST_ID_) AS PROC_INST_ID_, "
+            . "HEX(NULLIF(TRIM(PROC_INST_ID_), '')) AS PROC_INST_ID_HEX, "
+            . "TYPE_ AS TYPE_RAW, TRIM(TYPE_) AS TYPE_, "
+            . "TEXT_ AS TEXT_RAW, TRIM(TEXT_) AS TEXT_, "
+            . "HEX(NULLIF(TRIM(TEXT_), '')) AS TEXT_HEX FROM {$db}.act_ru_variable "
             . "WHERE NAME_ = 'tenantId' ORDER BY PROC_INST_ID_, ID_"
         )->fetchAll() as $row) {
-            $processId = trim((string)($row['PROC_INST_ID_'] ?? ''));
-            if (!isset($activeProcessIds[$processId])) {
+            self::assertPhpAndMysqlTrimAgree(
+                $row['PROC_INST_ID_RAW'] ?? null,
+                $row['PROC_INST_ID_'] ?? null,
+                'runtime tenant variable process id'
+            );
+            self::assertPhpAndMysqlTrimAgree(
+                $row['TYPE_RAW'] ?? null,
+                $row['TYPE_'] ?? null,
+                'runtime tenant variable type'
+            );
+            self::assertPhpAndMysqlTrimAgree(
+                $row['TEXT_RAW'] ?? null,
+                $row['TEXT_'] ?? null,
+                'runtime tenant variable tenant id'
+            );
+            if (($row['PROC_INST_ID_HEX'] ?? null) === null) {
                 throw new RuntimeException('runtime tenantId variable belongs to a process outside the active repair scope');
             }
-            $runtimeVariables[$processId][] = $row;
+            $processKey = self::mysqlHexIdentityKey(
+                (string)$row['PROC_INST_ID_HEX'],
+                'runtime tenant variable process id'
+            );
+            if (!isset($activeProcessIds[$processKey])) {
+                throw new RuntimeException('runtime tenantId variable belongs to a process outside the active repair scope');
+            }
+            $runtimeVariables[$processKey][] = $row;
         }
-        foreach (array_keys($activeProcessIds) as $processId) {
-            $variables = $runtimeVariables[$processId] ?? [];
+        foreach (array_keys($activeProcessIds) as $processKey) {
+            $variables = $runtimeVariables[$processKey] ?? [];
             if (count($variables) !== 1) {
                 throw new RuntimeException('workflow tenant repair requires exactly one runtime tenantId variable');
             }
             $variable = $variables[0];
-            $tenantId = trim((string)($variable['TEXT_'] ?? ''));
-            $index = $processIndexes[$processId];
-            if (strtolower(trim((string)($variable['TYPE_'] ?? ''))) !== 'string'
-                || $tenantId !== $processes[$index]['tenantId']
+            if (($variable['TEXT_HEX'] ?? null) === null) {
+                throw new RuntimeException('runtime and history tenantId evidence differs');
+            }
+            $tenantKey = self::mysqlHexIdentityKey(
+                (string)$variable['TEXT_HEX'],
+                'runtime tenant variable tenant id'
+            );
+            $index = $processIndexes[$processKey];
+            if (strtolower((string)($variable['TYPE_'] ?? '')) !== 'string'
+                || $tenantKey !== $tenantIdentityKeys[$index]
             ) {
                 throw new RuntimeException('runtime and history tenantId evidence differs');
             }
@@ -3738,7 +4285,7 @@ final class WorkflowTenantRepair
         }
 
         $ignoredUnmappedProcessIds = array_values(array_unique(array_filter(
-            array_map(static fn (mixed $value): string => trim((string)$value), $ignoredUnmappedProcessIds),
+            array_map(static fn (mixed $value): string => trim((string)$value, ' '), $ignoredUnmappedProcessIds),
             static fn (string $value): bool => $value !== ''
         )));
         sort($ignoredUnmappedProcessIds);
@@ -3747,11 +4294,21 @@ final class WorkflowTenantRepair
                 throw new RuntimeException('workflow tenant repair table-specific ignore scope is invalid');
             }
             $ids = array_values(array_unique(array_filter(
-                array_map(static fn (mixed $value): string => trim((string)$value), $ids),
+                array_map(static fn (mixed $value): string => trim((string)$value, ' '), $ids),
                 static fn (string $value): bool => $value !== ''
             )));
             sort($ids);
             $tableIgnoredUnmappedProcessIds[$table] = $ids;
+        }
+
+        $frozenTenantByProcess = [];
+        foreach ($processes as $index => $_process) {
+            $processKey = (string)($processIdentityKeys[$index] ?? '');
+            $tenantKey = (string)($tenantIdentityKeys[$index] ?? '');
+            if ($processKey === '' || $tenantKey === '' || isset($frozenTenantByProcess[$processKey])) {
+                throw new RuntimeException('workflow tenant repair process mapping is not byte-unique');
+            }
+            $frozenTenantByProcess[$processKey] = $tenantKey;
         }
 
         $tables = [];
@@ -3761,20 +4318,20 @@ final class WorkflowTenantRepair
                 $tableIgnoredUnmappedProcessIds[$table] ?? []
             )));
             sort($tableIgnored);
-            self::assertProcessReferences(
+            $tables[$table] = self::tableAuditAgainstFrozenMapping(
                 $pdo,
                 $database,
                 $table,
                 $columns,
+                $frozenTenantByProcess,
                 $tableIgnored
             );
-            $tables[$table] = self::tableAudit(
-                $pdo,
-                $database,
-                $table,
-                $columns,
-                $tableIgnored
-            );
+            if ($tables[$table]['unmappedRows'] !== 0) {
+                throw new RuntimeException("workflow tenant mapping has unmapped process references in {$table}");
+            }
+            if ($tables[$table]['referenceConflictRows'] !== 0) {
+                throw new RuntimeException("workflow tenant mapping has conflicting process references in {$table}");
+            }
             if ($tables[$table]['conflictingRows'] !== 0) {
                 throw new RuntimeException("workflow tenant evidence conflicts with {$table}");
             }
@@ -3953,48 +4510,134 @@ final class WorkflowTenantRepair
         }
     }
 
-    /** @param list<string> $columns @return array<string, int> */
-    private static function tableAudit(
+    /**
+     * @param list<string> $columns
+     * @param array<string, string> $tenantByProcess
+     * @param list<string> $ignoredUnmappedProcessIds
+     * @return array<string, int>
+     */
+    private static function tableAuditAgainstFrozenMapping(
         PDO $pdo,
         string $database,
         string $table,
         array $columns,
+        array $tenantByProcess,
         array $ignoredUnmappedProcessIds = []
     ): array
     {
         $db = DatabaseManifest::quoteIdentifier($database);
         $tableName = DatabaseManifest::quoteIdentifier($table);
-        $processExpression = self::processExpression('t', $columns);
-        $mapping = self::historyMappingSql($database);
-        $ignoredPredicates = [];
-        $parameters = [];
-        if ($ignoredUnmappedProcessIds !== []) {
-            $placeholders = implode(',', array_fill(0, count($ignoredUnmappedProcessIds), '?'));
-            foreach ($columns as $column) {
-                $reference = self::processReference('t', $column);
-                $ignoredPredicates[] = "({$reference} IS NOT NULL "
-                    . "AND BINARY {$reference} IN ({$placeholders}))";
-                array_push($parameters, ...$ignoredUnmappedProcessIds);
-            }
+        $mapping = $tenantByProcess;
+        $ignored = [];
+        foreach ($ignoredUnmappedProcessIds as $processId) {
+            $ignored[self::phpBinaryIdentityKey($processId)] = true;
         }
-        $where = $ignoredPredicates === [] ? '' : ' WHERE NOT (' . implode(' OR ', $ignoredPredicates) . ')';
-        $statement = $pdo->prepare(
-            "SELECT COUNT(*) AS totalRows, "
-            . "COALESCE(SUM(CASE WHEN t.TENANT_ID_ IS NULL OR TRIM(t.TENANT_ID_) = '' THEN 1 ELSE 0 END), 0) AS blankRows, "
-            . "COALESCE(SUM(CASE WHEN t.TENANT_ID_ IS NOT NULL AND TRIM(t.TENANT_ID_) <> '' "
-            . "AND BINARY t.TENANT_ID_ = BINARY m.tenantId THEN 1 ELSE 0 END), 0) AS matchingRows, "
-            . "COALESCE(SUM(CASE WHEN t.TENANT_ID_ IS NOT NULL AND TRIM(t.TENANT_ID_) <> '' "
-            . "AND BINARY t.TENANT_ID_ <> BINARY m.tenantId THEN 1 ELSE 0 END), 0) AS conflictingRows "
-            . "FROM {$db}.{$tableName} t INNER JOIN ({$mapping}) m "
-            . "ON BINARY m.processId = BINARY {$processExpression}{$where}"
-        );
-        $statement->execute($parameters);
-        $row = $statement->fetch();
 
-        return self::integerAuditRow($row) + [
+        $selects = [
+            'HEX(t.TENANT_ID_) AS tenantRawHex',
+            "HEX(NULLIF(TRIM(t.TENANT_ID_), '')) AS tenantTrimmedHex",
+        ];
+        foreach ($columns as $index => $column) {
+            $quotedColumn = DatabaseManifest::quoteIdentifier($column);
+            $selects[] = "HEX(NULLIF(TRIM(t.{$quotedColumn}), '')) AS processRef{$index}Hex";
+        }
+        $statement = $pdo->query(
+            'SELECT ' . implode(', ', $selects) . " FROM {$db}.{$tableName} t"
+        );
+        $audit = [
+            'totalRows' => 0,
+            'blankRows' => 0,
+            'matchingRows' => 0,
+            'conflictingRows' => 0,
             'unmappedRows' => 0,
             'referenceConflictRows' => 0,
         ];
+        while (($row = $statement->fetch()) !== false) {
+            $referenceKeys = [];
+            $mappedTenantKeys = [];
+            $rowIgnored = false;
+            $rowUnmapped = false;
+            foreach ($columns as $index => $_column) {
+                $hex = $row["processRef{$index}Hex"] ?? null;
+                if ($hex === null) {
+                    continue;
+                }
+                $referenceKey = self::mysqlHexIdentityKey((string)$hex, 'workflow process reference');
+                $referenceKeys[] = $referenceKey;
+                if (isset($mapping[$referenceKey])) {
+                    $mappedTenantKeys[$mapping[$referenceKey]] = true;
+                } elseif (!isset($ignored[$referenceKey])) {
+                    $rowUnmapped = true;
+                }
+                if (isset($ignored[$referenceKey])) {
+                    $rowIgnored = true;
+                }
+            }
+            if ($rowUnmapped) {
+                ++$audit['unmappedRows'];
+            }
+            if (count($mappedTenantKeys) > 1) {
+                ++$audit['referenceConflictRows'];
+            }
+            if ($rowIgnored || $referenceKeys === []) {
+                continue;
+            }
+            $processKey = $referenceKeys[0];
+            if (!isset($mapping[$processKey])) {
+                continue;
+            }
+            ++$audit['totalRows'];
+            if (($row['tenantTrimmedHex'] ?? null) === null) {
+                ++$audit['blankRows'];
+                continue;
+            }
+            $tenantKey = self::mysqlHexIdentityKey(
+                (string)($row['tenantRawHex'] ?? ''),
+                'workflow row tenant id'
+            );
+            if ($tenantKey === $mapping[$processKey]) {
+                ++$audit['matchingRows'];
+            } else {
+                ++$audit['conflictingRows'];
+            }
+        }
+
+        return $audit;
+    }
+
+    private static function phpBinaryIdentityKey(string $value): string
+    {
+        $mysqlTrimmed = trim($value, ' ');
+        if (trim($value) !== $mysqlTrimmed) {
+            throw new RuntimeException('workflow binary identity contains unsupported control whitespace');
+        }
+        if ($mysqlTrimmed === '') {
+            throw new RuntimeException('workflow binary identity must not be empty');
+        }
+
+        return 'hex:' . strtoupper(bin2hex($mysqlTrimmed));
+    }
+
+    private static function assertPhpAndMysqlTrimAgree(mixed $raw, mixed $mysqlTrimmed, string $label): void
+    {
+        if ($raw === null || $mysqlTrimmed === null) {
+            if ($raw === null && $mysqlTrimmed === null) {
+                return;
+            }
+            throw new RuntimeException($label . ' has inconsistent trim semantics');
+        }
+        if (trim((string)$raw) !== (string)$mysqlTrimmed) {
+            throw new RuntimeException($label . ' contains unsupported control whitespace');
+        }
+    }
+
+    private static function mysqlHexIdentityKey(string $value, string $label): string
+    {
+        if ($value === '' || strlen($value) % 2 !== 0 || preg_match('/\A[0-9A-F]+\z/D', $value) !== 1) {
+            throw new RuntimeException($label . ' did not produce a non-empty canonical hexadecimal identity');
+        }
+
+        return 'hex:' . $value;
     }
 
     /** @param list<string> $columns @return array<string, int> */
@@ -4058,54 +4701,6 @@ final class WorkflowTenantRepair
         return "NULLIF(TRIM({$alias}." . DatabaseManifest::quoteIdentifier($column) . "), '')";
     }
 
-    /** @param list<string> $columns @param list<string> $ignoredUnmappedProcessIds */
-    private static function assertProcessReferences(
-        PDO $pdo,
-        string $database,
-        string $table,
-        array $columns,
-        array $ignoredUnmappedProcessIds
-    ): void {
-        $db = DatabaseManifest::quoteIdentifier($database);
-        $tableName = DatabaseManifest::quoteIdentifier($table);
-        $mapping = self::historyMappingSql($database);
-        foreach ($columns as $index => $column) {
-            $reference = self::processReference('t', $column);
-            $ignored = '';
-            $parameters = [];
-            if ($ignoredUnmappedProcessIds !== []) {
-                $ignored = ' AND BINARY ' . $reference . ' NOT IN ('
-                    . implode(',', array_fill(0, count($ignoredUnmappedProcessIds), '?')) . ')';
-                $parameters = $ignoredUnmappedProcessIds;
-            }
-            $statement = $pdo->prepare(
-                "SELECT COUNT(*) FROM {$db}.{$tableName} t "
-                . "LEFT JOIN ({$mapping}) m{$index} ON BINARY m{$index}.processId = BINARY {$reference} "
-                . "WHERE {$reference} IS NOT NULL AND m{$index}.processId IS NULL{$ignored}"
-            );
-            $statement->execute($parameters);
-            if ((int)$statement->fetchColumn() !== 0) {
-                throw new RuntimeException("workflow tenant mapping has unmapped process references in {$table}");
-            }
-        }
-
-        for ($left = 0; $left < count($columns); ++$left) {
-            for ($right = $left + 1; $right < count($columns); ++$right) {
-                $leftReference = self::processReference('t', $columns[$left]);
-                $rightReference = self::processReference('t', $columns[$right]);
-                $rowCount = (int)$pdo->query(
-                    "SELECT COUNT(*) FROM {$db}.{$tableName} t "
-                    . "INNER JOIN ({$mapping}) ml ON BINARY ml.processId = BINARY {$leftReference} "
-                    . "INNER JOIN ({$mapping}) mr ON BINARY mr.processId = BINARY {$rightReference} "
-                    . 'WHERE BINARY ml.tenantId <> BINARY mr.tenantId'
-                )->fetchColumn();
-                if ($rowCount !== 0) {
-                    throw new RuntimeException("workflow tenant mapping has conflicting process references in {$table}");
-                }
-            }
-        }
-    }
-
     /** @param list<string> $columns */
     private static function assertRunProcessReferences(
         PDO $pdo,
@@ -4152,16 +4747,6 @@ final class WorkflowTenantRepair
         }
     }
 
-    private static function historyMappingSql(string $database): string
-    {
-        $db = DatabaseManifest::quoteIdentifier($database);
-
-        return "SELECT TRIM(PROC_INST_ID_) AS processId, MAX(TRIM(TEXT_)) AS tenantId FROM {$db}.act_hi_varinst "
-            . "WHERE NAME_ = 'tenantId' AND LOWER(TRIM(VAR_TYPE_)) = 'string' "
-            . "AND NULLIF(TRIM(PROC_INST_ID_), '') IS NOT NULL "
-            . "AND TEXT_ IS NOT NULL AND TRIM(TEXT_) <> '' "
-            . 'GROUP BY BINARY TRIM(PROC_INST_ID_) HAVING COUNT(*) = 1';
-    }
 }
 
 final class AssigneeRepair
@@ -4404,7 +4989,7 @@ final class MigrationRunner
     private const AUDITED_TEMPLATE_COLUMNS = 1882;
     private const AUDITED_ORPHANS = 20;
     private const AUDITED_HISTORY_PROCESSES = 3901;
-    private const AUDITED_ACTIVE_PROCESSES = 55;
+    private const AUDITED_ACTIVE_PROCESSES = 43;
     private const AUDITED_ASSIGNEE_REPAIRS = 2;
     private const AUDITED_DETACHED_BYTEARRAY_ROWS = 96340;
     private const AUDITED_DETACHED_BYTEARRAY_ROOTS = 12557;
@@ -4477,7 +5062,7 @@ final class MigrationRunner
         $this->assertRequiredTemplateFeatures($templateManifest);
         $orphans = OrphanPolicy::detect($sourcePdo, $sourceDatabase);
         $ignoredOrphanProcessIds = array_values(array_unique(array_filter(
-            array_map(static fn (array $item): string => trim((string)($item['processId'] ?? '')), $orphans),
+            array_map(static fn (array $item): string => trim((string)($item['processId'] ?? ''), ' '), $orphans),
             static fn (string $value): bool => $value !== ''
         )));
         sort($ignoredOrphanProcessIds);
