@@ -10,10 +10,14 @@ use PDO;
 use RuntimeException;
 use Throwable;
 use think\App;
+use function Oa\IsolatedValidationParameters\approvalComment;
+use function Oa\IsolatedValidationParameters\environmentConfiguration;
+use function Oa\IsolatedValidationParameters\legacyPosthocMode;
+use function Oa\IsolatedValidationParameters\loopbackHost;
+use function Oa\IsolatedValidationParameters\requiredEnvironment;
 
-const CANONICAL_DATABASE = 'oa2026_rehearsal_r6_20260718_r10_migrated';
-const EXPECTED_TABLE_COUNT = 124;
-const EXPECTED_FOREIGN_KEY_COUNT = 42;
+require_once __DIR__ . '/lib/isolated-validation-parameters.php';
+
 
 /** @return array<string, string> */
 function parseOptions(array $argv): array
@@ -58,17 +62,71 @@ function readJson(string $path, string $label): array
     return $decoded;
 }
 
+/** @return array<string, mixed> */
+function readPinnedJson(string $path, string $label, string $expectedSha256): array
+{
+    if (preg_match('/^[a-f0-9]{64}$/', $expectedSha256) !== 1) {
+        throw new RuntimeException("{$label} SHA256 is missing or invalid");
+    }
+    if (!is_file($path) || is_link($path)) {
+        throw new RuntimeException("{$label} is missing or unsafe");
+    }
+    $raw = file_get_contents($path);
+    if (!is_string($raw) || $raw === '' || !hash_equals($expectedSha256, hash('sha256', $raw))) {
+        throw new RuntimeException("{$label} SHA256 differs from the private pointer");
+    }
+    $decoded = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+    if (!is_array($decoded)) {
+        throw new RuntimeException("{$label} is invalid");
+    }
+
+    return $decoded;
+}
+
+/** @param array<string, mixed> $parameters */
+function canonicalDatabaseFromParameters(array $parameters): string
+{
+    $canonicalDatabase = $parameters['canonicalDatabase'] ?? null;
+    if (!is_string($canonicalDatabase) || $canonicalDatabase === '') {
+        throw new RuntimeException('audit canonical database parameter is missing');
+    }
+
+    return $canonicalDatabase;
+}
+
 function containedPath(string $child, string $parent): bool
 {
-    $childReal = realpath($child);
-    $parentReal = realpath($parent);
-    if ($childReal === false || $parentReal === false) {
-        return false;
-    }
-    $childPrefix = strtolower(rtrim($childReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
-    $parentPrefix = strtolower(rtrim($parentReal, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR);
+    $childPrefix = rtrim($child, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    $parentPrefix = rtrim($parent, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
     return str_starts_with($childPrefix, $parentPrefix);
+}
+
+function sameEvidencePath(string $expected, string $actual): bool
+{
+    return hash_equals($expected, $actual);
+}
+
+function resolveEvidenceCandidate(
+    string $candidate,
+    string $privateRoot,
+    string $label,
+    bool $directory = false
+): string {
+    if ($candidate === '' || is_link($candidate)) {
+        throw new RuntimeException("{$label} candidate is missing or a symbolic link");
+    }
+    $resolved = realpath($candidate);
+    if ($resolved === false
+        || is_link($resolved)
+        || ($directory && !is_dir($resolved))
+        || (!$directory && !is_file($resolved))
+        || !containedPath($resolved, $privateRoot)
+    ) {
+        throw new RuntimeException("{$label} candidate is invalid or outside private runtime");
+    }
+
+    return $resolved;
 }
 
 function quoteIdentifier(string $value): string
@@ -83,9 +141,16 @@ function quoteIdentifier(string $value): string
 /** @param array<string, mixed> $connection */
 function pdoForDatabase(array $connection, string $database): PDO
 {
-    $host = strtolower(trim((string) ($connection['hostname'] ?? '')));
-    if (!in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
-        throw new RuntimeException('audit refuses a non-loopback database host');
+    $validation = environmentConfiguration();
+    $configuredHost = loopbackHost((string) ($connection['hostname'] ?? ''));
+    if (!hash_equals($validation['databaseHost'], $configuredHost)) {
+        throw new RuntimeException('audit database host differs from the explicit invocation');
+    }
+    if (!in_array($database, [
+        $validation['canonicalDatabase'],
+        $validation['targetDatabase'],
+    ], true)) {
+        throw new RuntimeException('audit database is outside the explicit validation pair');
     }
     $port = (int) ($connection['hostport'] ?? 3306);
     if ($port < 1 || $port > 65535) {
@@ -93,7 +158,7 @@ function pdoForDatabase(array $connection, string $database): PDO
     }
 
     return new PDO(
-        "mysql:host=127.0.0.1;port={$port};dbname={$database};charset=utf8mb4",
+        "mysql:host={$validation['databaseHost']};port={$port};dbname={$database};charset=utf8mb4",
         (string) ($connection['username'] ?? ''),
         (string) ($connection['password'] ?? ''),
         [
@@ -144,7 +209,7 @@ function normalizedRow(array|false $row): ?array
 /** @return array<string, mixed> */
 function sanitizedRowDiff(PDO $canonical, PDO $target, string $targetDatabase, string $table): array
 {
-    $beforeTable = quoteIdentifier(CANONICAL_DATABASE) . '.' . quoteIdentifier($table);
+    $beforeTable = quoteIdentifier(environmentConfiguration()['canonicalDatabase']) . '.' . quoteIdentifier($table);
     $afterTable = quoteIdentifier($targetDatabase) . '.' . quoteIdentifier($table);
     $beforeStatement = $canonical->query("SELECT * FROM {$beforeTable} ORDER BY BINARY `ID_`");
     $afterStatement = $target->query("SELECT * FROM {$afterTable} ORDER BY BINARY `ID_`");
@@ -258,7 +323,7 @@ function sanitizedRowDiff(PDO $canonical, PDO $target, string $targetDatabase, s
  */
 function rawRowDiff(PDO $canonical, PDO $target, string $targetDatabase, string $table): array
 {
-    $beforeTable = quoteIdentifier(CANONICAL_DATABASE) . '.' . quoteIdentifier($table);
+    $beforeTable = quoteIdentifier(environmentConfiguration()['canonicalDatabase']) . '.' . quoteIdentifier($table);
     $afterTable = quoteIdentifier($targetDatabase) . '.' . quoteIdentifier($table);
     $beforeStatement = $canonical->query("SELECT * FROM {$beforeTable} ORDER BY BINARY `ID_`");
     $afterStatement = $target->query("SELECT * FROM {$afterTable} ORDER BY BINARY `ID_`");
@@ -601,7 +666,7 @@ SQL, [], 'eligible canonical approval task');
 
     $expectedValues = [
         'approval' => ['boolean', 1],
-        'comment' => ['string', 'R10 isolated continuation validation'],
+        'comment' => ['string', approvalComment(requiredEnvironment('OA_ISOLATED_APPROVAL_COMMENT'))],
         'nrOfActiveInstances' => ['integer', 1],
         'nrOfCompletedInstances' => ['integer', 1],
         'procure' => ['string', $procureUser],
@@ -727,32 +792,100 @@ function writeAtomicJson(string $path, array $value): void
 function inspect(array $argv): array
 {
     $options = parseOptions($argv);
+    $parameters = environmentConfiguration();
+    $legacyPosthoc = legacyPosthocMode();
+    $canonicalDatabase = canonicalDatabaseFromParameters($parameters);
     $projectRoot = dirname(__DIR__);
-    $runtimeRoot = realpath($projectRoot . DIRECTORY_SEPARATOR . 'runtime');
-    if ($runtimeRoot === false || is_link($runtimeRoot)) {
+    $runtimeInput = $projectRoot . DIRECTORY_SEPARATOR . 'runtime';
+    if (is_link($runtimeInput)) {
+        throw new RuntimeException('audit runtime root is unavailable');
+    }
+    $runtimeRoot = realpath($runtimeInput);
+    if ($runtimeRoot === false || !is_dir($runtimeRoot) || is_link($runtimeRoot)) {
         throw new RuntimeException('audit runtime root is unavailable');
     }
 
-    $pointer = readJson(
-        $runtimeRoot . DIRECTORY_SEPARATOR . 'isolated-r10-validation-active-private.json',
+    $pointerInputPath = requiredEnvironment('OA_ISOLATED_POINTER_PATH');
+    $pointerPath = resolveEvidenceCandidate(
+        $pointerInputPath,
+        $runtimeRoot,
         'private validation pointer'
     );
+    $pointer = readJson($pointerPath, 'private validation pointer');
     $targetDatabase = trim((string) ($pointer['database'] ?? ''));
-    if (preg_match('/^oa2026_r10_validation_20260718_[a-f0-9]{8}$/', $targetDatabase) !== 1) {
-        throw new RuntimeException('private validation database is invalid');
+    if (!hash_equals($parameters['targetDatabase'], $targetDatabase)) {
+        throw new RuntimeException('private validation database differs from the explicit invocation');
+    }
+    $pointerExpectedMetadata = [
+        'version' => 2,
+        'canonicalDatabase' => $canonicalDatabase,
+        'databaseHost' => $parameters['databaseHost'],
+        'runLabel' => $parameters['runLabel'],
+        'runDate' => $parameters['runDate'],
+        'expectedTableCount' => $parameters['expectedTableCount'],
+        'expectedForeignKeyConstraintCount' => $parameters['expectedForeignKeyCount'],
+    ];
+    foreach ($pointerExpectedMetadata as $field => $expected) {
+        if (array_key_exists($field, $pointer) && (string) $pointer[$field] !== (string) $expected) {
+            throw new RuntimeException('private validation pointer metadata differs from the explicit invocation');
+        }
+        if (!$legacyPosthoc && !array_key_exists($field, $pointer)) {
+            throw new RuntimeException('private validation pointer metadata is incomplete');
+        }
     }
     $manifestRelative = str_replace(['/', '\\'], DIRECTORY_SEPARATOR, (string) ($pointer['manifest'] ?? ''));
-    $manifest = realpath($projectRoot . DIRECTORY_SEPARATOR . $manifestRelative);
-    if ($manifest === false || !is_dir($manifest) || is_link($manifest) || !containedPath($manifest, $runtimeRoot)) {
-        throw new RuntimeException('private validation manifest escaped runtime');
-    }
+    $manifestInput = $projectRoot . DIRECTORY_SEPARATOR . $manifestRelative;
+    $manifest = resolveEvidenceCandidate(
+        $manifestInput,
+        $runtimeRoot,
+        'private validation manifest',
+        true
+    );
 
-    $clone = readJson($manifest . DIRECTORY_SEPARATOR . 'clone-completed.json', 'clone marker');
+    $defaultClonePath = $manifest . DIRECTORY_SEPARATOR . 'clone-completed.json';
+    $cloneRelative = str_replace(
+        ['/', '\\'],
+        DIRECTORY_SEPARATOR,
+        (string) ($pointer['cloneCompletedMarker'] ?? '')
+    );
+    $cloneSha256 = (string) ($pointer['cloneCompletedMarkerSha256'] ?? '');
+    $cloneInput = $defaultClonePath;
+    if ($cloneRelative !== '') {
+        $cloneInput = $projectRoot . DIRECTORY_SEPARATOR . $cloneRelative;
+    } elseif (!$legacyPosthoc) {
+        throw new RuntimeException('clone marker path is missing from the private pointer');
+    }
+    $clonePath = resolveEvidenceCandidate($cloneInput, $manifest, 'clone marker');
+    if (!sameEvidencePath($defaultClonePath, $clonePath)) {
+        throw new RuntimeException('clone marker path differs from the private pointer');
+    }
+    if ($cloneSha256 !== '') {
+        $clone = readPinnedJson($clonePath, 'clone marker', $cloneSha256);
+    } elseif ($legacyPosthoc) {
+        $clone = readJson($clonePath, 'clone marker');
+    } else {
+        throw new RuntimeException('clone marker SHA256 is missing from the private pointer');
+    }
+    $cloneExpectedMetadata = [
+        'runLabel' => $parameters['runLabel'],
+        'runDate' => $parameters['runDate'],
+        'databaseHost' => $parameters['databaseHost'],
+        'expectedTableCount' => $parameters['expectedTableCount'],
+        'expectedForeignKeyConstraintCount' => $parameters['expectedForeignKeyCount'],
+    ];
+    foreach ($cloneExpectedMetadata as $field => $expected) {
+        if (array_key_exists($field, $clone) && (string) $clone[$field] !== (string) $expected) {
+            throw new RuntimeException('clone marker metadata differs from the explicit invocation');
+        }
+        if (!$legacyPosthoc && !array_key_exists($field, $clone)) {
+            throw new RuntimeException('clone marker metadata is incomplete');
+        }
+    }
     if (($clone['status'] ?? null) !== 'completed'
-        || ($clone['sourceDatabase'] ?? null) !== CANONICAL_DATABASE
+        || ($clone['sourceDatabase'] ?? null) !== $canonicalDatabase
         || ($clone['targetDatabase'] ?? null) !== $targetDatabase
-        || (int) ($clone['tableCount'] ?? -1) !== EXPECTED_TABLE_COUNT
-        || (int) ($clone['foreignKeyConstraintCount'] ?? -1) !== EXPECTED_FOREIGN_KEY_COUNT
+        || (int) ($clone['tableCount'] ?? -1) !== $parameters['expectedTableCount']
+        || (int) ($clone['foreignKeyConstraintCount'] ?? -1) !== $parameters['expectedForeignKeyCount']
         || ($clone['foreignKeyDefinitionsMatch'] ?? null) !== true
         || ($clone['sourceWritesPerformed'] ?? null) !== false
     ) {
@@ -760,13 +893,19 @@ function inspect(array $argv): array
     }
 
     $validation = readJson($manifest . DIRECTORY_SEPARATOR . 'validation-completed.json', 'validation marker');
+    if ($legacyPosthoc
+        && !array_key_exists('canonicalFingerprintsUnchanged', $validation)
+        && ($validation['canonicalBaselineUnchanged'] ?? null) === true
+    ) {
+        $validation['canonicalFingerprintsUnchanged'] = true;
+    }
     foreach ([
         'approvalContinuationPassed',
         'currentTaskReadApisPassed',
         'nextTaskReadApisPassed',
         'nextTaskCountMatchedDatabase',
         'businessFingerprintsUnchanged',
-        'canonicalBaselineUnchanged',
+        'canonicalFingerprintsUnchanged',
         'validationWritesIsolated',
     ] as $field) {
         if (($validation[$field] ?? null) !== true) {
@@ -790,19 +929,46 @@ function inspect(array $argv): array
         throw new RuntimeException('provenance evidence already exists');
     }
 
-    $targetFinal = readJson(
-        $runtimeRoot . DIRECTORY_SEPARATOR . 'backup'
-            . DIRECTORY_SEPARATOR . 'database-migration-local-snapshot-r6-apply-20260718-r10'
-            . DIRECTORY_SEPARATOR . 'target-final.json',
-        'R10 target-final marker'
+    $targetFinalInputPath = requiredEnvironment('OA_ISOLATED_TARGET_FINAL_MARKER_PATH');
+    $targetFinalPath = resolveEvidenceCandidate(
+        $targetFinalInputPath,
+        $runtimeRoot,
+        'target-final marker'
     );
-    if (($targetFinal['database'] ?? null) !== CANONICAL_DATABASE
-        || (int) ($targetFinal['tableCount'] ?? -1) !== EXPECTED_TABLE_COUNT
+    $pointerTargetFinal = str_replace(
+        ['/', '\\'],
+        DIRECTORY_SEPARATOR,
+        (string) ($pointer['targetFinalMarker'] ?? '')
+    );
+    if ($pointerTargetFinal === '' && !$legacyPosthoc) {
+        throw new RuntimeException('target-final marker is missing from the private pointer');
+    }
+    if ($pointerTargetFinal !== '') {
+        $pointerTargetFinalInput = $projectRoot . DIRECTORY_SEPARATOR . $pointerTargetFinal;
+        $pointerTargetFinalPath = resolveEvidenceCandidate(
+            $pointerTargetFinalInput,
+            $runtimeRoot,
+            'pointer target-final marker'
+        );
+        if (!sameEvidencePath($targetFinalPath, $pointerTargetFinalPath)) {
+            throw new RuntimeException('target-final marker differs from the private pointer');
+        }
+    }
+    $targetFinalSha256 = (string) ($pointer['targetFinalMarkerSha256'] ?? '');
+    if ($targetFinalSha256 !== '') {
+        $targetFinal = readPinnedJson($targetFinalPath, 'target-final marker', $targetFinalSha256);
+    } elseif ($legacyPosthoc) {
+        $targetFinal = readJson($targetFinalPath, 'target-final marker');
+    } else {
+        throw new RuntimeException('target-final marker SHA256 is missing from the private pointer');
+    }
+    if (($targetFinal['database'] ?? null) !== $canonicalDatabase
+        || (int) ($targetFinal['tableCount'] ?? -1) !== $parameters['expectedTableCount']
         || preg_match('/^[a-f0-9]{64}$/', (string) ($targetFinal['schemaSha256'] ?? '')) !== 1
         || !is_array($targetFinal['tables'] ?? null)
         || !is_array($targetFinal['rowCounts'] ?? null)
     ) {
-        throw new RuntimeException('R10 target-final marker is incomplete');
+        throw new RuntimeException('target-final marker is incomplete');
     }
 
     $loader = require $projectRoot . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
@@ -814,22 +980,22 @@ function inspect(array $argv): array
     $app = new App($projectRoot);
     $app->initialize();
     $connection = (array) $app->config->get('database.connections.mysql', []);
-    $canonicalPdo = pdoForDatabase($connection, CANONICAL_DATABASE);
+    $canonicalPdo = pdoForDatabase($connection, $canonicalDatabase);
     $targetPdo = pdoForDatabase($connection, $targetDatabase);
 
-    $canonicalManifest = DatabaseManifest::capture($canonicalPdo, CANONICAL_DATABASE, true);
+    $canonicalManifest = DatabaseManifest::capture($canonicalPdo, $canonicalDatabase, true);
     if (($canonicalManifest['schemaSha256'] ?? null) !== ($targetFinal['schemaSha256'] ?? null)
         || ($canonicalManifest['tables'] ?? null) !== ($targetFinal['tables'] ?? null)
         || ($canonicalManifest['rowCounts'] ?? null) !== ($targetFinal['rowCounts'] ?? null)
     ) {
-        throw new RuntimeException('R10 canonical database differs from target-final evidence');
+        throw new RuntimeException('canonical database differs from target-final evidence');
     }
     $targetManifest = DatabaseManifest::capture($targetPdo, $targetDatabase, true);
     if (($targetManifest['schemaSha256'] ?? null) !== ($targetFinal['schemaSha256'] ?? null)
         || ($targetManifest['tables'] ?? null) !== ($targetFinal['tables'] ?? null)
-        || (int) ($targetManifest['tableCount'] ?? -1) !== EXPECTED_TABLE_COUNT
+        || (int) ($targetManifest['tableCount'] ?? -1) !== $parameters['expectedTableCount']
     ) {
-        throw new RuntimeException('isolated validation schema differs from R10 canonical schema');
+        throw new RuntimeException('isolated validation schema differs from canonical schema');
     }
 
     if (($options['diff-only'] ?? '') === '1') {
@@ -858,7 +1024,7 @@ function inspect(array $argv): array
     sort($tables, SORT_STRING);
     $changedTables = [];
     foreach ($tables as $table) {
-        $canonical = fingerprint($canonicalPdo, CANONICAL_DATABASE, (string) $table);
+        $canonical = fingerprint($canonicalPdo, $canonicalDatabase, (string) $table);
         $target = fingerprint($targetPdo, $targetDatabase, (string) $table);
         if ($canonical !== $target) {
             $changedTables[] = (string) $table;
@@ -888,6 +1054,8 @@ function inspect(array $argv): array
             __DIR__ . DIRECTORY_SEPARATOR . 'create-isolated-validation-clone.php',
             __DIR__ . DIRECTORY_SEPARATOR . 'isolated-approval-validation-client.php',
             __DIR__ . DIRECTORY_SEPARATOR . 'run-r10-isolated-approval-validation.ps1',
+            __DIR__ . DIRECTORY_SEPARATOR . 'prepare-r10-isolated-validation.php',
+            __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'isolated-validation-parameters.php',
         ];
         $toolHashes = [];
         foreach ($toolFiles as $toolFile) {

@@ -8,32 +8,57 @@ namespace Oa\IsolatedValidationClone;
 use RuntimeException;
 use Throwable;
 use think\facade\Db;
+use function Oa\IsolatedValidationParameters\databaseIdentifier as parameterDatabaseIdentifier;
+use function Oa\IsolatedValidationParameters\expectedCount;
+use function Oa\IsolatedValidationParameters\loopbackHost;
+use function Oa\IsolatedValidationParameters\parseNamedOptions;
+use function Oa\IsolatedValidationParameters\runDate;
+use function Oa\IsolatedValidationParameters\runLabel;
+
+require_once __DIR__ . '/lib/isolated-validation-parameters.php';
 
 /** @return array<string, string> */
 function parseOptions(array $argv): array
 {
-    $options = [];
-    foreach (array_slice($argv, 1) as $argument) {
-        if (!is_string($argument) || !str_starts_with($argument, '--') || !str_contains($argument, '=')) {
-            throw new RuntimeException('clone options must use --name=value');
-        }
-        [$name, $value] = explode('=', substr($argument, 2), 2);
-        if (!in_array($name, ['source-db', 'target-db', 'manifest-dir', 'preflight-only'], true)) {
-            throw new RuntimeException('clone received an unknown option');
-        }
-        if (array_key_exists($name, $options)) {
-            throw new RuntimeException('clone received a duplicate option');
-        }
-        $options[$name] = trim($value);
-    }
-
-    foreach (['source-db', 'target-db', 'manifest-dir'] as $required) {
-        if (($options[$required] ?? '') === '') {
-            throw new RuntimeException("clone is missing --{$required}");
-        }
-    }
+    $options = parseNamedOptions($argv, [
+        'source-db',
+        'target-db',
+        'manifest-dir',
+        'database-host',
+        'run-label',
+        'run-date',
+        'expected-table-count',
+        'expected-foreign-key-count',
+        'confirm-create-target',
+        'preflight-only',
+    ], [
+        'source-db',
+        'target-db',
+        'manifest-dir',
+        'database-host',
+        'run-label',
+        'run-date',
+        'expected-table-count',
+        'expected-foreign-key-count',
+    ]);
     if (isset($options['preflight-only']) && $options['preflight-only'] !== '1') {
         throw new RuntimeException('clone preflight-only option must be 1 when supplied');
+    }
+    sourceDatabase($options['source-db']);
+    targetDatabase($options['target-db']);
+    if (strcasecmp($options['source-db'], $options['target-db']) === 0) {
+        throw new RuntimeException('clone target must differ from source database');
+    }
+    assertLoopbackHost($options['database-host']);
+    runLabel($options['run-label']);
+    runDate($options['run-date']);
+    expectedCount($options['expected-table-count'], 'expected table count', false);
+    expectedCount($options['expected-foreign-key-count'], 'expected foreign key count', true);
+    if (!isset($options['preflight-only'])
+        && (($options['confirm-create-target'] ?? '') === ''
+            || !hash_equals($options['target-db'], $options['confirm-create-target']))
+    ) {
+        throw new RuntimeException('clone target creation requires exact explicit confirmation');
     }
 
     return $options;
@@ -41,20 +66,12 @@ function parseOptions(array $argv): array
 
 function sourceDatabase(string $value): string
 {
-    if (preg_match('/^oa2026_rehearsal_[a-z0-9_]+_migrated$/', $value) !== 1) {
-        throw new RuntimeException('clone source database is outside the migrated rehearsal namespace');
-    }
-
-    return $value;
+    return parameterDatabaseIdentifier($value, 'source');
 }
 
 function targetDatabase(string $value): string
 {
-    if (preg_match('/^oa2026_r[0-9]+_validation_[0-9]{8}_[a-f0-9]{8}$/', $value) !== 1) {
-        throw new RuntimeException('clone target database is outside the isolated validation namespace');
-    }
-
-    return $value;
+    return parameterDatabaseIdentifier($value, 'target');
 }
 
 function quoteIdentifier(string $value): string
@@ -271,30 +288,7 @@ function databaseStructureFingerprint(string $database): array
 /** @param null|callable(string):array<int, string>|false $resolver */
 function assertLoopbackHost(string $host, ?callable $resolver = null): void
 {
-    $host = strtolower(trim($host));
-    if (in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
-        return;
-    }
-
-    if ($resolver !== null) {
-        $addresses = $resolver($host);
-    } else {
-        $addresses = gethostbynamel($host);
-        if ($addresses === false || $addresses === []) {
-            $single = gethostbyname($host);
-            $addresses = $single === $host ? false : [$single];
-        }
-    }
-    if (!is_array($addresses) || $addresses === []) {
-        throw new RuntimeException('isolated clone refuses an unresolved database host');
-    }
-    foreach ($addresses as $address) {
-        if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
-            || preg_match('/^127(?:\.[0-9]{1,3}){3}$/', $address) !== 1
-        ) {
-            throw new RuntimeException('isolated clone refuses every non-loopback database host');
-        }
-    }
+    loopbackHost($host, $resolver);
 }
 
 function manifestDirectory(string $projectRoot, string $value): string
@@ -346,6 +340,15 @@ function run(array $argv): int
         $source = sourceDatabase($options['source-db']);
         $target = targetDatabase($options['target-db']);
         $preflightOnly = ($options['preflight-only'] ?? '') === '1';
+        $databaseHost = $options['database-host'];
+        $validationRunLabel = runLabel($options['run-label']);
+        $validationRunDate = runDate($options['run-date']);
+        $expectedTableCount = expectedCount($options['expected-table-count'], 'expected table count', false);
+        $expectedForeignKeyCount = expectedCount(
+            $options['expected-foreign-key-count'],
+            'expected foreign key count',
+            true
+        );
         $manifest = manifestDirectory($projectRoot, $options['manifest-dir']);
         if (!mkdir($manifest, 0700) && !is_dir($manifest)) {
             throw new RuntimeException('clone could not create its private manifest directory');
@@ -359,7 +362,9 @@ function run(array $argv): int
         (new \think\App($projectRoot))->initialize();
 
         $connection = (array) config('database.connections.mysql', []);
-        assertLoopbackHost((string) ($connection['hostname'] ?? ''));
+        if (loopbackHost((string) ($connection['hostname'] ?? '')) !== loopbackHost($databaseHost)) {
+            throw new RuntimeException('clone database host differs from the explicit invocation');
+        }
 
         $sourceMeta = Db::query(
             'SELECT DEFAULT_CHARACTER_SET_NAME AS charset_name, DEFAULT_COLLATION_NAME AS collation_name '
@@ -401,7 +406,7 @@ function run(array $argv): int
             . "WHERE BINARY TABLE_SCHEMA = BINARY ? AND TABLE_TYPE = 'BASE TABLE' ORDER BY BINARY TABLE_NAME",
             [$source]
         );
-        if (count($tables) !== 124) {
+        if (count($tables) !== $expectedTableCount) {
             throw new RuntimeException('clone source table count differs from the audited PHP template');
         }
         foreach ($tables as $table) {
@@ -416,7 +421,7 @@ function run(array $argv): int
             [$source]
         );
         $sourceForeignKeyConstraintCount = (int) ($sourceForeignKeyConstraints[0]['aggregate'] ?? -1);
-        if ($sourceForeignKeyConstraintCount !== 42) {
+        if ($sourceForeignKeyConstraintCount !== $expectedForeignKeyCount) {
             throw new RuntimeException('clone source foreign key count differs from the audited PHP template');
         }
         $sourceForeignKeys = foreignKeyDefinitions($source);
@@ -431,8 +436,8 @@ function run(array $argv): int
             $createTableDdls[$name] = targetCreateTableDdl($showCreate[0], $name, $target);
         }
         $sourceStructureBefore = databaseStructureFingerprint($source);
-        if ($sourceStructureBefore['tableCount'] !== 124
-            || $sourceStructureBefore['foreignKeyConstraintCount'] !== 42
+        if ($sourceStructureBefore['tableCount'] !== $expectedTableCount
+            || $sourceStructureBefore['foreignKeyConstraintCount'] !== $expectedForeignKeyCount
             || $sourceStructureBefore['nonTableObjectCount'] !== 0
         ) {
             throw new RuntimeException('clone source structure fingerprint is outside the audited boundary');
@@ -444,7 +449,12 @@ function run(array $argv): int
                 'sourceDatabase' => $source,
                 'reservedTargetDatabase' => $target,
                 'targetDatabaseCreated' => false,
-                'tableCount' => 124,
+                'runLabel' => $validationRunLabel,
+                'runDate' => $validationRunDate,
+                'databaseHost' => loopbackHost($databaseHost),
+                'expectedTableCount' => $expectedTableCount,
+                'expectedForeignKeyConstraintCount' => $expectedForeignKeyCount,
+                'tableCount' => $expectedTableCount,
                 'foreignKeyConstraintCount' => $sourceForeignKeyConstraintCount,
                 'foreignKeyDefinitionsRead' => count($sourceForeignKeys),
                 'tableDdlValidated' => true,
@@ -456,7 +466,9 @@ function run(array $argv): int
             fwrite(STDOUT, json_encode([
                 'status' => 'completed',
                 'mode' => 'preflight-only',
-                'tableCount' => 124,
+                'runLabel' => $validationRunLabel,
+                'runDate' => $validationRunDate,
+                'tableCount' => $expectedTableCount,
                 'foreignKeyConstraintCount' => $sourceForeignKeyConstraintCount,
                 'tableDdlValidated' => true,
                 'nonTableObjectsAbsent' => true,
@@ -516,7 +528,7 @@ function run(array $argv): int
             . "WHERE BINARY TABLE_SCHEMA = BINARY ? AND TABLE_TYPE = 'BASE TABLE'",
             [$target]
         );
-        if ((int) ($finalTables[0]['aggregate'] ?? -1) !== 124) {
+        if ((int) ($finalTables[0]['aggregate'] ?? -1) !== $expectedTableCount) {
             throw new RuntimeException('clone target table count verification failed');
         }
         $targetForeignKeyConstraints = Db::query(
@@ -548,7 +560,12 @@ function run(array $argv): int
             'status' => 'completed',
             'sourceDatabase' => $source,
             'targetDatabase' => $target,
-            'tableCount' => 124,
+            'runLabel' => $validationRunLabel,
+            'runDate' => $validationRunDate,
+            'databaseHost' => loopbackHost($databaseHost),
+            'expectedTableCount' => $expectedTableCount,
+            'expectedForeignKeyConstraintCount' => $expectedForeignKeyCount,
+            'tableCount' => $expectedTableCount,
             'foreignKeyConstraintCount' => $sourceForeignKeyConstraintCount,
             'foreignKeyDefinitionsMatch' => true,
             'contentChecksumsMatch' => true,
@@ -562,7 +579,9 @@ function run(array $argv): int
         ]);
         fwrite(STDOUT, json_encode([
             'status' => 'completed',
-            'tableCount' => 124,
+            'runLabel' => $validationRunLabel,
+            'runDate' => $validationRunDate,
+            'tableCount' => $expectedTableCount,
             'foreignKeyConstraintCount' => $sourceForeignKeyConstraintCount,
             'foreignKeyDefinitionsMatch' => true,
             'contentChecksumsMatch' => true,

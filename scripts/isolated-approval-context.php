@@ -8,6 +8,7 @@ use RuntimeException;
 use app\service\auth\RbacService;
 use app\service\auth\TokenService;
 use think\facade\Db;
+use function Oa\IsolatedValidationParameters\environmentConfiguration;
 
 /** @return array<string, mixed> */
 function approvalContext(): array
@@ -42,7 +43,13 @@ SQL);
     }
 
     $auth = (new RbacService())->buildForUser($user);
-    $auth['device'] = 'R10_ISOLATED_CONTINUATION_VALIDATION';
+    $validation = environmentConfiguration();
+    $devicePrefix = strtoupper((string) preg_replace(
+        '/[^a-z0-9]+/i',
+        '_',
+        $validation['runLabel'] . '_' . $validation['runDate']
+    ));
+    $auth['device'] = $devicePrefix . '_ISOLATED_CONTINUATION_VALIDATION';
 
     return [
         'token' => (new TokenService())->create($user, $auth),

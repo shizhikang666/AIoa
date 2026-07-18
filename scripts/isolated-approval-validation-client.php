@@ -3,6 +3,11 @@
 
 declare(strict_types=1);
 
+use function Oa\IsolatedValidationParameters\approvalComment;
+use function Oa\IsolatedValidationParameters\environmentConfiguration;
+use function Oa\IsolatedValidationParameters\loopbackHost;
+use function Oa\IsolatedValidationParameters\requiredEnvironment;
+
 require __DIR__ . '/lib/isolated-validation-bootstrap.php';
 require __DIR__ . '/isolated-approval-context.php';
 require __DIR__ . '/isolated-approval-after.php';
@@ -116,18 +121,23 @@ function jsonContainsIdentifier(mixed $value, string $needle): bool
 /** @param array<string, mixed> $connection @return array<string, array{rowCount:int,checksum:string}> */
 function databaseFingerprints(array $connection, string $database): array
 {
-    $host = strtolower(trim((string) ($connection['hostname'] ?? '')));
-    if ($host !== '127.0.0.1') {
-        throw new RuntimeException('database fingerprint refuses a non-loopback host');
+    $validation = environmentConfiguration();
+    $configuredHost = loopbackHost((string) ($connection['hostname'] ?? ''));
+    if (!hash_equals($validation['databaseHost'], $configuredHost)) {
+        throw new RuntimeException('database fingerprint host differs from the explicit invocation');
     }
-    if ($database !== 'oa2026_rehearsal_r6_20260718_r10_migrated'
-        && preg_match('/^oa2026_r10_validation_20260718_[a-f0-9]{8}$/', $database) !== 1
-    ) {
-        throw new RuntimeException('database fingerprint namespace is invalid');
+    if (!in_array($database, [
+        $validation['canonicalDatabase'],
+        $validation['targetDatabase'],
+    ], true)) {
+        throw new RuntimeException('database fingerprint database is outside the explicit validation pair');
     }
     $port = (int) ($connection['hostport'] ?? 3306);
+    if ($port < 1 || $port > 65535) {
+        throw new RuntimeException('database fingerprint port is invalid');
+    }
     $pdo = new PDO(
-        "mysql:host=127.0.0.1;port={$port};dbname={$database};charset=utf8mb4",
+        "mysql:host={$validation['databaseHost']};port={$port};dbname={$database};charset=utf8mb4",
         (string) ($connection['username'] ?? ''),
         (string) ($connection['password'] ?? ''),
         [
@@ -145,7 +155,7 @@ function databaseFingerprints(array $connection, string $database): array
         static fn (array $row): string => (string) ($row['TABLE_NAME'] ?? ''),
         $statement->fetchAll(PDO::FETCH_ASSOC)
     );
-    if (count($tables) !== 124) {
+    if (count($tables) !== $validation['expectedTableCount']) {
         throw new RuntimeException('database fingerprint table count is unexpected');
     }
     $result = [];
@@ -194,7 +204,11 @@ function runIsolatedApprovalValidation(): array
 {
     $projectRoot = rtrim((string) getenv('OA_ISOLATED_PROJECT_ROOT'), "/\\");
     $runtimePath = rtrim((string) getenv('OA_ISOLATED_RUNTIME_PATH'), "/\\");
-    $database = trim((string) getenv('OA_ISOLATED_DB_NAME'));
+    $validation = environmentConfiguration();
+    $database = $validation['targetDatabase'];
+    $canonicalDatabase = $validation['canonicalDatabase'];
+    $listenAddress = loopbackHost(requiredEnvironment('OA_ISOLATED_LISTEN_ADDRESS'));
+    $validationComment = approvalComment(requiredEnvironment('OA_ISOLATED_APPROVAL_COMMENT'));
     $nonce = trim((string) getenv('OA_ISOLATED_HEALTH_NONCE'));
     $expectedPid = (int) getenv('OA_ISOLATED_EXPECTED_SERVER_PID');
     $port = (int) getenv('OA_ISOLATED_PORT');
@@ -204,7 +218,7 @@ function runIsolatedApprovalValidation(): array
 
     $app = Oa\IsolatedValidation\boot($projectRoot, $runtimePath);
     $connection = (array) $app->config->get('database.connections.mysql', []);
-    $baseUrl = "http://127.0.0.1:{$port}";
+    $baseUrl = "http://{$listenAddress}:{$port}";
     $health = isolatedHttp('GET', $baseUrl . '/__oa_isolated_validation_health');
     if ((int) ($health['pid'] ?? 0) !== $expectedPid
         || ($health['databaseVerified'] ?? null) !== true
@@ -214,18 +228,18 @@ function runIsolatedApprovalValidation(): array
     }
 
     $canonicalStructureBefore = Oa\IsolatedValidationClone\databaseStructureFingerprint(
-        'oa2026_rehearsal_r6_20260718_r10_migrated'
+        $canonicalDatabase
     );
     $isolatedStructureBefore = Oa\IsolatedValidationClone\databaseStructureFingerprint($database);
     if ($canonicalStructureBefore !== $isolatedStructureBefore
-        || ($canonicalStructureBefore['tableCount'] ?? -1) !== 124
-        || ($canonicalStructureBefore['foreignKeyConstraintCount'] ?? -1) !== 42
+        || ($canonicalStructureBefore['tableCount'] ?? -1) !== $validation['expectedTableCount']
+        || ($canonicalStructureBefore['foreignKeyConstraintCount'] ?? -1) !== $validation['expectedForeignKeyCount']
         || ($canonicalStructureBefore['nonTableObjectCount'] ?? -1) !== 0
     ) {
         throw new RuntimeException('isolated database structure differs from the canonical baseline');
     }
 
-    $canonicalBefore = databaseFingerprints($connection, 'oa2026_rehearsal_r6_20260718_r10_migrated');
+    $canonicalBefore = databaseFingerprints($connection, $canonicalDatabase);
     $isolatedBefore = databaseFingerprints($connection, $database);
     if ($canonicalBefore !== $isolatedBefore) {
         throw new RuntimeException('isolated database does not match the canonical baseline before validation');
@@ -257,12 +271,12 @@ function runIsolatedApprovalValidation(): array
     }
 
     $canonicalStructurePreMutation = Oa\IsolatedValidationClone\databaseStructureFingerprint(
-        'oa2026_rehearsal_r6_20260718_r10_migrated'
+        $canonicalDatabase
     );
     $isolatedStructurePreMutation = Oa\IsolatedValidationClone\databaseStructureFingerprint($database);
     $canonicalPreMutation = databaseFingerprints(
         $connection,
-        'oa2026_rehearsal_r6_20260718_r10_migrated'
+        $canonicalDatabase
     );
     $isolatedPreMutation = databaseFingerprints($connection, $database);
     if ($canonicalStructurePreMutation !== $canonicalStructureBefore
@@ -276,7 +290,7 @@ function runIsolatedApprovalValidation(): array
     writeMutationStartedMarker($runtimePath);
     $approval = isolatedHttp('POST', $baseUrl . '/biz/task/approve', $token, [
         'id' => $taskId,
-        'form' => ['approval' => true, 'comment' => 'R10 isolated continuation validation'],
+        'form' => ['approval' => true, 'comment' => $validationComment],
     ]);
     requireApiSuccess($approval);
     $approvalData = is_array($approval['data'] ?? null) ? $approval['data'] : [];
@@ -322,13 +336,13 @@ function runIsolatedApprovalValidation(): array
         throw new RuntimeException('next task is not visible through authenticated read APIs');
     }
 
-    $canonicalAfter = databaseFingerprints($connection, 'oa2026_rehearsal_r6_20260718_r10_migrated');
+    $canonicalAfter = databaseFingerprints($connection, $canonicalDatabase);
     if ($canonicalBefore !== $canonicalAfter) {
-        throw new RuntimeException('R10 canonical fingerprint changed during isolated validation');
+        throw new RuntimeException('canonical fingerprint changed during isolated validation');
     }
     $isolatedAfter = databaseFingerprints($connection, $database);
     if (Oa\IsolatedValidationClone\databaseStructureFingerprint(
-        'oa2026_rehearsal_r6_20260718_r10_migrated'
+        $canonicalDatabase
     ) !== $canonicalStructureBefore
         || Oa\IsolatedValidationClone\databaseStructureFingerprint($database) !== $isolatedStructureBefore
     ) {
@@ -347,7 +361,7 @@ function runIsolatedApprovalValidation(): array
     }
     $canonicalPdo = Oa\IsolatedValidationAudit\pdoForDatabase(
         $connection,
-        'oa2026_rehearsal_r6_20260718_r10_migrated'
+        $canonicalDatabase
     );
     $isolatedPdo = Oa\IsolatedValidationAudit\pdoForDatabase($connection, $database);
     $workflowDiffs = [];

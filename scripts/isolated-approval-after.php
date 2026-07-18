@@ -8,6 +8,7 @@ use RuntimeException;
 use app\service\auth\RbacService;
 use app\service\auth\TokenService;
 use think\facade\Db;
+use function Oa\IsolatedValidationParameters\environmentConfiguration;
 
 /** @return array<string, mixed> */
 function approvalAfter(string $processId, string $oldTaskId, string $nextTaskId): array
@@ -28,7 +29,13 @@ function approvalAfter(string $processId, string $oldTaskId, string $nextTaskId)
     $directPendingCount = -1;
     if (is_array($nextUser) && $nextUser !== []) {
         $auth = (new RbacService())->buildForUser($nextUser);
-        $auth['device'] = 'R10_ISOLATED_NEXT_TASK_VISIBILITY';
+        $validation = environmentConfiguration();
+        $devicePrefix = strtoupper((string) preg_replace(
+            '/[^a-z0-9]+/i',
+            '_',
+            $validation['runLabel'] . '_' . $validation['runDate']
+        ));
+        $auth['device'] = $devicePrefix . '_ISOLATED_NEXT_TASK_VISIBILITY';
         $nextToken = (new TokenService())->create($nextUser, $auth);
         $authorization = authorizationSummary($auth);
         $directPendingCount = Db::name('act_ru_task')

@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use think\facade\Db;
+use function Oa\IsolatedValidationParameters\environmentConfiguration;
 
 require __DIR__ . '/isolated-approval-validation-client.php';
 
@@ -21,11 +22,9 @@ $stage = 'environment';
 try {
     $projectRoot = rtrim((string) getenv('OA_ISOLATED_PROJECT_ROOT'), "/\\");
     $runtimePath = rtrim((string) getenv('OA_ISOLATED_RUNTIME_PATH'), "/\\");
-    $database = trim((string) getenv('OA_ISOLATED_DB_NAME'));
-    if ($projectRoot === ''
-        || $runtimePath === ''
-        || preg_match('/^oa2026_r10_validation_20260718_[a-f0-9]{8}$/', $database) !== 1
-    ) {
+    $validation = environmentConfiguration();
+    $database = $validation['targetDatabase'];
+    if ($projectRoot === '' || $runtimePath === '') {
         throw new RuntimeException('isolated reuse verification environment is incomplete');
     }
 
@@ -48,13 +47,18 @@ try {
     $rowCounts = is_array($marker['rowCounts'] ?? null) ? $marker['rowCounts'] : [];
     $tableChecksums = is_array($marker['tableChecksums'] ?? null) ? $marker['tableChecksums'] : [];
     if (($marker['status'] ?? null) !== 'completed'
-        || ($marker['sourceDatabase'] ?? null) !== 'oa2026_rehearsal_r6_20260718_r10_migrated'
+        || ($marker['sourceDatabase'] ?? null) !== $validation['canonicalDatabase']
         || ($marker['targetDatabase'] ?? null) !== $database
+        || ($marker['runLabel'] ?? null) !== $validation['runLabel']
+        || ($marker['runDate'] ?? null) !== $validation['runDate']
+        || ($marker['databaseHost'] ?? null) !== $validation['databaseHost']
+        || (int) ($marker['expectedTableCount'] ?? -1) !== $validation['expectedTableCount']
+        || (int) ($marker['expectedForeignKeyConstraintCount'] ?? -1) !== $validation['expectedForeignKeyCount']
         || ($marker['sourceConsistencyWindowPassed'] ?? null) !== true
         || ($marker['nonTableObjectsAbsent'] ?? null) !== true
         || ($marker['sourceWritesPerformed'] ?? null) !== false
-        || count($rowCounts) !== 124
-        || count($tableChecksums) !== 124
+        || count($rowCounts) !== $validation['expectedTableCount']
+        || count($tableChecksums) !== $validation['expectedTableCount']
         || preg_match('/^[a-f0-9]{64}$/', (string) ($marker['schemaSha256'] ?? '')) !== 1
     ) {
         throw new RuntimeException('isolated reuse verification evidence is incomplete');
@@ -91,16 +95,17 @@ try {
     ksort($expectedFingerprints, SORT_STRING);
 
     $stage = 'structure';
-    $canonicalDatabase = 'oa2026_rehearsal_r6_20260718_r10_migrated';
-    $canonicalStructure = Oa\IsolatedValidationClone\databaseStructureFingerprint($canonicalDatabase);
+    $canonicalStructure = Oa\IsolatedValidationClone\databaseStructureFingerprint(
+        $validation['canonicalDatabase']
+    );
     $isolatedStructure = Oa\IsolatedValidationClone\databaseStructureFingerprint($database);
     $stage = 'content';
-    $canonicalFingerprints = databaseFingerprints($connection, $canonicalDatabase);
+    $canonicalFingerprints = databaseFingerprints($connection, $validation['canonicalDatabase']);
     $isolatedFingerprints = databaseFingerprints($connection, $database);
     $structureMatches = $canonicalStructure === $isolatedStructure
         && ($canonicalStructure['schemaSha256'] ?? null) === (string) $marker['schemaSha256']
-        && ($canonicalStructure['tableCount'] ?? -1) === 124
-        && ($canonicalStructure['foreignKeyConstraintCount'] ?? -1) === 42
+        && ($canonicalStructure['tableCount'] ?? -1) === $validation['expectedTableCount']
+        && ($canonicalStructure['foreignKeyConstraintCount'] ?? -1) === $validation['expectedForeignKeyCount']
         && ($canonicalStructure['nonTableObjectCount'] ?? -1) === 0;
     $contentMatches = $canonicalFingerprints === $expectedFingerprints
         && $isolatedFingerprints === $expectedFingerprints;
@@ -118,7 +123,7 @@ try {
         'reusable' => true,
         'structureMatches' => true,
         'contentMatches' => true,
-        'tableCount' => 124,
+        'tableCount' => $validation['expectedTableCount'],
     ], 0);
 } catch (Throwable) {
     emitReuseVerification([

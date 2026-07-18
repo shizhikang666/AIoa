@@ -7,12 +7,17 @@ namespace Oa\IsolatedValidation;
 use RuntimeException;
 use think\App;
 use think\facade\Db;
+use function Oa\IsolatedValidationParameters\environmentConfiguration;
+use function Oa\IsolatedValidationParameters\loopbackHost;
+
+require_once __DIR__ . '/isolated-validation-parameters.php';
 
 function boot(string $projectRoot, string $runtimePath): App
 {
     $projectRoot = rtrim($projectRoot, "/\\");
     $runtimePath = rtrim($runtimePath, "/\\");
-    $database = trim((string) getenv('OA_ISOLATED_DB_NAME'));
+    $validation = environmentConfiguration();
+    $database = $validation['targetDatabase'];
     $privateRuntimeRoot = realpath($projectRoot . DIRECTORY_SEPARATOR . 'runtime');
     $runtimeReal = realpath($runtimePath);
     if ($projectRoot === ''
@@ -24,7 +29,6 @@ function boot(string $projectRoot, string $runtimePath): App
             strtolower($runtimeReal . DIRECTORY_SEPARATOR),
             strtolower(rtrim($privateRuntimeRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR)
         )
-        || preg_match('/^oa2026_r[0-9]+_validation_[0-9]{8}_[a-f0-9]{8}$/', $database) !== 1
     ) {
         throw new RuntimeException('isolated validation environment is incomplete');
     }
@@ -41,11 +45,11 @@ function boot(string $projectRoot, string $runtimePath): App
 
     $connections = (array) $app->config->get('database.connections', []);
     $mysql = (array) ($connections['mysql'] ?? []);
-    $host = strtolower(trim((string) ($mysql['hostname'] ?? '')));
-    if (!in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
-        throw new RuntimeException('isolated validation refuses a non-loopback database host');
+    $configuredHost = loopbackHost((string) ($mysql['hostname'] ?? ''));
+    if (!hash_equals($validation['databaseHost'], $configuredHost)) {
+        throw new RuntimeException('isolated validation database host differs from the explicit invocation');
     }
-    $mysql['hostname'] = '127.0.0.1';
+    $mysql['hostname'] = $validation['databaseHost'];
     $mysql['database'] = $database;
     $connections['mysql'] = $mysql;
     $app->config->set(['connections' => $connections], 'database');
