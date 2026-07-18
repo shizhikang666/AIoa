@@ -514,7 +514,18 @@ if (-not $NoTarGz) {
     }
 
     Write-Step "create tar.gz: $tarGzPath"
-    Invoke-CheckedCommand -FilePath $TarBinary -ArgumentList @('-czf', $tarGzPath, '-C', $ReleaseRoot, '.') -WorkingDirectory $ReleaseBase
+    $tarArchiveName = [System.IO.Path]::GetFileName($tarGzPath)
+    $tarSourceName = [System.IO.Path]::GetFileName($ReleaseRoot)
+    $tarDirectory = Split-Path -Parent $TarBinary
+    $savedPath = $env:PATH
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($tarDirectory)) {
+            $env:PATH = $tarDirectory + [System.IO.Path]::PathSeparator + $env:PATH
+        }
+        Invoke-CheckedCommand -FilePath $TarBinary -ArgumentList @('-czf', $tarArchiveName, '-C', $tarSourceName, '.') -WorkingDirectory $ReleaseBase
+    } finally {
+        $env:PATH = $savedPath
+    }
     $tarGzHashPath = Write-ArchiveHash -ArchivePath $tarGzPath
 }
 

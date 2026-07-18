@@ -60,6 +60,11 @@ artifact. PHP runtime, private environment, database, and web-server checks are
 performed after the atomic prepare step injects and verifies the separately
 approved private environment.
 
+The tar step runs from `ReleaseBase` with relative archive/source names and
+temporarily adds the selected tar executable's directory to `PATH`. This keeps
+Windows drive letters from being interpreted as remote tar targets and lets a
+bundled tar find its sibling gzip executable.
+
 ## Deploy After Approval
 
 The deploy command refuses to run unless `-ConfirmDeploy` is supplied.
