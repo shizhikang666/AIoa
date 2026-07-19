@@ -317,14 +317,13 @@
 			formData.value.treasurer = activeSelectObject.value.treasurer || formData.value.treasurer
 		}
 	})
-	SettlementAccountApi.settlementAccountList().then((res) => {
-		accountList.value = res.map((v) => {
-			return {
-				label: v.accountName,
-				value: v.id
-			}
-		})
-	})
+	const loadSettlementAccounts = async () => {
+		const res = await SettlementAccountApi.settlementAccountList()
+		accountList.value = res.map((v) => ({
+			label: v.accountName,
+			value: v.id
+		}))
+	}
 	const openProcureFlowSelect = (settlementStatus) => {
 		let value = {}
 		let content = createVNode(bizpurchaseorderModel, {
@@ -459,9 +458,12 @@
 	)
 	watch(
 		() => useSettlementAccount.value,
-		() => {
+		(enabled) => {
 			formData.value.payerTime = ''
 			formData.value.accountId = ''
+			if (enabled && accountList.value.length === 0) {
+				loadSettlementAccounts()
+			}
 		}
 	)
 

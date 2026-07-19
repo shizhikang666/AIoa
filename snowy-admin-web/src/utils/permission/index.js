@@ -39,3 +39,40 @@ export function hasPerm(data, rule = 'or') {
 	}
 	return buttonCodeList.includes(data)
 }
+
+export function hasApiPerm(data, rule = 'or') {
+	if (!data) {
+		return false
+	}
+	const userInfo = tool.data.get('USER_INFO')
+	if (!userInfo) {
+		return false
+	}
+	const roleCodes = (userInfo.roleCodeList || []).map((item) => String(item).toLowerCase())
+	if (roleCodes.some((item) => ['superadmin', 'tenantadmin'].includes(item))) {
+		return true
+	}
+	const permissionCodes = (userInfo.permissionCodeList || []).map((item) => String(item).toLowerCase())
+	const required = (Array.isArray(data) ? data : [data]).map((item) => String(item).toLowerCase())
+	const matcher = rule === 'and' ? 'every' : 'some'
+	return required[matcher]((item) => permissionCodes.includes(item))
+}
+
+export const SALE_PROJECT_DETAIL_READ_PERMISSIONS = [
+	'/biz/saleproject/detail',
+	'/biz/saleprojectreissueorder/list/query',
+	'/biz/saleproject/file/relation/list',
+	'/biz/process/project/runtime/query/list',
+	'/biz/returnorder/query',
+	'/biz/customer/detail',
+	'/biz/saleprojectfollowup/page',
+	'/biz/bizpaymentrecord/page',
+	'/biz/returnorder/page',
+	'/biz/saleprojectinvoice/list',
+	'/biz/saleproject/delivery/plan/list',
+	'/biz/projectrate/list'
+]
+
+export function canOpenFullSaleProjectDetail() {
+	return hasApiPerm(SALE_PROJECT_DETAIL_READ_PERMISSIONS, 'and')
+}

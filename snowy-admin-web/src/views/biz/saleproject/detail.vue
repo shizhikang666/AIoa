@@ -366,26 +366,26 @@
 					<a-tab-pane key="bizSaleProjectCost" tab="成本核算" v-if="isDeal && hasPerm('bizSaleProjectCost')">
 						<BizSaleProjectCost :projectInfo="projectBaseInfo" :project-id="projectBaseInfo.id"></BizSaleProjectCost>
 					</a-tab-pane>
-					<a-tab-pane key="followUpRecords" tab="项目跟进记录">
+					<a-tab-pane v-if="canViewFollowUp" key="followUpRecords" tab="项目跟进记录">
 						<followup :project-id="projectBaseInfo.id"></followup>
 					</a-tab-pane>
-					<a-tab-pane v-if="isDeal" key="projectFile" tab="项目附件">
+					<a-tab-pane v-if="isDeal && canViewProjectFile" key="projectFile" tab="项目附件">
 						<projectFile :project-id="projectBaseInfo.id"></projectFile>
 					</a-tab-pane>
 
-					<a-tab-pane key="payment" tab="收款记录" v-if="isDeal">
+					<a-tab-pane key="payment" tab="收款记录" v-if="isDeal && canViewPayment">
 						<payment :project-id="projectBaseInfo.id"></payment>
 					</a-tab-pane>
-					<a-tab-pane key="invoiceRecords" tab="发货安排/记录" v-if="isDeal">
+					<a-tab-pane key="invoiceRecords" tab="发货安排/记录" v-if="isDeal && canViewDeliveryRecords">
 						<projectInvoice :project-id="projectBaseInfo.id" />
 					</a-tab-pane>
-					<a-tab-pane key="returnOrders" tab="退货记录" v-if="isDeal">
+					<a-tab-pane key="returnOrders" tab="退货记录" v-if="isDeal && canViewReturnOrders">
 						<ReturnOrderDetails :project-id="projectBaseInfo.id"></ReturnOrderDetails>
 					</a-tab-pane>
-					<a-tab-pane key="projectCase" tab="项目案例">
+					<a-tab-pane v-if="canViewProjectCase" key="projectCase" tab="项目案例">
 						<project-case :project="projectBaseInfo" :project-id="projectBaseInfo.id"></project-case>
 					</a-tab-pane>
-					<a-tab-pane key="projectProcess">
+					<a-tab-pane v-if="canViewProjectProcess" key="projectProcess">
 						<template #tab>
 							<a-badge :offset="[10, 0]" :count="processCount">
 								<span> 审核中的流程 </span>
@@ -451,7 +451,6 @@
 	import { computed, useTemplateRef } from 'vue'
 	import { Decimal } from 'decimal.js'
 	import { useProject } from '@/composables/useProject'
-	import BizFileRelationApi from '@/api/biz/bizFileRelationApi'
 	import ReturnOrderApi from '@/api/biz/returnOrderApi'
 	import { openFilePreview } from '@/utils/filePreview'
 	import dayjs from '@/utils/dayjs'
@@ -461,9 +460,23 @@
 	import StartProjectReturnFlowForm from '@/views/biz/bizprocess/processForm/project/startProjectReturnFlowForm.vue'
 	import ReturnOrderDetails from './saleProjectTab/returnOrder/index.vue'
 	import BizSaleProjectCost from './saleProjectTab/cost/index.vue'
+	import { hasApiPerm } from '@/utils/permission'
 
 	const startProjectReissueFlowFormRef = useTemplateRef('startProjectReissueFlowFormRef')
 	const startProjectReturnFlowFormRef = useTemplateRef('startProjectReturnFlowFormRef')
+	const canViewFollowUp = hasApiPerm('/biz/saleprojectfollowup/page')
+	const canViewProjectFile = hasApiPerm('/biz/saleproject/file/relation/list')
+	const canViewPayment = hasApiPerm('/biz/bizpaymentrecord/page')
+	const canViewDeliveryRecords = hasApiPerm(
+		['/biz/saleprojectinvoice/list', '/biz/saleproject/delivery/plan/list'],
+		'and'
+	)
+	const canViewReturnOrders = hasApiPerm('/biz/returnorder/page')
+	const canViewProjectCase = hasApiPerm(['/biz/projectrate/list', '/biz/bizfilerelation/list'], 'and')
+	const canViewProjectProcess = hasApiPerm('/biz/process/project/runtime/query/list')
+	const canReadReissueOrders = hasApiPerm('/biz/saleprojectreissueorder/list/query')
+	const canReadReturnOrderSummary = hasApiPerm('/biz/returnorder/query')
+	const canReadCustomer = hasApiPerm('/biz/customer/detail')
 	const { exportProjectInitInvoice } = useProject()
 	const calcTime = (time) => {
 		return dayjs(time).fromNow()
@@ -603,14 +616,22 @@
 			const [projectDetail, reissueOrderListResult, fileListResult, processResult, returnOrderListResult] =
 				await Promise.all([
 					bizSaleProjectApi.bizSaleProjectDetail({ id: record.id }),
-					bizSaleProjectReissueOrderApi.bizSaleProjectReissueOrderListDetail({ projectId: record.id }),
-					BizFileRelationApi.bizFileRelationList({ objectId: record.id, category: 'SALE_PROJECT' }),
-					bizProcessApi.bizProcessProjectRuntimeQueryList({ projectId: record.id }),
-					ReturnOrderApi.returnOrderQuery({ projectId: record.id })
+					canReadReissueOrders
+						? bizSaleProjectReissueOrderApi.bizSaleProjectReissueOrderListDetail({ projectId: record.id })
+						: Promise.resolve([]),
+					canViewProjectFile
+						? bizSaleProjectApi.bizSaleProjectFileRelationList({ projectId: record.id })
+						: Promise.resolve([]),
+					canViewProjectProcess
+						? bizProcessApi.bizProcessProjectRuntimeQueryList({ projectId: record.id })
+						: Promise.resolve([]),
+					canReadReturnOrderSummary ? ReturnOrderApi.returnOrderQuery({ projectId: record.id }) : Promise.resolve([])
 				])
 
 			// 获取客户信息
-			const customerBaseInfoResult = await customerApi.customerDetail({ id: projectDetail.bizSaleProject.customer })
+			const customerBaseInfoResult = canReadCustomer
+				? await customerApi.customerDetail({ id: projectDetail.bizSaleProject.customer })
+				: {}
 			// 处理退货数据
 			const returnMap = returnOrderListResult.reduce((map, item) => {
 				item.productList.forEach((product) => {

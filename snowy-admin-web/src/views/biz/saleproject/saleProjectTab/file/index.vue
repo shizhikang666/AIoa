@@ -1,6 +1,6 @@
 <template name="projectFile">
 	<a-space>
-		<a-button type="primary" @click="() => uploadFormRef.openUpload()">
+		<a-button v-if="canUploadProjectFile" type="primary" @click="() => uploadFormRef.openUpload()">
 			<UploadOutlined />
 			文件上传
 		</a-button>
@@ -14,7 +14,13 @@
 			</template>
 		</a-list>
 	</a-skeleton>
-	<uploadForm ref="uploadFormRef" :object-id="projectId" :category="'SALE_PROJECT'" @successful="onSuccess" />
+	<uploadForm
+		v-if="canUploadProjectFile"
+		ref="uploadFormRef"
+		:object-id="projectId"
+		:category="'SALE_PROJECT'"
+		@successful="onSuccess"
+	/>
 </template>
 
 <script setup lang="js">
@@ -27,8 +33,9 @@
 	// 设置中文显示
 	dayjs.locale(zhCn)
 	import UploadForm from '@/views/biz/file/uploadForm.vue'
-	import BizFileRelationApi from '@/api/biz/bizFileRelationApi'
+	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
 	import FileViewItem from '@/components/File/FileViewItem.vue'
+	import { hasApiPerm } from '@/utils/permission'
 
 	const uploadFormRef = ref()
 
@@ -39,15 +46,13 @@
 		}
 	})
 	const loading = ref(false)
+	const canUploadProjectFile = hasApiPerm('/biz/bizfilerelation/add')
 
 	const list = ref([])
 	const load = async () => {
 		loading.value = true
 		try {
-			const res = await BizFileRelationApi.bizFileRelationList({
-				objectId: props.projectId,
-				category: 'SALE_PROJECT'
-			})
+			const res = await bizSaleProjectApi.bizSaleProjectFileRelationList({ projectId: props.projectId })
 			list.value = res
 		} finally {
 			loading.value = false
