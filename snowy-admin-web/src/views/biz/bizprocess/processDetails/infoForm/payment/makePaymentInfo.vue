@@ -8,9 +8,12 @@
 		<template v-else>
 			<a-descriptions :labelStyle="{ minWidth: '100px' }" :column="2" bordered title="基本信息" size="small">
 				<a-descriptions-item label="单号" v-if="info.objectId">
-					<a-typography-link @click="open(info.objectId, info.settlementCategory)"
+					<a-typography-link
+						v-if="canOpenRelatedDetail(info.settlementCategory)"
+						@click="open(info.objectId, info.settlementCategory)"
 						>{{ info.objectId }}
 					</a-typography-link>
+					<span v-else>{{ info.objectId }}</span>
 				</a-descriptions-item>
 				<a-descriptions-item label="支出类型">
 					{{
@@ -67,6 +70,7 @@
 	import bizPurchaseOrderDetail from '@/views/biz/bizpurchaseorder/details/index.vue'
 	import bizLeaveApplicationDetails from '@/views/biz/bizleaveapplication/details.vue'
 	import { useTemplateRef } from 'vue'
+	import { canOpenFullSaleProjectDetail, hasApiPerm } from '@/utils/permission'
 
 	const bizLeaveApplicationDetailsRef = useTemplateRef('bizLeaveApplicationDetailsRef')
 	const bizPurchaseOrderDetailRef = useTemplateRef('bizPurchaseOrderDetailRef')
@@ -110,8 +114,26 @@
 	const isUseAccount = computed(() => {
 		return info.value.accountId ? true : false
 	})
+	const canOpenProjectDetail = canOpenFullSaleProjectDetail()
+	const canOpenPurchaseOrderDetail = hasApiPerm(
+		['/biz/bizpurchaseorder/detail', '/biz/process/query/list'],
+		'and'
+	)
+	const canOpenLeaveApplicationDetail = hasApiPerm('/biz/bizleaveapplication/detail')
+	const canOpenRelatedDetail = (category) => {
+		if (category === 'CUSTOMER_REBATE') {
+			return canOpenProjectDetail
+		}
+		if (category === 'GOODS_EXPENDITURE' || category === 'ProcurementFreight') {
+			return canOpenPurchaseOrderDetail
+		}
+		return category === 'TravelExpenses' && canOpenLeaveApplicationDetail
+	}
 
 	const open = (objectId, category) => {
+		if (!canOpenRelatedDetail(category)) {
+			return
+		}
 		if (category === 'CUSTOMER_REBATE') {
 			projectDetailRef.value.onOpen({ id: objectId })
 		} else if (category === 'GOODS_EXPENDITURE' || category === 'ProcurementFreight') {

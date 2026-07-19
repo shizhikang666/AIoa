@@ -3,9 +3,10 @@
 		<template v-if="!error">
 			<a-descriptions bordered title="基本信息" size="small">
 				<a-descriptions-item :span="2" label="采购订单编号">
-					<a-typography-link @click="bizpurchaseorderDetalRef.onOpen({ id: details.orderId })">
+					<a-typography-link v-if="canOpenPurchaseOrderDetail" @click="openPurchaseOrderDetail">
 						{{ details.orderId }}
 					</a-typography-link>
+					<span v-else>{{ details.orderId }}</span>
 				</a-descriptions-item>
 				<a-descriptions-item :span="2" label="仓库">
 					{{ warehouse.name }}
@@ -36,8 +37,19 @@
 	import warehousesApi from '@/api/biz/warehousesApi'
 	import { useTemplateRef } from 'vue'
 	import bizpurchaseorderDetal from '@/views/biz/bizpurchaseorder/details/index.vue'
+	import { hasApiPerm } from '@/utils/permission'
 
 	const bizpurchaseorderDetalRef = useTemplateRef('bizpurchaseorderDetalRef')
+	const canOpenPurchaseOrderDetail = hasApiPerm(
+		['/biz/bizpurchaseorder/detail', '/biz/process/query/list'],
+		'and'
+	)
+	const openPurchaseOrderDetail = () => {
+		if (!canOpenPurchaseOrderDetail || !details.value.orderId) {
+			return
+		}
+		bizpurchaseorderDetalRef.value.onOpen({ id: details.value.orderId })
+	}
 	const loading = ref(false)
 	const error = ref(false)
 	const { id } = defineProps({

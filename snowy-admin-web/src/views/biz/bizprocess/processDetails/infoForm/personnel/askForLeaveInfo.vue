@@ -18,9 +18,10 @@
 					{{ info.endTime }}
 				</a-descriptions-item>
 				<a-descriptions-item v-if="info.objectId" :span="6" label="单号">
-					<a-typography-link @click="open(info.objectId)">
+					<a-typography-link v-if="canOpenProjectDetail" @click="open(info.objectId)">
 						{{ info.objectId }}
 					</a-typography-link>
+					<span v-else>{{ info.objectId }}</span>
 				</a-descriptions-item>
 				<a-descriptions-item :span="3" label="备注">
 					{{ info.remark }}
@@ -44,8 +45,8 @@
 	import { useLoading } from '@/composables/useLoading'
 	import ErrorResult from '@/components/ErrorResult/ErrorResult.vue'
 	import bizProcessApi from '@/api/biz/bizProcessApi'
-	import bizUserVacationApi from '@/api/biz/bizUserVacationApi'
 	import Detail from '@/views/biz/saleproject/detail.vue'
+	import { canOpenFullSaleProjectDetail } from '@/utils/permission'
 
 	const { id } = defineProps({
 		id: {
@@ -54,13 +55,13 @@
 		}
 	})
 	const info = ref({})
-	const userAnnualLeaveInfo = ref({})
-	const isAnnualLeave = computed(() => {
-		return info.value.category === 'annualLeave'
-	})
 
 	const detailRef = ref()
+	const canOpenProjectDetail = canOpenFullSaleProjectDetail()
 	const open = (id) => {
+		if (!canOpenProjectDetail || !id) {
+			return
+		}
 		detailRef.value.onOpen({ id })
 	}
 	const { loading, load, error } = useLoading(async () => {
@@ -71,12 +72,6 @@
 			result[item.name] = item.value
 		})
 		info.value = result
-		if (result.category === 'annualLeave') {
-			userAnnualLeaveInfo.value = await bizUserVacationApi.bizUserVacationDetail({
-				category: result.category,
-				userId: result.initiator
-			})
-		}
 	})
 	load()
 </script>

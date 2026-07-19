@@ -81,9 +81,10 @@
 			>
 				<template #bodyCell="{ column, record }">
 					<template v-if="column.dataIndex === 'productName'">
-						<a-typography-link @click="openProductDetails(record.productId)"
+						<a-typography-link v-if="canOpenProductDetail" @click="openProductDetails(record.productId)"
 							>{{ record.productName }}
 						</a-typography-link>
+						<span v-else>{{ record.productName }}</span>
 					</template>
 				</template>
 				<template #footer>
@@ -110,6 +111,7 @@
 	import supplierApi from '@/api/biz/supplierApi'
 	import productDetails from '@/views/biz/bizproduct/details/details.vue'
 	import { useTemplateRef } from 'vue'
+	import { hasApiPerm } from '@/utils/permission'
 
 	const loading = ref(false)
 	const error = ref(false)
@@ -189,8 +191,12 @@
 	}
 
 	const productDetailsRef = useTemplateRef('productDetailsRef')
+	const canOpenProductDetail = hasApiPerm('/biz/bizproduct/detail')
 
 	const openProductDetails = (id) => {
+		if (!canOpenProductDetail || !id) {
+			return
+		}
 		productDetailsRef.value.onOpen({ id })
 	}
 
