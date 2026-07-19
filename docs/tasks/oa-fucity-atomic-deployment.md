@@ -235,13 +235,21 @@ if HTTP behavior must be checked before activation, a loopback-only temporary
 process. Do not attach the candidate to the public vhost, start a scheduler, or
 start a queue worker.
 
+Run every framework CLI or loopback PHP process as the `www` service account.
+Running `think`, an application smoke script, or a loopback server as `root`
+can leave root-owned framework cache shards that PHP-FPM cannot update. The
+activation gate clears the selected release's local `runtime/cache` and
+`runtime/temp` trees and restores `www:www` ownership, but preflight should
+still use the production service identity so its behavior matches PHP-FPM.
+
 At minimum:
 
 ```bash
 cd /www/wwwroot/oa.fucity.cn/releases/<candidate-id>
-/www/server/php/83/bin/php think route:list
+runuser -u www -- /www/server/php/83/bin/php think route:list
 
-bash scripts/deployment-readiness.sh \
+runuser -u www -- bash scripts/deployment-readiness.sh \
+  --php-bin /www/server/php/83/bin/php \
   --check-composer-policy \
   --check-runtime-permission-policy \
   --check-database-schema \

@@ -414,6 +414,35 @@ exec /usr/bin/id "$@"
 printf 'chown:%s\n' "`$*" >> '$stubStateBash/commands.log'
 exit 0
 "@
+    $findmntStub = @'
+#!/usr/bin/env bash
+target=''
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -T)
+            target="${2:-}"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+if [ -n "$target" ]; then
+    if [ -f '__STUB_STATE__/ancestor-mount-prefix' ]; then
+        prefix="$(cat '__STUB_STATE__/ancestor-mount-prefix')"
+        case "$target" in
+            "$prefix"|"$prefix"/*)
+                printf '%s\n' "$prefix"
+                exit 0
+                ;;
+        esac
+    fi
+    printf '/\n'
+fi
+exit 0
+'@
+    Write-Utf8NoBom (Join-Path $stubDirectory 'findmnt') ($findmntStub.Replace('__STUB_STATE__', $stubStateBash))
     Write-Utf8NoBom (Join-Path $stubDirectory 'chmod') @"
 #!/usr/bin/env bash
 printf 'chmod:%s\n' "`$*" >> '$stubStateBash/commands.log'
@@ -473,6 +502,7 @@ case "`$format" in
             '$siteRootBash'/shared|'$siteRootBash'/shared/env) printf '750\n' ;;
             '$siteRootBash'/shared/env/*.env) printf '640\n' ;;
             '$siteRootBash'/runtime|'$siteRootBash'/releases/*/runtime) printf '750\n' ;;
+            '$siteRootBash'/releases/*/runtime/cache|'$siteRootBash'/releases/*/runtime/temp) printf '750\n' ;;
             '$siteRootBash'/releases/*/.release-*|'$siteRootBash'/releases/*/.baseline-content-manifest.json) printf '600\n' ;;
             '$siteRootBash'/.deploy/manifests/*|'$siteRootBash'/.deploy/provenance/*) printf '600\n' ;;
             *) run_real_stat "`$@" ;;
@@ -544,7 +574,7 @@ done
 rm -rf "$destination/runtime" "$destination/public/upload" "$destination/public/storage"
 '@
 
-    Invoke-Bash -Command "chmod +x '$stubDirectoryBash/php83' '$stubDirectoryBash/nginx' '$stubDirectoryBash/php-fpm-83' '$stubDirectoryBash/curl' '$stubDirectoryBash/flock' '$stubDirectoryBash/id' '$stubDirectoryBash/chown' '$stubDirectoryBash/chmod' '$stubDirectoryBash/stat' '$stubDirectoryBash/dd' '$stubDirectoryBash/readlink' '$stubDirectoryBash/mv' '$stubDirectoryBash/rsync'" | Out-Null
+    Invoke-Bash -Command "chmod +x '$stubDirectoryBash/php83' '$stubDirectoryBash/nginx' '$stubDirectoryBash/php-fpm-83' '$stubDirectoryBash/curl' '$stubDirectoryBash/flock' '$stubDirectoryBash/id' '$stubDirectoryBash/chown' '$stubDirectoryBash/chmod' '$stubDirectoryBash/findmnt' '$stubDirectoryBash/stat' '$stubDirectoryBash/dd' '$stubDirectoryBash/readlink' '$stubDirectoryBash/mv' '$stubDirectoryBash/rsync'" | Out-Null
     Invoke-Bash -Command "tar -czf '$archiveBash' -C '$candidateSourceBash' ." | Out-Null
     Invoke-Bash -Command "tar -czf '$archiveTwoBash' -C '$candidateTwoSourceBash' ." | Out-Null
     Invoke-Bash -Command "tar -czf '$toctouArchiveBash' -C '$toctouSourceBash' ." | Out-Null
@@ -665,6 +695,12 @@ rm -rf "$destination/runtime" "$destination/public/upload" "$destination/public/
     Assert-Bash -Expression "test `$(tr -d '\r\n' < '$siteRootBash/releases/candidate-one/.release-env-sha256') = '$candidateEnvSha' && test `$(tr -d '\r\n' < '$siteRootBash/releases/candidate-one/.release-db-name-sha256') = '$candidateDbNameSha'" -Message 'Externally approved environment binding was not pinned in release markers.'
     Assert-Bash -Expression "grep -Fqx 'env_sha256=$candidateEnvSha' '$siteRootBash/.deploy/provenance/candidate-one.txt' && grep -Fqx 'expected_db_name_sha256=$candidateDbNameSha' '$siteRootBash/.deploy/provenance/candidate-one.txt'" -Message 'Externally approved environment binding was not pinned in provenance.'
 
+    # Simulate a root-run candidate CLI probe that leaves an unwritable cache
+    # shard behind. Activation must remove all release-local cache/temp entries
+    # before current is changed.
+    Invoke-Bash -Command "mkdir -p '$siteRootBash/releases/candidate-one/runtime/cache/f5' '$siteRootBash/releases/candidate-one/runtime/temp/root-probe' && printf 'root-owned-cache\n' > '$siteRootBash/releases/candidate-one/runtime/cache/f5/probe.php' && printf 'root-owned-temp\n' > '$siteRootBash/releases/candidate-one/runtime/temp/root-probe/probe.tmp'" | Out-Null
+    Invoke-Bash -Command "printf 'current-release-sentinel\n' > '$siteRootBash/releases/baseline-offline/runtime/cache/current-sentinel'" | Out-Null
+
     Invoke-Atomic -Arguments (@(
         '--release-id', 'release-id-mismatch',
         '--archive', $archiveBash,
@@ -756,6 +792,21 @@ rm -rf "$destination/runtime" "$destination/public/upload" "$destination/public/
     ) + $candidateBinding + $common) -ExpectFailure | Out-Null
     Assert-CurrentRelease -Root $siteRootBash -ReleaseId 'baseline-offline' -Message 'CAS failure changed current.'
 
+    Write-Utf8NoBom (Join-Path $stubState 'ancestor-mount-prefix') "$siteRootBash/releases/candidate-one/runtime`n"
+    $ancestorMountOutput = Invoke-Atomic -Arguments (@(
+        '--activate',
+        '--release-id', 'candidate-one',
+        '--expected-current', 'baseline-offline',
+        '--confirm-activate',
+        '--health-url', 'http://127.0.0.1/candidate-one'
+    ) + $candidateBinding + $common) -ExpectFailure
+    Remove-Item -LiteralPath (Join-Path $stubState 'ancestor-mount-prefix') -Force
+    Assert-CurrentRelease -Root $siteRootBash -ReleaseId 'baseline-offline' -Message 'Ancestor mount rejection changed current.'
+    if (($ancestorMountOutput -join "`n") -notmatch 'crosses a mount boundary') {
+        throw 'Ancestor mount did not fail through the runtime mount-boundary gate.'
+    }
+    Assert-Bash -Expression "test -f '$siteRootBash/releases/candidate-one/runtime/cache/f5/probe.php' && test -f '$siteRootBash/releases/baseline-offline/runtime/cache/current-sentinel'" -Message 'Ancestor mount rejection cleared candidate or current runtime data.'
+
     Invoke-Atomic -Arguments (@(
         '--activate',
         '--release-id', 'candidate-one',
@@ -764,6 +815,9 @@ rm -rf "$destination/runtime" "$destination/public/upload" "$destination/public/
         '--health-url', 'http://127.0.0.1/candidate-one'
     ) + $candidateBinding + $common) | Out-Null
     Assert-CurrentRelease -Root $siteRootBash -ReleaseId 'candidate-one' -Message 'Candidate activation did not switch current.'
+    Assert-Bash -Expression "! find '$siteRootBash/releases/candidate-one/runtime/cache' '$siteRootBash/releases/candidate-one/runtime/temp' -mindepth 1 -print -quit | grep -q ." -Message 'Activation did not reset release-local cache/temp pollution.'
+    Assert-Bash -Expression "'$stubDirectoryBash/stat' -c '%U:%G' -- '$siteRootBash/releases/candidate-one/runtime/cache' | grep -Fqx 'www:www' && '$stubDirectoryBash/stat' -c '%U:%G' -- '$siteRootBash/releases/candidate-one/runtime/temp' | grep -Fqx 'www:www'" -Message 'Activation did not restore service ownership on release-local runtime roots.'
+    Assert-Bash -Expression "grep -Fqx 'current-release-sentinel' '$siteRootBash/releases/baseline-offline/runtime/cache/current-sentinel'" -Message 'Activation reset the previously current release runtime.'
 
     Invoke-Atomic -Arguments (@(
         '--release-id', 'candidate-two',
@@ -909,7 +963,7 @@ rm -rf "$destination/runtime" "$destination/public/upload" "$destination/public/
         throw 'Build/deploy release contract self-test failed.'
     }
 
-    Write-Host '[atomic-deploy-smoke] passed: external env/DB binding approvals, protected input snapshots, baseline permission normalization/manifest, owner gates, provenance, final CAS, audit rollback, strict FPM failure state, activation/rollback, traversal/link rejection, build contract, and zero DB commands'
+    Write-Host '[atomic-deploy-smoke] passed: external env/DB binding approvals, protected input snapshots, baseline permission normalization/manifest, owner gates, release-local runtime reset, provenance, final CAS, audit rollback, strict FPM failure state, activation/rollback, traversal/link rejection, build contract, and zero DB commands'
 } finally {
     if (Test-Path -LiteralPath $smokeRoot) {
         $resolvedSmoke = [System.IO.Path]::GetFullPath($smokeRoot)

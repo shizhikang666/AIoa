@@ -1327,6 +1327,49 @@ validate_release_binding_approval() {
     [ "$pinned_db_name_sha" = "$approved_db_name_sha" ] || die "selected release DB_NAME binding does not match the externally approved SHA-256 commitment"
 }
 
+reset_release_ephemeral_runtime() {
+    local id="$1"
+    local release_root="$RELEASES_ROOT/$id"
+    local path label mount_targets mount_target releases_mount path_mount
+
+    # Candidate-side CLI probes can create framework cache shards. If those
+    # probes were accidentally run as root, PHP-FPM cannot later update the
+    # shard even though the cache root itself is owned by the service user.
+    # Cache and temp are release-local and explicitly excluded from package
+    # provenance, so make activation start from an empty service-owned tree.
+    releases_mount="$(findmnt -rn -T "$RELEASES_ROOT" -o TARGET)" \
+        || die "unable to identify the releases filesystem mount"
+    [ -n "$releases_mount" ] || die "releases filesystem mount was not found"
+    for label in cache temp; do
+        path="$release_root/runtime/$label"
+        [ -d "$path" ] && [ ! -L "$path" ] \
+            || die "release runtime $label must be a physical directory"
+        path_mount="$(findmnt -rn -T "$path" -o TARGET)" \
+            || die "unable to identify release runtime $label filesystem mount"
+        [ "$path_mount" = "$releases_mount" ] \
+            || die "release runtime $label crosses a mount boundary: $path_mount"
+        mount_targets="$(findmnt -rn -o TARGET)" \
+            || die "unable to inspect mount targets before runtime reset"
+        while IFS= read -r mount_target; do
+            [ -n "$mount_target" ] || continue
+            case "$mount_target" in
+                "$path"|"$path"/*)
+                    die "release runtime $label contains a mount point: $mount_target"
+                    ;;
+            esac
+        done <<< "$mount_targets"
+        if ! find "$path" -xdev -depth -mindepth 1 -delete; then
+            die "unable to clear release runtime $label before switch"
+        fi
+        [ -z "$(find "$path" -xdev -mindepth 1 -print -quit)" ] \
+            || die "release runtime $label was not empty after reset"
+        chown -R "$SERVICE_OWNER" "$path"
+        chmod 750 "$path"
+        require_exact_owner "release runtime $label" "$path" "$SERVICE_OWNER"
+        require_exact_mode "release runtime $label" "$path" "750"
+    done
+}
+
 finalize_prepared_release() {
     local source_kind="$1"
     local manifest_sha="$2"
@@ -1758,6 +1801,7 @@ switch_release() {
 
     local previous="$EXPECTED_CURRENT"
     [ "$previous" != "$RELEASE_ID" ] || die "target release is already current"
+    reset_release_ephemeral_runtime "$RELEASE_ID"
     prepare_switch_audit "$action" "$previous" "$RELEASE_ID"
     if ! (atomic_set_current "$RELEASE_ID" "$previous" "$EXPECTED_ENV_SHA256" "$EXPECTED_DB_NAME_SHA256"); then
         local actual_after_failed_switch
@@ -1825,6 +1869,7 @@ require_command sha256sum
 require_command dd
 require_command mktemp
 require_command chown
+require_command findmnt
 prepare_layout
 acquire_lock
 verify_php83
