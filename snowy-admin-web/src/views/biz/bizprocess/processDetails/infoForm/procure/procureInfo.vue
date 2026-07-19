@@ -58,8 +58,15 @@
 							{{ $TOOL.dictTypeDataByPath('PRODUCT_DICT', 'PRODUCT_SPECS', record.specs) }}
 						</template>
 						<template v-if="column.dataIndex === 'link'">
-							<div v-html="highlightedText(record.link)"></div>
-							<!--							<a-typography-link target="_blank" :href="record.link">{{ record.link }}</a-typography-link>-->
+							<a-typography-link
+								v-if="safeHttpUrl(record.link)"
+								target="_blank"
+								rel="noopener noreferrer"
+								:href="safeHttpUrl(record.link)"
+							>
+								{{ record.link }}
+							</a-typography-link>
+							<span v-else>{{ record.link }}</span>
 						</template>
 					</template>
 				</a-table>
@@ -122,15 +129,15 @@
 		}
 	})
 
-	// 替换网址为高亮版本
-	const highlightedText = (text) => {
-		if (!text) {
+	// 仅将有效的 HTTP(S) 地址渲染为链接，其余内容按普通文本显示。
+	const safeHttpUrl = (value) => {
+		if (!value) return ''
+		try {
+			const url = new URL(String(value).trim())
+			return ['http:', 'https:'].includes(url.protocol) ? url.href : ''
+		} catch (e) {
 			return ''
 		}
-		const urlRegex = /https?:\/\/[^\s]+/g
-		return text.replace(urlRegex, (url) => {
-			return `<a href="${url}" target="_blank" style="color: blue; text-decoration: underline;">${url}</a>`
-		})
 	}
 	const normalizeList = (value) => {
 		if (Array.isArray(value)) {

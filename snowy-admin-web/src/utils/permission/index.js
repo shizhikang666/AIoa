@@ -64,13 +64,7 @@ export const SALE_PROJECT_DETAIL_READ_PERMISSIONS = [
 	'/biz/saleproject/file/relation/list',
 	'/biz/process/project/runtime/query/list',
 	'/biz/returnorder/query',
-	'/biz/customer/detail',
-	'/biz/saleprojectfollowup/page',
-	'/biz/bizpaymentrecord/page',
-	'/biz/returnorder/page',
-	'/biz/saleprojectinvoice/list',
-	'/biz/saleproject/delivery/plan/list',
-	'/biz/projectrate/list'
+	'/biz/customer/detail'
 ]
 
 export function canOpenFullSaleProjectDetail() {

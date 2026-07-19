@@ -41,7 +41,13 @@
 				</template>
 				<template v-if="column.dataIndex === 'action'">
 					<a-space>
-						<a-button :disabled="record.endTime != null" type="link" @click="cancelProcess(record)" danger>
+						<a-button
+							v-if="record.startUserId === currentUserId"
+							:disabled="record.endTime != null"
+							type="link"
+							@click="cancelProcess(record)"
+							danger
+						>
 							取消申请
 						</a-button>
 					</a-space>
@@ -71,6 +77,7 @@
 	})
 
 	const categoryOptions = ref([])
+	const currentUserId = String(tool.data.get('USER_INFO')?.id || '')
 	categoryOptions.value = tool.dictListByPath(['APPROVAL_PROCESS', 'progress_category'])
 	const { modal } = App.useApp()
 	const searchFormState = ref({})
