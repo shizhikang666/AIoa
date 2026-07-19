@@ -321,7 +321,6 @@ function permission_scope_plan(string $roleId, string $apiUrl): array
         '/biz/bizuservacation/detail',
         '/biz/process/query',
         '/biz/process/query/list',
-        '/biz/process/project/init/start',
     ];
     if (in_array($apiUrl, $selfScoped, true)) {
         return [
@@ -352,6 +351,7 @@ function permission_scope_plan(string $roleId, string $apiUrl): array
         '/biz/customer/detail',
         '/biz/bizdraft/detail',
         '/biz/bizdraft/saleproject/add',
+        '/biz/process/project/init/start',
         '/biz/saleprojectinvoicing/customer',
         '/biz/saleproject/page',
         '/biz/saleproject/list/detail',

@@ -285,6 +285,7 @@ function seed_fixture(PDO $pdo, string $database, array $profiles): void
             '/biz/saleproject/page',
             '/biz/bizproduct/page',
             '/biz/settlementaccount/page',
+            '/biz/process/project/init/start',
             '/biz/user/orgtreeselector',
             '/biz/user/userselector',
         ],
