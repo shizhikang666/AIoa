@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\controller\biz;
 
 use app\controller\sys\BaseSysController;
+use app\service\biz\SaleProjectFileRelationService;
 use app\service\biz\SaleProjectService;
 use RuntimeException;
 use think\Request;
@@ -12,8 +13,10 @@ use think\Response;
 
 class SaleProjectController extends BaseSysController
 {
-    public function __construct(private readonly SaleProjectService $saleProjectService = new SaleProjectService())
-    {
+    public function __construct(
+        private readonly SaleProjectService $saleProjectService = new SaleProjectService(),
+        private readonly SaleProjectFileRelationService $saleProjectFileRelationService = new SaleProjectFileRelationService()
+    ) {
     }
 
     public function page(Request $request): Response
@@ -54,6 +57,14 @@ class SaleProjectController extends BaseSysController
     public function deliveryPlanList(Request $request): Response
     {
         return $this->guard(fn () => $this->saleProjectService->deliveryPlanList(
+            $this->requiredString($request, 'projectId'),
+            $this->authPayload($request)
+        ));
+    }
+
+    public function fileRelationList(Request $request): Response
+    {
+        return $this->guard(fn () => $this->saleProjectFileRelationService->list(
             $this->requiredString($request, 'projectId'),
             $this->authPayload($request)
         ));

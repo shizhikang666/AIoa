@@ -574,6 +574,7 @@ Route::group('biz/saleproject', function () {
     Route::get('detail', 'biz.SaleProjectController/detail');
     Route::get('product', 'biz.SaleProjectController/product');
     Route::get('delivery/plan/list', 'biz.SaleProjectController/deliveryPlanList');
+    Route::get('file/relation/list', 'biz.SaleProjectController/fileRelationList');
     Route::post('cost/details', 'biz.SaleProjectController/costDetails');
     Route::post('cost', 'biz.SaleProjectController/cost');
     Route::post('add', 'biz.SaleProjectController/add');

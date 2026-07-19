@@ -104,5 +104,9 @@ export default {
 	// 获取项目的发货安排。旧项目没有安排时返回空数组，继续使用原发货流程。
 	bizSaleProjectDeliveryPlanList(data) {
 		return request('delivery/plan/list', data, 'get')
+	},
+	// Read attachments only after the backend verifies access to this project.
+	bizSaleProjectFileRelationList(data) {
+		return request('file/relation/list', data, 'get')
 	}
 }

@@ -80,6 +80,7 @@ class AuthMiddleware
             '/biz/process/page',
             '/biz/process/all/page',
             '/biz/process/detail',
+            '/biz/saleproject/file/relation/list',
         ], true);
     }
 
