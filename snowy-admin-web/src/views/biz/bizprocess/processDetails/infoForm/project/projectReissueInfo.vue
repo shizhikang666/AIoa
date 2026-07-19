@@ -10,7 +10,10 @@
 		<template v-else>
 			<a-descriptions bordered title="项目信息" size="small">
 				<a-descriptions-item label="项目名称">
-					<a-typography-link @click="openProjectDetail"> {{ projectBaseInfo.projectName }}</a-typography-link>
+					<a-typography-link v-if="canOpenProjectDetail" @click="openProjectDetail">
+						{{ projectBaseInfo.projectName }}
+					</a-typography-link>
+					<span v-else>{{ projectBaseInfo.projectName }}</span>
 				</a-descriptions-item>
 				<a-descriptions-item label="备注">
 					{{ baseInfo.remark }}
@@ -36,6 +39,7 @@
 	import bizProcessApi from '@/api/biz/bizProcessApi'
 	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
 	import { useTemplateRef } from 'vue'
+	import { canOpenFullSaleProjectDetail } from '@/utils/permission'
 
 	import detail from '@/views/biz/saleproject/detail.vue'
 
@@ -48,20 +52,27 @@
 	const projectBaseInfo = ref({})
 	const baseInfo = ref({})
 	const projectDetailRef = useTemplateRef('projectDetailRef')
+	const canOpenProjectDetail = canOpenFullSaleProjectDetail()
 	const openProjectDetail = () => {
 		projectDetailRef.value.onOpen({
 			id: projectBaseInfo.value.id
 		})
 	}
 	const { loading, load, error } = useLoading(async () => {
-		const fields = ['projectId', 'remark', 'amount', 'productList']
+		const fields = ['projectId', 'projectName', 'remark', 'amount', 'productList']
 		const res = await bizProcessApi.bizVariable({ id: id, fields })
 		const result = {}
 		res.forEach((item) => {
 			result[item.name] = item.value
 		})
-		const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
-		projectBaseInfo.value = details.bizSaleProject
+		projectBaseInfo.value = {
+			id: result.projectId,
+			projectName: result.projectName || result.projectId
+		}
+		if (canOpenProjectDetail && result.projectId) {
+			const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
+			projectBaseInfo.value = details.bizSaleProject
+		}
 		baseInfo.value = result
 	})
 

@@ -3,6 +3,7 @@
 		<a-descriptions bordered title="发货信息" size="small">
 			<a-descriptions-item label="项目名称">
 				<a-typography-link
+					v-if="canOpenProjectDetail"
 					@click="
 						projectDetail.onOpen({
 							id: projectBaseInfo.id
@@ -11,6 +12,7 @@
 				>
 					{{ projectBaseInfo.projectName }}
 				</a-typography-link>
+				<span v-else>{{ projectBaseInfo.projectName }}</span>
 			</a-descriptions-item>
 			<a-descriptions-item label="收货人">
 				{{ baseInfo.consignee }}
@@ -67,10 +69,11 @@
 	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
 	import warehousesApi from '@/api/biz/warehousesApi'
 	import detail from '@/views/biz/saleproject/detail.vue'
-	import saleProjectProductItemRelationApi from '@/api/biz/saleProjectProductItemRelationApi'
 	import { safeJsonParse } from '@/utils/json'
+	import { canOpenFullSaleProjectDetail } from '@/utils/permission'
 
 	const projectDetail = ref()
+	const canOpenProjectDetail = canOpenFullSaleProjectDetail()
 	const props = defineProps({
 		id: {
 			type: String,
@@ -112,6 +115,7 @@
 		try {
 			const fields = [
 				'projectId',
+				'projectName',
 				'remark',
 				'projectProductItemList',
 				'address',
@@ -122,8 +126,7 @@
 				'logisticsId',
 				'phone',
 				'logisticsCategory',
-				'consignee',
-				'projectId'
+				'consignee'
 			]
 			const res = await bizProcessApi.bizVariable({ id: props.id, fields })
 			const warehouseList = await warehousesApi.warehousesList()
@@ -131,9 +134,18 @@
 			res.forEach((item) => {
 				result[item.name] = item.value
 			})
-			const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
-			projectBaseInfo.value = details.bizSaleProject
+			projectBaseInfo.value = {
+				id: result.projectId,
+				projectName: result.projectName || result.projectId
+			}
+			if (canOpenProjectDetail && result.projectId) {
+				const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
+				projectBaseInfo.value = details.bizSaleProject
+			}
 			baseInfo.value = result
+			baseInfo.value.projectProductItemList = Array.isArray(baseInfo.value.projectProductItemList)
+				? baseInfo.value.projectProductItemList
+				: []
 
 			baseInfo.value.projectProductItemList.forEach((v) => {
 				const find = warehouseList.find((warehouse) => {
@@ -143,12 +155,15 @@
 			})
 
 			const map = new Map()
-			const son = await saleProjectProductItemRelationApi.saleProjectProductItemRelationList(
-				baseInfo.value.projectProductItemList.map((v, index) => {
+			const objectIds = baseInfo.value.projectProductItemList
+				.map((v, index) => {
 					map.set(v.projectProductItemId, index)
-					return { id: v.projectProductItemId }
+					return v.projectProductItemId
 				})
-			)
+				.filter(Boolean)
+			const son = objectIds.length
+				? await bizProcessApi.bizProcessProjectProductItemRelationList({ id: props.id, objectIds })
+				: []
 
 			son.forEach((v) => {
 				let current = baseInfo.value.projectProductItemList[map.get(v.objectId)]

@@ -3,6 +3,7 @@
 		<a-descriptions bordered title="项目信息" size="small">
 			<a-descriptions-item label="项目名称">
 				<a-typography-link
+					v-if="canOpenProjectDetail"
 					@click="
 						projectDetail.onOpen({
 							id: projectBaseInfo.id
@@ -11,6 +12,7 @@
 				>
 					{{ projectBaseInfo.projectName }}
 				</a-typography-link>
+				<span v-else>{{ projectBaseInfo.projectName }}</span>
 			</a-descriptions-item>
 			<a-descriptions-item label="项目状态">
 				<a-tag
@@ -139,6 +141,7 @@
 </template>
 
 <script setup lang="js">
+	import { canOpenFullSaleProjectDetail } from '@/utils/permission'
 	import bizProcessApi from '@/api/biz/bizProcessApi'
 
 	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
@@ -192,6 +195,7 @@
 		}
 	]
 	const projectDetail = ref()
+	const canOpenProjectDetail = canOpenFullSaleProjectDetail()
 
 	const props = defineProps({
 		id: {
@@ -212,6 +216,7 @@
 		try {
 			const fields = [
 				'projectId',
+				'projectName',
 				'remark',
 				'accountId',
 				'accountName',
@@ -235,8 +240,14 @@
 				result[item.name] = item.value
 			})
 			processInfo.value = result
-			const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
-			projectBaseInfo.value = details.bizSaleProject
+			projectBaseInfo.value = {
+				id: result.projectId,
+				projectName: result.projectName || result.projectId
+			}
+			if (canOpenProjectDetail && result.projectId) {
+				const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
+				projectBaseInfo.value = details.bizSaleProject
+			}
 			processInfo.value.accountName = result.accountName || result.accountId
 			invoicingInfo.value = processInfo.value.invoicingInfo
 		} catch (e) {

@@ -10,7 +10,10 @@
 		<template v-else>
 			<a-descriptions bordered title="项目信息" size="small">
 				<a-descriptions-item label="项目名称">
-					<a-typography-link @click="openProjectDetail"> {{ projectBaseInfo.projectName }}</a-typography-link>
+					<a-typography-link v-if="canOpenProjectDetail" @click="openProjectDetail">
+						{{ projectBaseInfo.projectName }}
+					</a-typography-link>
+					<span v-else>{{ projectBaseInfo.projectName }}</span>
 				</a-descriptions-item>
 				<a-descriptions-item label="备注">
 					{{ baseInfo.remark }}
@@ -47,11 +50,11 @@
 	import bizProcessApi from '@/api/biz/bizProcessApi'
 	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
 	import { useTemplateRef } from 'vue'
-	import saleProjectProductItemRelationApi from '@/api/biz/saleProjectProductItemRelationApi'
 	import detail from '@/views/biz/saleproject/detail.vue'
 	import WarehousesApi from '@/api/biz/warehousesApi'
 	import userCenterApi from '@/api/sys/userCenterApi'
 	import { safeJsonParse } from '@/utils/json'
+	import { canOpenFullSaleProjectDetail } from '@/utils/permission'
 
 	const { id } = defineProps({
 		id: {
@@ -62,6 +65,7 @@
 	const projectBaseInfo = ref({})
 	const baseInfo = ref({})
 	const projectDetailRef = useTemplateRef('projectDetailRef')
+	const canOpenProjectDetail = canOpenFullSaleProjectDetail()
 	const openProjectDetail = () => {
 		if (!projectBaseInfo.value.id) {
 			return
@@ -71,7 +75,16 @@
 		})
 	}
 	const { loading, load, error } = useLoading(async () => {
-		const fields = ['projectId', 'remark', 'amount', 'productList', 'warehousesId', 'refundRequired', 'treasurer']
+		const fields = [
+			'projectId',
+			'projectName',
+			'remark',
+			'amount',
+			'productList',
+			'warehousesId',
+			'refundRequired',
+			'treasurer'
+		]
 		const res = await bizProcessApi.bizVariable({ id: id, fields })
 		const result = {}
 		res.forEach((item) => {
@@ -84,13 +97,14 @@
 			result.treasurerName = users[0]?.name || ''
 		}
 
-		let details = { bizSaleProject: { id: result.projectId, projectName: result.projectId || '' } }
-		if (result.projectId) {
-			try {
-				details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
-			} catch (e) {
-				details = { bizSaleProject: { id: result.projectId, projectName: result.projectId } }
+		let details = {
+			bizSaleProject: {
+				id: result.projectId,
+				projectName: result.projectName || result.projectId
 			}
+		}
+		if (canOpenProjectDetail && result.projectId) {
+			details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
 		}
 
 		const list = await WarehousesApi.warehousesList().catch(() => [])
@@ -98,14 +112,9 @@
 			return v.id === result.warehousesId
 		})
 
-		const productItems = result.productList.length
-			? await saleProjectProductItemRelationApi.saleProjectProductItemRelationList(
-					result.productList.map((v) => {
-						return {
-							id: v.projectProductItemId
-						}
-					})
-			  )
+		const objectIds = result.productList.map((v) => v.projectProductItemId).filter(Boolean)
+		const productItems = objectIds.length
+			? await bizProcessApi.bizProcessProjectProductItemRelationList({ id, objectIds })
 			: []
 		productItems.forEach((v) => {
 			const product = safeJsonParse(v.extJson, {}).product || {}

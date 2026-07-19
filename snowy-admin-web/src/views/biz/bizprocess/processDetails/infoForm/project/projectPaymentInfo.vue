@@ -3,6 +3,7 @@
 		<a-descriptions :column="2" :labelStyle="{ minWidth: '100px' }" bordered title="项目信息" size="small">
 			<a-descriptions-item label="项目名称">
 				<a-typography-link
+					v-if="canOpenProjectDetail"
 					@click="
 						projectDetail.onOpen({
 							id: projectBaseInfo.id
@@ -11,6 +12,7 @@
 				>
 					{{ projectBaseInfo.projectName }}
 				</a-typography-link>
+				<span v-else>{{ projectBaseInfo.projectName }}</span>
 			</a-descriptions-item>
 			<a-descriptions-item label="结算账户">
 				{{ account.accountName }}
@@ -36,10 +38,12 @@
 <script setup lang="js" name="projectPaymentInfo">
 	import bizProcessApi from '@/api/biz/bizProcessApi'
 	import bizSaleProjectApi from '@/api/biz/bizSaleProjectApi'
+	import { canOpenFullSaleProjectDetail } from '@/utils/permission'
 
 	import detail from '@/views/biz/saleproject/detail.vue'
 
 	const projectDetail = ref()
+	const canOpenProjectDetail = canOpenFullSaleProjectDetail()
 
 	const props = defineProps({
 		id: {
@@ -58,14 +62,30 @@
 		error.value = false
 		loading.value = true
 		try {
-			const fields = ['projectId', 'remark', 'amount', 'accountId', 'accountName', 'payer', 'payerTime', 'settlementCategory']
+			const fields = [
+				'projectId',
+				'projectName',
+				'remark',
+				'amount',
+				'accountId',
+				'accountName',
+				'payer',
+				'payerTime',
+				'settlementCategory'
+			]
 			const res = await bizProcessApi.bizVariable({ id: props.id, fields })
 			const result = {}
 			res.forEach((item) => {
 				result[item.name] = item.value
 			})
-			const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
-			projectBaseInfo.value = details.bizSaleProject
+			projectBaseInfo.value = {
+				id: result.projectId,
+				projectName: result.projectName || result.projectId
+			}
+			if (canOpenProjectDetail && result.projectId) {
+				const details = await bizSaleProjectApi.bizSaleProjectDetail({ id: result.projectId })
+				projectBaseInfo.value = details.bizSaleProject
+			}
 			baseInfo.value = result
 
 			account.value = result.accountId

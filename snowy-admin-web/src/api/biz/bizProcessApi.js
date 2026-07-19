@@ -34,6 +34,9 @@ export default {
 	bizProcessProjectRuntimeQueryList(data) {
 		return request('project/runtime/query/list', data, 'get')
 	},
+	bizProcessProjectProductItemRelationList(data) {
+		return request('project/product-item-relation/list', data, 'post')
+	},
 	bizProcessStartProjectInit(data) {
 		return request('project/init/start', data, 'post')
 	},
