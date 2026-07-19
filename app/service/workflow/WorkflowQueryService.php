@@ -157,6 +157,54 @@ class WorkflowQueryService
         ];
     }
 
+    public function assertProcessReadable(string $processInstanceId, array $payload = []): void
+    {
+        $processInstanceId = trim($processInstanceId);
+        $currentUserId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? ''));
+        $currentTenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if ($processInstanceId === '' || $currentUserId === '' || $currentTenantId === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $process = ActHiProcinst::where('PROC_INST_ID_', $processInstanceId)->find();
+        if (!$process) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $processRow = $process->toArray();
+        $processTenantId = trim((string)($processRow['TENANT_ID_'] ?? ''));
+        if ($processTenantId === '') {
+            $processTenantId = trim((string)Db::name('sys_user')
+                ->where('ID', (string)($processRow['START_USER_ID_'] ?? ''))
+                ->value('TENANT_ID'));
+        }
+        if ($processTenantId === '' || !hash_equals($currentTenantId, $processTenantId)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        if ((string)($processRow['START_USER_ID_'] ?? '') === $currentUserId) {
+            return;
+        }
+
+        if (ActRuTask::where('PROC_INST_ID_', $processInstanceId)->where('ASSIGNEE_', $currentUserId)->count() > 0) {
+            return;
+        }
+        if (ActHiTaskinst::where('PROC_INST_ID_', $processInstanceId)->where('ASSIGNEE_', $currentUserId)->count() > 0) {
+            return;
+        }
+        if ($this->isProcessCopyUser($processInstanceId, $currentUserId, $currentTenantId)) {
+            return;
+        }
+        if ($this->hasBuiltInProcessReadRole($payload)) {
+            return;
+        }
+        if ($this->hasScopedAllProcessRead($processRow, $payload)) {
+            return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
     public function allProcessPage(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
@@ -342,6 +390,79 @@ class WorkflowQueryService
             'processDefinitionId' => $taskRow['PROC_DEF_ID_'] ?? null,
             'createTime' => $taskRow['CREATE_TIME_'] ?? null,
         ];
+    }
+
+    private function isProcessCopyUser(string $processInstanceId, string $userId, string $tenantId): bool
+    {
+        return Db::name('biz_cc_records')
+            ->where(function ($query) use ($processInstanceId): void {
+                $query->where('PROCESS_ID', $processInstanceId)
+                    ->whereOr('INSTANCE_ID', $processInstanceId);
+            })
+            ->where('USER', $userId)
+            ->where('TENANT_ID', $tenantId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', 'NOT_DELETE');
+            })
+            ->count() > 0;
+    }
+
+    private function hasBuiltInProcessReadRole(array $payload): bool
+    {
+        foreach ($this->stringList($payload['role_codes'] ?? $payload['roleCodeList'] ?? []) as $roleCode) {
+            if (in_array($roleCode, ['superadmin', 'tenantadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function hasScopedAllProcessRead(array $processRow, array $payload): bool
+    {
+        if (!in_array(
+            '/biz/process/all/page',
+            $this->stringList($payload['permission_codes'] ?? $payload['permissionCodeList'] ?? []),
+            true
+        )) {
+            return false;
+        }
+
+        $processInstanceId = trim((string)($processRow['PROC_INST_ID_'] ?? $processRow['ID_'] ?? ''));
+        $variables = $processInstanceId === '' ? [] : $this->variableService->historyByProcessInstance($processInstanceId);
+        $processOrgId = trim((string)($variables['org'] ?? $variables['orgId'] ?? ''));
+        if ($processOrgId === '') {
+            $processOrgId = trim((string)Db::name('sys_user')
+                ->where('ID', (string)($processRow['START_USER_ID_'] ?? ''))
+                ->value('ORG_ID'));
+        }
+
+        $dataScopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (!is_array($dataScopes)) {
+            return false;
+        }
+
+        foreach ($dataScopes as $scope) {
+            if (!is_array($scope)) {
+                continue;
+            }
+            $apiUrl = strtolower(trim((string)($scope['apiUrl'] ?? $scope['api_url'] ?? '')));
+            if ($apiUrl !== '/biz/process/all/page') {
+                continue;
+            }
+            if (strtoupper(trim((string)($scope['scopeCategory'] ?? $scope['scope_category'] ?? ''))) === 'SCOPE_ALL') {
+                return true;
+            }
+            if ($processOrgId !== '' && in_array(
+                $processOrgId,
+                $this->stringList($scope['scopeOrgIdList'] ?? $scope['scope_org_id_list'] ?? []),
+                true
+            )) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function historyTaskQuery(string $userId, array $filters)
@@ -929,6 +1050,24 @@ class WorkflowQueryService
             'name' => $row['NAME'] ?? null,
             'children' => [],
         ]];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function stringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $item): string => strtolower(trim((string)$item)),
+            $value
+        ))));
     }
 
     /**

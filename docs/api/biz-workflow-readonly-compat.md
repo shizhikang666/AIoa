@@ -1,7 +1,7 @@
 # Biz Workflow Read-Only Compatibility
 
 Date: 2026-06-15
-Updated: 2026-06-22
+Updated: 2026-07-19
 
 Agent: workflow-agent / api-agent
 
@@ -24,6 +24,8 @@ The Java project remains read-only. This slice does not implement broad workflow
 
 | Method | Route | ThinkPHP handler |
 | --- | --- | --- |
+| GET | `/biz/process/detail` | `biz.ProcessController/detail` |
+| POST | `/biz/process/variable` | `biz.ProcessController/variable` |
 | GET | `/biz/process/all/page` | `biz.ProcessController/allPage` |
 | GET | `/biz/process/query` | `biz.ProcessController/query` |
 | POST | `/biz/process/query/list` | `biz.ProcessController/queryList` |
@@ -45,6 +47,8 @@ The Java project remains read-only. This slice does not implement broad workflow
 | POST | `/biz/process/project/delivery|reissue|return/start` | `biz.ProcessController` controlled-deferred project-start wrappers |
 
 All routes are protected by `AuthMiddleware`.
+
+The process-detail drawer routes (`detail`, `variable`, and `fileList`) are authenticated read routes, matching the Java controller. Before returning process data, all three apply the same object-level guard: the caller must be in the same tenant and be the process starter, a current or historic assignee, a CC recipient, a same-tenant built-in administrator, or a process manager whose `/biz/process/all/page` data scope contains the process organization. Knowing a process id alone does not grant access to details, financial variables, or attachments.
 
 ## Response Notes
 

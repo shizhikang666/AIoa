@@ -57,7 +57,15 @@ class AuthMiddleware
             return true;
         }
 
-        if (strtoupper((string)$request->method()) !== 'GET') {
+        $method = strtoupper((string)$request->method());
+        if ($method === 'POST' && in_array($path, [
+            '/biz/process/variable',
+            '/biz/process/filelist',
+        ], true)) {
+            return true;
+        }
+
+        if ($method !== 'GET') {
             return false;
         }
 
@@ -71,6 +79,7 @@ class AuthMiddleware
             '/biz/task/runtime/activity/detail',
             '/biz/process/page',
             '/biz/process/all/page',
+            '/biz/process/detail',
         ], true);
     }
 

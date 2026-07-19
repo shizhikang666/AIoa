@@ -32,9 +32,21 @@ foreach ([
     '/biz/task/page',
     '/biz/task/history/page',
     '/biz/task/runtime/activity/detail',
+    '/biz/process/page',
+    '/biz/process/all/page',
+    '/biz/process/detail',
 ] as $path) {
     if ($permission->invoke($middleware, $request($path), $payload) !== true) {
         throw new RuntimeException("authenticated task read path was denied: {$path}");
+    }
+}
+
+foreach ([
+    '/biz/process/variable',
+    '/biz/process/fileList',
+] as $path) {
+    if ($permission->invoke($middleware, $request($path, 'POST'), $payload) !== true) {
+        throw new RuntimeException("authenticated process detail read path was denied: {$path}");
     }
 }
 

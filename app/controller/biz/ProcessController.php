@@ -33,10 +33,16 @@ class ProcessController extends BaseWorkflowController
 
     public function detail(Request $request): Response
     {
-        return $this->guard(fn () => $this->workflowQueryService->processDetail(
-            $this->processInstanceId($request),
-            $this->currentUserId($request)
-        ));
+        return $this->guard(function () use ($request): array {
+            $processInstanceId = $this->processInstanceId($request);
+            $payload = $this->authPayload($request);
+            $this->workflowQueryService->assertProcessReadable($processInstanceId, $payload);
+
+            return $this->workflowQueryService->processDetail(
+                $processInstanceId,
+                $this->currentUserId($request)
+            );
+        });
     }
 
     public function variable(Request $request): Response
@@ -45,6 +51,10 @@ class ProcessController extends BaseWorkflowController
 
         return $this->guard(function () use ($request, $input): array {
             $processInstanceId = $this->processInstanceId($request, $input);
+            $this->workflowQueryService->assertProcessReadable(
+                $processInstanceId,
+                $this->authPayload($request)
+            );
             $variables = $this->workflowVariableService->historyByProcessInstance(
                 $processInstanceId
             );
@@ -95,10 +105,16 @@ class ProcessController extends BaseWorkflowController
     {
         $filters = $this->body($request);
 
-        return $this->guard(fn () => $this->fileRelationService->list([
-            'objectId' => $this->processInstanceId($request, $filters),
-            'category' => $filters['category'] ?? null,
-        ], $this->authPayload($request)));
+        return $this->guard(function () use ($request, $filters): array {
+            $processInstanceId = $this->processInstanceId($request, $filters);
+            $payload = $this->authPayload($request);
+            $this->workflowQueryService->assertProcessReadable($processInstanceId, $payload);
+
+            return $this->fileRelationService->list([
+                'objectId' => $processInstanceId,
+                'category' => $filters['category'] ?? null,
+            ], $payload);
+        });
     }
 
     public function cancel(Request $request): Response

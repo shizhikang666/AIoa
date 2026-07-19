@@ -15422,3 +15422,30 @@ Agent: merge-agent / api-agent / test-agent / docs-agent
 
 - Local MySQL, backend, and frontend services were unavailable, so authenticated browser readback with a second project-member account was not run.
 - No backend authorization, schema, Java source, production data, dependency, Git history, or deployment changes were made.
+
+## 2026-07-19 - workflow detail authorization hotfix
+
+### Completed
+
+- Fixed ordinary authenticated workflow participants being blocked by route-level `403` responses when opening a process-detail drawer.
+- Kept the Java-compatible `detail`, `variable`, and `fileList` routes together as authenticated reads and added one shared object-level guard before exposing process details, variables, or attachments.
+- The guard permits same-tenant starters, current or historic assignees, CC recipients, built-in administrators, and managers whose exact all-process API data scope includes the process organization; unrelated and cross-tenant callers remain denied.
+- No schema, migrated data, workflow write route, frontend bundle, or Java source was changed.
+
+### Modified Files
+
+- `app/middleware/AuthMiddleware.php`
+- `app/controller/biz/ProcessController.php`
+- `app/service/workflow/WorkflowQueryService.php`
+- `scripts/auth-task-read-bootstrap-smoke.php`
+- `docs/api/biz-workflow-readonly-compat.md`
+- `docs/tasks/problem-optimization-log.md`
+- `STATUS.md`
+
+### Verification
+
+- PHP syntax checks passed for the middleware, controller, service, and regression script.
+- `php scripts/auth-task-read-bootstrap-smoke.php`: passed.
+- `composer check`: passed with 255 PHP files and the complete route table.
+- `php think route:list` confirmed all three process-detail drawer routes retain their expected methods and handlers.
+- `git diff --check`: passed with existing line-ending warnings only.
