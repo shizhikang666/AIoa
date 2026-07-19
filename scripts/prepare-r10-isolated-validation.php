@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 use think\App;
+use Oa\DatabaseMigration\DatabaseManifest;
 use function Oa\IsolatedValidationParameters\databaseIdentifier;
 use function Oa\IsolatedValidationParameters\expectedCount;
 use function Oa\IsolatedValidationParameters\loopbackHost;
@@ -84,6 +85,74 @@ function prepareChecksum(PDO $pdo, string $database, string $table): string
     }
 
     throw new RuntimeException('isolated validation checksum is unavailable');
+}
+
+/**
+ * The clone marker schema hash fingerprints SHOW CREATE plus database-level metadata.
+ * target-final schemaSha256 fingerprints DatabaseManifest::capture(). They are
+ * deliberately independent hashes and must never be compared to each other.
+ *
+ * @param array<string, mixed> $targetFinal
+ * @param array<string, mixed> $marker
+ */
+function prepareAssertTargetFinalCloneBaseline(
+    array $targetFinal,
+    array $marker,
+    string $canonical,
+    int $expectedTableCount
+): void {
+    $targetFinalRowCounts = is_array($targetFinal['rowCounts'] ?? null)
+        ? $targetFinal['rowCounts']
+        : [];
+    $cloneRowCounts = is_array($marker['rowCounts'] ?? null)
+        ? $marker['rowCounts']
+        : [];
+    ksort($targetFinalRowCounts, SORT_STRING);
+    ksort($cloneRowCounts, SORT_STRING);
+    if (($targetFinal['database'] ?? null) !== $canonical
+        || (int) ($targetFinal['tableCount'] ?? -1) !== $expectedTableCount
+        || preg_match('/^[a-f0-9]{64}$/', (string) ($targetFinal['schemaSha256'] ?? '')) !== 1
+        || !is_array($targetFinal['tables'] ?? null)
+        || count($targetFinal['tables']) !== $expectedTableCount
+        || count($targetFinalRowCounts) !== $expectedTableCount
+        || $targetFinalRowCounts !== $cloneRowCounts
+    ) {
+        throw new RuntimeException('isolated validation target-final evidence differs from the clone baseline');
+    }
+}
+
+/**
+ * @param array<string, mixed> $manifest
+ * @param array<string, mixed> $targetFinal
+ */
+function prepareAssertSchemaManifestMatchesTargetFinal(
+    array $manifest,
+    array $targetFinal,
+    int $expectedTableCount,
+    string $label
+): void {
+    if ((int) ($manifest['tableCount'] ?? -1) !== $expectedTableCount
+        || !hash_equals(
+            (string) ($targetFinal['schemaSha256'] ?? ''),
+            (string) ($manifest['schemaSha256'] ?? '')
+        )
+        || ($manifest['tables'] ?? null) !== ($targetFinal['tables'] ?? null)
+    ) {
+        throw new RuntimeException("isolated validation {$label} manifest differs from target-final evidence");
+    }
+}
+
+/** @param array<string, mixed> $targetFinal */
+function prepareAssertTargetFinalManifestSelfConsistent(array $targetFinal): void
+{
+    $tables = is_array($targetFinal['tables'] ?? null) ? $targetFinal['tables'] : [];
+    $expected = (string) ($targetFinal['schemaSha256'] ?? '');
+    if ($tables === []
+        || preg_match('/^[a-f0-9]{64}$/', $expected) !== 1
+        || !hash_equals($expected, DatabaseManifest::schemaHash($tables))
+    ) {
+        throw new RuntimeException('isolated validation target-final schema manifest is not self-consistent');
+    }
 }
 
 /** @param array<string, mixed> $connection @return array<string, mixed> */
@@ -310,6 +379,7 @@ function prepareIsolatedValidation(array $argv): array
         || ($marker['contentChecksumsMatch'] ?? false) !== true
         || ($marker['sourceConsistencyWindowPassed'] ?? false) !== true
         || ($marker['nonTableObjectsAbsent'] ?? false) !== true
+        || ($marker['structureHashAlgorithm'] ?? '') !== 'show-create-structure-v1'
         || preg_match('/^[a-f0-9]{64}$/', (string) ($marker['schemaSha256'] ?? '')) !== 1
         || ($marker['sourceWritesPerformed'] ?? true) !== false
     ) {
@@ -338,29 +408,18 @@ function prepareIsolatedValidation(array $argv): array
     }
     $targetFinalEvidence = prepareReadPinnedEvidence($targetFinalMarker, 'target-final marker');
     $targetFinal = json_decode($targetFinalEvidence['raw'], true, 512, JSON_THROW_ON_ERROR);
-    $targetFinalRowCounts = is_array($targetFinal) && is_array($targetFinal['rowCounts'] ?? null)
-        ? $targetFinal['rowCounts']
-        : [];
-    $cloneRowCounts = $rowCounts;
-    ksort($targetFinalRowCounts, SORT_STRING);
-    ksort($cloneRowCounts, SORT_STRING);
-    if (!is_array($targetFinal)
-        || ($targetFinal['database'] ?? null) !== $canonical
-        || (int) ($targetFinal['tableCount'] ?? -1) !== $expectedTableCount
-        || ($targetFinal['schemaSha256'] ?? null) !== ($marker['schemaSha256'] ?? null)
-        || !is_array($targetFinal['tables'] ?? null)
-        || count($targetFinal['tables']) !== $expectedTableCount
-        || count($targetFinalRowCounts) !== $expectedTableCount
-        || $targetFinalRowCounts !== $cloneRowCounts
-    ) {
-        throw new RuntimeException('isolated validation target-final evidence differs from the clone baseline');
+    if (!is_array($targetFinal)) {
+        throw new RuntimeException('isolated validation target-final evidence is invalid');
     }
+    prepareAssertTargetFinalCloneBaseline($targetFinal, $marker, $canonical, $expectedTableCount);
 
     $loader = require $projectRoot . DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR . 'autoload.php';
     if (!$loader instanceof \Composer\Autoload\ClassLoader) {
         throw new RuntimeException('composer autoloader is unavailable');
     }
     $loader->setPsr4('app\\', [$projectRoot . DIRECTORY_SEPARATOR . 'app']);
+    require_once __DIR__ . DIRECTORY_SEPARATOR . 'lib' . DIRECTORY_SEPARATOR . 'oa-database-migration.php';
+    prepareAssertTargetFinalManifestSelfConsistent($targetFinal);
     $app = new App($projectRoot);
     $app->initialize();
     $connections = (array) $app->config->get('database.connections', []);
@@ -385,6 +444,18 @@ function prepareIsolatedValidation(array $argv): array
     }
     $sourcePdo = preparePdo($connection, $canonical, $databaseHost);
     $targetPdo = preparePdo($connection, $database, $databaseHost);
+    prepareAssertSchemaManifestMatchesTargetFinal(
+        DatabaseManifest::capture($sourcePdo, $canonical, false),
+        $targetFinal,
+        $expectedTableCount,
+        'canonical'
+    );
+    prepareAssertSchemaManifestMatchesTargetFinal(
+        DatabaseManifest::capture($targetPdo, $database, false),
+        $targetFinal,
+        $expectedTableCount,
+        'clone'
+    );
     if (prepareTables($sourcePdo, $canonical) !== $expectedTables
         || prepareTables($targetPdo, $database) !== $expectedTables
     ) {

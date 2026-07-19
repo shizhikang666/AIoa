@@ -5,6 +5,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/prepare-r10-isolated-validation.php';
 require_once __DIR__ . '/audit-r10-isolated-validation-provenance.php';
+require_once __DIR__ . '/create-isolated-validation-clone.php';
+require_once __DIR__ . '/lib/oa-database-migration.php';
 
 function isolated_evidence_smoke_expect_failure(callable $callback): void
 {
@@ -39,6 +41,96 @@ isolated_evidence_smoke_expect_failure(static function () use (&$connectionAttem
 if ($connectionAttempts !== 0) {
     throw new RuntimeException('remote environment host reached the PDO connection factory');
 }
+
+$manifestTables = [
+    'fixture_table' => [
+        'engine' => 'InnoDB',
+        'collation' => 'utf8mb4_0900_ai_ci',
+        'columns' => [
+            'id' => [
+                'ordinal' => 1,
+                'type' => 'bigint',
+                'nullable' => 'NO',
+                'default' => null,
+                'extra' => '',
+                'charset' => null,
+                'collation' => null,
+                'generationExpression' => '',
+            ],
+        ],
+        'indexes' => [
+            'PRIMARY' => [
+                'unique' => true,
+                'type' => 'BTREE',
+                'columns' => [['name' => 'id', 'prefix' => null, 'collation' => 'A']],
+            ],
+        ],
+        'foreignKeys' => [],
+    ],
+];
+$manifestHash = Oa\DatabaseMigration\DatabaseManifest::schemaHash($manifestTables);
+$structureHash = Oa\IsolatedValidationClone\databaseStructurePayloadSha256([
+    'charset' => 'utf8mb4',
+    'collation' => 'utf8mb4_0900_ai_ci',
+    'tables' => [
+        'fixture_table' => [
+            'engine' => 'InnoDB',
+            'collation' => 'utf8mb4_0900_ai_ci',
+            'ddl' => 'CREATE TABLE `fixture_table` (`id` bigint NOT NULL, PRIMARY KEY (`id`)) ENGINE=InnoDB',
+        ],
+    ],
+    'foreignKeys' => [],
+    'nonTableObjects' => ['views' => 0, 'triggers' => 0, 'routines' => 0, 'events' => 0],
+]);
+if (hash_equals($manifestHash, $structureHash)) {
+    throw new RuntimeException('independent schema hash algorithms unexpectedly converged');
+}
+$targetFinalFixture = [
+    'database' => 'fixture_canonical',
+    'tableCount' => 1,
+    'tables' => $manifestTables,
+    'rowCounts' => ['fixture_table' => 7],
+    'schemaSha256' => $manifestHash,
+];
+$cloneMarkerFixture = [
+    'rowCounts' => ['fixture_table' => 7],
+    'structureHashAlgorithm' => 'show-create-structure-v1',
+    'schemaSha256' => $structureHash,
+];
+prepareAssertTargetFinalCloneBaseline($targetFinalFixture, $cloneMarkerFixture, 'fixture_canonical', 1);
+prepareAssertTargetFinalManifestSelfConsistent($targetFinalFixture);
+prepareAssertSchemaManifestMatchesTargetFinal([
+    'tableCount' => 1,
+    'tables' => $manifestTables,
+    'schemaSha256' => $manifestHash,
+], $targetFinalFixture, 1, 'offline fixture');
+isolated_evidence_smoke_expect_failure(static function () use ($manifestTables, $targetFinalFixture): void {
+    prepareAssertSchemaManifestMatchesTargetFinal([
+        'tableCount' => 1,
+        'tables' => $manifestTables,
+        'schemaSha256' => str_repeat('0', 64),
+    ], $targetFinalFixture, 1, 'tampered offline fixture');
+});
+isolated_evidence_smoke_expect_failure(static function () use ($targetFinalFixture): void {
+    $tampered = $targetFinalFixture;
+    $tampered['schemaSha256'] = str_repeat('0', 64);
+    prepareAssertTargetFinalManifestSelfConsistent($tampered);
+});
+$selfConsistentForgery = $targetFinalFixture;
+$selfConsistentForgery['tables']['fixture_table']['columns']['id']['type'] = 'varchar(64)';
+$selfConsistentForgery['schemaSha256'] = Oa\DatabaseMigration\DatabaseManifest::schemaHash(
+    $selfConsistentForgery['tables']
+);
+prepareAssertTargetFinalManifestSelfConsistent($selfConsistentForgery);
+isolated_evidence_smoke_expect_failure(
+    static function () use ($manifestTables, $selfConsistentForgery, $manifestHash): void {
+        prepareAssertSchemaManifestMatchesTargetFinal([
+            'tableCount' => 1,
+            'tables' => $manifestTables,
+            'schemaSha256' => $manifestHash,
+        ], $selfConsistentForgery, 1, 'self-consistent forged fixture');
+    }
+);
 
 $pdo = preparePdo([
     'hostname' => 'localhost',
@@ -205,4 +297,7 @@ echo json_encode([
     'caseVariantPathRejected' => true,
     'prepareCaseVariantPathRejected' => true,
     'prepareRealpathContainmentVerified' => true,
+    'independentSchemaHashAlgorithmsVerified' => true,
+    'manifestSchemaContractVerified' => true,
+    'selfConsistentManifestForgeryRejected' => true,
 ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . PHP_EOL;

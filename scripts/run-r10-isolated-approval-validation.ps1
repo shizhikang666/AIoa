@@ -280,6 +280,7 @@ try {
         (![bool]$cloneMarker.contentChecksumsMatch) -or
         (![bool]$cloneMarker.sourceConsistencyWindowPassed) -or
         (![bool]$cloneMarker.nonTableObjectsAbsent) -or
+        ([string]$cloneMarker.structureHashAlgorithm -cne 'show-create-structure-v1') -or
         ([string]$cloneMarker.schemaSha256 -notmatch '^[a-f0-9]{64}$') -or
         ([bool]$cloneMarker.sourceWritesPerformed)
     ) {

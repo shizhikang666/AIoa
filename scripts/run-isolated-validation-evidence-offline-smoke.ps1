@@ -98,6 +98,7 @@ try {
         contentChecksumsMatch = $true
         sourceConsistencyWindowPassed = $true
         nonTableObjectsAbsent = $true
+        structureHashAlgorithm = 'show-create-structure-v1'
         schemaSha256 = ('a' * 64)
         sourceWritesPerformed = $false
         tableChecksums = [ordered]@{ fixture_table = '123' }
@@ -159,6 +160,7 @@ try {
         contentChecksumsMatch = $true
         sourceConsistencyWindowPassed = $true
         nonTableObjectsAbsent = $true
+        structureHashAlgorithm = 'show-create-structure-v1'
         schemaSha256 = ('a' * 64)
         sourceWritesPerformed = $false
         tableChecksums = [ordered]@{ fixture_table = '123' }

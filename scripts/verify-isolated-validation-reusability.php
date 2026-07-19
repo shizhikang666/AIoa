@@ -59,6 +59,7 @@ try {
         || ($marker['sourceWritesPerformed'] ?? null) !== false
         || count($rowCounts) !== $validation['expectedTableCount']
         || count($tableChecksums) !== $validation['expectedTableCount']
+        || ($marker['structureHashAlgorithm'] ?? '') !== 'show-create-structure-v1'
         || preg_match('/^[a-f0-9]{64}$/', (string) ($marker['schemaSha256'] ?? '')) !== 1
     ) {
         throw new RuntimeException('isolated reuse verification evidence is incomplete');

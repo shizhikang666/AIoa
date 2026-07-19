@@ -272,10 +272,7 @@ function databaseStructureFingerprint(string $database): array
     ];
 
     return [
-        'schemaSha256' => hash('sha256', json_encode(
-            $payload,
-            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
-        )),
+        'schemaSha256' => databaseStructurePayloadSha256($payload),
         'tableCount' => count($tables),
         'foreignKeyConstraintCount' => count(array_unique(array_map(
             static fn (array $row): string => (string) $row['table_name'] . "\0" . (string) $row['constraint_name'],
@@ -283,6 +280,15 @@ function databaseStructureFingerprint(string $database): array
         ))),
         'nonTableObjectCount' => array_sum($nonTableCounts),
     ];
+}
+
+/** @param array<string, mixed> $payload */
+function databaseStructurePayloadSha256(array $payload): string
+{
+    return hash('sha256', json_encode(
+        $payload,
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+    ));
 }
 
 /** @param null|callable(string):array<int, string>|false $resolver */
@@ -459,6 +465,7 @@ function run(array $argv): int
                 'foreignKeyDefinitionsRead' => count($sourceForeignKeys),
                 'tableDdlValidated' => true,
                 'nonTableObjectsAbsent' => true,
+                'structureHashAlgorithm' => 'show-create-structure-v1',
                 'schemaSha256' => $sourceStructureBefore['schemaSha256'],
                 'sourceWritesPerformed' => false,
                 'completedAt' => gmdate(DATE_ATOM),
@@ -472,6 +479,7 @@ function run(array $argv): int
                 'foreignKeyConstraintCount' => $sourceForeignKeyConstraintCount,
                 'tableDdlValidated' => true,
                 'nonTableObjectsAbsent' => true,
+                'structureHashAlgorithm' => 'show-create-structure-v1',
                 'schemaSha256' => $sourceStructureBefore['schemaSha256'],
                 'sourceWritesPerformed' => false,
                 'targetDatabaseCreated' => false,
@@ -570,6 +578,7 @@ function run(array $argv): int
             'foreignKeyDefinitionsMatch' => true,
             'contentChecksumsMatch' => true,
             'nonTableObjectsAbsent' => true,
+            'structureHashAlgorithm' => 'show-create-structure-v1',
             'schemaSha256' => $sourceStructureBefore['schemaSha256'],
             'rowCounts' => $rowCounts,
             'tableChecksums' => $tableChecksums,

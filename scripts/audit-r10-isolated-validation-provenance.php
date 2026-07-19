@@ -887,6 +887,7 @@ function inspect(array $argv): array
         || (int) ($clone['tableCount'] ?? -1) !== $parameters['expectedTableCount']
         || (int) ($clone['foreignKeyConstraintCount'] ?? -1) !== $parameters['expectedForeignKeyCount']
         || ($clone['foreignKeyDefinitionsMatch'] ?? null) !== true
+        || (!$legacyPosthoc && ($clone['structureHashAlgorithm'] ?? '') !== 'show-create-structure-v1')
         || ($clone['sourceWritesPerformed'] ?? null) !== false
     ) {
         throw new RuntimeException('clone marker is incomplete');
