@@ -14,6 +14,7 @@ use app\model\ActRuExecution;
 use app\model\ActRuTask;
 use app\model\ActRuVariable;
 use app\support\WorkflowTitleFormatter;
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -31,6 +32,9 @@ class WorkflowQueryService
      * @var array<string, string|null>
      */
     private array $orgNameCache = [];
+
+    /** @var array<string, array<int, string>> */
+    private array $tenantUserIdCache = [];
 
     public function __construct(private readonly WorkflowVariableService $variableService = new WorkflowVariableService())
     {
@@ -172,12 +176,7 @@ class WorkflowQueryService
         }
 
         $processRow = $process->toArray();
-        $processTenantId = trim((string)($processRow['TENANT_ID_'] ?? ''));
-        if ($processTenantId === '') {
-            $processTenantId = trim((string)Db::name('sys_user')
-                ->where('ID', (string)($processRow['START_USER_ID_'] ?? ''))
-                ->value('TENANT_ID'));
-        }
+        $processTenantId = $this->historicalProcessTenantId($processRow);
         if ($processTenantId === '' || !hash_equals($currentTenantId, $processTenantId)) {
             throw new RuntimeException('permission denied', 403);
         }
@@ -208,14 +207,14 @@ class WorkflowQueryService
     public function allProcessPage(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
-        $total = $this->historicProcessQuery($filters, $payload)->count();
-        $records = $this->historicProcessRows(
-            $this->historicProcessQuery($filters, $payload)
+        $total = $this->authorizedAllProcessQuery($filters, $payload)->count();
+        $records = $this->processSummaryRows($this->historicProcessRows(
+            $this->authorizedAllProcessQuery($filters, $payload)
                 ->order(['START_TIME_' => 'desc', 'ID_' => 'desc'])
                 ->page($page, $limit)
                 ->select()
                 ->toArray()
-        );
+        ), true);
 
         return [
             'records' => $records,
@@ -231,7 +230,7 @@ class WorkflowQueryService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function queryProcess(array $filters = []): array
+    public function queryProcess(array $filters = [], array $payload = []): array
     {
         $variableName = trim((string)($filters['variableName'] ?? ''));
         if ($variableName === '') {
@@ -241,9 +240,24 @@ class WorkflowQueryService
         $values = $this->arrayValue($filters['variable'] ?? $filters['variableList'] ?? []);
         $findValue = $this->arrayValue($filters['findValue'] ?? []);
         $processCategory = trim((string)($filters['processCategory'] ?? $filters['category'] ?? ''));
+        $normalizedVariableName = strtolower($variableName);
+        if (!in_array($normalizedVariableName, ['projectid', 'bizsaleprojectid', 'objectid'], true)) {
+            throw new RuntimeException('invalid variableName', 400);
+        }
+        $allowedFindValues = in_array($normalizedVariableName, ['projectid', 'bizsaleprojectid'], true)
+            ? ['amount']
+            : [];
+        $requestedFindValues = array_map(
+            static fn (mixed $value): string => strtolower(trim((string)$value)),
+            $findValue
+        );
+        if (array_diff($requestedFindValues, $allowedFindValues) !== []) {
+            throw new RuntimeException('invalid findValue', 400);
+        }
 
-        return array_map(function (mixed $value) use ($variableName, $findValue, $processCategory): array {
+        return array_map(function (mixed $value) use ($variableName, $findValue, $processCategory, $payload): array {
             $processIds = $this->runtimeProcessIdsByVariable($variableName, $value, $processCategory);
+            $processIds = $this->runtimeProcessIdsForTenant($processIds, $payload);
 
             return [
                 'variable' => $value,
@@ -256,7 +270,7 @@ class WorkflowQueryService
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function queryProcessList(array $filters = []): array
+    public function queryProcessList(array $filters = [], array $payload = []): array
     {
         $processKeys = $this->arrayValue($filters['processKeyList'] ?? $filters['processKeys'] ?? $filters['category'] ?? []);
         $attributes = $filters['attribute'] ?? [];
@@ -280,28 +294,30 @@ class WorkflowQueryService
             $processIds = $processIds === null ? $matched : array_values(array_intersect($processIds, $matched));
         }
 
+        $processIds = $this->historyProcessIdsForTenant($processIds ?? [], $payload);
+        if ($processIds === []) {
+            return [];
+        }
+
         $query = ActHiProcinst::where([]);
         if ($processKeys !== []) {
             $query->whereIn('PROC_DEF_KEY_', array_map('strval', $processKeys));
         }
-        if (is_array($processIds)) {
-            if ($processIds === []) {
-                return [];
-            }
-            $query->whereIn('PROC_INST_ID_', $processIds);
-        }
+        $query->whereIn('PROC_INST_ID_', $processIds);
 
-        return $this->historicProcessRows(
+        $rows = $this->historicProcessRows(
             $query->order(['START_TIME_' => 'desc', 'ID_' => 'desc'])
                 ->select()
                 ->toArray()
         );
+
+        return $this->processSummaryRows($rows);
     }
 
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function projectRuntimeQueryList(array $filters = []): array
+    public function projectRuntimeQueryList(array $filters = [], array $payload = []): array
     {
         $projectId = trim((string)($filters['projectId'] ?? ''));
         if ($projectId === '') {
@@ -309,8 +325,103 @@ class WorkflowQueryService
         }
 
         $processIds = $this->runtimeProcessIdsByVariable('projectId', $projectId);
+        $processIds = $this->runtimeProcessIdsForTenant($processIds, $payload);
 
-        return $this->runtimeProcessRows($processIds);
+        return $this->processSummaryRows($this->runtimeProcessRows($processIds));
+    }
+
+    /**
+     * @param array<int, string> $processIds
+     * @return array<int, string>
+     */
+    private function runtimeProcessIdsForTenant(array $processIds, array $payload): array
+    {
+        if ($processIds === []) {
+            return [];
+        }
+
+        $tenantId = $this->requiredPayloadTenantId($payload);
+        if ($tenantId === null) {
+            return array_values(array_unique(array_map('strval', $processIds)));
+        }
+
+        $explicitTenantRows = Db::name('act_ru_execution')
+            ->whereIn('PROC_INST_ID_', $processIds)
+            ->whereNotNull('TENANT_ID_')
+            ->where('TENANT_ID_', '<>', '')
+            ->field('PROC_INST_ID_,TENANT_ID_')
+            ->select()
+            ->toArray();
+        $explicitTenantsByProcess = [];
+        foreach ($explicitTenantRows as $row) {
+            $processId = trim((string)($row['PROC_INST_ID_'] ?? ''));
+            $explicitTenantId = trim((string)($row['TENANT_ID_'] ?? ''));
+            if ($processId !== '' && $explicitTenantId !== '') {
+                $explicitTenantsByProcess[$processId][$explicitTenantId] = true;
+            }
+        }
+
+        $runtimeIds = [];
+        $legacyProcessIds = [];
+        foreach ($processIds as $processId) {
+            $explicitTenantIds = array_keys($explicitTenantsByProcess[$processId] ?? []);
+            if ($explicitTenantIds === []) {
+                $legacyProcessIds[] = $processId;
+            } elseif ($explicitTenantIds === [$tenantId]) {
+                $runtimeIds[] = $processId;
+            }
+        }
+        $historicIds = $this->historyProcessIdsForTenant($legacyProcessIds, $payload);
+
+        return array_values(array_unique(array_map(
+            'strval',
+            array_merge($runtimeIds, $historicIds)
+        )));
+    }
+
+    /**
+     * Migrated Java workflow rows may have an empty TENANT_ID_. Prefer their
+     * persisted tenantId variable and use the starter's current tenant only
+     * when that historical variable never existed.
+     *
+     * @param array<int, string> $processIds
+     * @return array<int, string>
+     */
+    private function historyProcessIdsForTenant(array $processIds, array $payload): array
+    {
+        $processIds = array_values(array_unique(array_filter(array_map('strval', $processIds))));
+        if ($processIds === []) {
+            return [];
+        }
+
+        $tenantId = $this->requiredPayloadTenantId($payload);
+        if ($tenantId === null) {
+            return $processIds;
+        }
+
+        $query = ActHiProcinst::whereIn('PROC_INST_ID_', $processIds);
+        $this->applyHistoricalTenantScope($query, $tenantId);
+
+        return array_values(array_unique(array_map('strval', $query->column('PROC_INST_ID_'))));
+    }
+
+    /**
+     * Empty payloads are retained for isolated service tests. Every HTTP call
+     * supplies an auth payload and must either be platform-superadmin or carry
+     * a concrete tenant.
+     */
+    private function requiredPayloadTenantId(array $payload): ?string
+    {
+        if ($payload === [] || TenantScope::canCrossTenant($payload)) {
+            return null;
+        }
+
+        $tenantId = TenantScope::tenantId($payload);
+        if ($tenantId === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        return $tenantId;
     }
 
     public function runtimeActivityDetail(string $taskId, string $userId): array
@@ -390,6 +501,155 @@ class WorkflowQueryService
             'processDefinitionId' => $taskRow['PROC_DEF_ID_'] ?? null,
             'createTime' => $taskRow['CREATE_TIME_'] ?? null,
         ];
+    }
+
+    private function authorizedAllProcessQuery(array $filters, array $payload)
+    {
+        $query = $this->historicProcessQuery($filters, $payload);
+        $scope = $this->allProcessReadScope($payload);
+        if ($scope['allowAll']) {
+            return $query;
+        }
+
+        if ($scope['orgIds'] !== []) {
+            $this->applyHistoricalProcessOrgScope($query, $scope['orgIds']);
+
+            return $query;
+        }
+
+        $this->applyHistoricalProcessParticipantScope(
+            $query,
+            $scope['userId'],
+            $scope['tenantId']
+        );
+
+        return $query;
+    }
+
+    /**
+     * @return array{allowAll: bool, orgIds: array<int, string>, userId: string, tenantId: string}
+     */
+    private function allProcessReadScope(array $payload): array
+    {
+        $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? ''));
+        $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        if (TenantScope::canCrossTenant($payload)) {
+            return ['allowAll' => true, 'orgIds' => [], 'userId' => $userId, 'tenantId' => $tenantId];
+        }
+        if ($userId === '' || $tenantId === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
+        if ($this->hasBuiltInProcessReadRole($payload)) {
+            return ['allowAll' => true, 'orgIds' => [], 'userId' => $userId, 'tenantId' => $tenantId];
+        }
+
+        $orgIds = [];
+        $hasExactScope = false;
+        $dataScopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($dataScopes)) {
+            foreach ($dataScopes as $scope) {
+                if (!is_array($scope)) {
+                    continue;
+                }
+                $apiUrl = strtolower(trim((string)($scope['apiUrl'] ?? $scope['api_url'] ?? '')));
+                if ($apiUrl !== '/biz/process/all/page') {
+                    continue;
+                }
+                $hasExactScope = true;
+                $scopeCategory = strtoupper(trim((string)(
+                    $scope['scopeCategory'] ?? $scope['scope_category'] ?? ''
+                )));
+                if ($scopeCategory === 'SCOPE_ALL') {
+                    return ['allowAll' => true, 'orgIds' => [], 'userId' => $userId, 'tenantId' => $tenantId];
+                }
+                $orgIds = array_merge(
+                    $orgIds,
+                    $this->stringList($scope['scopeOrgIdList'] ?? $scope['scope_org_id_list'] ?? [])
+                );
+            }
+        }
+
+        // Missing/stale scope metadata fails closed to the user's own process
+        // participation instead of exposing the tenant-wide process registry.
+        return [
+            'allowAll' => false,
+            'orgIds' => $hasExactScope ? array_values(array_unique($orgIds)) : [],
+            'userId' => $userId,
+            'tenantId' => $tenantId,
+        ];
+    }
+
+    /** @param array<int, string> $orgIds */
+    private function applyHistoricalProcessOrgScope($query, array $orgIds): void
+    {
+        $orgIds = array_values(array_unique(array_filter(array_map('strval', $orgIds))));
+        if ($orgIds === []) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($orgIds), '?'));
+        $query->where(function ($scope) use ($orgIds, $placeholders): void {
+            $scope->whereRaw(
+                "EXISTS (SELECT 1 FROM act_hi_varinst org_var"
+                . " WHERE BINARY org_var.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_"
+                . " AND org_var.NAME_ = 'org'"
+                . " AND (org_var.TEXT_ IN ({$placeholders}) OR org_var.TEXT2_ IN ({$placeholders})"
+                . " OR CAST(org_var.LONG_ AS CHAR) IN ({$placeholders})))",
+                array_merge($orgIds, $orgIds, $orgIds)
+            )->whereOr(function ($legacyOrgId) use ($orgIds, $placeholders): void {
+                $legacyOrgId->whereRaw(
+                    "NOT EXISTS (SELECT 1 FROM act_hi_varinst preferred_org_var"
+                    . " WHERE BINARY preferred_org_var.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_"
+                    . " AND preferred_org_var.NAME_ = 'org')"
+                )->whereRaw(
+                    "EXISTS (SELECT 1 FROM act_hi_varinst org_id_var"
+                    . " WHERE BINARY org_id_var.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_"
+                    . " AND org_id_var.NAME_ = 'orgId'"
+                    . " AND (org_id_var.TEXT_ IN ({$placeholders}) OR org_id_var.TEXT2_ IN ({$placeholders})"
+                    . " OR CAST(org_id_var.LONG_ AS CHAR) IN ({$placeholders})))",
+                    array_merge($orgIds, $orgIds, $orgIds)
+                );
+            })->whereOr(function ($starterFallback) use ($orgIds): void {
+                $starterFallback->whereRaw(
+                    "NOT EXISTS (SELECT 1 FROM act_hi_varinst any_org_var"
+                    . " WHERE BINARY any_org_var.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_"
+                    . " AND any_org_var.NAME_ IN ('org', 'orgId'))"
+                )->whereIn('START_USER_ID_', Db::name('sys_user')->whereIn('ORG_ID', $orgIds)->column('ID'));
+            });
+        });
+    }
+
+    private function applyHistoricalProcessParticipantScope($query, string $userId, string $tenantId): void
+    {
+        if ($userId === '' || $tenantId === '') {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function ($scope) use ($userId, $tenantId): void {
+            $scope->where('START_USER_ID_', $userId)
+                ->whereOrRaw(
+                    'EXISTS (SELECT 1 FROM act_ru_task participant_ru_task'
+                    . ' WHERE BINARY participant_ru_task.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_'
+                    . ' AND participant_ru_task.ASSIGNEE_ = ?)',
+                    [$userId]
+                )->whereOrRaw(
+                    'EXISTS (SELECT 1 FROM act_hi_taskinst participant_hi_task'
+                    . ' WHERE BINARY participant_hi_task.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_'
+                    . ' AND participant_hi_task.ASSIGNEE_ = ?)',
+                    [$userId]
+                )->whereOrRaw(
+                    'EXISTS (SELECT 1 FROM biz_cc_records participant_cc'
+                    . ' WHERE (BINARY participant_cc.PROCESS_ID = BINARY act_hi_procinst.PROC_INST_ID_'
+                    . ' OR BINARY participant_cc.INSTANCE_ID = BINARY act_hi_procinst.PROC_INST_ID_)'
+                    . ' AND participant_cc.USER = ? AND participant_cc.TENANT_ID = ?'
+                    . " AND (participant_cc.DELETE_FLAG IS NULL OR participant_cc.DELETE_FLAG = 'NOT_DELETE'))",
+                    [$userId, $tenantId]
+                );
+        });
     }
 
     private function isProcessCopyUser(string $processInstanceId, string $userId, string $tenantId): bool
@@ -581,11 +841,12 @@ class WorkflowQueryService
 
     private function historicProcessQuery(array $filters, array $payload = [])
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         $query = ActHiProcinst::where([]);
 
         $tenantId = trim((string)($filters['tenantId'] ?? $payload['tenant_id'] ?? ''));
         if ($tenantId !== '') {
-            $query->where('TENANT_ID_', $tenantId);
+            $this->applyHistoricalTenantScope($query, $tenantId);
         }
 
         $processKey = trim((string)($filters['category'] ?? $filters['processKey'] ?? $filters['processCategory'] ?? ''));
@@ -602,6 +863,96 @@ class WorkflowQueryService
         $this->applyHistoryVariableLike($query, 'amount', $filters['amount'] ?? null);
 
         return $query;
+    }
+
+    private function applyHistoricalTenantScope($query, string $tenantId): void
+    {
+        $tenantId = trim($tenantId);
+        if ($tenantId === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $tenantUserIds = $this->tenantUserIds($tenantId);
+        $query->where(function ($scope) use ($tenantId, $tenantUserIds): void {
+            $scope->where('TENANT_ID_', $tenantId);
+            $scope->whereOr(function ($legacy) use ($tenantId, $tenantUserIds): void {
+                $legacy->where(function ($emptyTenant): void {
+                    $emptyTenant->whereNull('TENANT_ID_')->whereOr('TENANT_ID_', '');
+                })->where(function ($identity) use ($tenantId, $tenantUserIds): void {
+                    $identity->whereRaw(
+                        "EXISTS (SELECT 1 FROM act_hi_varinst tenant_var"
+                        . " WHERE BINARY tenant_var.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_"
+                        . " AND tenant_var.NAME_ = 'tenantId'"
+                        . " AND (tenant_var.TEXT_ = ? OR tenant_var.TEXT2_ = ? OR CAST(tenant_var.LONG_ AS CHAR) = ?))",
+                        [$tenantId, $tenantId, $tenantId]
+                    );
+                    if ($tenantUserIds !== []) {
+                        $identity->whereOr(function ($starterFallback) use ($tenantUserIds): void {
+                            $starterFallback->whereRaw(
+                                "NOT EXISTS (SELECT 1 FROM act_hi_varinst any_tenant_var"
+                                . " WHERE BINARY any_tenant_var.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_"
+                                . " AND any_tenant_var.NAME_ = 'tenantId')"
+                            )->whereIn('START_USER_ID_', $tenantUserIds);
+                        });
+                    }
+                });
+            });
+        });
+    }
+
+    /**
+     * Resolve one historical process with the same precedence used by the
+     * list query. A migrated tenant variable is authoritative when the
+     * Activiti tenant column is blank; the starter's current tenant is only a
+     * compatibility fallback for records that never stored tenantId at all.
+     *
+     * @param array<string, mixed> $processRow
+     */
+    private function historicalProcessTenantId(array $processRow): string
+    {
+        $explicitTenantId = trim((string)($processRow['TENANT_ID_'] ?? ''));
+        if ($explicitTenantId !== '') {
+            return $explicitTenantId;
+        }
+
+        $processInstanceId = trim((string)($processRow['PROC_INST_ID_'] ?? $processRow['ID_'] ?? ''));
+        if ($processInstanceId === '') {
+            return '';
+        }
+
+        $tenantVariable = Db::name('act_hi_varinst')
+            ->where('PROC_INST_ID_', $processInstanceId)
+            ->where('NAME_', 'tenantId')
+            ->field('TEXT_,TEXT2_,LONG_')
+            ->order('CREATE_TIME_', 'desc')
+            ->find();
+        if (is_array($tenantVariable) && $tenantVariable !== []) {
+            foreach (['TEXT_', 'TEXT2_', 'LONG_'] as $column) {
+                $tenantId = trim((string)($tenantVariable[$column] ?? ''));
+                if ($tenantId !== '') {
+                    return $tenantId;
+                }
+            }
+
+            return '';
+        }
+
+        return trim((string)Db::name('sys_user')
+            ->where('ID', (string)($processRow['START_USER_ID_'] ?? ''))
+            ->value('TENANT_ID'));
+    }
+
+    /** @return array<int, string> */
+    private function tenantUserIds(string $tenantId): array
+    {
+        if (!array_key_exists($tenantId, $this->tenantUserIdCache)) {
+            $this->tenantUserIdCache[$tenantId] = array_values(array_unique(array_map(
+                'strval',
+                Db::name('sys_user')->where('TENANT_ID', $tenantId)->column('ID')
+            )));
+        }
+
+        return $this->tenantUserIdCache[$tenantId];
     }
 
     private function applyTimeRange($query, array $filters, string $column, string $startKey, string $endKey): void
@@ -749,6 +1100,46 @@ class WorkflowQueryService
             'startUserName' => $startUser['name'] ?? null,
             'variable' => $variables,
         ]);
+    }
+
+    /**
+     * List endpoints expose only navigation metadata. Full workflow variables
+     * remain behind the participant-authorized process detail endpoint.
+     *
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<int, array<string, mixed>>
+     */
+    private function processSummaryRows(array $rows, bool $includeListValues = false): array
+    {
+        $summaryKeys = array_fill_keys([
+            'id',
+            'instanceId',
+            'processInstanceId',
+            'category',
+            'processKey',
+            'categoryName',
+            'processCategory',
+            'processCategoryName',
+            'title',
+            'status',
+            'createTime',
+            'startTime',
+            'endTime',
+            'startUserId',
+        ], true);
+
+        return array_map(static function (array $row) use ($summaryKeys, $includeListValues): array {
+            $summary = array_intersect_key($row, $summaryKeys);
+            if ($includeListValues) {
+                $summary['remark'] = $row['remark'] ?? null;
+                $summary['amount'] = $row['amount'] ?? null;
+                // The current table reads variable.amount. Preserve only this
+                // display value; never return the complete workflow payload.
+                $summary['variable'] = ['amount' => $row['amount'] ?? null];
+            }
+
+            return $summary;
+        }, $rows);
     }
 
     /**

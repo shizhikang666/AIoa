@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -104,6 +105,10 @@ SQL;
         'tenantId' => 'r.TENANT_ID',
     ];
 
+    public function __construct(private readonly SaleProjectService $saleProjectService = new SaleProjectService())
+    {
+    }
+
     public function page(array $filters = [], array $payload = []): array
     {
         [$page, $limit] = $this->pagination($filters);
@@ -132,9 +137,11 @@ SQL;
      */
     public function query(array $filters = [], array $payload = []): array
     {
-        if (trim((string)($filters['projectId'] ?? '')) === '') {
+        $projectId = trim((string)($filters['projectId'] ?? ''));
+        if ($projectId === '') {
             throw new RuntimeException('missing projectId', 400);
         }
+        $this->saleProjectService->assertReadable($projectId, $payload);
 
         $rows = $this->applySort($this->orderQuery($filters, $payload), $filters)
             ->field(self::ORDER_FIELDS)
@@ -164,6 +171,24 @@ SQL;
         $order['productList'] = $this->itemRowsByOrderId($id, $payload);
 
         return $order;
+    }
+
+    public function assertReadable(string $id, array $payload = []): void
+    {
+        $id = trim($id);
+        if (
+            $id === ''
+            || (!TenantScope::canCrossTenant($payload) && TenantScope::tenantId($payload) === '')
+        ) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $row = $this->orderQuery(['id' => $id], $payload)
+            ->field('r.ID AS ID')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('permission denied', 403);
+        }
     }
 
     public function add(array $input, array $payload = []): array
@@ -615,6 +640,7 @@ SQL;
 
     private function orderQuery(array $filters, array $payload)
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         $query = Db::name('return_order')
             ->alias('r')
             ->leftJoin('biz_sale_project p', 'p.ID = r.PROJECT_ID')
@@ -684,24 +710,30 @@ SQL;
 
     private function applyDataScope($query, array $filters, array $payload): void
     {
+        $requestedOrgIds = null;
         if (!empty($filters['orgId'])) {
-            $orgIds = $this->orgAndChildren((string)$filters['orgId']);
-            if ($orgIds === []) {
+            $requestedOrgIds = $this->orgAndChildren((string)$filters['orgId']);
+            if ($requestedOrgIds === []) {
                 $query->whereRaw('1 = 0');
             } else {
-                $query->whereIn('r.ORG', $orgIds);
+                $query->whereIn('r.ORG', $requestedOrgIds);
             }
+        }
 
+        if ($this->canSeeAll($payload)) {
             return;
         }
 
-        $scope = $payload['data_scope_org_ids'] ?? [];
-        if (is_string($scope)) {
-            $scope = explode(',', $scope);
-        }
-        if (is_array($scope)) {
-            $scope = array_values(array_filter(array_map(static fn ($id): string => trim((string)$id), $scope)));
-            if ($scope !== []) {
+        $scope = $this->directScopeOrgIds($payload);
+        if ($scope !== []) {
+            if ($requestedOrgIds !== null) {
+                $intersection = array_values(array_intersect($requestedOrgIds, $scope));
+                if ($intersection === []) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereIn('r.ORG', $intersection);
+                }
+            } else {
                 $query->where(function ($query) use ($scope): void {
                     $query->whereIn('r.ORG', $scope)
                         ->whereOr(function ($query) use ($scope): void {
@@ -711,9 +743,9 @@ SQL;
                             $query->whereIn('project_account.org', $scope);
                         });
                 });
-
-                return;
             }
+
+            return;
         }
 
         $userId = trim((string)($payload['user_id'] ?? $payload['userId'] ?? $payload['id'] ?? ''));
@@ -724,6 +756,23 @@ SQL;
                     ->whereOr('project_account.CREATE_USER', $userId);
             });
         }
+    }
+
+    /** @return array<int, string> */
+    private function directScopeOrgIds(array $payload): array
+    {
+        $scope = $payload['data_scope_org_ids'] ?? [];
+        if (is_string($scope)) {
+            $scope = explode(',', $scope);
+        }
+        if (!is_array($scope)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            static fn (mixed $id): string => trim((string)$id),
+            $scope
+        ))));
     }
 
     private function applyCreateTimeRange($query, array $filters): void

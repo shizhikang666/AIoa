@@ -61,6 +61,7 @@ class AuthMiddleware
         if ($method === 'POST' && in_array($path, [
             '/biz/process/variable',
             '/biz/process/filelist',
+            '/biz/process/project/product-item-relation/list',
         ], true)) {
             return true;
         }
@@ -78,9 +79,7 @@ class AuthMiddleware
             '/biz/task/history/page',
             '/biz/task/runtime/activity/detail',
             '/biz/process/page',
-            '/biz/process/all/page',
             '/biz/process/detail',
-            '/biz/saleproject/file/relation/list',
         ], true);
     }
 

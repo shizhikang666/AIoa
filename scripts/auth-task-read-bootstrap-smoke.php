@@ -33,12 +33,31 @@ foreach ([
     '/biz/task/history/page',
     '/biz/task/runtime/activity/detail',
     '/biz/process/page',
-    '/biz/process/all/page',
     '/biz/process/detail',
 ] as $path) {
     if ($permission->invoke($middleware, $request($path), $payload) !== true) {
         throw new RuntimeException("authenticated task read path was denied: {$path}");
     }
+}
+
+if ($permission->invoke($middleware, $request('/biz/process/all/page'), $payload) !== false) {
+    throw new RuntimeException('all-process page must require its explicit API permission');
+}
+
+$allProcessPayload = $payload;
+$allProcessPayload['permission_codes'] = ['/biz/process/all/page'];
+if ($permission->invoke($middleware, $request('/biz/process/all/page'), $allProcessPayload) !== true) {
+    throw new RuntimeException('explicit all-process permission was not honored');
+}
+
+if ($permission->invoke($middleware, $request('/biz/saleproject/file/relation/list'), $payload) !== false) {
+    throw new RuntimeException('project attachment list must require its explicit API permission');
+}
+
+$projectFilePayload = $payload;
+$projectFilePayload['permission_codes'] = ['/biz/saleproject/file/relation/list'];
+if ($permission->invoke($middleware, $request('/biz/saleproject/file/relation/list'), $projectFilePayload) !== true) {
+    throw new RuntimeException('explicit project attachment-list permission was not honored');
 }
 
 foreach ([
