@@ -837,6 +837,7 @@ Route::group('biz/process', function () {
     Route::get('query', 'biz.ProcessController/query');
     Route::post('query/list', 'biz.ProcessController/queryList');
     Route::get('project/runtime/query/list', 'biz.ProcessController/projectRuntimeQueryList');
+    Route::post('project/product-item-relation/list', 'biz.ProcessController/projectProductItemRelationList');
     Route::post('fileList', 'biz.ProcessController/fileList');
     Route::get('detail', 'biz.ProcessController/detail');
     Route::post('variable', 'biz.ProcessController/variable');

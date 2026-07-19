@@ -32,7 +32,10 @@ class ProductController extends BaseSysController
 
     public function children(Request $request): Response
     {
-        return $this->guard(fn () => $this->productService->children($this->childrenInput($request)));
+        return $this->guard(fn () => $this->productService->children(
+            $this->childrenInput($request),
+            $this->authPayload($request)
+        ));
     }
 
     public function add(Request $request): Response

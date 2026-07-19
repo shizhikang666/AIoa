@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -71,10 +72,20 @@ SQL;
 
     public function detail(array $filters = [], array $payload = []): array
     {
+        $currentUserId = $this->currentUserId($payload);
+        $tenantId = $this->tenantId($payload);
+        if (
+            !TenantScope::canCrossTenant($payload)
+            && ($currentUserId === '' || $tenantId === '')
+        ) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
         $userId = trim((string)($filters['userId'] ?? $filters['user_id'] ?? ''));
         if ($userId === '') {
-            $userId = $this->currentUserId($payload);
+            $userId = $currentUserId;
         }
+        $this->assertDetailTargetReadable($userId, $payload);
 
         $category = trim((string)($filters['category'] ?? ''));
         if ($category === '') {
@@ -90,7 +101,6 @@ SQL;
             ->where('v.DELETE_FLAG', self::NOT_DELETE)
             ->whereBetweenTime('v.CREATE_TIME', date('Y-01-01 00:00:00'), date('Y-12-31 23:59:59'));
 
-        $tenantId = $this->tenantId($payload);
         if ($tenantId !== '') {
             $query->where('v.TENANT_ID', $tenantId);
         }
@@ -120,6 +130,92 @@ SQL;
         }
 
         return $this->vacationRow($row);
+    }
+
+    private function assertDetailTargetReadable(string $userId, array $payload): void
+    {
+        $userId = trim($userId);
+        $currentUserId = trim($this->currentUserId($payload));
+        if ($userId === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
+        if (TenantScope::canCrossTenant($payload) || hash_equals($currentUserId, $userId)) {
+            return;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? $payload['roleCodeList'] ?? [];
+        if (is_string($roleCodes)) {
+            $roleCodes = explode(',', $roleCodes);
+        }
+        if (is_array($roleCodes)) {
+            foreach ($roleCodes as $roleCode) {
+                if (is_array($roleCode)) {
+                    $roleCode = $roleCode['code'] ?? $roleCode['roleCode'] ?? '';
+                }
+                if (strtolower(trim((string)$roleCode)) === 'tenantadmin') {
+                    return;
+                }
+            }
+        }
+
+        $pageScope = null;
+        $dataScopes = $payload['data_scopes'] ?? $payload['dataScopeList'] ?? [];
+        if (is_array($dataScopes)) {
+            foreach ($dataScopes as $scope) {
+                if (!is_array($scope)) {
+                    continue;
+                }
+                $apiUrl = strtolower(trim((string)($scope['apiUrl'] ?? $scope['api_url'] ?? '')));
+                if ($apiUrl === '/biz/bizuservacation/page') {
+                    $pageScope = $scope;
+                    break;
+                }
+            }
+        }
+        if (!is_array($pageScope)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $scopeCategory = strtoupper(trim((string)(
+            $pageScope['scopeCategory'] ?? $pageScope['scope_category'] ?? ''
+        )));
+        if ($scopeCategory === 'SCOPE_ALL') {
+            $targetExists = Db::name('sys_user')
+                ->where('ID', $userId)
+                ->where('TENANT_ID', $this->tenantId($payload))
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+                })
+                ->count() > 0;
+            if ($targetExists) {
+                return;
+            }
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $scopeOrgIds = $pageScope['scopeOrgIdList'] ?? $pageScope['scope_org_id_list'] ?? [];
+        if (is_string($scopeOrgIds)) {
+            $scopeOrgIds = explode(',', $scopeOrgIds);
+        }
+        $scopeOrgIds = is_array($scopeOrgIds) ? array_values(array_unique(array_filter(array_map(
+            static fn (mixed $orgId): string => trim((string)$orgId),
+            $scopeOrgIds
+        )))) : [];
+        if ($scopeOrgIds === []) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $targetExists = Db::name('sys_user')
+            ->where('ID', $userId)
+            ->where('TENANT_ID', $this->tenantId($payload))
+            ->whereIn('ORG_ID', $scopeOrgIds)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
+            ->count() > 0;
+        if (!$targetExists) {
+            throw new RuntimeException('permission denied', 403);
+        }
     }
 
     public function add(array $input, array $payload = []): array

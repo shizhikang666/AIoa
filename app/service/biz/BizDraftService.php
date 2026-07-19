@@ -27,9 +27,14 @@ d.EXT_JSON AS EXT_JSON,
 d.TENANT_ID AS TENANT_ID
 SQL;
 
+    public function __construct(private readonly SaleProjectService $saleProjectService = new SaleProjectService())
+    {
+    }
+
     public function addOrEditSaleProjectDraft(array $input, array $payload = []): null
     {
         $targetId = $this->requiredInput($input, 'targetId');
+        $this->saleProjectService->assertDraftWritable($targetId, $payload);
         $extJson = $this->requiredExtJson($input['extJson'] ?? null);
         $tenantId = $this->tenantId($payload);
         if ($tenantId === '') {
@@ -39,6 +44,7 @@ SQL;
         Db::transaction(function () use ($targetId, $extJson, $tenantId, $payload): void {
             $existing = Db::name('biz_draft')
                 ->where('TARGET_ID', $targetId)
+                ->where('CATEGORY', self::SALE_PROJECT_INIT)
                 ->where('TENANT_ID', $tenantId)
                 ->where('DELETE_FLAG', self::NOT_DELETE)
                 ->order('UPDATE_TIME', 'desc')
@@ -79,10 +85,12 @@ SQL;
 
     public function detail(string $targetId, array $payload = []): ?array
     {
+        $this->saleProjectService->assertDraftReadable($targetId, $payload);
         $query = Db::name('biz_draft')
             ->alias('d')
             ->field(self::FIELDS)
             ->where('d.TARGET_ID', $targetId)
+            ->where('d.CATEGORY', self::SALE_PROJECT_INIT)
             ->where('d.DELETE_FLAG', self::NOT_DELETE);
 
         $tenantId = $this->tenantId($payload);

@@ -59,6 +59,95 @@ SQL;
         return $this->relationRows($query->select()->toArray());
     }
 
+    /**
+     * Return the minimum product identity required by a project workflow form.
+     *
+     * This path is intentionally separate from listByObjectIds(): workflow
+     * participants may read the exact process form without receiving purchase,
+     * minimum or sale prices from the full project-product relation endpoint.
+     *
+     * @param array<int, string> $objectIds
+     * @return array<int, array<string, mixed>>
+     */
+    public function listForWorkflowProject(
+        array $objectIds,
+        string $projectId,
+        array $payload = []
+    ): array {
+        $ids = array_values(array_unique($this->stringList($objectIds)));
+        $projectId = trim($projectId);
+        if ($ids === []) {
+            return [];
+        }
+        if ($projectId === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $tenantId = trim((string)($payload['tenant_id'] ?? ''));
+        if ($tenantId === '' && !$this->isPlatformSuperAdmin($payload)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $itemQuery = Db::name('biz_sale_project_product_item')
+            ->whereIn('ID', $ids)
+            ->where('PROJECT_ID', $projectId);
+        $this->whereNotDeleted($itemQuery, 'DELETE_FLAG');
+        if ($tenantId !== '') {
+            $itemQuery->where('TENANT_ID', $tenantId);
+        }
+        if ((int)$itemQuery->count() !== count($ids)) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $query = Db::name('sale_project_product_item_relation')
+            ->alias('r')
+            ->join('biz_sale_project_product_item i', 'i.ID = r.OBJECT_ID', 'INNER')
+            ->join('biz_sale_project project', 'project.ID = i.PROJECT_ID', 'INNER')
+            ->leftJoin('biz_product product', 'product.ID = r.TARGET_ID AND product.TENANT_ID = r.TENANT_ID')
+            ->whereIn('r.OBJECT_ID', $ids)
+            ->where('i.PROJECT_ID', $projectId)
+            ->field(
+                'r.ID,r.OBJECT_ID,r.TARGET_ID,r.NUMBER,r.REMARK,'
+                . 'product.PRODUCT_NAME,product.PRODUCT_CATEGORY,'
+                . 'product.CATEGORY AS PRODUCT_SYS_CATEGORY,product.SPECS'
+            )
+            ->order('r.ID', 'asc');
+        $this->whereNotDeleted($query, 'r.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'i.DELETE_FLAG');
+        $this->whereNotDeleted($query, 'project.DELETE_FLAG');
+
+        if ($tenantId !== '') {
+            $query
+                ->where('r.TENANT_ID', $tenantId)
+                ->where('i.TENANT_ID', $tenantId)
+                ->where('project.TENANT_ID', $tenantId);
+        }
+
+        return array_map(function (array $row): array {
+            $product = [
+                'id' => $row['TARGET_ID'] ?? null,
+                'productName' => $row['PRODUCT_NAME'] ?? null,
+                'productCategory' => $row['PRODUCT_CATEGORY'] ?? null,
+                'category' => $row['PRODUCT_SYS_CATEGORY'] ?? null,
+                'specs' => $row['SPECS'] ?? null,
+            ];
+
+            return [
+                'id' => $row['ID'] ?? null,
+                'objectId' => $row['OBJECT_ID'] ?? null,
+                'targetId' => $row['TARGET_ID'] ?? null,
+                'productId' => $row['TARGET_ID'] ?? null,
+                'number' => $this->decimal($row['NUMBER'] ?? null),
+                'remark' => $row['REMARK'] ?? null,
+                'productName' => $product['productName'],
+                'productCategory' => $product['productCategory'],
+                'productSysCategory' => $product['category'],
+                'specs' => $product['specs'],
+                'extJson' => json_encode(['product' => $product], JSON_UNESCAPED_UNICODE),
+            ];
+        }, $query->select()->toArray());
+    }
+
     public function editMark(array $input, array $payload = []): array
     {
         $id = $this->requiredString($input, 'id');
@@ -229,6 +318,26 @@ SQL;
 
         foreach ($roleCodes as $roleCode) {
             if (in_array(strtolower((string)$roleCode), ['superadmin', 'tenantadmin', 'bizadmin'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isPlatformSuperAdmin(array $payload): bool
+    {
+        if (strtolower(trim((string)($payload['account'] ?? ''))) === 'superadmin') {
+            return true;
+        }
+
+        $roleCodes = $payload['role_codes'] ?? [];
+        if (!is_array($roleCodes)) {
+            return false;
+        }
+
+        foreach ($roleCodes as $roleCode) {
+            if (strtolower(trim((string)$roleCode)) === 'superadmin') {
                 return true;
             }
         }

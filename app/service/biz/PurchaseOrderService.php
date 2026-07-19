@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -159,6 +160,24 @@ SQL;
             'bizPurchaseOrderItemList' => $this->itemRowsByOrderId($id, $payload),
             'bizExpenditureRecordList' => $this->expenditureRows($id, $payload),
         ];
+    }
+
+    public function assertReadable(string $id, array $payload = []): void
+    {
+        $id = trim($id);
+        if (
+            $id === ''
+            || (!TenantScope::canCrossTenant($payload) && TenantScope::tenantId($payload) === '')
+        ) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $row = $this->orderQuery(['id' => $id], $payload)
+            ->field('o.ID AS ID')
+            ->find();
+        if (!is_array($row) || $row === []) {
+            throw new RuntimeException('permission denied', 403);
+        }
     }
 
     public function add(array $input, array $payload = []): array
@@ -1309,6 +1328,7 @@ SQL;
 
     private function orderQuery(array $filters, array $payload)
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         $query = Db::name('biz_purchase_order')
             ->alias('o')
             ->leftJoin('sys_org org', 'org.ID = o.ORG')
@@ -1340,8 +1360,20 @@ SQL;
             } else {
                 $query->whereIn('o.ORG', $orgIds);
             }
-        } elseif (!empty($payload['data_scope_org_ids']) && is_array($payload['data_scope_org_ids'])) {
-            $query->whereIn('o.ORG', array_map('strval', $payload['data_scope_org_ids']));
+        }
+
+        $scopeOrgIds = $this->scopeOrgIds($payload);
+        if (!$this->canSeeAll($payload)) {
+            if ($scopeOrgIds !== []) {
+                $query->whereIn('o.ORG', $scopeOrgIds);
+            } else {
+                $currentUserId = $this->currentUserId($payload);
+                if ($currentUserId === '') {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->where('o.CREATE_USER', $currentUserId);
+                }
+            }
         }
 
         if (!empty($filters['supplierName'])) {
@@ -1741,9 +1773,16 @@ SQL;
 
     private function tenantId(array $input, array $payload): string
     {
-        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $inputTenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? ''));
+        $payloadTenantId = TenantScope::tenantId($payload);
+        if (TenantScope::canCrossTenant($payload)) {
+            return $inputTenantId !== '' ? $inputTenantId : ($payloadTenantId !== '' ? $payloadTenantId : '1');
+        }
+        if ($payloadTenantId === '' || ($inputTenantId !== '' && $inputTenantId !== $payloadTenantId)) {
+            throw new RuntimeException('permission denied', 403);
+        }
 
-        return $tenantId !== '' ? $tenantId : '1';
+        return $payloadTenantId;
     }
 
     private function defaultOrgId(array $payload): ?string

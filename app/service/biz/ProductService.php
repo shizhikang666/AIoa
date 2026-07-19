@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -81,7 +82,7 @@ class ProductService
 
         return [
             'bizProduct' => $this->productRows([$row], $payload, true)[0],
-            'productList' => $this->kitProductsForObject($id),
+            'productList' => $this->kitProductsForObject($id, (string)($row['TENANT_ID'] ?? '')),
         ];
     }
 
@@ -89,23 +90,50 @@ class ProductService
      * @param array<int|string, mixed> $input
      * @return array<int, array<string, mixed>>
      */
-    public function children(array $input): array
+    public function children(array $input, array $payload = []): array
     {
         $objectIds = $this->normalizeIdList($input);
         if ($objectIds === []) {
             return [];
         }
+        if (!TenantScope::canCrossTenant($payload) && TenantScope::tenantId($payload) === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        $relationTenantId = null;
+        foreach ($objectIds as $objectId) {
+            $product = $this->productQuery(['id' => $objectId], $payload, false)
+                ->field('p.ID AS ID,p.TENANT_ID AS TENANT_ID')
+                ->find();
+            if (!is_array($product) || $product === []) {
+                throw new RuntimeException('permission denied', 403);
+            }
+            $productTenantId = trim((string)($product['TENANT_ID'] ?? ''));
+            if ($productTenantId === '' || ($relationTenantId !== null && $relationTenantId !== $productTenantId)) {
+                throw new RuntimeException('permission denied', 403);
+            }
+            $relationTenantId = $productTenantId;
+        }
 
         $relations = Db::name('product_relation')
             ->whereIn('OBJECT_ID', $objectIds)
             ->where('CATEGORY', self::KIT_PRODUCT_DATA)
+            ->where(function ($query) use ($relationTenantId): void {
+                $query->where('TENANT_ID', $relationTenantId)
+                    ->whereOr(function ($legacy): void {
+                        $legacy->whereNull('TENANT_ID')->whereOr('TENANT_ID', '');
+                    });
+            })
             ->order('ID', 'asc')
             ->select()
             ->toArray();
-        $fallbackProducts = $this->fallbackProductsForRelations($relations);
+        $fallbackProducts = $this->fallbackProductsForRelations($relations, (string)$relationTenantId);
 
-        return array_values(array_map(function (array $relation) use ($fallbackProducts): array {
-            $product = $this->productFromExtJson((string)($relation['EXT_JSON'] ?? ''));
+        return array_values(array_map(function (array $relation) use ($fallbackProducts, $relationTenantId): array {
+            $product = $this->productFromExtJson(
+                (string)($relation['EXT_JSON'] ?? ''),
+                (string)$relationTenantId
+            );
             if ($product === null) {
                 $product = $fallbackProducts[(string)($relation['TARGET_ID'] ?? '')] ?? null;
             }
@@ -306,6 +334,7 @@ class ProductService
 
     private function assertNewProductWritable(array $row, array $payload): void
     {
+        TenantScope::assertCompatible($payload, $row['TENANT_ID'] ?? null);
         if ($this->canSeeAll($payload)) {
             return;
         }
@@ -378,6 +407,7 @@ class ProductService
 
         $rows = Db::name('biz_product')
             ->whereIn('ID', $targetIds)
+            ->where('TENANT_ID', $tenantId)
             ->where(function ($query): void {
                 $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
             })
@@ -395,6 +425,12 @@ class ProductService
         Db::name('product_relation')
             ->where('OBJECT_ID', $productId)
             ->where('CATEGORY', self::KIT_PRODUCT_DATA)
+            ->where(function ($query) use ($tenantId): void {
+                $query->where('TENANT_ID', $tenantId)
+                    ->whereOr(function ($legacy): void {
+                        $legacy->whereNull('TENANT_ID')->whereOr('TENANT_ID', '');
+                    });
+            })
             ->delete();
 
         $relationRows = [];
@@ -479,6 +515,9 @@ class ProductService
 
     private function activeProduct(string $id, array $payload): array
     {
+        if (!TenantScope::canCrossTenant($payload) && TenantScope::tenantId($payload) === '') {
+            throw new RuntimeException('permission denied', 403);
+        }
         $query = Db::name('biz_product')->where('ID', $id);
         $this->whereNotDeleted($query, 'DELETE_FLAG');
 
@@ -586,9 +625,16 @@ class ProductService
 
     private function tenantId(array $input, array $payload): string
     {
-        $tenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? $payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
+        $inputTenantId = trim((string)($input['tenantId'] ?? $input['tenant_id'] ?? ''));
+        $payloadTenantId = TenantScope::tenantId($payload);
+        if (TenantScope::canCrossTenant($payload)) {
+            return $inputTenantId !== '' ? $inputTenantId : ($payloadTenantId !== '' ? $payloadTenantId : '1');
+        }
+        if ($payloadTenantId === '' || ($inputTenantId !== '' && $inputTenantId !== $payloadTenantId)) {
+            throw new RuntimeException('permission denied', 403);
+        }
 
-        return $tenantId !== '' ? $tenantId : '1';
+        return $payloadTenantId;
     }
 
     private function defaultOrgId(array $payload): ?string
@@ -647,6 +693,7 @@ class ProductService
 
     private function productQuery(array $filters, array $payload, bool $hideDisabledByDefault)
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         $query = Db::name('biz_product')
             ->alias('p')
             ->field('p.*, creator.NAME AS CREATE_USER_NAME, updater.NAME AS UPDATE_USER_NAME')
@@ -875,18 +922,24 @@ class ProductService
     /**
      * @return array<int, array{number: int|null, product: array<string, mixed>|null}>
      */
-    private function kitProductsForObject(string $objectId): array
+    private function kitProductsForObject(string $objectId, string $tenantId): array
     {
         $relations = Db::name('product_relation')
             ->where('OBJECT_ID', $objectId)
             ->where('CATEGORY', self::KIT_PRODUCT_DATA)
+            ->where(function ($query) use ($tenantId): void {
+                $query->where('TENANT_ID', $tenantId)
+                    ->whereOr(function ($legacy): void {
+                        $legacy->whereNull('TENANT_ID')->whereOr('TENANT_ID', '');
+                    });
+            })
             ->order('ID', 'asc')
             ->select()
             ->toArray();
-        $fallbackProducts = $this->fallbackProductsForRelations($relations);
+        $fallbackProducts = $this->fallbackProductsForRelations($relations, $tenantId);
 
-        return array_values(array_map(function (array $relation) use ($fallbackProducts): array {
-            $product = $this->productFromExtJson((string)($relation['EXT_JSON'] ?? ''));
+        return array_values(array_map(function (array $relation) use ($fallbackProducts, $tenantId): array {
+            $product = $this->productFromExtJson((string)($relation['EXT_JSON'] ?? ''), $tenantId);
             if ($product === null) {
                 $product = $fallbackProducts[(string)($relation['TARGET_ID'] ?? '')] ?? null;
             }
@@ -902,7 +955,7 @@ class ProductService
      * @param array<int, array<string, mixed>> $relations
      * @return array<string, array<string, mixed>>
      */
-    private function fallbackProductsForRelations(array $relations): array
+    private function fallbackProductsForRelations(array $relations, string $tenantId): array
     {
         $targetIds = array_values(array_unique(array_filter(array_map(
             static fn (array $row): string => (string)($row['TARGET_ID'] ?? ''),
@@ -914,6 +967,10 @@ class ProductService
 
         $rows = Db::name('biz_product')
             ->whereIn('ID', $targetIds)
+            ->where('TENANT_ID', $tenantId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', self::NOT_DELETE);
+            })
             ->select()
             ->toArray();
 
@@ -925,7 +982,7 @@ class ProductService
         return $products;
     }
 
-    private function productFromExtJson(string $extJson): ?array
+    private function productFromExtJson(string $extJson, string $tenantId): ?array
     {
         if (trim($extJson) === '') {
             return null;
@@ -933,6 +990,15 @@ class ProductService
 
         $decoded = json_decode($extJson, true);
         if (!is_array($decoded) || !isset($decoded['product']) || !is_array($decoded['product'])) {
+            return null;
+        }
+
+        $productTenantId = trim((string)(
+            $decoded['product']['tenantId']
+            ?? $decoded['product']['TENANT_ID']
+            ?? ''
+        ));
+        if ($productTenantId === '' || !hash_equals($tenantId, $productTenantId)) {
             return null;
         }
 

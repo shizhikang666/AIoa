@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace app\service\biz;
 
 use app\support\SensitiveFieldCodec;
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -235,6 +236,79 @@ SQL;
         }
 
         return $this->detailsForProjects($this->projectRows([$row]), $payload)[0];
+    }
+
+    /**
+     * Guard auxiliary project reads that are served by another module (for
+     * example workflow runtime lookups) with the same tenant and data-scope
+     * rules as the project detail endpoint.
+     */
+    public function assertReadable(string $id, array $payload = []): void
+    {
+        $id = trim($id);
+        if ($this->projectInDataScope($id, $payload) !== null) {
+            return;
+        }
+
+        if ($this->canReadProjectFromWorkflow($id, $payload)) {
+            return;
+        }
+
+        throw new RuntimeException('permission denied', 403);
+    }
+
+    /**
+     * Draft data is editable business state, so workflow participation alone
+     * is not sufficient. The project must remain inside the caller's normal
+     * sale-project data scope.
+     */
+    public function assertDraftWritable(string $id, array $payload = []): void
+    {
+        $row = $this->projectInDataScope($id, $payload, 'p.PROJECT_STATE AS PROJECT_STATE');
+        if ($row === null) {
+            throw new RuntimeException('permission denied', 403);
+        }
+        if ((string)($row['PROJECT_STATE'] ?? '') !== self::FOLLOW_STATE) {
+            throw new RuntimeException('sale project state is not FOLLOW', 400);
+        }
+    }
+
+    /**
+     * Read draft data only for projects visible through the normal project
+     * data scope; unlike project detail, this deliberately has no workflow
+     * participant fallback.
+     */
+    public function assertDraftReadable(string $id, array $payload = []): void
+    {
+        $this->assertScopedReadable($id, $payload);
+    }
+
+    public function assertScopedReadable(string $id, array $payload = []): void
+    {
+        if ($this->projectInDataScope($id, $payload) === null) {
+            throw new RuntimeException('permission denied', 403);
+        }
+    }
+
+    /** @return array<string, mixed>|null */
+    private function projectInDataScope(
+        string $id,
+        array $payload,
+        string $fields = 'p.ID AS ID'
+    ): ?array {
+        $id = trim($id);
+        if (
+            $id === ''
+            || (!TenantScope::canCrossTenant($payload) && TenantScope::tenantId($payload) === '')
+        ) {
+            return null;
+        }
+
+        $row = $this->projectQuery(['id' => $id], $payload)
+            ->field($fields)
+            ->find();
+
+        return is_array($row) && $row !== [] ? $row : null;
     }
 
     /**
@@ -2759,6 +2833,7 @@ SQL;
 
     private function projectQuery(array $filters, array $payload, bool $applyDataScope = true)
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         $query = Db::name('biz_sale_project')
             ->alias('p')
             ->leftJoin('customer c', 'c.ID = p.CUSTOMER')
@@ -3008,11 +3083,39 @@ SQL;
 
         $tenantId = trim((string)($payload['tenant_id'] ?? $payload['tenantId'] ?? ''));
         if ($tenantId !== '') {
+            $tenantUserIds = array_values(array_unique(array_map(
+                'strval',
+                Db::name('sys_user')->where('TENANT_ID', $tenantId)->column('ID')
+            )));
             $processIds = array_values(array_filter(array_map(
                 'strval',
                 Db::name('act_hi_procinst')
                     ->whereIn('PROC_INST_ID_', $processIds)
-                    ->where('TENANT_ID_', $tenantId)
+                    ->where(function ($scope) use ($tenantId, $tenantUserIds): void {
+                        $scope->where('TENANT_ID_', $tenantId);
+                        $scope->whereOr(function ($legacy) use ($tenantId, $tenantUserIds): void {
+                            $legacy->where(function ($emptyTenant): void {
+                                $emptyTenant->whereNull('TENANT_ID_')->whereOr('TENANT_ID_', '');
+                            })->where(function ($identity) use ($tenantId, $tenantUserIds): void {
+                                $identity->whereRaw(
+                                    "EXISTS (SELECT 1 FROM act_hi_varinst tenant_var"
+                                    . " WHERE BINARY tenant_var.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_"
+                                    . " AND tenant_var.NAME_ = 'tenantId'"
+                                    . " AND (tenant_var.TEXT_ = ? OR tenant_var.TEXT2_ = ? OR CAST(tenant_var.LONG_ AS CHAR) = ?))",
+                                    [$tenantId, $tenantId, $tenantId]
+                                );
+                                if ($tenantUserIds !== []) {
+                                    $identity->whereOr(function ($starterFallback) use ($tenantUserIds): void {
+                                        $starterFallback->whereRaw(
+                                            "NOT EXISTS (SELECT 1 FROM act_hi_varinst any_tenant_var"
+                                            . " WHERE BINARY any_tenant_var.PROC_INST_ID_ = BINARY act_hi_procinst.PROC_INST_ID_"
+                                            . " AND any_tenant_var.NAME_ = 'tenantId')"
+                                        )->whereIn('START_USER_ID_', $tenantUserIds);
+                                    });
+                                }
+                            });
+                        });
+                    })
                     ->column('PROC_INST_ID_')
             )));
             if ($processIds === []) {
@@ -3163,8 +3266,6 @@ SQL;
             } else {
                 $query->whereIn('p.ORG', $orgIds);
             }
-
-            return;
         }
 
         if ($this->canSeeAll($payload)) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -106,6 +107,31 @@ SQL;
         }
 
         return $this->receiptRows([$row])[0];
+    }
+
+    public function assertReadable(string $id, array $payload = []): void
+    {
+        $id = trim($id);
+        if (
+            $id === ''
+            || (!TenantScope::canCrossTenant($payload) && TenantScope::tenantId($payload) === '')
+        ) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        try {
+            $this->assertReceiptRowWritable(
+                $this->activeReceipt($id, $payload),
+                $payload,
+                'read this collection receipt'
+            );
+        } catch (RuntimeException $exception) {
+            if (in_array($exception->getCode(), [403, 404], true)) {
+                throw new RuntimeException('permission denied', 403);
+            }
+
+            throw $exception;
+        }
     }
 
     public function add(array $input, array $payload = []): array
@@ -383,6 +409,7 @@ SQL;
 
     private function receiptQuery(array $filters, array $payload)
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         $query = Db::name('biz_collection_receipt')
             ->alias('c')
             ->leftJoin('biz_payment_record p', 'p.ID = c.PAYMENT_RECORD_ID')

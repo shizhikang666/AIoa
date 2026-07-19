@@ -7,8 +7,15 @@ namespace app\controller\biz;
 use app\service\workflow\WorkflowQueryService;
 use app\service\workflow\WorkflowRuntimeService;
 use app\service\workflow\WorkflowVariableService;
+use app\service\biz\CollectionReceiptService;
+use app\service\biz\DebitNoteService;
 use app\service\biz\FileRelationService;
+use app\service\biz\PurchaseOrderService;
+use app\service\biz\ReturnOrderService;
+use app\service\biz\SaleProjectProductItemRelationService;
+use app\service\biz\SaleProjectService;
 use app\support\ApiResponse;
+use RuntimeException;
 use think\facade\Db;
 use think\Request;
 use think\Response;
@@ -19,7 +26,13 @@ class ProcessController extends BaseWorkflowController
         private readonly WorkflowQueryService $workflowQueryService = new WorkflowQueryService(),
         private readonly WorkflowRuntimeService $workflowRuntimeService = new WorkflowRuntimeService(),
         private readonly WorkflowVariableService $workflowVariableService = new WorkflowVariableService(),
-        private readonly FileRelationService $fileRelationService = new FileRelationService()
+        private readonly FileRelationService $fileRelationService = new FileRelationService(),
+        private readonly SaleProjectService $saleProjectService = new SaleProjectService(),
+        private readonly PurchaseOrderService $purchaseOrderService = new PurchaseOrderService(),
+        private readonly DebitNoteService $debitNoteService = new DebitNoteService(),
+        private readonly CollectionReceiptService $collectionReceiptService = new CollectionReceiptService(),
+        private readonly ReturnOrderService $returnOrderService = new ReturnOrderService(),
+        private readonly SaleProjectProductItemRelationService $saleProjectProductItemRelationService = new SaleProjectProductItemRelationService()
     ) {
     }
 
@@ -88,17 +101,62 @@ class ProcessController extends BaseWorkflowController
 
     public function query(Request $request): Response
     {
-        return $this->guard(fn () => $this->workflowQueryService->queryProcess($request->get()));
+        return $this->guard(function () use ($request): array {
+            $filters = $request->get();
+            $payload = $this->authPayload($request);
+            $this->assertProjectVariableReadable($filters, $payload);
+            $this->assertObjectVariableReadable($filters, $payload);
+
+            return $this->workflowQueryService->queryProcess($filters, $payload);
+        });
     }
 
     public function queryList(Request $request): Response
     {
-        return $this->guard(fn () => $this->workflowQueryService->queryProcessList($this->body($request)));
+        return $this->guard(function () use ($request): array {
+            $filters = $this->body($request);
+            $payload = $this->authPayload($request);
+            $this->assertPurchaseOrderProcessListReadable($filters, $payload);
+
+            return $this->workflowQueryService->queryProcessList($filters, $payload);
+        });
     }
 
     public function projectRuntimeQueryList(Request $request): Response
     {
-        return $this->guard(fn () => $this->workflowQueryService->projectRuntimeQueryList($request->get()));
+        return $this->guard(function () use ($request): array {
+            $filters = $request->get();
+            $projectId = trim((string)($filters['projectId'] ?? ''));
+            $payload = $this->authPayload($request);
+            $this->saleProjectService->assertReadable($projectId, $payload);
+
+            return $this->workflowQueryService->projectRuntimeQueryList($filters, $payload);
+        });
+    }
+
+    public function projectProductItemRelationList(Request $request): Response
+    {
+        $input = $this->body($request);
+
+        return $this->guard(function () use ($request, $input): array {
+            $processInstanceId = $this->processInstanceId($request, $input);
+            $payload = $this->authPayload($request);
+            $this->workflowQueryService->assertProcessReadable($processInstanceId, $payload);
+
+            $variables = $this->workflowVariableService->historyByProcessInstance($processInstanceId);
+            $projectId = trim((string)($variables['projectId'] ?? $variables['bizSaleProjectId'] ?? ''));
+            $objectIds = $this->stringList($input['objectIds'] ?? []);
+            $allowedObjectIds = $this->workflowProjectProductItemIds($variables);
+            if ($projectId === '' || array_diff($objectIds, $allowedObjectIds) !== []) {
+                throw new RuntimeException('permission denied', 403);
+            }
+
+            return $this->saleProjectProductItemRelationService->listForWorkflowProject(
+                $objectIds,
+                $projectId,
+                $payload
+            );
+        });
     }
 
     public function fileList(Request $request): Response
@@ -280,11 +338,123 @@ class ProcessController extends BaseWorkflowController
     }
 
     /**
+     * `/biz/process/query` is shared by several modules. Project-variable
+     * lookups must not turn a guessed project ID into a workflow-data oracle.
+     */
+    private function assertProjectVariableReadable(array $filters, array $payload): void
+    {
+        $variableName = strtolower(trim((string)($filters['variableName'] ?? '')));
+        if (!in_array($variableName, ['projectid', 'bizsaleprojectid'], true)) {
+            return;
+        }
+
+        $values = $this->stringList($filters['variable'] ?? $filters['variableList'] ?? []);
+        foreach ($values as $projectId) {
+            $this->saleProjectService->assertReadable($projectId, $payload);
+        }
+    }
+
+    /**
+     * Legacy list pages use objectId for several non-project workflows. Resolve
+     * each object to its owning module and reuse that module's page/detail data
+     * scope before exposing matching process IDs.
+     */
+    private function assertObjectVariableReadable(array $filters, array $payload): void
+    {
+        if (strtolower(trim((string)($filters['variableName'] ?? ''))) !== 'objectid') {
+            return;
+        }
+
+        $objectIds = $this->stringList($filters['variable'] ?? $filters['variableList'] ?? []);
+        if ($objectIds === []) {
+            return;
+        }
+
+        $typesByObjectId = [];
+        foreach ([
+            'biz_purchase_order' => 'purchaseOrder',
+            'biz_debit_note' => 'debitNote',
+            'biz_collection_receipt' => 'collectionReceipt',
+            'return_order' => 'returnOrder',
+        ] as $table => $objectType) {
+            $ids = Db::name($table)
+                ->whereIn('ID', $objectIds)
+                ->where(function ($query): void {
+                    $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '<>', 'DELETED');
+                })
+                ->column('ID');
+            foreach ($ids as $id) {
+                $typesByObjectId[(string)$id][] = $objectType;
+            }
+        }
+
+        foreach ($objectIds as $objectId) {
+            $objectTypes = $typesByObjectId[$objectId] ?? [];
+            if (count($objectTypes) !== 1) {
+                throw new RuntimeException('permission denied', 403);
+            }
+
+            $this->assertResolvedObjectReadable($objectTypes[0], $objectId, $payload);
+        }
+    }
+
+    private function assertResolvedObjectReadable(string $objectType, string $objectId, array $payload): void
+    {
+        match ($objectType) {
+            'purchaseOrder' => $this->purchaseOrderService->assertReadable($objectId, $payload),
+            'debitNote' => $this->debitNoteService->assertReadable($objectId, $payload),
+            'collectionReceipt' => $this->collectionReceiptService->assertReadable($objectId, $payload),
+            'returnOrder' => $this->returnOrderService->assertReadable($objectId, $payload),
+            default => throw new RuntimeException('permission denied', 403),
+        };
+    }
+
+    /**
+     * The only supported query-list consumer is the purchase-order process
+     * tab. Bind the generic workflow lookup to that business object before
+     * returning even summary process metadata.
+     */
+    private function assertPurchaseOrderProcessListReadable(array $filters, array $payload): void
+    {
+        $attributes = $filters['attribute'] ?? [];
+        if (!is_array($attributes) || array_keys($attributes) !== ['objectId']) {
+            throw new RuntimeException('invalid attribute', 400);
+        }
+
+        $objectId = trim((string)($attributes['objectId'] ?? ''));
+        $processKeys = $this->stringList(
+            $filters['processKeyList'] ?? $filters['processKeys'] ?? $filters['category'] ?? []
+        );
+        $allowedProcessKeys = [
+            'Process_procure_in_warehouse',
+            'Process_reimbursement',
+            'Process_make_payment',
+        ];
+        if (
+            $objectId === ''
+            || $processKeys === []
+            || array_diff($processKeys, $allowedProcessKeys) !== []
+        ) {
+            throw new RuntimeException('invalid process query', 400);
+        }
+
+        $this->purchaseOrderService->assertReadable($objectId, $payload);
+    }
+
+    /**
      * @param array<string, mixed> $variables
      * @return array<string, mixed>
      */
     private function withDisplayVariables(array $variables, string $processInstanceId): array
     {
+        $projectId = trim((string)($variables['projectId'] ?? $variables['bizSaleProjectId'] ?? ''));
+        if ($projectId !== '' && !isset($variables['projectName'])) {
+            $projectName = $this->saleProjectNameForProcess($projectId, $variables, $processInstanceId);
+            if ($projectName !== '') {
+                $variables['projectName'] = $projectName;
+            }
+        }
+
         $accountId = trim((string)($variables['accountId'] ?? ''));
         if ($accountId === '' || isset($variables['accountName'])) {
             return $variables;
@@ -301,14 +471,31 @@ class ProcessController extends BaseWorkflowController
     /**
      * @param array<string, mixed> $variables
      */
+    private function saleProjectNameForProcess(
+        string $projectId,
+        array $variables,
+        string $processInstanceId
+    ): string {
+        $tenantId = $this->processTenantId($variables, $processInstanceId);
+        if ($tenantId === '') {
+            return '';
+        }
+
+        return trim((string)Db::name('biz_sale_project')
+            ->where('ID', $projectId)
+            ->where('TENANT_ID', $tenantId)
+            ->where(function ($query): void {
+                $query->whereNull('DELETE_FLAG')->whereOr('DELETE_FLAG', '=', 'NOT_DELETE');
+            })
+            ->value('PROJECT_NAME'));
+    }
+
+    /**
+     * @param array<string, mixed> $variables
+     */
     private function settlementAccountNameForProcess(string $accountId, array $variables, string $processInstanceId): string
     {
-        $tenantId = trim((string)($variables['tenantId'] ?? ''));
-        if ($tenantId === '') {
-            $tenantId = trim((string)Db::name('act_hi_procinst')
-                ->where('PROC_INST_ID_', $processInstanceId)
-                ->value('TENANT_ID_'));
-        }
+        $tenantId = $this->processTenantId($variables, $processInstanceId);
 
         $query = Db::name('settlement_account')
             ->where('ID', $accountId)
@@ -321,6 +508,53 @@ class ProcessController extends BaseWorkflowController
         }
 
         return trim((string)$query->value('ACCOUNT_NAME'));
+    }
+
+    /**
+     * @param array<string, mixed> $variables
+     */
+    private function processTenantId(array $variables, string $processInstanceId): string
+    {
+        $tenantId = trim((string)($variables['tenantId'] ?? ''));
+        if ($tenantId !== '') {
+            return $tenantId;
+        }
+
+        return trim((string)Db::name('act_hi_procinst')
+            ->where('PROC_INST_ID_', $processInstanceId)
+            ->value('TENANT_ID_'));
+    }
+
+    /**
+     * @param array<string, mixed> $variables
+     * @return array<int, string>
+     */
+    private function workflowProjectProductItemIds(array $variables): array
+    {
+        $ids = [];
+        foreach (['projectProductItemList', 'productList'] as $variableName) {
+            $items = $variables[$variableName] ?? [];
+            if (!is_array($items)) {
+                continue;
+            }
+
+            foreach ($items as $item) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $id = trim((string)(
+                    $item['projectProductItemId']
+                    ?? $item['project_product_item_id']
+                    ?? $item['PROJECT_PRODUCT_ITEM_ID']
+                    ?? ''
+                ));
+                if ($id !== '') {
+                    $ids[] = $id;
+                }
+            }
+        }
+
+        return array_values(array_unique($ids));
     }
 
     /**

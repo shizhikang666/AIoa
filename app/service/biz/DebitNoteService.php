@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace app\service\biz;
 
+use app\support\TenantScope;
 use RuntimeException;
 use think\facade\Db;
 
@@ -111,6 +112,31 @@ SQL;
         }
 
         return $this->noteRows([$row])[0];
+    }
+
+    public function assertReadable(string $id, array $payload = []): void
+    {
+        $id = trim($id);
+        if (
+            $id === ''
+            || (!TenantScope::canCrossTenant($payload) && TenantScope::tenantId($payload) === '')
+        ) {
+            throw new RuntimeException('permission denied', 403);
+        }
+
+        try {
+            $this->assertNoteRowWritable(
+                $this->activeNote($id, $payload),
+                $payload,
+                'read this debit note'
+            );
+        } catch (RuntimeException $exception) {
+            if (in_array($exception->getCode(), [403, 404], true)) {
+                throw new RuntimeException('permission denied', 403);
+            }
+
+            throw $exception;
+        }
     }
 
     public function add(array $input, array $payload = []): array
@@ -441,6 +467,7 @@ SQL;
 
     private function noteQuery(array $filters, array $payload)
     {
+        $filters = TenantScope::scopedFilters($filters, $payload);
         $query = Db::name('biz_debit_note')
             ->alias('d')
             ->leftJoin('biz_expenditure_record e', 'e.ID = d.EXPENDITURE_RECORD_ID')
