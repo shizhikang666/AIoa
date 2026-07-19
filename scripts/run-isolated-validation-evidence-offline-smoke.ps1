@@ -20,6 +20,15 @@ $serverRuntime = Join-Path $manifest 'server-runtime'
 $clonePath = Join-Path $manifest 'clone-completed.json'
 $targetFinalPath = Join-Path $fixtureRoot 'target-final.json'
 $pointerPath = Join-Path $fixtureRoot 'pointer.json'
+$exitProbeStdout = Join-Path $fixtureRoot 'exit-probe.stdout.log'
+$exitProbeStderr = Join-Path $fixtureRoot 'exit-probe.stderr.log'
+$exitProbe = $null
+$nonzeroProbeStdout = Join-Path $fixtureRoot 'nonzero-probe.stdout.log'
+$nonzeroProbeStderr = Join-Path $fixtureRoot 'nonzero-probe.stderr.log'
+$nonzeroProbe = $null
+$timeoutProbeStdout = Join-Path $fixtureRoot 'timeout-probe.stdout.log'
+$timeoutProbeStderr = Join-Path $fixtureRoot 'timeout-probe.stderr.log'
+$timeoutProbe = $null
 $utf8 = [Text.UTF8Encoding]::new($false)
 
 function Write-Utf8Json([string]$Path, $Value) {
@@ -174,9 +183,74 @@ try {
         throw 'runner accepted a same-path target-final marker replacement'
     }
 
+    $exitProbe = Start-Process -FilePath $php `
+        -ArgumentList @((Join-Path $PSScriptRoot 'isolated-validation-parameters-offline-smoke.php')) `
+        -WorkingDirectory $projectRoot `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $exitProbeStdout `
+        -RedirectStandardError $exitProbeStderr `
+        -PassThru
+    $null = $exitProbe.Handle
+    if (!$exitProbe.WaitForExit(60000)) {
+        throw 'runner handle-pinning probe timed out'
+    }
+    if ($exitProbe.ExitCode -ne 0 `
+        -or (Get-Item -LiteralPath $exitProbeStderr).Length -ne 0 `
+        -or (Get-Item -LiteralPath $exitProbeStdout).Length -eq 0) {
+        throw 'runner handle-pinning probe did not preserve the child exit code'
+    }
+
+    $nonzeroProbe = Start-Process -FilePath $php `
+        -ArgumentList @('-r', 'exit(7);') `
+        -WorkingDirectory $projectRoot `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $nonzeroProbeStdout `
+        -RedirectStandardError $nonzeroProbeStderr `
+        -PassThru
+    $null = $nonzeroProbe.Handle
+    if (!$nonzeroProbe.WaitForExit(60000)) {
+        throw 'runner nonzero-exit probe timed out'
+    }
+    if ($nonzeroProbe.ExitCode -ne 7 `
+        -or (Get-Item -LiteralPath $nonzeroProbeStderr).Length -ne 0) {
+        throw 'runner handle-pinning probe masked a real nonzero child exit code'
+    }
+
+    $timeoutProbe = Start-Process -FilePath $php `
+        -ArgumentList @('-r', 'sleep(5);') `
+        -WorkingDirectory $projectRoot `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $timeoutProbeStdout `
+        -RedirectStandardError $timeoutProbeStderr `
+        -PassThru
+    $null = $timeoutProbe.Handle
+    if ($timeoutProbe.WaitForExit(100)) {
+        throw 'runner timeout probe exited before the timeout path was exercised'
+    }
+    Stop-Process -Id $timeoutProbe.Id -Force -ErrorAction Stop
+    if (!$timeoutProbe.WaitForExit(5000) -or !$timeoutProbe.HasExited) {
+        throw 'runner timeout probe cleanup did not stop the child process'
+    }
+
     'isolated validation runner evidence offline smoke passed'
 } finally {
-    foreach ($path in @($pointerPath, $targetFinalPath, $clonePath)) {
+    foreach ($probe in @($timeoutProbe, $nonzeroProbe, $exitProbe)) {
+        if ($null -ne $probe -and !$probe.HasExited) {
+            Stop-Process -Id $probe.Id -Force -ErrorAction SilentlyContinue
+            $null = $probe.WaitForExit(5000)
+        }
+    }
+    foreach ($path in @(
+        $timeoutProbeStdout,
+        $timeoutProbeStderr,
+        $nonzeroProbeStdout,
+        $nonzeroProbeStderr,
+        $exitProbeStdout,
+        $exitProbeStderr,
+        $pointerPath,
+        $targetFinalPath,
+        $clonePath
+    )) {
         if (Test-Path -LiteralPath $path) {
             Remove-Item -LiteralPath $path -Force
         }

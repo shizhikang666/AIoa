@@ -374,6 +374,7 @@ try {
         -RedirectStandardOutput $serverStdout `
         -RedirectStandardError $serverStderr `
         -PassThru
+    $null = $server.Handle
 
     $listener = $null
     for ($attempt = 0; $attempt -lt 100; $attempt++) {
@@ -402,6 +403,11 @@ try {
         -RedirectStandardOutput $clientStdout `
         -RedirectStandardError $clientStderr `
         -PassThru
+    # Windows PowerShell 5 can leave ExitCode as $null after WaitForExit when
+    # Start-Process output is redirected unless the process handle is pinned
+    # before the child exits. A null exit code must never be mistaken for a
+    # failed validation client after it has already performed the mutation.
+    $null = $client.Handle
     if (!$client.WaitForExit($ClientTimeoutSeconds * 1000)) {
         Stop-Process -Id $client.Id -Force -ErrorAction SilentlyContinue
         $null = $client.WaitForExit(5000)
